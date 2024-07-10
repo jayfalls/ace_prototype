@@ -116,7 +116,7 @@ async def get_api(api_port: str, endpoint: str, payload: BaseModel) -> str:
             print("Status:", response.status)
             print("Content-type:", response.headers['content-type'])
             html: str = await response.text()
-            print("Body:", html, "...")
+            print("Body:", html)
             return html
 
 async def post_api(api_port: str, endpoint: str, payload: BaseModel) -> str:
