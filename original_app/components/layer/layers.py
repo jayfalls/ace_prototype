@@ -25,7 +25,7 @@ from constants.layer import (
     LayerKeys, Layers, LayerCommands, LayerPaths
 )
 from constants.model_provider import LLMStackTypes
-from constants.prompts import PromptFilePaths
+from constants.prompts import PromptFilePaths, PromptKeys
 from constants.queue import BusKeys
 from constants.settings import DebugLevels
 from components.controller.api.bus.models import BusMessage, BusResponse
@@ -189,7 +189,7 @@ class Layer:
             output_response_prompt: str = build_prompt(
                 text_with_variables=self.base_prompt,
                 injection_map=OUTPUT_RESPONSE_MAP,
-                variable_map=self._get_variable_map()
+                variable_map={**self._get_variable_map(), PromptKeys.CONTEXT: (*self.guidance, *self.data)}
             )
             self.guidance = self.default_guidance
             self.data = self.default_data

@@ -1,8 +1,14 @@
 # DEPENDENCIES
+## Built-In
+import asyncio
+import json
 ## Local
+from constants.containers import ComponentPorts
 from constants.generic import GenericKeys
-from helpers import debug_print
+from constants.prompts import PromptKeys
 from constants.settings import DebugLevels
+from components.telemetry.api import TelemetryRequest
+from helpers import debug_print, get_api
 from ..layer_messages import LayerSubMessage
 
 
@@ -30,8 +36,17 @@ def build_text_from_sub_layer_messages(sub_messages: tuple[LayerSubMessage, ...]
         text += "\n\n"
     return text
 
+def build_text_from_dict(input_dict: dict[str, str]) -> str:
+    output_text: str = ""
+    for key, value in input_dict.items():
+        output_text += f"- {key}: {value}\n"
+    return output_text
+
 
 # EXTERNAL SOURCES
-def get_telemetry(telemetry: frozenset[str]) -> str:
-    # TODO: get telemetry then _build_text_from_dict
-    return "- None"
+def get_telemetry(access: frozenset[str], context_unformatted: tuple[LayerSubMessage, ...]) -> str:
+    context: str = build_text_from_sub_layer_messages(sub_messages=context_unformatted)
+    payload = TelemetryRequest(access=access, context=context)
+    response: dict = json.loads(asyncio.run(get_api(api_port=ComponentPorts.TELEMETRY, endpoint="telemetry", payload=payload)))
+    telemetry: str = build_text_from_dict(response[PromptKeys.TELEMETRY])
+    return telemetry

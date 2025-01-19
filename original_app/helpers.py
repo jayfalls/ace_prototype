@@ -111,12 +111,13 @@ async def get_api(api_port: str, endpoint: str, payload: BaseModel) -> str:
         async with session.get(
             url=f"http://127.0.0.1:{api_port}{APIRoutes.VONE}/{endpoint}", 
             data=payload.model_dump_json(), 
-            headers={'Content-Type': 'application/json'}
+            headers={'Content-Type': 'application/json'},
+            timeout=900
         ) as response:
-            print("Status:", response.status)
-            print("Content-type:", response.headers['content-type'])
+            print("Api Response Status:", response.status)
+            print("Api Response Content-type:", response.headers['content-type'])
             html: str = await response.text()
-            print("Body:", html)
+            print("Api Response Body:", html)
             return html
 
 async def post_api(api_port: str, endpoint: str, payload: BaseModel) -> str:
@@ -138,7 +139,8 @@ async def post_api(api_port: str, endpoint: str, payload: BaseModel) -> str:
         async with session.post(
             url=f"http://127.0.0.1:{api_port}{APIRoutes.VONE}/{endpoint}", 
             data=payload.model_dump_json(), 
-            headers={'Content-Type': 'application/json'}
+            headers={'Content-Type': 'application/json'},
+            timeout=900
         ) as response:
             print("Status:", response.status)
             print("Content-type:", response.headers['content-type'])

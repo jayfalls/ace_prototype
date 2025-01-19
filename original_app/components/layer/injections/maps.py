@@ -58,7 +58,7 @@ _DATA_METHOD = MethodInjection(
 _TELEMETRY_METHOD = MethodInjection(
     replace_variable_name=PromptKeys.TELEMETRY,
     function=get_telemetry,
-    paramaters=MethodInjectionParamaters(reference_variable_names=(PromptKeys.TELEMETRY,))
+    paramaters=MethodInjectionParamaters(reference_variable_names=(PromptKeys.TELEMETRY, PromptKeys.CONTEXT))
 )
 
 _RESPONSE_SCHEMA_FILE = ParamateriseFileInjection(
