@@ -1,3 +1,11 @@
 #!/usr/bin/env python3.13
 
-print("Hello ACE!")
+# DEPENDENCIES
+## Local
+from logger import logger
+
+def main():
+    logger.debug("Hello ACE!")
+    logger.info("Hello ACE!")
+
+main()

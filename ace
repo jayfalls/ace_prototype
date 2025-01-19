@@ -2,6 +2,15 @@
 
 # MAIN
 main() {
+    ace_logger_verbose_env="."
+    
+    for arg in "$@"; do
+        if [ "$arg" == "--dev" ]; then
+            ace_logger_verbose_env=""
+            break
+        fi
+    done
+
     if [ ! -d ".venv" ]; then
         echo "Python virtual environment doesn't existing, creating one..."
         python3.13 -m venv .venv
@@ -10,7 +19,8 @@ main() {
     cd app || exit
     echo "Installing/Updating requirements..."
     pip install --upgrade -r requirements #--force-reinstall
-    ./main.py "$@"
+
+    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$@"
     deactivate
 }
 
