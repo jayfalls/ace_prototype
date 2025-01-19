@@ -1,3 +1,10 @@
+# App Specific
+.config
+storage/
+.storage/
+expirements/
+.user_deployment.yaml
+
 # Mac
 .DS_Store
 

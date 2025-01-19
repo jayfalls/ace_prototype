@@ -2,15 +2,16 @@
 ## Built-In
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, final, Optional, Union
+from typing import Any, Callable, final, Optional
 ## Local
 from constants.generic import GenericKeys
 from constants.settings import DebugLevels
 from helpers import debug_print
 from .inputs import build_text_from_sub_layer_messages
+from ..layer_messages import LayerSubMessage
 
 
-VariableMap = dict[str, Union[str, frozenset[str]]]
+VariableMap = dict[str, str | frozenset[str] | tuple[LayerSubMessage, ...]]
 
 @dataclass
 class Injection(ABC):

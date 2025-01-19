@@ -3,7 +3,6 @@
 import asyncio
 from concurrent import futures
 from datetime import datetime
-from time import time
 from typing import Callable, Optional
 ## Third-Party
 import httpx
@@ -18,6 +17,7 @@ from helpers import check_internet_access, KeyValueCacheStore, get_api
 # CONSTANTS
 DEFAULT_CACHE_COUNT: int = 256
 NEWS_API_KEY: str = "pub_42899f1e388aa15a48c2f2a4a74bf5b1af43b"
+NEWS_TTL: int = 60 * 60 * 6 # 6 hours
 
 
 # GLOBAL
@@ -107,8 +107,7 @@ def _get_world_overview() -> str:
         future = executor.submit(lambda: event_loop.run_until_complete(_model_response(system_prompt)))
         response: ModelResponse = future.result()
     world_overview: str = response.response
-    six_hours_in_seconds: int = 60 * 60 * 6
-    key_value_cache.set(key=TelemetryKeys.WORLD_OVERVIEW_CACHE, value=world_overview, ttl_seconds=six_hours_in_seconds)
+    key_value_cache.set(key=TelemetryKeys.WORLD_OVERVIEW_CACHE, value=world_overview, ttl_seconds=NEWS_TTL)
     return world_overview
 
 def _get_hardware_statistics() -> str:
