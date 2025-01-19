@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# MAIN
+main() {
+    if [ ! -d ".venv" ]; then
+        echo "Python virtual environment doesn't existing, creating one..."
+        python3.13 -m venv .venv
+    fi
+    source .venv/bin/activate
+    cd app || exit
+    echo "Installing/Updating requirements..."
+    pip install --upgrade -r requirements #--force-reinstall
+    ./main.py "$@"
+    deactivate
+}
+
+main "$@"
