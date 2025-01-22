@@ -1,7 +1,7 @@
 # DEPENDENCIES
 ## Built-In
 import atexit
-from datetime import datetime
+import datetime
 import inspect
 import json
 import logging
@@ -21,7 +21,7 @@ _COLOR_CODES: dict[int, str] = {
 }
 _DEFAULT_COLOR_CODE: str = "\033[0m"  # Default color
 _DEFAULT_LOG_FILE_NAME: str = "startup"
-_LOG_FOLDER: str = "logs"
+_LOG_FOLDER: str = os.path.abspath("logs")
 class _DictKeys:
     FUNCTION_NAME: str = "function_name"
     LEVEL: str = "level"
@@ -37,7 +37,7 @@ class _EnvironmentVariables:
 class _JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord):
         log_data: dict[str, str] = {
-            _DictKeys.TIMESTAMP: datetime.utcnow().isoformat(),
+            _DictKeys.TIMESTAMP: datetime.datetime.now(datetime.UTC).isoformat(),
             _DictKeys.LEVEL: record.levelname,
             _DictKeys.FUNCTION_NAME: f"{record.name}()",
             _DictKeys.MESSAGE: record.getMessage(),
@@ -49,7 +49,7 @@ class _HumanReadableFormatter(logging.Formatter):
         color_code: str = _COLOR_CODES.get(record.levelno, _DEFAULT_COLOR_CODE)
 
         log_string = ""
-        log_string += datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        log_string += datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
         log_string += " | "
         log_string += f"{color_code}{record.levelname}{_DEFAULT_COLOR_CODE}"
         log_string += " | "
@@ -79,7 +79,8 @@ class _Logger:
         self._initialised = True
 
         os.makedirs(_LOG_FOLDER, exist_ok=True)
-        log_file = f"{_LOG_FOLDER}/{log_name}_{datetime.utcnow().strftime('%Y-%m-%d')}.log"
+        log_file: str = os.path.join(_LOG_FOLDER, f"{log_name}_{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d')}.log")
+        log_file = os.path.abspath(log_file)
 
         self.verbose = verbose
 
@@ -87,6 +88,7 @@ class _Logger:
         self.logger.setLevel(logging.INFO)
 
         self.logger.handlers: list[logging.Handler] = []
+        self.logger.handlers.clear()
 
         self.file_handler = logging.FileHandler(log_file)
         self.file_handler.setFormatter(_JSONFormatter())
@@ -126,15 +128,15 @@ class _Logger:
             args=(),
             exc_info=None,
         )
-        if self.verbose and level == logging.DEBUG:
-            return
+
         self.logger.handle(record)
 
         if stack_trace:
             self.logger.error(stack_trace)
 
     def debug(self, message: str):
-        self._log(logging.DEBUG, message)
+        if self.verbose:
+           self._log(logging.DEBUG, message)
 
     def info(self, message: str):
         self._log(logging.INFO, message)

@@ -19,3 +19,4 @@
 - `-r` Restart the ACE
 - `-u` Update the ACE
 - `--dev` Run the ACE in development mode
+- `--test` Run the ACE tests
