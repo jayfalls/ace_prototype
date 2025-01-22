@@ -1,12 +1,42 @@
 #!/bin/bash
 
+
+# STARTUP
+run_tests() {
+    echo "Installing/Updating test dependencies..."
+    pip install --upgrade -r tests/requirements
+
+    python -m pytest tests/unit/ -v
+    deactivate
+    exit 0
+}
+
+run_ace() {
+    ace_logger_verbose_env=$1
+
+    cd app || exit
+
+    echo "Installing/Updating requirements..."
+    pip install --upgrade -r requirements #--force-reinstall
+
+    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$@"
+    deactivate
+    exit 0
+}
+
+
 # MAIN
 main() {
     ace_logger_verbose_env="."
-    
+    run_tests=false
+
     for arg in "$@"; do
         if [ "$arg" == "--dev" ]; then
             ace_logger_verbose_env=""
+            break
+        fi
+        if [ "$arg" == "--test" ]; then
+            run_tests=true
             break
         fi
     done
@@ -16,12 +46,12 @@ main() {
         python3.13 -m venv .venv
     fi
     source .venv/bin/activate
-    cd app || exit
-    echo "Installing/Updating requirements..."
-    pip install --upgrade -r requirements #--force-reinstall
 
-    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$@"
-    deactivate
+    if [ "$run_tests" = true ]; then
+        run_tests
+    fi
+
+    run_ace "$ace_logger_verbose_env"
 }
 
 main "$@"
