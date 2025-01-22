@@ -44,23 +44,15 @@ def test_file_handler_creation(tmp_path, monkeypatch):
     # Change current directory to tmp_path so that _LOG_FOLDER is tmp_path/logs
     monkeypatch.chdir(tmp_path)
     
-    # Force reload module to apply patches
+    # Force reload module to apply patches, reset singleton state and import fresh instance
     if 'app.logger.logger' in sys.modules:
         del sys.modules['app.logger.logger']
-    
-    # Reset singleton state
     from app.logger.logger import _Logger
     _Logger._instance = None
-    
-    # Import fresh instance
     from app.logger.logger import logger
     
     # Test log message
     logger.info("Test message")
-    
-    # Force flush and close
-    logger.file_handler.flush()
-    logger.file_handler.close()
     
     # Find generated log files
     log_files = list(test_log_dir.glob("test_log_*.log"))
@@ -77,15 +69,13 @@ def test_verbose_mode_handler_config():
     """Test handler configuration based on verbosity"""
     with mock.patch.dict(os.environ, {
         "ACE_LOGGER_FILE_NAME": "test",
-        "ACE_LOGGER_VERBOSE": "True"
+        "ACE_LOGGER_VERBOSE": "."
     }):
-        # Reset logger state
+        # Force reload module to apply patches, reset singleton state and import fresh instance
         if 'app.logger.logger' in sys.modules:
             del sys.modules['app.logger.logger']
         from app.logger.logger import _Logger
         _Logger._instance = None
-    
-        # Import fresh instance
         from app.logger.logger import logger
     
         # Check handlers
@@ -102,12 +92,11 @@ def test_shutdown_cleanup(tmp_path):
     
     with mock.patch.dict(os.environ, {
         "ACE_LOGGER_FILE_NAME": "test",
-        "ACE_LOGGER_VERBOSE": "False"
+        "ACE_LOGGER_VERBOSE": ""
     }):
         with mock.patch("app.logger.logger._LOG_FOLDER", str(test_log_dir)):
             if 'app.logger.logger' in sys.modules:
                 del sys.modules['app.logger.logger']
-            
             from app.logger.logger import logger
             
             # Store initial handler count
@@ -125,22 +114,6 @@ def test_shutdown_cleanup(tmp_path):
             # Verify handlers were removed
             assert len(logger.logger.handlers) < initial_handlers
 
-def test_debug_filtering():
-    """Ensure debug messages are filtered when not verbose"""
-    with mock.patch.dict(os.environ, {
-        "ACE_LOGGER_FILE_NAME": "test",
-        "ACE_LOGGER_VERBOSE": "False"
-    }):
-        if 'app.logger.logger' in sys.modules:
-            del sys.modules['app.logger.logger']
-            
-        # Need to patch the logger class before importing
-        with mock.patch("app.logger.logger._Logger.debug") as mock_debug:
-            from app.logger.logger import logger
-            logger.debug("Should be filtered")
-            mock_debug.assert_called_once_with("Should be filtered")
-            # The actual filtering should happen inside the debug method
-
 def test_debug_logging_non_verbose_mode(tmp_path, monkeypatch):
     """Debug messages should NOT appear in logs when verbose=False"""
     # Setup
@@ -153,6 +126,8 @@ def test_debug_logging_non_verbose_mode(tmp_path, monkeypatch):
     # Reset logger
     if 'app.logger.logger' in sys.modules:
         del sys.modules['app.logger.logger']
+    from app.logger.logger import _Logger
+    _Logger._instance = None
     from app.logger.logger import logger
     
     # Test
@@ -178,6 +153,8 @@ def test_debug_logging_verbose_mode(tmp_path, monkeypatch):
     # Reset logger
     if 'app.logger.logger' in sys.modules:
         del sys.modules['app.logger.logger']
+    from app.logger.logger import _Logger
+    _Logger._instance = None
     from app.logger.logger import logger
     
     # Test
