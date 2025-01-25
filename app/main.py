@@ -5,7 +5,11 @@
 from logger import logger
 
 def main():
-    logger.debug("Hello ACE!")
-    logger.info("Hello ACE!")
+    logger.startup("Hello ACE!")
+    logger.debug("Dev logs...")
+    logger.info("Operations logs...")
+    logger.warn("Warning logs...")
+    logger.error("Error logs...")
+    logger.critical("Critical logs...")
 
 main()
