@@ -12,14 +12,16 @@ run_tests() {
 }
 
 run_ace() {
-    ace_logger_verbose_env=$1
+    args=$1
+    ace_logger_verbose_env=$2
 
     cd app || exit
 
     echo "Installing/Updating requirements..."
     pip install --upgrade -r requirements #--force-reinstall
 
-    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$@"
+    echo "$@"
+    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$args"
     deactivate
     exit 0
 }
@@ -51,7 +53,7 @@ main() {
         run_tests
     fi
 
-    run_ace "$ace_logger_verbose_env"
+    run_ace "$@" "$ace_logger_verbose_env"
 }
 
 main "$@"
