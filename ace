@@ -11,7 +11,7 @@ run_tests() {
 
     python -m pytest tests/unit/ -v
     deactivate
-    exit 0
+    exit $?
 }
 
 run_ace() {
@@ -22,7 +22,7 @@ run_ace() {
 
     ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE="$ACE_LOGGER_VERBOSE_ENV" ./startup.py "${@}"
     deactivate
-    exit 0
+    exit $?
 }
 
 # MAIN
