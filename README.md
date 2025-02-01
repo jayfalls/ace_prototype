@@ -1,3 +1,5 @@
+![Version](https://img.shields.io/badge/version-0.0.0-blue)
+
 <h1 align="center">🧠 ACE Prototype 🧠</h1>
 
 
@@ -17,6 +19,5 @@
 
 - `-s` Stop the ACE
 - `-r` Restart the ACE
-- `-u` Update the ACE
 - `--dev` Run the ACE in development mode
 - `--test` Run the ACE tests

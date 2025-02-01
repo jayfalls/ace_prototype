@@ -1,0 +1,60 @@
+name: Dynamic README
+
+on:
+  push:
+    paths:
+      - 'app/version'
+
+permissions:
+  contents: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Read version from JSON
+        id: version
+        run: |
+          if [ ! -f "app/version" ]; then
+            echo "Error: app/version file not found"
+            exit 1
+          fi
+          
+          if ! VERSION=$(jq -r .version app/version); then
+            echo "Error: Failed to parse version from app/version"
+            exit 1
+          fi
+          
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "Error: Version key not found in app/version"
+            exit 1
+          fi
+          
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Found version: $VERSION"
+
+      - name: Update README
+        run: |
+          if [ ! -f "README.md" ]; then
+            echo "# Project" > README.md
+            echo "Creating new README.md file"
+          fi
+          
+          # Replace or add version badge
+          sed -i '/!\[Version\]/c\![Version](https://img.shields.io/badge/version-'"$VERSION"'-blue)' README.md
+          # If badge doesn't exist, add it at the top
+          if ! grep -q "!\[Version\]" README.md; then
+            sed -i '1i![Version](https://img.shields.io/badge/version-'"$VERSION"'-blue)\n' README.md
+          fi
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "[DOCS] Updated version badge to $VERSION" || exit 0
+          git push origin HEAD:${{ github.ref }}

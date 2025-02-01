@@ -3,11 +3,12 @@
 # DEPENDENCIES
 ## Built-in
 import argparse
+import json
 ## Local
-from constants import DictKeys, Names, ShellCommands
+from constants import DictKeys, Files, Names, ShellCommands
 from constants.files import setup_user_deployment_file
 from logger import logger
-from shell_runner import execute_shell, exec_check_exists
+from shell import execute_shell, exec_check_exists
 
 
 # ARGUMENTS
@@ -26,12 +27,29 @@ def setup_network() -> None:
         logger.startup("First time setting up network...")
         execute_shell(ShellCommands.CREATE_NETWORK)
 
-def update() -> None:
-    """
-    Update the git repo
-    """
+def update() -> bool:
+    """Update the git repo, returning True if container needs to be rebuilt"""
     logger.startup(f"Updating {Names.ACE}...")
     execute_shell(ShellCommands.UPDATE)
+
+    updates: dict[str] = {}
+    history: dict[str] = {}
+    with open(Files.STARTUP_UPDATES, "r", encoding="utf-8") as updates_file:
+        updates = json.load(updates_file)
+    with open(Files.STARTUP_HISTORY, "r", encoding="utf-8") as history_file:
+        if history_file.read() == "":
+            history = {}
+        else:
+            history = json.load(history_file)    
+    if not history:
+        with open(Files.STARTUP_HISTORY, "w", encoding="utf-8") as history_file:
+            history[DictKeys.REBUILD_DATE] = ""
+            json.dump(history, history_file)
+            return True
+    
+    if history.get(DictKeys.REBUILD_DATE, "") != updates[DictKeys.REBUILD_DATE]:
+        return True
+    return False
 
 def build_container(force_build: bool = False):
     """
@@ -48,7 +66,17 @@ def build_container(force_build: bool = False):
     else:
         logger.startup("Building container...")
     execute_shell(ShellCommands.BUILD_IMAGE, error_message="Unable to build image")
-    return should_build
+
+    updates: dict[str] = {}
+    history: dict[str] = {}
+    with open(Files.STARTUP_UPDATES, "r", encoding="utf-8") as updates_file:
+        updates = json.load(updates_file)
+    with open(Files.STARTUP_HISTORY, "r", encoding="utf-8") as history_file:
+        history = json.load(history_file)
+
+    history[DictKeys.REBUILD_DATE] = updates[DictKeys.REBUILD_DATE]
+    with open(Files.STARTUP_HISTORY, "w", encoding="utf-8") as history_file:
+        json.dump(history, history_file)
 
 
 # DEPLOYMENT
@@ -82,12 +110,15 @@ def start_cluster(force_restart: bool) -> None:
 def startup():
     arguments: dict[str, bool] = _get_arguments()
     dev: bool = arguments[DictKeys.DEV]
+    force_build: bool = arguments[DictKeys.BUILD]
 
     setup_user_deployment_file(dev)
     setup_network()
     if not dev:
-        update()
-    build_container(force_build=arguments[DictKeys.BUILD])
+        update_build: bool = update()
+        if update_build:
+            force_build = True
+    build_container(force_build=force_build)
     execute_shell(ShellCommands.CLEAR_OLD_IMAGES)
 
     if arguments[DictKeys.STOP]:
