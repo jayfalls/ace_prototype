@@ -1,7 +1,6 @@
 # Local
 .logs/
 .storage/
-node_modules/
 .user_deployment.yaml
 
 # Mac
