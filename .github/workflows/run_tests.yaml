@@ -1,9 +1,6 @@
 name: Run Tests
 
 on:
-  push:
-    branches:
-      - '**'  # Run on all branches
   pull_request:
     branches:
       - main  # Run on PRs targeting main
