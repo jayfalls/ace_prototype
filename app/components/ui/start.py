@@ -4,7 +4,7 @@ import os
 ## Local
 from constants import ShellCommands
 from logger import logger
-from shell_runner import execute_shell
+from shell import execute_shell
 
 def start_ui(component_type: str, dev: bool) -> None:
   logger.startup(f"Starting {component_type}...")

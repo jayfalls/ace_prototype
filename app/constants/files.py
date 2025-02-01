@@ -17,6 +17,9 @@ class Files(BaseEnum):
     CONTAINERFILE: str = f"{Folders.CONTAINERS}Containerfile"
     TEMPLATE_DEPLOYMENT_FILE: str = f"{Folders.CONTAINERS}template_deployment.yaml"
     USER_DEPLOYMENT_FILE: str = f"{Folders.CONTAINERS}.user_deployment.yaml"
+    # Startup
+    STARTUP_HISTORY: str = f"{Folders.STORAGE}.startup_history"
+    VERSION: str = "version"
 
 
 # INIT
@@ -71,8 +74,7 @@ _DEPLOYMENT_REPLACE_KEYWORDS: dict[str, str] = {
     "{{ output_container_path }}": ContainerFolders.OUTPUT_STORAGE,
     "{{ output_volume }}": f"{Names.ACE}_output_{Names.VOLUME}"
 }
-
-def setup_user_deployment_file(dev: bool) -> None:
+def setup_user_deployment_file(dev: bool):
     """Sets up the user deployment file"""
     if os.path.isfile(Files.USER_DEPLOYMENT_FILE):
         os.remove(Files.USER_DEPLOYMENT_FILE)
@@ -88,3 +90,13 @@ def setup_user_deployment_file(dev: bool) -> None:
     with open(Files.USER_DEPLOYMENT_FILE, "w", encoding="utf-8") as user_deployment_file:
         user_deployment_file.write(deployment_string)
         user_deployment_file.close()
+
+_ENSURE_FILES: frozenset[str] = frozenset([
+    Files.STARTUP_HISTORY
+])
+def _ensure_files():
+    for file in _ENSURE_FILES:
+        if not os.path.isfile(file):
+            with open(file, "w", encoding="utf-8"):
+                pass
+_ensure_files()

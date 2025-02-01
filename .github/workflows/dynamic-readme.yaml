@@ -1,0 +1,33 @@
+on:
+  push:
+    paths:
+      - 'app/version'
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Read version from JSON
+        id: version
+        run: |
+          VERSION=$(jq -r .version app/version.json)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Update README
+        run: |
+          # Replace or add version badge
+          sed -i '/!\[Version\]/c\![Version](https://img.shields.io/badge/version-'"$VERSION"'-blue)' README.md
+          # If badge doesn't exist, add it at the top
+          if ! grep -q "!\[Version\]" README.md; then
+            sed -i '1i![Version](https://img.shields.io/badge/version-'"$VERSION"'-blue)\n' README.md
+          fi
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add README.md
+          git commit -m "docs: update version badge to $VERSION" || exit 0
+          git push

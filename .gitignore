@@ -2,6 +2,7 @@
 .logs/
 .storage/
 .user_deployment.yaml
+.history
 
 # Mac
 .DS_Store

@@ -10,6 +10,7 @@ class DictKeys(BaseEnum):
     LEVEL: str = "level"
     MESSAGE: str = "message"
     PROD: str = "prod"
+    REBUILD_DATE: str = "rebuild_date"
     RESTART: str = "restart"
     STACKTRACE: str = "stacktrace"
     STOP: str = "stop"
