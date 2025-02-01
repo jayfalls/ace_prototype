@@ -23,14 +23,22 @@ class Files(BaseEnum):
 _DEPLOYMENT_REPLACE_KEYWORDS: dict[str, str] = {
     "{{ ace_pod_name }}": Names.ACE,
     "{{ ace_image_name }}": Names.FULL_IMAGE,
-    "{{ start_command }}": """python3\n    - component.py""",
+    "{{ start_command }}": """python3\n    - component.py\n    - --{{ env }}""",
+    "{{ app_host_path }}": os.getcwd(),
+    "{{ app_container_path }}": ContainerFolders.APP_DIR,
+    "{{ app_volume }}": f"{Names.ACE}_app_{Names.VOLUME}",
     "{{ logs_host_path }}": Folders.HOST_LOGS,
     "{{ logs_container_path }}": ContainerFolders.LOGS,
     "{{ logs_volume }}": f"{Names.ACE}_logs_{Names.VOLUME}",
     "{{ logger_name_env }}": EnvironmentVariables.LOG_FILE_NAME,
     "{{ logger_verbose_env }}": EnvironmentVariables.LOGGER_VERBOSE,
+    "{{ ui_host_path }}": Folders.UI,
+    "{{ ui_container_path }}": ContainerFolders.UI,
+    "{{ ui_volume }}": f"{Names.ACE}_ui_{Names.VOLUME}",
     "{{ controller_name }}": Components.CONTROLLER,
     "{{ controller_port }}": NetworkPorts.CONTROLLER,
+    "{{ ui_name }}": Components.UI,
+    "{{ ui_port }}": NetworkPorts.UI,
     "{{ queue_name }}": Components.QUEUE,
     "{{ queue_port }}": NetworkPorts.QUEUE,
     "{{ model_provider_name }}": Components.MODEL_PROVIDER,
@@ -76,8 +84,10 @@ def setup_user_deployment_file(dev: bool) -> None:
         template_deployment_file.close()
     dev_env: str = "" if dev else "."
     deployment_string = deployment_string.replace("{{ dev_env }}", dev_env)
-    for key, replace in _DEPLOYMENT_REPLACE_KEYWORDS.items():
-        deployment_string = deployment_string.replace(key, replace)
+    for key, replace_string in _DEPLOYMENT_REPLACE_KEYWORDS.items():
+        if key == "{{ start_command }}":
+            replace_string = replace_string.replace("{{ env }}", "dev" if dev else "prod")
+        deployment_string = deployment_string.replace(key, replace_string)
     with open(Files.USER_DEPLOYMENT_FILE, "w", encoding="utf-8") as user_deployment_file:
         user_deployment_file.write(deployment_string)
         user_deployment_file.close()

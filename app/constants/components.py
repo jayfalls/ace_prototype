@@ -6,6 +6,7 @@ from .base_enum import BaseEnum
 class Components(BaseEnum):
     """Enum"""
     CONTROLLER: str = "controller"
+    UI: str = "ui"
     QUEUE: str = "queue"
     TELEMETRY: str = "telemetry"
     ACTIONS: str = "actions"

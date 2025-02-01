@@ -20,3 +20,6 @@ class ShellCommands(BaseEnum):
     ## Network
     CHECK_NETWORK: str = "podman network ls"
     CREATE_NETWORK: str = f"podman network create {Names.NETWORK}"
+    # UI
+    INSTALL_NPM_DEPENDENCIES: str = "npm install"
+    RUN_UI_DEV: str = "npm start"

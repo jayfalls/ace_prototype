@@ -5,3 +5,4 @@ from .memory.start import start_memory
 from .model_provider.start import start_model_provider
 from .queue.start import start_queue
 from .telemetry.start import start_telemetry
+from .ui.start import start_ui

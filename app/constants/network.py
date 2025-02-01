@@ -6,6 +6,7 @@ from .base_enum import BaseEnum
 class NetworkPorts(BaseEnum):
     """Enum"""
     CONTROLLER: str = "2349"
+    UI: str = "2350"
     QUEUE: str = "4222"
     MODEL_PROVIDER: str = "4223"
     TELEMETRY: str = "4931"
