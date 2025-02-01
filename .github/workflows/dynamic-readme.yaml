@@ -12,7 +12,7 @@ jobs:
       - name: Read version from JSON
         id: version
         run: |
-          VERSION=$(jq -r .version app/version.json)
+          VERSION=$(jq -r .version app/version)
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Update README
