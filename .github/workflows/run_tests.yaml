@@ -17,7 +17,10 @@ jobs:
         
       - name: Run tests
         id: run_tests
-        run: ./ace --test
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status
+          ./ace --test
+        continue-on-error: false
         
       - name: Upload test results
         if: always() # Run even if tests fail
@@ -30,6 +33,8 @@ jobs:
             tests/**/test-*.html
           
       # Force the workflow to fail if tests failed
-      - name: Check test results
-        if: steps.run_tests.outcome != 'success'
-        run: exit 1
+      - name: Fail workflow if tests failed
+        if: failure()
+        run: |
+          echo "Tests failed - failing workflow"
+          exit 1
