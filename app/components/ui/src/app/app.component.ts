@@ -1,12 +1,12 @@
 import { Component, OnInit } from "@angular/core";
 import { Store } from "@ngrx/store";
 import { appActions } from "./store/actions/app.actions";
-import { ACESidebarComponent } from "./components/sidebar/sidebar.component";
+import { ACERootpageComponent } from "./components/rootpage/rootpage.component";
 
 @Component({
   selector: "app-root",
   imports: [
-    ACESidebarComponent
+    ACERootpageComponent
   ],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.scss"

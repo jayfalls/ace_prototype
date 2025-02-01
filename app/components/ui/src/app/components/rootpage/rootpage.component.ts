@@ -16,9 +16,9 @@ export type SidebarItem = {
 
 
 @Component({
-  selector: "ace-sidebar",
-  templateUrl: "sidebar.component.html",
-  styleUrl: "sidebar.component.scss",
+  selector: "ace-rootpage",
+  templateUrl: "rootpage.component.html",
+  styleUrl: "rootpage.component.scss",
   imports: [
       ACEFooterComponent,
       MatButtonModule,
@@ -30,7 +30,7 @@ export type SidebarItem = {
       RouterOutlet
   ],
 })
-export class ACESidebarComponent {
+export class ACERootpageComponent {
     sidebarItems = signal<SidebarItem[]>([
         {
             name: "Home",
