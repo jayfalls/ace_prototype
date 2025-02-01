@@ -1,16 +1,22 @@
-import { Component } from '@angular/core';
-import { EffectsModule } from '@ngrx/effects';
-import { AppEffects } from './store/effects/app.effects';
-import { ACESidebarComponent } from './components/sidebar/sidebar.component';
+import { Component, OnInit } from "@angular/core";
+import { Store } from "@ngrx/store";
+import { appActions } from "./store/actions/app.actions";
+import { ACESidebarComponent } from "./components/sidebar/sidebar.component";
 
 @Component({
-  selector: 'app-root',
+  selector: "app-root",
   imports: [
     ACESidebarComponent
   ],
-  templateUrl: './app.component.html',
-  styleUrl: './app.component.scss'
+  templateUrl: "./app.component.html",
+  styleUrl: "./app.component.scss"
 })
-export class AppComponent {
-  title = 'ACE';
+export class AppComponent implements OnInit {
+  title = "ACE";
+
+  constructor(private store: Store) {}
+
+  ngOnInit(): void {
+      this.store.dispatch(appActions.getACEVersionData());
+  }
 }

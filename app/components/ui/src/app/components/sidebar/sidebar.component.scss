@@ -1,18 +1,24 @@
-.sidebar-root {
+.page-root {
+    display: flex;
+    flex-direction: column;
     height: 100%;
-}
 
-.sidebar {
-    width: 3.5rem;
-    display: grid;
-    align-content: center;
-    outline: auto;
+    .sidebar-root {
+        height: 100%;
 
-    .sidebar-item {
-        margin-bottom: 1rem;
+        .sidebar {
+            width: 3.5rem;
+            display: grid;
+            align-content: center;
+            outline: auto;
 
-        .active-link {
-            background-color: rgba(0, 0, 0, 0.04);
+            .sidebar-item {
+                margin-bottom: 1rem;
+
+                .active-link {
+                    background-color: rgba(0, 0, 0, 0.04);
+                }
+            }
         }
     }
 }

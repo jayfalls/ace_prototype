@@ -6,6 +6,6 @@ export const appActions = createActionGroup({
     events: {
         getACEVersionData: emptyProps(),
         getACEVersionDataSuccess: props<{ versionData: IACEVersionData }>(),
-        getACEVersionDataFailure: emptyProps()
+        getACEVersionDataFailure: props<{ error: Error }>()
     },
 });

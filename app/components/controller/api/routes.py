@@ -1,6 +1,7 @@
 # DEPENDENCIES
 ## Third-Party
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from http import HTTPStatus
 from pydantic import ValidationError
 ## Local
@@ -14,6 +15,13 @@ from .schemas import (
 
 
 controller_api = FastAPI()
+controller_api.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:4200"],  # Allow requests from your Angular app
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 
 # ROUTES
