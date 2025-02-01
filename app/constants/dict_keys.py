@@ -9,6 +9,7 @@ class DictKeys(BaseEnum):
     FUNCTION_NAME: str = "function_name"
     LEVEL: str = "level"
     MESSAGE: str = "message"
+    PROD: str = "prod"
     RESTART: str = "restart"
     STACKTRACE: str = "stacktrace"
     STOP: str = "stop"

@@ -20,12 +20,34 @@ spec:
     - containerPort: {{ controller_port }}
       hostPort: {{ controller_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ controller_container_path }}
       name: {{ controller_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
+  - command:
+    - {{ start_command }}
+    - --{{ ui_name }}
+    image: {{ ace_image_name }}
+    name: {{ ui_name }}
+    env:
+    - name: {{ logger_name_env }}
+      value: {{ ui_name }}
+    - name: {{ logger_verbose_env }}
+      value: {{ dev_env }}
+    ports:
+    - containerPort: 4200
+      hostPort: {{ ui_port }}
+    volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
+    - mountPath: {{ logs_container_path }}
+      name: {{ logs_volume }}
+    - mountPath: {{ ui_container_path }}
+      name: {{ ui_volume }}
   - command:
     - {{ start_command }}
     - --{{ queue_name }}
@@ -39,6 +61,8 @@ spec:
     ports:
     - containerPort: {{ queue_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -54,6 +78,8 @@ spec:
     ports:
     - containerPort: {{ model_provider_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ model_provider_container_path }}
       name: {{ model_provider_volume }}
     - mountPath: {{ logs_container_path }}
@@ -71,6 +97,8 @@ spec:
     ports:
     - containerPort: {{ telemetry_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -86,6 +114,8 @@ spec:
     ports:
     - containerPort: {{ actions_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -101,6 +131,8 @@ spec:
     ports:
     - containerPort: {{ memory_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -116,6 +148,8 @@ spec:
     ports:
     - containerPort: {{ aspirational_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
@@ -133,6 +167,8 @@ spec:
     ports:
     - containerPort: {{ global_strategy_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
@@ -150,6 +186,8 @@ spec:
     ports:
     - containerPort: {{ agent_model_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
@@ -167,6 +205,8 @@ spec:
     ports:
     - containerPort: {{ executive_function_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
@@ -184,6 +224,8 @@ spec:
     ports:
     - containerPort: {{ cognitive_control_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
@@ -201,6 +243,8 @@ spec:
     ports:
     - containerPort: {{ task_prosecution_port }}
     volumeMounts:
+    - mountPath: {{ app_container_path }}
+      name: {{ app_volume }}
     - mountPath: {{ layers_container_path }}
       name: {{ layers_volume }}
     - mountPath: {{ output_container_path }}
@@ -209,9 +253,17 @@ spec:
       name: {{ logs_volume }}
   volumes:
   - hostPath:
+      path: {{ app_host_path }}
+      type: Directory
+    name: {{ app_volume }}
+  - hostPath:
       path: {{ logs_host_path }}
       type: Directory
     name: {{ logs_volume }}
+  - hostPath:
+      path: {{ ui_host_path }}
+      type: Directory
+    name: {{ ui_volume }}
   - hostPath:
       path: {{ controller_host_path }}
       type: Directory

@@ -3,8 +3,6 @@
 import os
 import subprocess
 from subprocess import Popen
-import sys
-from typing import IO
 ## Local
 from logger import logger
 

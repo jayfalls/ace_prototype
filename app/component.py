@@ -5,14 +5,15 @@
 import argparse
 from typing import Callable
 ## Local
-from constants import Components
+from constants import Components, DictKeys
 from logger import logger
-from components import start_actions, start_controller, start_layer, start_memory, start_model_provider, start_queue, start_telemetry
+from components import start_actions, start_controller, start_layer, start_memory, start_model_provider, start_queue, start_telemetry, start_ui
 
 
 # CONSTANTS
 _COMPONENT_MAP: dict[str, Callable[[str], None]] = {
     Components.CONTROLLER: start_controller,
+    Components.UI: start_ui,
     Components.QUEUE: start_queue,
     Components.TELEMETRY: start_telemetry,
     Components.ACTIONS: start_actions,
@@ -29,7 +30,10 @@ _COMPONENT_MAP: dict[str, Callable[[str], None]] = {
 # ARGUMENTS
 def _get_arguments() -> dict[str, bool]:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--dev", action="store_true", help="Enable dev mode")
+    parser.add_argument("--prod", action="store_true")
     parser.add_argument(f"--{Components.CONTROLLER}", action="store_true")
+    parser.add_argument(f"--{Components.UI}", action="store_true")
     parser.add_argument(f"--{Components.QUEUE}", action="store_true")
     parser.add_argument(f"--{Components.TELEMETRY}", action="store_true")
     parser.add_argument(f"--{Components.ACTIONS}", action="store_true")
@@ -48,22 +52,30 @@ def _get_arguments() -> dict[str, bool]:
 def run_component() -> None:
     """Startup the selected component"""
     arguments: dict[str, bool] = _get_arguments()
+    
+    dev: bool = arguments[DictKeys.DEV]
+    prod: bool = arguments[DictKeys.PROD]
+    if not (dev or prod):
+        logger.critical("You must select a environment, either --dev or --prod!")
+        exit(1)
 
     selected_compenent: str | None = None
-    for component, is_flagged in arguments.items():
+    for argument, is_flagged in arguments.items():
+        if argument == DictKeys.DEV or argument == DictKeys.PROD:
+            continue
         if not is_flagged:
             continue
         if selected_compenent:
             logger.critical("You can only start one component at a time!")
             exit(1)
-        selected_compenent = component
+        selected_compenent = argument
 
     if not selected_compenent:
         logger.critical("You must select a component to start!")
         exit(1)
 
     component_title: str = selected_compenent.replace("_", " ").title()
-    _COMPONENT_MAP[selected_compenent](component_title)
+    _COMPONENT_MAP[selected_compenent](component_type=component_title, dev=dev)
     from time import sleep
     while True:
         logger.info(f"{component_title} is running...")
