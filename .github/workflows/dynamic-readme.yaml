@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - 'app/version'
+    branches-ignore:
+      - main
 
 permissions:
   contents: write
