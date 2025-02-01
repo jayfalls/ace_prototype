@@ -7,7 +7,7 @@ from typing import get_type_hints
 # ENUMS
 class BaseEnum(ABC):
     """Base Enum Class"""
-    _ALLOWED_ENUM_TYPES: tuple[type, ...] = (str, int)
+    _ALLOWED_ENUM_TYPES: tuple[type, ...] = (str, int, float)
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -27,9 +27,9 @@ class BaseEnum(ABC):
         return base_enum_dict
 
     @classmethod
-    def get_variable_values_tuple(cls) -> tuple[str, ...]:
+    def get_tuple(cls) -> tuple[str, ...]:
         return tuple(cls.get_dict().values())
 
     @classmethod
-    def get_variable_values_frozenset(cls) -> frozenset[str]:
-        return frozenset(cls.get_values())
+    def get_frozenset(cls) -> frozenset[str]:
+        return frozenset(cls.get_tuple())
