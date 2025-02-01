@@ -1,4 +1,4 @@
-![Version](https://img.shields.io/badge/version-0.0.0-blue)
+![Version](https://img.shields.io/badge/version-0.0.1-blue)
 
 <h1 align="center">🧠 ACE Prototype 🧠</h1>
 
