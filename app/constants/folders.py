@@ -15,10 +15,10 @@ class Folders(BaseEnum):
     # Storage
     STORAGE: str = ".storage/"
     _HOST_STORAGE: str = f"{os.getcwd()}/{STORAGE}"
-    CONTROLLER_STORAGE: str = f"{_HOST_STORAGE}controller"
-    LAYERS_STORAGE: str = f"{_HOST_STORAGE}layers"
-    MODEL_PROVIDER_STORAGE: str = f"{_HOST_STORAGE}model_provider"
-    OUTPUT_STORAGE: str = f"{_HOST_STORAGE}output"
+    CONTROLLER_STORAGE: str = f"{_HOST_STORAGE}controller/"
+    LAYERS_STORAGE: str = f"{_HOST_STORAGE}layers/"
+    MODEL_PROVIDER_STORAGE: str = f"{_HOST_STORAGE}model_provider/"
+    OUTPUT_STORAGE: str = f"{_HOST_STORAGE}output/"
 
 
 # INIT

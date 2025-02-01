@@ -5,6 +5,7 @@ import { MatListModule } from "@angular/material/list";
 import { MatTooltipModule } from "@angular/material/tooltip";
 import { MatSidenavModule } from "@angular/material/sidenav";
 import { RouterModule, RouterOutlet } from "@angular/router";
+import { ACEFooterComponent } from "../footer/footer.component";
 
 
 export type SidebarItem = {
@@ -15,10 +16,11 @@ export type SidebarItem = {
 
 
 @Component({
-  selector: "ace-sidebar",
-  templateUrl: "sidebar.component.html",
-  styleUrl: "sidebar.component.scss",
+  selector: "ace-rootpage",
+  templateUrl: "rootpage.component.html",
+  styleUrl: "rootpage.component.scss",
   imports: [
+      ACEFooterComponent,
       MatButtonModule,
       MatIconModule,
       MatListModule,
@@ -28,7 +30,7 @@ export type SidebarItem = {
       RouterOutlet
   ],
 })
-export class ACESidebarComponent {
+export class ACERootpageComponent {
     sidebarItems = signal<SidebarItem[]>([
         {
             name: "Home",

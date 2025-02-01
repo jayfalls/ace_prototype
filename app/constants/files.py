@@ -1,6 +1,7 @@
 # DEPENDENCIES
 ## Built-in
 import os
+import json
 ## Local
 from .base_enum import BaseEnum
 from .components import Components
@@ -20,6 +21,8 @@ class Files(BaseEnum):
     # Startup
     STARTUP_HISTORY: str = f"{Folders.STORAGE}.startup_history"
     VERSION: str = "version"
+    # Storage
+    CONTROLLER_SETTINGS: str = f"{Folders.CONTROLLER_STORAGE}.settings"
 
 
 # INIT
@@ -91,12 +94,13 @@ def setup_user_deployment_file(dev: bool):
         user_deployment_file.write(deployment_string)
         user_deployment_file.close()
 
-_ENSURE_FILES: frozenset[str] = frozenset([
-    Files.STARTUP_HISTORY
+_ENSURE_JSON_FILES: frozenset[str] = frozenset([
+    Files.STARTUP_HISTORY,
+    Files.CONTROLLER_SETTINGS
 ])
-def _ensure_files():
-    for file in _ENSURE_FILES:
+def _ensure_json_files():
+    for file in _ENSURE_JSON_FILES:
         if not os.path.isfile(file):
-            with open(file, "w", encoding="utf-8"):
-                pass
-_ensure_files()
+            with open(file, "w", encoding="utf-8") as file:
+                json.dump({}, file)
+_ensure_json_files()
