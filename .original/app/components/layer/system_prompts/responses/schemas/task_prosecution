@@ -1,7 +1,0 @@
-[internal]
-reasoning = str[Step by step reasoning for your responses]
-
-[refine]
-request = str[Request breaking down the inferences that the tools should make and the paramaters they should use]
-tools = list[str[Tool that should be used to achieve the request]]
-paramaters = dict[str[Parameter name], str[Value of the parameter]]
