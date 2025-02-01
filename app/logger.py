@@ -11,7 +11,7 @@ import signal
 import sys
 import traceback
 ## Local
-from constants.logger import CustomLogLevels, COLOR_CODES, Defaults, DictKeys, EnvironmentVariables
+from constants import CustomLogLevels, Defaults, DictKeys, EnvironmentVariables, Folders, TERMINAL_COLOR_CODES
 
 
 # INITIALISATION
@@ -37,12 +37,12 @@ class _JSONFormatter(logging.Formatter):
 
 class _HumanReadableFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        color_code: str = COLOR_CODES.get(record.levelno, Defaults.COLOR_CODE)
+        color_code: str = TERMINAL_COLOR_CODES.get(record.levelno, Defaults.TERMINAL_COLOR_CODE)
 
         log_string = ""
         log_string += datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%d %H:%M:%S")
         log_string += " | "
-        log_string += f"{color_code}{record.levelname}{Defaults.COLOR_CODE}"
+        log_string += f"{color_code}{record.levelname}{Defaults.TERMINAL_COLOR_CODE}"
         log_string += " | "
         log_string += f"{record.name}()"
         log_string += " | "
@@ -69,8 +69,7 @@ class _Logger:
             return
         self._initialised = True
 
-        os.makedirs(Defaults.LOG_FOLDER, exist_ok=True)
-        log_file: str = os.path.join(Defaults.LOG_FOLDER, f"{log_name}_{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d')}.log")
+        log_file: str = os.path.join(Folders.LOGS, f"{log_name}_{datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%d')}.log")
         log_file = os.path.abspath(log_file)
 
         self.verbose = verbose
@@ -157,3 +156,13 @@ logger = _Logger(
     log_name=os.environ.get(EnvironmentVariables.LOG_FILE_NAME),
     verbose=bool(os.environ.get(EnvironmentVariables.LOGGER_VERBOSE, False))
 )
+
+
+# EXAMPLES
+def example_logs():
+    logger.startup("Hello ACE!")
+    logger.debug("Dev logs...")
+    logger.info("Operations logs...")
+    logger.warn("Warning logs...")
+    logger.error("Error logs...")
+    logger.critical("Critical logs...")

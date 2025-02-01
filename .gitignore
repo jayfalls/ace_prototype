@@ -1,5 +1,7 @@
 # Local
-logs/
+.logs/
+.storage/
+.user_deployment.yaml
 
 # Mac
 .DS_Store
