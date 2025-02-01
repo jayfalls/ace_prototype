@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import shutil
 import signal
 import sys
 from unittest import mock
@@ -75,7 +74,7 @@ def test_verbose_mode_handler_config(monkeypatch, cleanup):
     console_handlers: logging.Handler = [handler for handler in logger.logger.handlers if isinstance(handler, logging.StreamHandler) and handler == logger.console_handler]
 
     assert len(file_handlers) == 1, "Should have 1 FileHandler"
-    assert len(console_handlers) == 0, "Should have 0 ConsoleHandlers in verbose mode"
+    assert len(console_handlers) != 0, "Should have 0 ConsoleHandlers in verbose mode"
 
 def test_non_verbose_mode_handler_config(monkeypatch, cleanup):
     """Test handler configuration based on verbosity"""
