@@ -25,3 +25,8 @@ def pytest_sessionfinish(session, exitstatus):
                 print(f"Warning: Could not remove {folder_path} - Permission denied")
             except Exception as e:
                 print(f"Warning: Could not remove {folder_path} - {str(e)}")
+    if session.testsfailed > 0:
+        print("Tests failed!")
+        # Force exit status to 1 if any tests failed
+        session.exitstatus = 1
+    return session.exitstatus

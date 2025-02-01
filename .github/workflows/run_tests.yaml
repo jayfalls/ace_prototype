@@ -1,0 +1,40 @@
+name: Run Tests
+on:
+  pull_request:
+    branches:
+      - main # Run on PRs targeting main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+        
+      - name: Run tests
+        id: run_tests
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status
+          ./ace --test
+        continue-on-error: false
+        
+      - name: Upload test results
+        if: always() # Run even if tests fail
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: |
+            .pytest_cache/
+            tests/**/test-*.xml
+            tests/**/test-*.html
+          
+      # Force the workflow to fail if tests failed
+      - name: Fail workflow if tests failed
+        if: failure()
+        run: |
+          echo "Tests failed - failing workflow"
+          exit 1

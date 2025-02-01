@@ -3,7 +3,6 @@
 import json
 import logging
 import os
-import shutil
 import signal
 import sys
 from unittest import mock

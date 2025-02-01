@@ -10,8 +10,7 @@ run_tests() {
     pip install --upgrade -r tests/requirements
 
     python -m pytest tests/unit/ -v
-    deactivate
-    exit 0
+    exit $?
 }
 
 run_ace() {
@@ -22,7 +21,7 @@ run_ace() {
 
     ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE="$ACE_LOGGER_VERBOSE_ENV" ./startup.py "${@}"
     deactivate
-    exit 0
+    exit $?
 }
 
 # MAIN
@@ -59,5 +58,7 @@ main() {
     # Use original arguments when running ace
     run_ace "${original_args[@]}"
 }
+
+trap 'exit $?' ERR
 
 main "$@"
