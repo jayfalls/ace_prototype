@@ -3,10 +3,28 @@
 # DEPENDENCIES
 ## Built-in
 import argparse
+from typing import Callable
 ## Local
 from constants import Components
 from logger import logger
+from components import start_actions, start_controller, start_layer, start_memory, start_model_provider, start_queue, start_telemetry
 
+
+# CONSTANTS
+_COMPONENT_MAP: dict[str, Callable[[str], None]] = {
+    Components.CONTROLLER: start_controller,
+    Components.QUEUE: start_queue,
+    Components.TELEMETRY: start_telemetry,
+    Components.ACTIONS: start_actions,
+    Components.MEMORY: start_memory,
+    Components.MODEL_PROVIDER: start_model_provider,
+    Components.ASPIRATIONAL: start_layer,
+    Components.GLOBAL_STRATEGY: start_layer,
+    Components.AGENT_MODEL: start_layer,
+    Components.EXECUTIVE_FUNCTION: start_layer,
+    Components.COGNITIVE_CONTROL: start_layer,
+    Components.TASK_PROSECUTION: start_layer
+}
 
 # ARGUMENTS
 def _get_arguments() -> dict[str, bool]:
@@ -44,11 +62,11 @@ def run_component() -> None:
         logger.critical("You must select a component to start!")
         exit(1)
 
-    logger.startup(f"Starting {selected_compenent.replace('_', ' ').title()}...")
-    # TODO: Add logic to start components
+    component_title: str = selected_compenent.replace("_", " ").title()
+    _COMPONENT_MAP[selected_compenent](component_title)
     from time import sleep
     while True:
-        logger.info(f"{selected_compenent.replace('_', ' ').title()} is running...")
+        logger.info(f"{component_title} is running...")
         sleep(60)
 
 
