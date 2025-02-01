@@ -32,15 +32,14 @@ def update() -> bool:
     logger.startup(f"Updating {Names.ACE}...")
     execute_shell(ShellCommands.UPDATE)
 
+def check_if_latest_build() -> bool:
+    """Compares the update history and version files to check if the container needs to be rebuilt"""
     updates: dict[str] = {}
     history: dict[str] = {}
-    with open(Files.STARTUP_UPDATES, "r", encoding="utf-8") as updates_file:
+    with open(Files.VERSION, "r", encoding="utf-8") as updates_file:
         updates = json.load(updates_file)
     with open(Files.STARTUP_HISTORY, "r", encoding="utf-8") as history_file:
-        if history_file.read() == "":
-            history = {}
-        else:
-            history = json.load(history_file)    
+        history = json.loads(history_file.read())
     if not history:
         with open(Files.STARTUP_HISTORY, "w", encoding="utf-8") as history_file:
             history[DictKeys.REBUILD_DATE] = ""
@@ -69,7 +68,7 @@ def build_container(force_build: bool = False):
 
     updates: dict[str] = {}
     history: dict[str] = {}
-    with open(Files.STARTUP_UPDATES, "r", encoding="utf-8") as updates_file:
+    with open(Files.VERSION, "r", encoding="utf-8") as updates_file:
         updates = json.load(updates_file)
     with open(Files.STARTUP_HISTORY, "r", encoding="utf-8") as history_file:
         history = json.load(history_file)
@@ -115,9 +114,10 @@ def startup():
     setup_user_deployment_file(dev)
     setup_network()
     if not dev:
-        update_build: bool = update()
-        if update_build:
-            force_build = True
+        update()
+    update_build: bool = check_if_latest_build()
+    if update_build:
+        force_build = True
     build_container(force_build=force_build)
     execute_shell(ShellCommands.CLEAR_OLD_IMAGES)
 
