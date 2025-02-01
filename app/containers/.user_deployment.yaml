@@ -1,0 +1,242 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: ace
+  name: ace
+spec:
+  containers:
+  - command:
+    - python3
+    - component.py
+    - --controller
+    image: localhost/ace:latest
+    name: controller
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: controller
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 2349
+      hostPort: 2349
+    volumeMounts:
+    - mountPath: /home/ace/.storage/controller
+      name: ace_controller_volume
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --queue
+    image: localhost/ace:latest
+    name: queue
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: queue
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4222
+    volumeMounts:
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --model_provider
+    image: localhost/ace:latest
+    name: model_provider
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: model_provider
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4223
+    volumeMounts:
+    - mountPath: /home/ace/.storage/model_provider
+      name: ace_model_provider_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --telemetry
+    image: localhost/ace:latest
+    name: telemetry
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: telemetry
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4931
+    volumeMounts:
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --actions
+    image: localhost/ace:latest
+    name: actions
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: actions
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4932
+    volumeMounts:
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --memory
+    image: localhost/ace:latest
+    name: memory
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: memory
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4933
+    volumeMounts:
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --aspirational
+    image: localhost/ace:latest
+    name: aspirational
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: aspirational
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4581
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --global_strategy
+    image: localhost/ace:latest
+    name: global_strategy
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: global_strategy
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4582
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --agent_model
+    image: localhost/ace:latest
+    name: agent_model
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: agent_model
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4583
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --executive_function
+    image: localhost/ace:latest
+    name: executive_function
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: executive_function
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4584
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --cognitive_control
+    image: localhost/ace:latest
+    name: cognitive_control
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: cognitive_control
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4585
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  - command:
+    - python3
+    - component.py
+    - --task_prosecution
+    image: localhost/ace:latest
+    name: task_prosecution
+    env:
+    - name: ACE_LOGGER_FILE_NAME
+      value: task_prosecution
+    - name: ACE_LOGGER_VERBOSE
+      value: 
+    ports:
+    - containerPort: 4586
+    volumeMounts:
+    - mountPath: /home/ace/.storage/layers
+      name: ace_layers_volume
+    - mountPath: /home/ace/.storage/output
+      name: ace_output_volume
+    - mountPath: /home/ace/.logs/
+      name: ace_logs_volume
+  volumes:
+  - hostPath:
+      path: /Users/jason/programming/personal_projects/ace_prototype/app/.logs/
+      type: Directory
+    name: ace_logs_volume
+  - hostPath:
+      path: /Users/jason/programming/personal_projects/ace_prototype/app/.storage/controller
+      type: Directory
+    name: ace_controller_volume
+  - hostPath:
+      path: /Users/jason/programming/personal_projects/ace_prototype/app/.storage/layers
+      type: Directory
+    name: ace_layers_volume
+  - hostPath:
+      path: /Users/jason/programming/personal_projects/ace_prototype/app/.storage/model_provider
+      type: Directory
+    name: ace_model_provider_volume
+  - hostPath:
+      path: /Users/jason/programming/personal_projects/ace_prototype/app/.storage/output
+      type: Directory
+    name: ace_output_volume

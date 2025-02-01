@@ -1,0 +1,10 @@
+FROM python:3.13-bookworm
+
+COPY . /home/ace
+
+RUN apt-get update && apt-get install -y libffi-dev nats-server && \
+    pip install -r /home/ace/requirements && \
+    apt-get purge -y libffi-dev python3-dev && \
+    rm -rf /var/cache/*
+
+WORKDIR /home/ace

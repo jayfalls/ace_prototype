@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# VARIABLES
+ACE_LOGGER_VERBOSE_ENV="."
+
 
 # STARTUP
 run_tests() {
@@ -12,39 +15,39 @@ run_tests() {
 }
 
 run_ace() {
-    args=$1
-    ace_logger_verbose_env=$2
-
     cd app || exit
 
     echo "Installing/Updating requirements..."
-    pip install --upgrade -r requirements #--force-reinstall
+    pip install --upgrade -r requirements
 
-    echo "$@"
-    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE=$ace_logger_verbose_env ./main.py "$args"
+    ACE_LOGGER_FILE_NAME="startup" ACE_LOGGER_VERBOSE="$ACE_LOGGER_VERBOSE_ENV" ./startup.py "${@}"
     deactivate
     exit 0
 }
 
-
 # MAIN
 main() {
-    ace_logger_verbose_env="."
+    # Store original arguments
+    original_args=("$@")
+    
+    # Initialize variables
     run_tests=false
 
-    for arg in "$@"; do
-        if [ "$arg" == "--dev" ]; then
-            ace_logger_verbose_env=""
-            break
-        fi
-        if [ "$arg" == "--test" ]; then
-            run_tests=true
-            break
-        fi
+    # Process arguments for environment variables
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dev)
+                ACE_LOGGER_VERBOSE_ENV=""
+                ;;
+            --test)
+                run_tests=true
+                ;;
+        esac
+        shift
     done
 
     if [ ! -d ".venv" ]; then
-        echo "Python virtual environment doesn't existing, creating one..."
+        echo "Python virtual environment doesn't exist, creating one..."
         python3.13 -m venv .venv
     fi
     source .venv/bin/activate
@@ -53,7 +56,8 @@ main() {
         run_tests
     fi
 
-    run_ace "$@" "$ace_logger_verbose_env"
+    # Use original arguments when running ace
+    run_ace "${original_args[@]}"
 }
 
 main "$@"
