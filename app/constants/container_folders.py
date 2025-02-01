@@ -7,9 +7,6 @@ from .folders import Folders
 class ContainerFolders(BaseEnum):
     """Enum"""
     APP_DIR: str = "/home/ace/"
-    # Components
-    _COMPONENTS: str = f"{APP_DIR}components/"
-    UI: str = f"{_COMPONENTS}{Folders.UI}"
     # Logging
     LOGS: str = f"{APP_DIR}{Folders.LOGS}"
     # Storage

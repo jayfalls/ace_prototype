@@ -46,8 +46,6 @@ spec:
       name: {{ app_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
-    - mountPath: {{ ui_container_path }}
-      name: {{ ui_volume }}
   - command:
     - {{ start_command }}
     - --{{ queue_name }}
@@ -260,10 +258,6 @@ spec:
       path: {{ logs_host_path }}
       type: Directory
     name: {{ logs_volume }}
-  - hostPath:
-      path: {{ ui_host_path }}
-      type: Directory
-    name: {{ ui_volume }}
   - hostPath:
       path: {{ controller_host_path }}
       type: Directory

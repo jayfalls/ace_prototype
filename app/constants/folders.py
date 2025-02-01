@@ -7,9 +7,6 @@ from .base_enum import BaseEnum
 
 class Folders(BaseEnum):
     """Enum"""
-    # Components
-    _HOST_COMPONENTS: str = f"{os.getcwd()}/components/"
-    UI: str = f"{_HOST_COMPONENTS}ui/"
     # Containers
     CONTAINERS: str = "containers/"
     # Logging

@@ -73,6 +73,10 @@ def run_component() -> None:
     if not selected_compenent:
         logger.critical("You must select a component to start!")
         exit(1)
+    
+    if selected_compenent not in _COMPONENT_MAP:
+        logger.critical(f"{selected_compenent} is not a valid component!")
+        exit(1)
 
     component_title: str = selected_compenent.replace("_", " ").title()
     _COMPONENT_MAP[selected_compenent](component_type=component_title, dev=dev)
