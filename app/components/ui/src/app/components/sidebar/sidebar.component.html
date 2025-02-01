@@ -1,0 +1,21 @@
+<mat-sidenav-container class="sidebar-root">
+    <mat-sidenav mode="side" opened class="sidebar">
+        <mat-nav-list>
+            @for (item of sidebarItems(); track item.name) {
+              <a mat-list-item
+                  class="sidebar-item"
+                  [routerLink]="[item.route]"
+                  routerLinkActive="active-link"
+                  [matTooltip]="item.name">
+                  <mat-icon matListItemIcon>
+                      {{ item.icon }}
+                  </mat-icon>
+              </a>
+            }
+        </mat-nav-list>
+    </mat-sidenav>
+
+    <mat-sidenav-content>
+        <router-outlet class="content"></router-outlet>
+    </mat-sidenav-content>
+</mat-sidenav-container>
