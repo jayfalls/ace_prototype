@@ -7,6 +7,7 @@ ACE_LOGGER_VERBOSE_ENV="."
 # STARTUP
 run_tests() {
     echo "Installing/Updating test dependencies..."
+    pip install --upgrade -r app/requirements
     pip install --upgrade -r tests/requirements
 
     python -m pytest tests/unit/ -v
