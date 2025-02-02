@@ -47,7 +47,7 @@ async def get_settings_route() -> dict:
 )
 async def set_settings_route(updated_settings: EditSettingsRequest) -> dict:
     try:
-        service.edit_settings_data(updated_settings=updated_settings.dict())
+        service.edit_settings_data(updated_settings=updated_settings.model_dump())
         return DefaultAPIResponseSchema(message="Settings data updated successfully!")
     except ValidationError as error:
         logger.error(error)

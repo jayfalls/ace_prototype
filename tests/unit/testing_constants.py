@@ -1,4 +1,5 @@
 class Modules:
+    CONSTANTS: str = "app.constants"
     LOGGER: str = "app.logger"
 
 class TestingConfigs:

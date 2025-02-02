@@ -11,7 +11,8 @@ run_tests() {
     pip install --upgrade -r tests/requirements
 
     python -m pytest tests/unit/ -v
-    exit $?
+    pytest_exit_code=$?
+    exit $pytest_exit_code
 }
 
 run_ace() {

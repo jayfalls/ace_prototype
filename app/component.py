@@ -53,11 +53,14 @@ def run_component() -> None:
     """Startup the selected component"""
     arguments: dict[str, bool] = _get_arguments()
     
-    dev: bool = arguments[DictKeys.DEV]
-    prod: bool = arguments[DictKeys.PROD]
+    dev: bool = arguments.get(DictKeys.DEV, False)
+    prod: bool = arguments.get(DictKeys.PROD, False)
     if not (dev or prod):
         logger.critical("You must select a environment, either --dev or --prod!")
-        exit(1)
+        raise SystemExit
+    
+    if dev and prod:
+        dev = False
 
     selected_compenent: str | None = None
     for argument, is_flagged in arguments.items():
@@ -67,16 +70,16 @@ def run_component() -> None:
             continue
         if selected_compenent:
             logger.critical("You can only start one component at a time!")
-            exit(1)
+            raise SystemExit
         selected_compenent = argument
 
     if not selected_compenent:
         logger.critical("You must select a component to start!")
-        exit(1)
+        raise SystemExit
     
     if selected_compenent not in _COMPONENT_MAP:
         logger.critical(f"{selected_compenent} is not a valid component!")
-        exit(1)
+        raise SystemExit
 
     component_title: str = selected_compenent.replace("_", " ").title()
     _COMPONENT_MAP[selected_compenent](component_type=component_title, dev=dev)

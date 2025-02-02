@@ -1,7 +1,7 @@
 # DEPENDENCIES
 ## Built-in
 from abc import ABC
-from typing import get_type_hints
+import inspect
 
 
 # ENUMS
@@ -11,11 +11,15 @@ class BaseEnum(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        for var_name, var_value in get_type_hints(cls).items():
-            if var_name.startswith("__") or var_name.startswith("_"):
+        for attr_name in dir(cls):
+            if attr_name.startswith("__") or attr_name.startswith("_"):
                 continue
-            if var_value not in cls._ALLOWED_ENUM_TYPES:
-                raise TypeError(f"Attribute '{var_name}' must be of type {cls._ALLOWED_ENUM_TYPES}")
+            # Skip methods
+            attr = getattr(cls, attr_name)
+            if inspect.ismethod(attr) or inspect.isfunction(attr):
+                continue
+            if not isinstance(attr, cls._ALLOWED_ENUM_TYPES):
+                raise TypeError(f"Attribute '{attr_name}' must be of type {cls._ALLOWED_ENUM_TYPES}")
 
     @classmethod
     def get_dict(cls) -> dict[str, str]:

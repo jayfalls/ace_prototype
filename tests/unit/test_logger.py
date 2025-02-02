@@ -10,7 +10,7 @@ from unittest import mock
 import pytest
 ## Local
 from app.constants import DictKeys, Defaults, EnvironmentVariables, Folders
-from tests.unit.constants import TestingConfigs, Modules
+from tests.unit.testing_constants import TestingConfigs, Modules
 
 
 # HELPERS
