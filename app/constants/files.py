@@ -23,12 +23,28 @@ class Files(BaseEnum):
     VERSION: str = "version"
     # Storage
     CONTROLLER_SETTINGS: str = f"{Folders.CONTROLLER_STORAGE}.settings"
+    CONTROLLER_THREE_D_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.three_d_models"
+    CONTROLLER_AUDIO_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.audio_models"
+    CONTROLLER_IMAGE_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.image_models"
+    CONTROLLER_LLM_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.llm_models"
+    CONTROLLER_MULTIMODAL_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.multimodal_models"
+    CONTROLLER_RAG_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.rag_models"
+    CONTROLLER_ROBOTICS_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.robotics_models"
+    CONTROLLER_VIDEO_MODELS: str = f"{Folders.CONTROLLER_MODEL_TYPES}.video_models"
 
 
 # INIT
 _ENSURE_JSON_FILES: frozenset[str] = frozenset([
     Files.STARTUP_HISTORY,
-    Files.CONTROLLER_SETTINGS
+    Files.CONTROLLER_SETTINGS,
+    Files.CONTROLLER_THREE_D_MODELS,
+    Files.CONTROLLER_AUDIO_MODELS,
+    Files.CONTROLLER_IMAGE_MODELS,
+    Files.CONTROLLER_LLM_MODELS,
+    Files.CONTROLLER_MULTIMODAL_MODELS,
+    Files.CONTROLLER_RAG_MODELS,
+    Files.CONTROLLER_ROBOTICS_MODELS,
+    Files.CONTROLLER_VIDEO_MODELS
 ])
 def _ensure_json_files():
     for file in _ENSURE_JSON_FILES:
@@ -78,12 +94,6 @@ _DEPLOYMENT_REPLACE_KEYWORDS: dict[str, str] = {
     "{{ controller_host_path }}": Folders.CONTROLLER_STORAGE,
     "{{ controller_container_path }}": ContainerFolders.CONTROLLER_STORAGE,
     "{{ controller_volume }}": f"{Names.ACE}_{Components.CONTROLLER}_{Names.VOLUME}",
-    "{{ layers_host_path }}": Folders.LAYERS_STORAGE,
-    "{{ layers_container_path }}": ContainerFolders.LAYERS_STORAGE,
-    "{{ layers_volume }}": f"{Names.ACE}_layers_{Names.VOLUME}",
-    "{{ model_provider_host_path }}": Folders.MODEL_PROVIDER_STORAGE,
-    "{{ model_provider_container_path }}": ContainerFolders.MODEL_PROVIDER_STORAGE,
-    "{{ model_provider_volume }}": f"{Names.ACE}_{Components.MODEL_PROVIDER}_{Names.VOLUME}",
     "{{ output_host_path }}": Folders.OUTPUT_STORAGE,
     "{{ output_container_path }}": ContainerFolders.OUTPUT_STORAGE,
     "{{ output_volume }}": f"{Names.ACE}_output_{Names.VOLUME}"

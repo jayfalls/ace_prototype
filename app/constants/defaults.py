@@ -1,9 +1,6 @@
 # DEPENDENCIES
-## Third-Party
-from pydantic import BaseModel
 ## Local
 from .base_enum import BaseEnum
-from .model_providers import ModelProviders
 
 
 class Defaults(BaseEnum):
@@ -12,13 +9,9 @@ class Defaults(BaseEnum):
     # Layers
     ACE_NAME: str = "PrototypeACE"
     # Model Provider
-    MODEL_PROVIDER: str = ModelProviders.OLLAMA
-    TEMPERATURE: float = 0.2
+    CREATIVE_TEMPERATURE: float = 0.7
+    LOGICAL_TEMPERATURE: float = 0.2
+    OUTPUT_TOKEN_LIMIT: int = 2048
     # Logger
     TERMINAL_COLOR_CODE: str = "\033[0m"  # Default color
     SHUTDOWN_MESSAGE: str = "Shutting down logger..."
-
-
-# SCHEMAS
-class DefaultAPIResponseSchema(BaseModel):
-    message: str
