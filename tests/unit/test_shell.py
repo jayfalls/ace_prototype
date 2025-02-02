@@ -16,7 +16,10 @@ def test_execute_shell(command, expected_output, caplog):
     with pytest.raises(SystemExit):
         execute_shell("invalid_command", ignore_error=False, _testing=True)
     error_output: str = execute_shell("invalid_command", ignore_error=True)
-    assert "invalid_command: command not found" in error_output, "Error message should be printed"
+    assert any(msg in error_output for msg in [
+        "invalid_command: command not found",
+        "/bin/sh: 1: invalid_command: not found"
+    ]), "Error message should be printed"
 
 def test_exec_check_exists():
     """Test the exec_check_exists function."""
