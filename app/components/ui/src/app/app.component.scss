@@ -1,0 +1,34 @@
+.page-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .sidebar-root {
+      height: 100%;
+
+      .sidebar {
+          width: 3.5rem;
+          display: grid;
+          align-content: center;
+          outline: auto;
+          border-radius: 0;
+
+          .sidebar-item {
+              margin-bottom: 1rem;
+
+              .active-link {
+                  background-color: rgba(0, 0, 0, 0.04);
+              }
+          }
+      }
+  }
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2rem;
+  gap: 2rem;
+  outline: auto;
+}
