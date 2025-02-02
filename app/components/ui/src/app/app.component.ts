@@ -58,6 +58,11 @@ export class AppComponent implements OnInit {
       route: "chat"
     },
     {
+      name: "Model Garden",
+      icon: "local_florist",
+      route: "model-garden"
+    },
+    {
       name: "Settings",
       icon: "settings",
       route: "settings"

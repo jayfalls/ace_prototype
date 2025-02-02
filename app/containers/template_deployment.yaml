@@ -24,8 +24,6 @@ spec:
       name: {{ app_volume }}
     - mountPath: {{ controller_container_path }}
       name: {{ controller_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -78,8 +76,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ model_provider_container_path }}
-      name: {{ model_provider_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -148,8 +144,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -167,8 +161,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -186,8 +178,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -205,8 +195,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -224,8 +212,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ logs_container_path }}
       name: {{ logs_volume }}
   - command:
@@ -243,8 +229,6 @@ spec:
     volumeMounts:
     - mountPath: {{ app_container_path }}
       name: {{ app_volume }}
-    - mountPath: {{ layers_container_path }}
-      name: {{ layers_volume }}
     - mountPath: {{ output_container_path }}
       name: {{ output_volume }}
     - mountPath: {{ logs_container_path }}
@@ -262,14 +246,6 @@ spec:
       path: {{ controller_host_path }}
       type: Directory
     name: {{ controller_volume }}
-  - hostPath:
-      path: {{ layers_host_path }}
-      type: Directory
-    name: {{ layers_volume }}
-  - hostPath:
-      path: {{ model_provider_host_path }}
-      type: Directory
-    name: {{ model_provider_volume }}
   - hostPath:
       path: {{ output_host_path }}
       type: Directory

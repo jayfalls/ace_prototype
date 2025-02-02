@@ -16,8 +16,7 @@ class Folders(BaseEnum):
     STORAGE: str = ".storage/"
     _HOST_STORAGE: str = f"{os.getcwd()}/{STORAGE}"
     CONTROLLER_STORAGE: str = f"{_HOST_STORAGE}controller/"
-    LAYERS_STORAGE: str = f"{_HOST_STORAGE}layers/"
-    MODEL_PROVIDER_STORAGE: str = f"{_HOST_STORAGE}model_provider/"
+    CONTROLLER_MODEL_TYPES: str = f"{CONTROLLER_STORAGE}model_types/"
     OUTPUT_STORAGE: str = f"{_HOST_STORAGE}output/"
 
 
@@ -26,8 +25,7 @@ _ENSURED_FOLDERS: tuple[str, ...] = (
     Folders.LOGS,
     Folders.STORAGE,
     Folders.CONTROLLER_STORAGE,
-    Folders.LAYERS_STORAGE,
-    Folders.MODEL_PROVIDER_STORAGE,
+    Folders.CONTROLLER_MODEL_TYPES,
     Folders.OUTPUT_STORAGE
 )
 
