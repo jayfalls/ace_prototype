@@ -11,7 +11,8 @@ def execute_shell(
     command: str,
     should_print_result: bool = True,
     ignore_error: bool = False,
-    error_message: str = ""
+    error_message: str = "",
+    _testing: bool = False
 ) -> str:
     """Execute a shell command and return the output"""
     if not error_message:
@@ -28,7 +29,12 @@ def execute_shell(
 
     stdout_lines: list[str] = []
     while True:
-        output = process.stdout.readline() if process.stdout else ""
+        error_output: str = process.stderr.readline() if process.stderr else ""
+        if error_output:
+            stdout_lines.append(error_output)
+            if should_print_result:
+                print(error_output, end="")
+        output: str = process.stdout.readline() if process.stdout else ""
         if output == "" and process.poll() is not None:
             break
         if output:
@@ -44,6 +50,8 @@ def execute_shell(
 
     if process.returncode != 0 and not ignore_error:
         logger.error(f"{error_message}: {stderr}")
+        if _testing:
+            raise SystemExit(f"{error_message}: {stderr}")
         os._exit(1)
 
     return "".join(stdout_lines)

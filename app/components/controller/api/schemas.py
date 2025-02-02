@@ -1,6 +1,6 @@
 # DEPENDENCIES
 ## Third-Party
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 ## Local
 from constants import Defaults
 
@@ -10,8 +10,8 @@ class SettingsSchema(BaseModel):
     ace_name: str = Defaults.ACE_NAME
     model_provider: str = Defaults.MODEL_PROVIDER
     temperature: float = Defaults.TEMPERATURE
-
-    @validator("temperature")
+    
+    @field_validator("temperature")
     def validate_temperature(cls, value):
         return min(max(0.0, value), 1.0)
 

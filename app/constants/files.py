@@ -26,6 +26,17 @@ class Files(BaseEnum):
 
 
 # INIT
+_ENSURE_JSON_FILES: frozenset[str] = frozenset([
+    Files.STARTUP_HISTORY,
+    Files.CONTROLLER_SETTINGS
+])
+def _ensure_json_files():
+    for file in _ENSURE_JSON_FILES:
+        if not os.path.isfile(file):
+            with open(file, "w", encoding="utf-8") as file:
+                json.dump({}, file)
+_ensure_json_files()
+
 _DEPLOYMENT_REPLACE_KEYWORDS: dict[str, str] = {
     "{{ ace_pod_name }}": Names.ACE,
     "{{ ace_image_name }}": Names.FULL_IMAGE,
@@ -93,14 +104,3 @@ def setup_user_deployment_file(dev: bool):
     with open(Files.USER_DEPLOYMENT_FILE, "w", encoding="utf-8") as user_deployment_file:
         user_deployment_file.write(deployment_string)
         user_deployment_file.close()
-
-_ENSURE_JSON_FILES: frozenset[str] = frozenset([
-    Files.STARTUP_HISTORY,
-    Files.CONTROLLER_SETTINGS
-])
-def _ensure_json_files():
-    for file in _ENSURE_JSON_FILES:
-        if not os.path.isfile(file):
-            with open(file, "w", encoding="utf-8") as file:
-                json.dump({}, file)
-_ensure_json_files()

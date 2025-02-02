@@ -1,5 +1,6 @@
 # Local
 .logs/
+.original/
 .storage/
 .user_deployment.yaml
 .history

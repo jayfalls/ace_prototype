@@ -1,5 +1,0 @@
-[internal]
-reasoning = str[Step by step reasoning for your responses]
-
-[southbound]
-guidance = list[str[Guiding directions the agent should strive to achieve]]

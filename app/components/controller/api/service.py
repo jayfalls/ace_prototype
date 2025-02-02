@@ -3,6 +3,7 @@
 import json
 ## Local
 from constants import DictKeys, Files, ModelProviders
+from .schemas import SettingsSchema
 
 
 # HELPERS
@@ -10,6 +11,9 @@ def _get_settings() -> dict:
     settings: dict = {}
     with open(Files.CONTROLLER_SETTINGS, "r", encoding="utf-8") as settings_file:
         settings = json.loads(settings_file.read())
+    settings = SettingsSchema(**settings).model_dump()
+    with open(Files.CONTROLLER_SETTINGS, "w", encoding="utf-8") as settings_file:
+        settings_file.write(json.dumps(settings))
     return settings
 
 

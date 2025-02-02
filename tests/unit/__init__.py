@@ -3,7 +3,7 @@
 import os
 ## Local
 from app.constants import EnvironmentVariables
-from tests.unit.constants import TestingConfigs
+from tests.unit.testing_constants import TestingConfigs
 
 
 # LOGGER FIX
