@@ -8,17 +8,17 @@ export type HttpListResponseFailure = { status: string, message: string };
 
 
 const endpoints = {
-    getACEVersionData: `${environmentURLs.controller}/version`,
+    getSettings: `${environmentURLs.controller}/settings`,
 };
 
 
 @Injectable({
   providedIn: "root"
 })
-export class AppService {
+export class SettingsService {
   constructor(private http: HttpClient) { }
 
-  getACEVersionData(): Observable<HttpListResponseFailure | any> {
-      return this.http.get<HttpListResponseFailure | any>(endpoints.getACEVersionData);
+  getSettings(): Observable<HttpListResponseFailure | any> {
+      return this.http.get<HttpListResponseFailure | any>(endpoints.getSettings);
   }
 }

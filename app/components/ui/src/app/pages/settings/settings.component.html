@@ -1,1 +1,31 @@
-<p>SETTINGS PAGE</p>
+<div class="main-page">
+  <h1>Settings</h1>
+
+  <div class="headings">
+    <div class="ace-name">
+      <h2>Ace Name:</h2>
+      <p>{{ settings.ace_name }}</p>
+    </div>
+
+    <div>
+      <h2>Layer Settings:</h2>
+      <mat-card appearance="outlined">
+        <ul>
+          @for (layer_setting of settings.layer_settings; track layer_setting.layer_name) {
+            <mat-list>
+              <mat-list-item>
+                <div>
+                  <span matListItemTitle><strong>Layer:</strong> {{ formatLayerNames(layer_setting.layer_name) }}</span>
+                  <span matListItemLine>
+                    <strong>Model Type:</strong>
+                    {{ layer_setting.model_type | titlecase }}
+                  </span>
+                </div>
+              </mat-list-item>
+            </mat-list>
+          }
+        </ul>
+      </mat-card>
+    </div>
+  </div>
+</div>

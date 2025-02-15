@@ -11,15 +11,17 @@ import { routes } from './app.routes';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { AppEffects } from './store/app/app.effects';
 import { appReducer } from './store/app/app.reducers';
+import { SettingsEffects } from './store/settings/settings.effects';
+import { settingsReducer } from './store/settings/settings.reducers';
 
 
 // CONFIG
 export const appConfig: ApplicationConfig = {
   providers: [
     provideAnimationsAsync(),
-    provideEffects([AppEffects]),
+    provideEffects([AppEffects, SettingsEffects]),
     provideHttpClient(),
-    provideStore({ app_data: appReducer }),
+    provideStore({ app_data: appReducer, settings: settingsReducer }),
     provideStoreDevtools({
       maxAge: 25,
       logOnly: false

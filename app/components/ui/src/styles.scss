@@ -1,4 +1,16 @@
 /* You can add global styles to this file, and also import other style files */
 
-html, body { height: 100%; }
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+.main-page {
+  padding-left: 3rem;
+  padding-top: 1rem;
+}
+
+.headings {
+  padding-left: 1rem;
+}
