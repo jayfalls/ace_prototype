@@ -1,9 +1,9 @@
 FROM python:3.13-bookworm
 
-COPY . /home/ace
+COPY ./requirements /home/requirements
 
 RUN apt-get update && apt-get install -y libffi-dev nats-server nodejs npm && \
-    pip install -r /home/ace/requirements && \
+    pip install -r /home/requirements && \
     apt-get purge -y libffi-dev python3-dev && \
     npm install -g @angular/cli && \
     cd /home/ace/components/ui && \
@@ -11,4 +11,5 @@ RUN apt-get update && apt-get install -y libffi-dev nats-server nodejs npm && \
     ng analytics off && \
     rm -rf /var/cache/*
 
+RUN mkdir /home/ace
 WORKDIR /home/ace

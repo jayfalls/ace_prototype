@@ -1,7 +1,7 @@
 import { createReducer, on } from "@ngrx/store";
-import { onLoadableError, onLoadableLoad, onLoadableSuccess } from "../state/loadable.state";
-import { appActions } from "../actions/app.actions";
-import { createInitialAppState } from "../state/app.state";
+import { onLoadableError, onLoadableLoad, onLoadableSuccess } from "../../state/loadable.state";
+import { appActions } from "./app.actions";
+import { createInitialAppState } from "../../state/app.state";
 
 export const appReducer = createReducer(
     createInitialAppState(),

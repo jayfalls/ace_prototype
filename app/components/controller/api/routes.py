@@ -19,10 +19,11 @@ from . import service
 controller_api = FastAPI()
 controller_api.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:4200"],  # Allow requests from your Angular app
+    allow_origins=["http://localhost:4200", "http://127.0.0.1:4200"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 

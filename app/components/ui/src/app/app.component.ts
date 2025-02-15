@@ -10,9 +10,9 @@ import { RouterModule, RouterOutlet } from "@angular/router";
 import { Store } from "@ngrx/store";
 import { Observable } from "rxjs";
 //// Local
-import { appActions } from "./store/actions/app.actions";
-import { selectAppState } from './store/selectors/app.selectors';
-import { AppState } from './store/state/app.state';
+import { appActions } from "./store/app/app.actions";
+import { selectAppState } from './store/app/app.selectors';
+import { AppState } from './state/app.state';
 
 
 // TYPES

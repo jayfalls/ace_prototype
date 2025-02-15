@@ -9,8 +9,8 @@ import { provideStoreDevtools } from '@ngrx/store-devtools';
 //// Local
 import { routes } from './app.routes';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { AppEffects } from './store/effects/app.effects';
-import { appReducer } from './store/reducers/app.reducers';
+import { AppEffects } from './store/app/app.effects';
+import { appReducer } from './store/app/app.reducers';
 
 
 // CONFIG
