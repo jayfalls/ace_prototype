@@ -11,10 +11,12 @@ import {MatInputModule} from '@angular/material/input';
 import { MatListModule } from "@angular/material/list";
 import {MatSelectModule} from '@angular/material/select';
 //// Local
+import { ILLMModelProvider } from "../../models/model-provider.models";
 import { ISettings } from "../../models/settings.models";
+import { modelProviderActions } from "../../store/model-provider/model-provider.actions";
+import { selectLLMModels, selectLLMModelTypes } from "../../store/model-provider/model-provider.selectors";
 import { settingsActions } from "../../store/settings/settings.actions";
 import { selectSettingsState } from "../../store/settings/settings.selectors";
-import { SettingsState } from "../../state/settings.state";
 
 @Component({
   selector: "page-settings",
@@ -23,17 +25,19 @@ import { SettingsState } from "../../state/settings.state";
   styleUrl: "./settings.component.scss"
 })
 export class SettingsComponent implements OnInit {
-  settings$: Observable<SettingsState>;
-
+  llmModels: ILLMModelProvider[] = [];
+  llmModelTypes: string[] = [];
   settings!: ISettings;
 
-  constructor(private store: Store) {
-    this.settings$ = this.store.select(selectSettingsState);
-  }
+  constructor(private store: Store) {}
 
   ngOnInit(): void {
     this.store.dispatch(settingsActions.getSettings());
-    this.settings$.subscribe( settings => this.settings = settings.settings);
+    this.store.select(selectSettingsState).subscribe( settings => this.settings = settings.settings);
+    this.store.dispatch(modelProviderActions.getLLMModels());
+    this.store.select(selectLLMModels).subscribe(llmModels => this.llmModels = llmModels);
+    this.store.dispatch(modelProviderActions.getLLMModelTypes());
+    this.store.select(selectLLMModelTypes).subscribe(llmModelTypes => this.llmModelTypes = llmModelTypes);
   }
 
   formatLayerNames(layerName: string): string {

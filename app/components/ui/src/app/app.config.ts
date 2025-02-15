@@ -10,8 +10,10 @@ import { provideStoreDevtools } from '@ngrx/store-devtools';
 import { routes } from './app.routes';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { AppEffects } from './store/app/app.effects';
-import { appReducer } from './store/app/app.reducers';
+import { modelProviderEffects } from './store/model-provider/model-provider.effects';
 import { SettingsEffects } from './store/settings/settings.effects';
+import { appReducer } from './store/app/app.reducers';
+import { modelProviderReducer } from './store/model-provider/model-provider.reducers';
 import { settingsReducer } from './store/settings/settings.reducers';
 
 
@@ -19,9 +21,9 @@ import { settingsReducer } from './store/settings/settings.reducers';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideAnimationsAsync(),
-    provideEffects([AppEffects, SettingsEffects]),
+    provideEffects([AppEffects, modelProviderEffects, SettingsEffects]),
     provideHttpClient(),
-    provideStore({ app_data: appReducer, settings: settingsReducer }),
+    provideStore({ app_data: appReducer, model_provider: modelProviderReducer, settings: settingsReducer }),
     provideStoreDevtools({
       maxAge: 25,
       logOnly: false

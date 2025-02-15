@@ -2,7 +2,7 @@
 ## Third-Party
 from pydantic import BaseModel
 ## Local
-from .indiividual_providers import IndividualProviderSettings
+from .individual_providers import IndividualProviderSettings
 from . import model_types
 
 
