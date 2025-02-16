@@ -8,11 +8,12 @@ import { MatTooltipModule } from "@angular/material/tooltip";
 import { MatSidenavModule } from "@angular/material/sidenav";
 import { RouterModule, RouterOutlet } from "@angular/router";
 import { Store } from "@ngrx/store";
-import { Observable } from "rxjs";
 //// Local
+import { IUISettings } from "./models/settings.models";
 import { appActions } from "./store/app/app.actions";
+import { settingsActions } from "./store/settings/settings.actions";
 import { selectAppState } from './store/app/app.selectors';
-import { AppState } from './state/app.state';
+import { selectUISettingsState } from "./store/settings/settings.selectors";
 
 
 // TYPES
@@ -68,16 +69,17 @@ export class AppComponent implements OnInit {
       route: "settings"
     }
   ])
-  versionData$: Observable<AppState>;
+
+  uiSettings?: IUISettings;
   version: string = "0";
 
   // Initialisation
-  constructor(private store: Store) {
-    this.versionData$ = this.store.select(selectAppState);
-  }
+  constructor(private store: Store) {}
 
   ngOnInit(): void {
       this.store.dispatch(appActions.getACEVersionData());
-      this.versionData$.subscribe( versionData => this.version = versionData.versionData.version);
+      this.store.select(selectAppState).subscribe( versionData => this.version = versionData.versionData.version);
+      this.store.dispatch(settingsActions.getSettings());
+      this.store.select(selectUISettingsState).subscribe( ui_settings => this.uiSettings = ui_settings );
   }
 }

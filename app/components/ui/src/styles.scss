@@ -7,10 +7,18 @@ html, body {
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
 .main-page {
-  padding-left: 3rem;
+  position: relative;
   padding-top: 1rem;
+  padding-left: 3rem;
+  padding-right: 3rem;
+  padding-bottom: 1rem;
 }
 
-.headings {
+.subsection {
   padding-left: 1rem;
+  padding-right: 1rem;
+
+  .subsection-divider {
+    margin-top: 1rem;
+  }
 }

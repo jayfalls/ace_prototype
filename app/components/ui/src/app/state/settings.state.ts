@@ -11,6 +11,9 @@ export function createInitialSettingsState(): SettingsState {
     ...createDefaultLoadable(),
     settings: {
       ace_name: Values.NOT_LOADED,
+      ui_settings: {
+        show_footer: true
+      },
       layer_settings: [],
       model_provider_settings: {
         claude_settings: {

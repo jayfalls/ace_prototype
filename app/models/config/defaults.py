@@ -7,6 +7,13 @@ from constants import (
 )
 from .layers import LayerSettings
 from .model_providers import ModelProviderSettings, model_types
+from .ui import UISettings
+
+
+# UI
+DEFAULT_UI_SETTINGS: UISettings = UISettings(
+    show_footer=True
+)
 
 
 # LAYERS

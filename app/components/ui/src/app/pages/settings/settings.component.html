@@ -1,31 +1,61 @@
 <div class="main-page">
   <h1>Settings</h1>
 
-  <div class="headings">
-    <div class="ace-name">
-      <h2>Ace Name:</h2>
-      <p>{{ settings.ace_name }}</p>
-    </div>
-
-    <div>
-      <h2>Layer Settings:</h2>
-      <mat-card appearance="outlined">
-        <ul>
-          @for (layer_setting of settings.layer_settings; track layer_setting.layer_name) {
-            <mat-list>
-              <mat-list-item>
-                <div>
-                  <span matListItemTitle><strong>Layer:</strong> {{ formatLayerNames(layer_setting.layer_name) }}</span>
-                  <span matListItemLine>
-                    <strong>Model Type:</strong>
-                    {{ layer_setting.model_type | titlecase }}
-                  </span>
-                </div>
-              </mat-list-item>
-            </mat-list>
+  @if (settingsForm) {
+    <form mat-dialog-content class="subsection" [formGroup]="settingsForm">
+      <h2>General:</h2>
+      <div class="subsection">
+        <mat-form-field appearance="outline">
+          <mat-label>Ace Name</mat-label>
+          <input matInput formControlName="ace_name">
+          @if (aceNameControl?.hasError("required")) {
+            <mat-error>Please enter a name for the ace</mat-error>
           }
-        </ul>
-      </mat-card>
-    </div>
-  </div>
+          @if (aceNameControl?.hasError("maxlength")) {
+            <mat-error>Max length of 32 characters</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>UI:</h2>
+      <div class="subsection" formGroupName="ui_settings">
+        <mat-checkbox formControlName="show_footer">Show Footer</mat-checkbox>
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>ACE Layers:</h2>
+      <div class="subsection" formArrayName="layer_settings">
+        @for (layerSetting of layerSettingsControl.controls; track layer_setting; let layer_setting = $index) {
+          <div [formGroupName]="layer_setting">
+            <h3>{{ formatLayerNames(layerSetting.value?.layer_name || "") }} Layer:</h3>
+            <mat-form-field appearance="outline" class="subsection">
+              <mat-label>Model Type</mat-label>
+              <mat-select formControlName="model_type">
+                @for (type of llmModelTypes; track type) {
+                  <mat-option [value]="type">{{ type | titlecase }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+        }
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>Model Provider:</h2>
+      <div class="subsection">
+      </div>
+    </form>
+
+    <button mat-fab
+      class="save-button"
+      aria-label="Save"
+      (click)="onSave()"
+      [disabled]="!settingsForm.valid || !changesDetected">
+      <mat-icon>save</mat-icon>
+    </button>
+  }
 </div>

@@ -21,8 +21,10 @@
     </mat-sidenav-content>
   </mat-sidenav-container>
 
-  <footer class="footer">
-    <p>Developed by JayFalls</p>
-    <p>Version: v{{ version }}</p>
-  </footer>
+  @if ( uiSettings?.show_footer ) {
+    <footer class="footer">
+      <p>Developed by Jayfalls</p>
+      <p>Version: v{{ version }}</p>
+    </footer>
+  }
 </div>

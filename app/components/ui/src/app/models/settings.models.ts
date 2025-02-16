@@ -1,4 +1,9 @@
 // SECTIONS
+//// UI
+export interface IUISettings {
+  show_footer: boolean;
+}
+
 //// Layers
 export interface ILayerSetting {
   layer_name: string;
@@ -45,6 +50,7 @@ export interface IModelProviderSetting {
 // FULL SETTINGS
 export interface ISettings {
   ace_name: string;
+  ui_settings: IUISettings;
   layer_settings: ILayerSetting[];
   model_provider_settings: IModelProviderSetting;
 }
