@@ -23,7 +23,7 @@ root = APIRouter()
 )
 async def get_version_route() -> dict:
     try:
-        return root_service.get_version_data()
+        return root_service.get_version()
     except ValidationError as error:
         logger.error(error)
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Version data error!")
@@ -55,6 +55,22 @@ async def set_settings_route(updated_settings: EditSettingsRequest) -> dict:
     try:
         root_service.edit_settings_data(updated_settings=updated_settings.model_dump())
         return DefaultAPIResponse(message="Settings data updated successfully!")
+    except ValidationError as error:
+        logger.error(error)
+        raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Settings data error!")
+    except Exception as error:
+        logger.error(error)
+        raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=Defaults.INTERNAL_SERVER_ERROR_MESSAGE)
+
+@root.delete(
+    f"{APIRoutes.ROOT}settings",
+    response_model=DefaultAPIResponse,
+    description=f"Delete the {Names.ACE} controller settings data"
+)
+async def delete_settings_route() -> dict:
+    try:
+        root_service.delete_settings_data()
+        return DefaultAPIResponse(message="Settings data deleted successfully!")
     except ValidationError as error:
         logger.error(error)
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Settings data error!")

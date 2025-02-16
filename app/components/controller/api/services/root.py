@@ -18,7 +18,7 @@ def _get_settings() -> dict:
 
 
 # ROOT
-def get_version_data() -> dict:
+def get_version() -> dict:
     with open(Files.VERSION, "r", encoding="utf-8") as settings_file:
         return json.loads(settings_file.read())
 
@@ -30,3 +30,7 @@ def edit_settings_data(updated_settings: dict):
     settings.update(updated_settings)
     with open(Files.CONTROLLER_SETTINGS, "w", encoding="utf-8") as settings_file:
         settings_file.write(json.dumps(settings))
+
+def delete_settings_data():
+    with open(Files.CONTROLLER_SETTINGS, "w", encoding="utf-8") as settings_file:
+        settings_file.write(json.dumps({}))

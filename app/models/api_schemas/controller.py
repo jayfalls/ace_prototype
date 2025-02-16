@@ -13,6 +13,10 @@ EditSettingsRequest: type[BaseModel] = ControllerSettingsSchema
 # RESPONSES
 class GetVersionDetailsResponse(BaseModel):
     version: str
+    author: str
+    license: str
+    last_update: str
+    rebuild_date: str
 
 GetSettingsResponse: type[BaseModel] = ControllerSettingsSchema
 

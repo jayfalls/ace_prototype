@@ -14,7 +14,7 @@ import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 //// Local
 import { ILLMModelProvider } from "../../models/model-provider.models";
-import { ISettings } from "../../models/settings.models";
+import { IModelProviderSetting, ISettings } from "../../models/settings.models";
 import { modelProviderActions } from "../../store/model-provider/model-provider.actions";
 import { selectLLMModelTypes } from "../../store/model-provider/model-provider.selectors";
 import { settingsActions } from "../../store/settings/settings.actions";
@@ -37,6 +37,11 @@ import { selectSettingsState } from "../../store/settings/settings.selectors";
   styleUrl: "./settings.component.scss"
 })
 export class SettingsComponent implements OnInit {
+  private defaultIndividualModelProviderSettings = {
+    enabled: false,
+    api_key: ""
+  }
+
   llmModels: ILLMModelProvider[] = [];
   llmModelTypes: string[] = [];
   selectedLLMModelType: string = "";
@@ -75,7 +80,21 @@ export class SettingsComponent implements OnInit {
       ui_settings: this.formBuilder.group({
         show_footer: [true]
       }),
-      layer_settings: this.formBuilder.array([])
+      layer_settings: this.formBuilder.array([]),
+      model_provider_settings: this.formBuilder.group({
+        claude_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        deepseek_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        google_vertex_ai_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        grok_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        groq_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        ollama_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        openai_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
+        three_d_model_type_settings: this.formBuilder.array([]),
+        audio_model_type_settings: this.formBuilder.array([]),
+        image_model_type_settings: this.formBuilder.array([]),
+        llm_model_type_settings: this.formBuilder.array([]),
+        rag_model_type_settings: this.formBuilder.array([])
+      })
     });
 
     this.settingsForm.valueChanges.subscribe(() => {
@@ -83,28 +102,52 @@ export class SettingsComponent implements OnInit {
     })
   }
 
-  private createLayerSettingGroup(layer: any): FormGroup {
-    return this.formBuilder.group({
-      layer_name: [layer?.layer_name || "", Validators.required],
-      model_type: [layer?.model_type || "", Validators.required]
-    });
-  }
-
   private patchFormValues(): void {
     if (!this.settings) return;
 
+    // General
     this.settingsForm.patchValue({
       ace_name: this.settings.ace_name,
+    });
+
+    // UI
+    this.settingsForm.patchValue({
       ui_settings: {
         show_footer: this.settings.ui_settings.show_footer
       }
     });
 
+    // Layers
     const layerArray = this.layerSettingsControl;
     layerArray.clear();
 
     this.settings.layer_settings.forEach(layer => {
-      layerArray.push(this.createLayerSettingGroup(layer));
+      layerArray.push(
+        this.formBuilder.group({
+          layer_name: [layer?.layer_name || "", Validators.required],
+          model_type: [layer?.model_type || "", Validators.required]
+        })
+      );
+    });
+
+
+    // Model Provider
+    const modelProviderSettings: IModelProviderSetting = this.settings.model_provider_settings;
+    this.settingsForm.patchValue({
+      model_provider_settings: {
+        claude_settings: modelProviderSettings.claude_settings || this.defaultIndividualModelProviderSettings,
+        deepseek_settings: modelProviderSettings.deepseek_settings || this.defaultIndividualModelProviderSettings,
+        google_vertex_ai_settings: modelProviderSettings.google_vertex_ai_settings || this.defaultIndividualModelProviderSettings,
+        grok_settings: modelProviderSettings.grok_settings || this.defaultIndividualModelProviderSettings,
+        groq_settings: modelProviderSettings.groq_settings || this.defaultIndividualModelProviderSettings,
+        ollama_settings: modelProviderSettings.ollama_settings || this.defaultIndividualModelProviderSettings,
+        openai_settings: modelProviderSettings.openai_settings || this.defaultIndividualModelProviderSettings,
+        three_d_model_type_settings: modelProviderSettings.three_d_model_type_settings || [],
+        audio_model_type_settings: modelProviderSettings.audio_model_type_settings || [],
+        image_model_type_settings: modelProviderSettings.image_model_type_settings || [],
+        llm_model_type_settings: modelProviderSettings.llm_model_type_settings || [],
+        rag_model_type_settings: modelProviderSettings.rag_model_type_settings || []
+      }
     });
 
     this.settingsForm.markAsPristine();
@@ -116,6 +159,10 @@ export class SettingsComponent implements OnInit {
       .split("_")
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join(" ");
+  }
+
+  onReset() {
+    this.store.dispatch(settingsActions.resetSettings());
   }
 
   onSave() {
@@ -130,7 +177,7 @@ export class SettingsComponent implements OnInit {
     this.changesDetected = false;
     this.settingsForm.markAsPristine();
 
-    // this.store.dispatch(settingsActions.editSettings({ settings: updatedSettings }));
+    this.store.dispatch(settingsActions.editSettings({ settings: updatedSettings }));
   }
 
   get aceNameControl() {

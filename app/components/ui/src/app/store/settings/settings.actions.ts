@@ -6,6 +6,12 @@ export const settingsActions = createActionGroup({
     events: {
         getSettings: emptyProps(),
         getSettingsSuccess: props<{ settings: ISettings }>(),
-        getSettingsFailure: props<{ error: Error }>()
+        getSettingsFailure: props<{ error: Error }>(),
+        editSettings: props<{ settings: ISettings }>(),
+        editSettingsSuccess: emptyProps(),
+        editSettingsFailure: props<{ error: Error }>(),
+        resetSettings: emptyProps(),
+        resetSettingsSuccess: emptyProps(),
+        resetSettingsFailure: props<{ error: Error }>()
     },
 });
