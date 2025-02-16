@@ -1,6 +1,7 @@
 // SECTIONS
 //// UI
 export interface IUISettings {
+  dark_mode: boolean;
   show_footer: boolean;
 }
 

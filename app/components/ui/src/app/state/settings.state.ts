@@ -3,7 +3,7 @@ import { Values } from '../constants'
 import { ISettings } from "../models/settings.models";
 
 export interface SettingsState extends Loadable {
-    settings: ISettings;
+  settings: ISettings;
 }
 
 export function createInitialSettingsState(): SettingsState {
@@ -12,6 +12,7 @@ export function createInitialSettingsState(): SettingsState {
     settings: {
       ace_name: Values.NOT_LOADED,
       ui_settings: {
+        dark_mode: true,
         show_footer: true
       },
       layer_settings: [],

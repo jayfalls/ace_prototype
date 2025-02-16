@@ -15,8 +15,14 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 }
 
 .subsection {
+  display: flex;
   padding-left: 1rem;
   padding-right: 1rem;
+  flex-direction: column;
+
+  &.checkboxes {
+    row-gap: 0.5rem;
+  }
 
   .subsection-divider {
     margin-top: 1rem;

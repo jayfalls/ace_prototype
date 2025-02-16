@@ -6,12 +6,12 @@ import { Store } from "@ngrx/store";
 import { filter, take } from "rxjs";
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule, Validators } from "@angular/forms";
 import { MatButtonModule } from "@angular/material/button";
-import { MatCheckboxModule } from "@angular/material/checkbox";
 import { MatDividerModule } from "@angular/material/divider";
 import { MatIconModule } from "@angular/material/icon";
-import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
+import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
+import { MatSlideToggleModule } from "@angular/material/slide-toggle";
 //// Local
 import { IAppVersionData } from "../../models/app.models";
 import { ILLMModelProvider } from "../../models/model-provider.models";
@@ -27,12 +27,12 @@ import { selectSettingsState } from "../../store/settings/settings.selectors";
   imports: [
     ReactiveFormsModule,
     MatButtonModule,
-    MatCheckboxModule,
     MatDividerModule,
     MatIconModule,
-    MatFormFieldModule,
     MatInputModule,
+    MatFormFieldModule,
     MatSelectModule,
+    MatSlideToggleModule,
     TitleCasePipe
   ],
   templateUrl: "./settings.component.html",
@@ -79,9 +79,13 @@ export class SettingsComponent implements OnInit {
   }
 
   private initialiseForm(): void {
+    if (this.settingsForm) {
+      this.settingsForm.reset();
+    }
     this.settingsForm = this.formBuilder.group({
       ace_name: ["", [Validators.required, Validators.maxLength(32)]],
       ui_settings: this.formBuilder.group({
+        dark_mode: [true],
         show_footer: [true]
       }),
       layer_settings: this.formBuilder.array([]),
@@ -108,6 +112,7 @@ export class SettingsComponent implements OnInit {
 
   private patchFormValues(): void {
     if (!this.settings) return;
+    this.initialiseForm();
 
     // General
     this.settingsForm.patchValue({
@@ -117,12 +122,13 @@ export class SettingsComponent implements OnInit {
     // UI
     this.settingsForm.patchValue({
       ui_settings: {
+        dark_mode: this.settings.ui_settings.dark_mode,
         show_footer: this.settings.ui_settings.show_footer
       }
     });
 
     // Layers
-    const layerArray = this.layerSettingsControl;
+    let layerArray = this.layerSettingsControl;
     layerArray.clear();
 
     this.settings.layer_settings.forEach(layer => {
@@ -133,7 +139,6 @@ export class SettingsComponent implements OnInit {
         })
       );
     });
-
 
     // Model Provider
     const modelProviderSettings: IModelProviderSetting = this.settings.model_provider_settings;

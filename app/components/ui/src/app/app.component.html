@@ -22,9 +22,13 @@
   </mat-sidenav-container>
 
   @if ( uiSettings?.show_footer ) {
-    <footer class="footer">
+    <div class="footer">
       <p>Version: v{{ appVersionData?.version }}</p>
       <p>Last Update: {{ appVersionData?.last_update }}</p>
-    </footer>
+      <!-- Dark Mode Toggle -->
+      <button mat-icon-button (click)="toggleDarkMode()" matTooltip="Toggle Dark Mode">
+        <mat-icon>dark_mode</mat-icon>
+      </button>
+    </div>
   }
 </div>
