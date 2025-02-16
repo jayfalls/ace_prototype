@@ -4,6 +4,14 @@
 ACE_LOGGER_VERBOSE_ENV="."
 
 
+# SETUP
+setup() {
+    echo "Setting up environment..."
+    git_hooks_folder=".github/hooks"
+    mv -r "$git_hooks_folder" ".git/hooks"
+}
+
+
 # STARTUP
 run_tests() {
     echo "Installing/Updating test dependencies..."
@@ -30,6 +38,8 @@ run_ace() {
 main() {
     # Store original arguments
     original_args=("$@")
+
+    setup
     
     # Initialize variables
     run_tests=false
