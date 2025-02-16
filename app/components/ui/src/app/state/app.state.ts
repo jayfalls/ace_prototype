@@ -1,15 +1,19 @@
 import { createDefaultLoadable, Loadable } from "./loadable.state";
-import { IACEVersionData } from "../models/app.models";
+import { IAppVersionData } from "../models/app.models";
 
 export interface AppState extends Loadable {
-    versionData: IACEVersionData;
+    version_data: IAppVersionData;
 }
 
 export function createInitialAppState(): AppState {
     return {
         ...createDefaultLoadable(),
-        versionData: {
-            version: "0"
+        version_data: {
+            version: "0",
+            authors: [],
+            license: "",
+            last_update: "",
+            rebuild_date: ""
         }
     }
 }

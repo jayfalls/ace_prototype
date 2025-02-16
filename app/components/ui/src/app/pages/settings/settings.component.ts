@@ -13,9 +13,11 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatInputModule } from "@angular/material/input";
 import { MatSelectModule } from "@angular/material/select";
 //// Local
+import { IAppVersionData } from "../../models/app.models";
 import { ILLMModelProvider } from "../../models/model-provider.models";
 import { IModelProviderSetting, ISettings } from "../../models/settings.models";
 import { modelProviderActions } from "../../store/model-provider/model-provider.actions";
+import { selectAppVersionDataState } from "../../store/app/app.selectors";
 import { selectLLMModelTypes } from "../../store/model-provider/model-provider.selectors";
 import { settingsActions } from "../../store/settings/settings.actions";
 import { selectSettingsState } from "../../store/settings/settings.selectors";
@@ -42,6 +44,7 @@ export class SettingsComponent implements OnInit {
     api_key: ""
   }
 
+  appVersionData!: IAppVersionData;
   llmModels: ILLMModelProvider[] = [];
   llmModelTypes: string[] = [];
   selectedLLMModelType: string = "";
@@ -58,6 +61,7 @@ export class SettingsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.store.select(selectAppVersionDataState).subscribe( version_data => this.appVersionData = version_data );
     this.store.dispatch(modelProviderActions.getLLMModelTypes());
     this.store.select(selectLLMModelTypes).pipe(
       filter((model_types: string[]): model_types is string[] => model_types.length > 0),

@@ -9,7 +9,7 @@ export type HttpListResponseFailure = { status: string, message: string };
 
 
 const endpoints = {
-    getACEVersionData: `${environmentURLs.controller}${APIRoutes.ROOT}version`,
+    getAppVersionData: `${environmentURLs.controller}${APIRoutes.ROOT}version`,
 };
 
 
@@ -19,7 +19,7 @@ const endpoints = {
 export class AppService {
   constructor(private http: HttpClient) { }
 
-  getACEVersionData(): Observable<HttpListResponseFailure | any> {
-      return this.http.get<HttpListResponseFailure | any>(endpoints.getACEVersionData);
+  getAppVersionData(): Observable<HttpListResponseFailure | any> {
+      return this.http.get<HttpListResponseFailure | any>(endpoints.getAppVersionData);
   }
 }

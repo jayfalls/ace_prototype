@@ -9,10 +9,11 @@ import { MatSidenavModule } from "@angular/material/sidenav";
 import { RouterModule, RouterOutlet } from "@angular/router";
 import { Store } from "@ngrx/store";
 //// Local
+import { IAppVersionData } from "./models/app.models";
 import { IUISettings } from "./models/settings.models";
 import { appActions } from "./store/app/app.actions";
 import { settingsActions } from "./store/settings/settings.actions";
-import { selectAppState } from './store/app/app.selectors';
+import { selectAppVersionDataState } from './store/app/app.selectors';
 import { selectUISettingsState } from "./store/settings/settings.selectors";
 
 
@@ -71,14 +72,14 @@ export class AppComponent implements OnInit {
   ])
 
   uiSettings?: IUISettings;
-  version: string = "0";
+  appVersionData?: IAppVersionData;
 
   // Initialisation
   constructor(private store: Store) {}
 
   ngOnInit(): void {
-      this.store.dispatch(appActions.getACEVersionData());
-      this.store.select(selectAppState).subscribe( versionData => this.version = versionData.versionData.version);
+      this.store.dispatch(appActions.getAppVersionData());
+      this.store.select(selectAppVersionDataState).subscribe( version_data => this.appVersionData = version_data );
       this.store.dispatch(settingsActions.getSettings());
       this.store.select(selectUISettingsState).subscribe( ui_settings => this.uiSettings = ui_settings );
   }

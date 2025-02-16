@@ -1,11 +1,11 @@
 import { createActionGroup, props, emptyProps } from "@ngrx/store";
-import { IACEVersionData } from "../../models/app.models";
+import { IAppVersionData } from "../../models/app.models";
 
 export const appActions = createActionGroup({
     source: "app",
     events: {
-        getACEVersionData: emptyProps(),
-        getACEVersionDataSuccess: props<{ versionData: IACEVersionData }>(),
-        getACEVersionDataFailure: props<{ error: Error }>()
+        getAppVersionData: emptyProps(),
+        getAppVersionDataSuccess: props<{ version_data: IAppVersionData }>(),
+        getAppVersionDataFailure: props<{ error: Error }>()
     },
 });

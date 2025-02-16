@@ -16,35 +16,6 @@ DEFAULT_UI_SETTINGS: UISettings = UISettings(
 )
 
 
-# LAYERS
-DEFAULT_LAYER_SETTINGS: list[LayerSettings] = [
-    LayerSettings(
-        layer_name=LayerTypes.ASPIRATIONAL,
-        model_type=LLMModelTypes.REASONER
-    ),
-    LayerSettings(
-        layer_name=LayerTypes.GLOBAL_STRATEGY,
-        model_type=LLMModelTypes.REASONER
-    ),
-    LayerSettings(
-        layer_name=LayerTypes.AGENT_MODEL,
-        model_type=LLMModelTypes.GENERALIST
-    ),
-    LayerSettings(
-        layer_name=LayerTypes.EXECUTIVE_FUNCTION,
-        model_type=LLMModelTypes.GENERALIST
-    ),
-    LayerSettings(
-        layer_name=LayerTypes.COGNITIVE_CONTROL,
-        model_type=LLMModelTypes.EFFICIENT
-    ),
-    LayerSettings(
-        layer_name=LayerTypes.TASK_PROSECUTION,
-        model_type=LLMModelTypes.FUNCTION_CALLER
-    )
-]
-
-
 # MODEL PROVIDERS
 ## Model Types
 DEFAULT_LLM_MODEL_TYPE_SETTINGS: list[model_types.LLMModelTypeSetting] = [
@@ -99,3 +70,32 @@ DEFAULT_MODEL_PROVIDER_SETTINGS = ModelProviderSettings(
     llm_model_type_settings=DEFAULT_LLM_MODEL_TYPE_SETTINGS,
     rag_model_type_settings=DEFAULT_RAG_MODEL_TYPE_SETTINGS
 )
+
+
+# LAYERS
+DEFAULT_LAYER_SETTINGS: list[LayerSettings] = [
+    LayerSettings(
+        layer_name=LayerTypes.ASPIRATIONAL,
+        model_type=LLMModelTypes.REASONER
+    ),
+    LayerSettings(
+        layer_name=LayerTypes.GLOBAL_STRATEGY,
+        model_type=LLMModelTypes.REASONER
+    ),
+    LayerSettings(
+        layer_name=LayerTypes.AGENT_MODEL,
+        model_type=LLMModelTypes.GENERALIST
+    ),
+    LayerSettings(
+        layer_name=LayerTypes.EXECUTIVE_FUNCTION,
+        model_type=LLMModelTypes.GENERALIST
+    ),
+    LayerSettings(
+        layer_name=LayerTypes.COGNITIVE_CONTROL,
+        model_type=LLMModelTypes.EFFICIENT
+    ),
+    LayerSettings(
+        layer_name=LayerTypes.TASK_PROSECUTION,
+        model_type=LLMModelTypes.FUNCTION_CALLER
+    )
+]

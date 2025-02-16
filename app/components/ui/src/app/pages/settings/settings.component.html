@@ -26,6 +26,13 @@
 
       <mat-divider class="subsection-divider"></mat-divider>
 
+      <h2>Model Provider:</h2>
+      <div class="subsection">
+        <!-- @for () -->
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
       <h2>ACE Layers:</h2>
       <div class="subsection" formArrayName="layer_settings">
         @for (layerSetting of layerSettingsControl.controls; track layer_setting; let layer_setting = $index) {
@@ -45,18 +52,15 @@
 
       <mat-divider class="subsection-divider"></mat-divider>
 
-      <h2>Model Provider:</h2>
-      <div class="subsection">
-        <!-- @for () -->
-      </div>
-
-      <mat-divider class="subsection-divider"></mat-divider>
-
       <h2>About:</h2>
       <div class="subsection">
-        <p>Developed by Jayfalls</p>
+        <p>Developed by {{ appVersionData.authors.join(", ") }}</p>
+        <p>Version: v{{ appVersionData.version }}</p>
+        <p>License: {{ appVersionData.license }}</p>
+        <p>Last Update: {{ appVersionData.last_update }}</p>
+        <p>Last Container Image Update: {{ appVersionData.rebuild_date }}</p>
         <p></p>
-        <button mat-raised-button color="primary" (click)="onReset()">Reset to Defaults</button>
+        <button mat-raised-button color="primary" (click)="onReset()">Reset Settings to Defaults</button>
       </div>
     </form>
 

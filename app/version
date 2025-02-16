@@ -1,7 +1,9 @@
 {
   "version": "0.0.0",
-  "author": "Jayfalls",
+  "authors": [
+    "Jayfalls"
+  ],
   "license": "MIT",
-  "last_update": "2025-02-16",
+  "last_update": "",
   "rebuild_date": "2025-02-02"
 }

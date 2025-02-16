@@ -23,8 +23,8 @@
 
   @if ( uiSettings?.show_footer ) {
     <footer class="footer">
-      <p>Developed by Jayfalls</p>
-      <p>Version: v{{ version }}</p>
+      <p>Version: v{{ appVersionData?.version }}</p>
+      <p>Last Update: {{ appVersionData?.last_update }}</p>
     </footer>
   }
 </div>

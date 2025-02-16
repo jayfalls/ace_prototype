@@ -12,5 +12,5 @@ from .ui import UISettings
 class ControllerSettingsSchema(BaseModel):
     ace_name: str = Defaults.ACE_NAME
     ui_settings: UISettings = DEFAULT_UI_SETTINGS
-    layer_settings: list[LayerSettings] = DEFAULT_LAYER_SETTINGS
     model_provider_settings: ModelProviderSettings = DEFAULT_MODEL_PROVIDER_SETTINGS
+    layer_settings: list[LayerSettings] = DEFAULT_LAYER_SETTINGS

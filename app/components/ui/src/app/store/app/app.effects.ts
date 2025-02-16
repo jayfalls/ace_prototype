@@ -2,7 +2,7 @@ import { inject, Injectable } from "@angular/core";
 import { createEffect, ofType, Actions } from "@ngrx/effects";
 import { map, catchError, of, switchMap } from "rxjs";
 import { appActions } from "./app.actions";
-import { IACEVersionData } from "../../models/app.models";
+import { IAppVersionData } from "../../models/app.models";
 import { AppService } from "../../services/app.service";
 
 
@@ -11,10 +11,10 @@ export class AppEffects {
     private actions$ = inject(Actions);
 
     getACEVersionData$ = createEffect(() => this.actions$.pipe(
-        ofType(appActions.getACEVersionData),
-        switchMap(() => this.appService.getACEVersionData().pipe(
-            map((versionData: IACEVersionData) => appActions.getACEVersionDataSuccess({ versionData })),
-            catchError(error => of(appActions.getACEVersionDataFailure({ error })))
+        ofType(appActions.getAppVersionData),
+        switchMap(() => this.appService.getAppVersionData().pipe(
+            map((version_data: IAppVersionData) => appActions.getAppVersionDataSuccess({ version_data })),
+            catchError(error => of(appActions.getAppVersionDataFailure({ error })))
         ))
     ))
 

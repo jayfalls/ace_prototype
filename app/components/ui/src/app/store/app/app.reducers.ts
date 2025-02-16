@@ -5,7 +5,7 @@ import { createInitialAppState } from "../../state/app.state";
 
 export const appReducer = createReducer(
     createInitialAppState(),
-    on(appActions.getACEVersionData, state => ({...onLoadableLoad(state)})),
-    on(appActions.getACEVersionDataSuccess, (state, { versionData }) => ({...onLoadableSuccess(state), versionData: {...versionData}})),
-    on(appActions.getACEVersionDataFailure, (state, { error }) => ({...onLoadableError(state, error)}))
+    on(appActions.getAppVersionData, state => ({...onLoadableLoad(state)})),
+    on(appActions.getAppVersionDataSuccess, (state, { version_data }) => ({...onLoadableSuccess(state), version_data: {...version_data}})),
+    on(appActions.getAppVersionDataFailure, (state, { error }) => ({...onLoadableError(state, error)}))
 )
