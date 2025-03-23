@@ -1,1 +1,90 @@
-<p>SETTINGS PAGE</p>
+<div class="main-page">
+  <h1>Settings</h1>
+
+  @if (settingsForm) {
+    <form mat-dialog-content class="subsection" [formGroup]="settingsForm">
+      <h2>General:</h2>
+      <div class="subsection" [formGroup]="generalForm">
+        <mat-form-field appearance="outline">
+          <mat-label>Ace Name</mat-label>
+          <input matInput formControlName="ace_name">
+          @if (aceNameControl?.hasError("required")) {
+            <mat-error>Please enter a name for the ace</mat-error>
+          }
+          @if (aceNameControl?.hasError("maxlength")) {
+            <mat-error>Max length of 32 characters</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>UI:</h2>
+      <div class="subsection multi-input" [formGroup]="uiSettingsForm">
+        <mat-slide-toggle formControlName="dark_mode">Dark Mode</mat-slide-toggle>
+        <mat-slide-toggle formControlName="show_footer">Show Footer</mat-slide-toggle>
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>Model Provider:</h2>
+      <div class="subsection" [formGroup]="modelProviderForm">
+        <h3>Individual Model Providers:</h3>
+        <div class="subsection" formArrayName="individual_provider_settings">
+          @for (provider of individualModelProviderSettingsControl.controls; track provider.value?.name; let i = $index) {
+            @if (provider.get("name")?.value !== "ollama") {
+              <h4>{{ formatSnakeCase(provider.get('name')?.value) }}</h4>
+              <div class="subsection multi-input" [formGroupName]="i">
+                <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+                  <mat-form-field appearance="outline">
+                    <mat-label>API Key</mat-label>
+                    <input matInput formControlName="api_key">
+                  </mat-form-field>
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>ACE Layers:</h2>
+      <div class="subsection" [formArrayName]="'layer_settings'">
+        @for (layerSetting of layerSettingsControl.controls; track layerSetting; let i = $index) {
+          <div [formGroupName]="i">
+            <h3>{{ formatSnakeCase(layerSetting.value?.layer_name || "") }} Layer:</h3>
+            <mat-form-field appearance="outline" class="subsection">
+              <mat-label>Model Type</mat-label>
+              <mat-select formControlName="model_type">
+                @for (type of llmModelTypes; track type) {
+                  <mat-option [value]="type">{{ formatSnakeCase(type) }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+        }
+      </div>
+
+      <mat-divider class="subsection-divider"></mat-divider>
+
+      <h2>About:</h2>
+      <div class="subsection">
+        <p>Developed by {{ appVersionData.authors.join(", ") }}</p>
+        <p>Version: v{{ appVersionData.version }}</p>
+        <p>License: {{ appVersionData.license }}</p>
+        <p>Last Update: {{ appVersionData.last_update }}</p>
+        <p>Last Container Image Update: {{ appVersionData.rebuild_date }}</p>
+        <p></p>
+        <button mat-raised-button color="primary" (click)="onReset()">Reset Settings to Defaults</button>
+      </div>
+    </form>
+
+    <button mat-fab
+      class="save-button"
+      aria-label="Save"
+      (click)="onSave()"
+      [disabled]="!settingsForm.valid || !changesDetected">
+      <mat-icon>save</mat-icon>
+    </button>
+  }
+</div>

@@ -11,7 +11,7 @@ INTITAL_LLM_MODEL_PROVIDERS: list[LLMModelProvider] = [
     # Claude
     LLMModelProvider(
         id="0194c740-6300-7184-8eff-2be664245b03",
-        model_provider=ModelProviders.CLAUDE,
+        model_provider=ModelProviders.ANTHROPIC,
         name="Claude 3.5 Haiku",
         model_name="claude-3-5-haiku-latest",
         default=True,
@@ -24,7 +24,7 @@ INTITAL_LLM_MODEL_PROVIDERS: list[LLMModelProvider] = [
     ),
     LLMModelProvider(
         id="0194c740-98bb-76db-95ed-ef6cfa62839b",
-        model_provider=ModelProviders.CLAUDE,
+        model_provider=ModelProviders.ANTHROPIC,
         name="Claude 3.5 Sonnet",
         model_name="claude-3-5-sonnet-latest",
         default=True,

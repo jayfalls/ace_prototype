@@ -21,8 +21,14 @@
     </mat-sidenav-content>
   </mat-sidenav-container>
 
-  <footer class="footer">
-    <p>Developed by JayFalls</p>
-    <p>Version: v{{ version }}</p>
-  </footer>
+  @if ( uiSettings?.show_footer ) {
+    <div class="footer">
+      <p>Version: v{{ appVersionData?.version }}</p>
+      <p>Last Update: {{ appVersionData?.last_update }}</p>
+      <!-- Dark Mode Toggle -->
+      <button mat-icon-button (click)="toggleDarkMode()" matTooltip="Toggle Dark Mode">
+        <mat-icon>{{ uiSettings?.dark_mode ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+    </div>
+  }
 </div>

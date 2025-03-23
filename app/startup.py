@@ -8,7 +8,7 @@ import json
 from constants import DictKeys, Files, Names, ShellCommands
 from constants.files import setup_user_deployment_file
 from logger import logger
-from shell import execute_shell, exec_check_exists
+from shell import execute_shell, shell_check_exists
 
 
 # ARGUMENTS
@@ -22,17 +22,17 @@ def _get_arguments() -> dict[str, bool]:
 
 
 # PREPARATION
-def setup_network() -> None:
-    if not exec_check_exists(check_command=ShellCommands.CHECK_NETWORK, keyword=Names.NETWORK):
+def _setup_network() -> None:
+    if not shell_check_exists(check_command=ShellCommands.CHECK_NETWORK, keyword=Names.NETWORK):
         logger.startup("First time setting up network...")
         execute_shell(ShellCommands.CREATE_NETWORK)
 
-def update() -> bool:
+def _update() -> bool:
     """Update the git repo, returning True if container needs to be rebuilt"""
     logger.startup(f"Updating {Names.ACE}...")
     execute_shell(ShellCommands.UPDATE)
 
-def check_if_latest_build() -> bool:
+def _check_if_latest_build() -> bool:
     """Compares the update history and version files to check if the container needs to be rebuilt"""
     updates: dict[str] = {}
     history: dict[str] = {}
@@ -50,12 +50,12 @@ def check_if_latest_build() -> bool:
         return True
     return False
 
-def build_container(force_build: bool = False):
+def _build_container_image(force_build: bool = False):
     """
     A function which builds if image doesn't exist or if force_build flag is set
     """
     logger.startup("Checking if build is required...")
-    image_exists: bool = exec_check_exists(check_command=ShellCommands.CHECK_IMAGES, keyword=Names.IMAGE)
+    image_exists: bool = shell_check_exists(check_command=ShellCommands.CHECK_IMAGES, keyword=Names.IMAGE)
     should_build: bool = not image_exists or force_build
     if not should_build:
         logger.startup("Image already exists, skipping build...")
@@ -79,22 +79,22 @@ def build_container(force_build: bool = False):
 
 
 # DEPLOYMENT
-def stop_cluster() -> None:
+def _stop_cluster() -> None:
     """
     Stops the ACE cluster if it is running
     """
-    exists: bool = exec_check_exists(ShellCommands.CHECK_PODS, Names.ACE)
+    exists: bool = shell_check_exists(ShellCommands.CHECK_PODS, Names.ACE)
     if not exists:
         logger.warn(f"{Names.ACE} is not running! Cannot stop...")
         return
     logger.startup(f"Stopping {Names.ACE}...")
     execute_shell(ShellCommands.STOP_CLUSTER)
 
-def start_cluster(force_restart: bool) -> None:
+def _start_cluster(force_restart: bool) -> None:
     """
     Start the ACE cluster if it isn't running, handling restarts
     """
-    exists: bool = exec_check_exists(ShellCommands.CHECK_PODS, Names.ACE)
+    exists: bool = shell_check_exists(ShellCommands.CHECK_PODS, Names.ACE)
     if not force_restart and exists:
         logger.startup(f"ACE is already running... Run with --{DictKeys.RESTART} to restart!")
         return
@@ -106,27 +106,27 @@ def start_cluster(force_restart: bool) -> None:
 
 
 # MAIN
-def startup():
+def _startup():
     arguments: dict[str, bool] = _get_arguments()
     dev: bool = arguments[DictKeys.DEV]
     force_build: bool = arguments[DictKeys.BUILD]
 
     setup_user_deployment_file(dev)
-    setup_network()
+    _setup_network()
     if not dev:
-        update()
-    update_build: bool = check_if_latest_build()
+        _update()
+    update_build: bool = _check_if_latest_build()
     if update_build:
         force_build = True
-    build_container(force_build=force_build)
+    _build_container_image(force_build=force_build)
     execute_shell(ShellCommands.CLEAR_OLD_IMAGES)
 
     if arguments[DictKeys.STOP]:
-        stop_cluster()
+        _stop_cluster()
         return
 
-    start_cluster(force_restart=arguments[DictKeys.RESTART])
+    _start_cluster(force_restart=arguments[DictKeys.RESTART])
 
 
 if __name__ == "__main__":
-    startup()
+    _startup()

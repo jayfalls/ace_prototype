@@ -1,4 +1,30 @@
 /* You can add global styles to this file, and also import other style files */
 
-html, body { height: 100%; }
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+.main-page {
+  position: relative;
+  padding-top: 1rem;
+  padding-left: 3rem;
+  padding-right: 3rem;
+  padding-bottom: 1rem;
+}
+
+.subsection {
+  display: flex;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  flex-direction: column;
+
+  &.multi-input {
+    row-gap: 0.75rem;
+  }
+
+  .subsection-divider {
+    margin-top: 1rem;
+  }
+}

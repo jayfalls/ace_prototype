@@ -2,7 +2,7 @@
 ## Third-Party
 import pytest
 ## Local
-from app.shell import execute_shell, exec_check_exists
+from app.shell import execute_shell, shell_check_exists
 
 
 @pytest.mark.parametrize("command,expected_output", [
@@ -21,11 +21,11 @@ def test_execute_shell(command, expected_output, caplog):
         "/bin/sh: 1: invalid_command: not found"
     ]), "Error message should be printed"
 
-def test_exec_check_exists():
-    """Test the exec_check_exists function."""
-    result = exec_check_exists("ls -a", ".")
+def test_shell_check_exists():
+    """Test the shell_check_exists function."""
+    result = shell_check_exists("ls -a", ".")
     assert result is True, "Expected True, but got False"
-    result = exec_check_exists("ls -a", "non_existent_file")
+    result = shell_check_exists("ls -a", "non_existent_file")
     assert result is False, "Expected False, but got True"
 
 def test_should_print_result(capsys):

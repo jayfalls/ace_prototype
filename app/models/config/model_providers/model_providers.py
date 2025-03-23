@@ -2,18 +2,49 @@
 ## Third-Party
 from pydantic import BaseModel
 ## Local
-from .indiividual_providers import IndividualProviderSettings
+from constants import ModelProviders
+from .individual_providers import IndividualProviderSettings
 from . import model_types
 
 
 class ModelProviderSettings(BaseModel):
-    claude_settings: IndividualProviderSettings = IndividualProviderSettings()
-    deepseek_settings: IndividualProviderSettings = IndividualProviderSettings()
-    google_vertex_ai_settings: IndividualProviderSettings = IndividualProviderSettings()
-    grok_settings: IndividualProviderSettings = IndividualProviderSettings()
-    groq_settings: IndividualProviderSettings = IndividualProviderSettings()
-    ollama_settings: IndividualProviderSettings = IndividualProviderSettings(enabled=True)
-    openai_settings: IndividualProviderSettings = IndividualProviderSettings()
+    individual_provider_settings: list[IndividualProviderSettings] = [
+        IndividualProviderSettings(
+            name=ModelProviders.ANTHROPIC,
+            enabled=False,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.DEEPSEEK,
+            enabled=False,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.GOOGLE_VERTEX_AI,
+            enabled=False,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.GROK,
+            enabled=False,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.GROQ,
+            enabled=False,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.OLLAMA,
+            enabled=True,
+            api_key=""
+        ),
+        IndividualProviderSettings(
+            name=ModelProviders.OPENAI,
+            enabled=False,
+            api_key=""
+        )
+    ]
 
     three_d_model_type_settings: list[model_types.ThreeDModelTypeSetting] = []
     audio_model_type_settings: list[model_types.AudioModelTypeSetting] = []

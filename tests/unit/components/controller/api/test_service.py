@@ -8,7 +8,7 @@ import pytest
 from app.models.config.controller import ControllerSettingsSchema
 from app.models.config.layers import LayerSettings
 from app.models.config.model_providers import IndividualProviderSettings, ModelProviderSettings
-from app.components.controller.api.service import (
+from app.components.controller.api.services.root import (
     _get_settings,
     edit_settings_data
 )
@@ -25,7 +25,6 @@ class ExistingSettings:
         ).model_dump()
     ]
     MODEL_PROVIDER_SETTINGS = ModelProviderSettings(
-        claude_settings=IndividualProviderSettings(enabled=True),
         llm_model_type_settings = [],
         rag_model_type_settings = []
     ).model_dump()

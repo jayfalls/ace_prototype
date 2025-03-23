@@ -1,14 +1,15 @@
 import { Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import { Observable } from 'rxjs/internal/Observable';
-import { serviceURLs } from "../api.urls";
+import { APIRoutes } from "../constants";
+import { environmentURLs } from "../environment";
 
 
 export type HttpListResponseFailure = { status: string, message: string };
 
 
 const endpoints = {
-    getACEVersionData: `${serviceURLs.controller}/version`,
+    getAppVersionData: `${environmentURLs.controller}${APIRoutes.ROOT}version`,
 };
 
 
@@ -18,7 +19,7 @@ const endpoints = {
 export class AppService {
   constructor(private http: HttpClient) { }
 
-  getACEVersionData(): Observable<HttpListResponseFailure | any> {
-      return this.http.get<HttpListResponseFailure | any>(endpoints.getACEVersionData);
+  getAppVersionData(): Observable<HttpListResponseFailure | any> {
+      return this.http.get<HttpListResponseFailure | any>(endpoints.getAppVersionData);
   }
 }

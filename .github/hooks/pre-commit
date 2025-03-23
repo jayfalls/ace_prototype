@@ -1,0 +1,13 @@
+#!/bin/bash
+
+VERSION_FILE="app/version"
+
+CURRENT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
+
+if jq --arg date "$CURRENT_DATE" '.last_update = $date' "$VERSION_FILE" > temp.json; then
+    mv temp.json "$VERSION_FILE"
+    git add "$VERSION_FILE"
+else
+    echo "Error: Failed to update version file"
+    exit 1
+fi

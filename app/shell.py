@@ -56,12 +56,12 @@ def execute_shell(
 
     return "".join(stdout_lines)
 
-def exec_check_exists(check_command: str, keyword: str) -> bool:
+def shell_check_exists(shell_command: str, keyword_to_find: str) -> bool:
     """Checks if the keyword exists in the output of the check_command"""
-    logger.debug(f'Checking using "{check_command}" for {keyword}...')
-    existing_terms = frozenset(execute_shell(check_command).split("\n"))
+    logger.debug(f'Checking using "{shell_command}" for {keyword_to_find}...')
+    existing_terms = frozenset(execute_shell(shell_command).split("\n"))
     logger.debug(f"Existing Terms: {existing_terms}")
     for entry in existing_terms:
-        if keyword in entry:
+        if keyword_to_find in entry:
             return True
     return False
