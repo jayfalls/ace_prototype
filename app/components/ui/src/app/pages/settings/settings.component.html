@@ -4,7 +4,7 @@
   @if (settingsForm) {
     <form mat-dialog-content class="subsection" [formGroup]="settingsForm">
       <h2>General:</h2>
-      <div class="subsection">
+      <div class="subsection" [formGroup]="generalForm">
         <mat-form-field appearance="outline">
           <mat-label>Ace Name</mat-label>
           <input matInput formControlName="ace_name">
@@ -20,7 +20,7 @@
       <mat-divider class="subsection-divider"></mat-divider>
 
       <h2>UI:</h2>
-      <div class="subsection checkboxes" formGroupName="ui_settings">
+      <div class="subsection multi-input" [formGroup]="uiSettingsForm">
         <mat-slide-toggle formControlName="dark_mode">Dark Mode</mat-slide-toggle>
         <mat-slide-toggle formControlName="show_footer">Show Footer</mat-slide-toggle>
       </div>
@@ -28,22 +28,36 @@
       <mat-divider class="subsection-divider"></mat-divider>
 
       <h2>Model Provider:</h2>
-      <div class="subsection">
-        <!-- @for () -->
+      <div class="subsection" [formGroup]="modelProviderForm">
+        <h3>Individual Model Providers:</h3>
+        <div class="subsection" formArrayName="individual_provider_settings">
+          @for (provider of individualModelProviderSettingsControl.controls; track provider.value?.name; let i = $index) {
+            @if (provider.get("name")?.value !== "ollama") {
+              <h4>{{ formatSnakeCase(provider.get('name')?.value) }}</h4>
+              <div class="subsection multi-input" [formGroupName]="i">
+                <mat-slide-toggle formControlName="enabled">Enabled</mat-slide-toggle>
+                  <mat-form-field appearance="outline">
+                    <mat-label>API Key</mat-label>
+                    <input matInput formControlName="api_key">
+                  </mat-form-field>
+              </div>
+            }
+          }
+        </div>
       </div>
 
       <mat-divider class="subsection-divider"></mat-divider>
 
       <h2>ACE Layers:</h2>
-      <div class="subsection" formArrayName="layer_settings">
-        @for (layerSetting of layerSettingsControl.controls; track layer_setting; let layer_setting = $index) {
-          <div [formGroupName]="layer_setting">
-            <h3>{{ formatLayerNames(layerSetting.value?.layer_name || "") }} Layer:</h3>
+      <div class="subsection" [formArrayName]="'layer_settings'">
+        @for (layerSetting of layerSettingsControl.controls; track layerSetting; let i = $index) {
+          <div [formGroupName]="i">
+            <h3>{{ formatSnakeCase(layerSetting.value?.layer_name || "") }} Layer:</h3>
             <mat-form-field appearance="outline" class="subsection">
               <mat-label>Model Type</mat-label>
               <mat-select formControlName="model_type">
                 @for (type of llmModelTypes; track type) {
-                  <mat-option [value]="type">{{ type | titlecase }}</mat-option>
+                  <mat-option [value]="type">{{ formatSnakeCase(type) }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>

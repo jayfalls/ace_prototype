@@ -14,6 +14,7 @@ export interface ILayerSetting {
 //// Model Provider
 ////// Unique Providers
 export interface IIndividualProviderSettings {
+  name: string;
   enabled: boolean;
   api_key: string;
 }
@@ -29,13 +30,7 @@ export interface ILLMModelTypeSettings {
 
 ////// Full
 export interface IModelProviderSetting {
-  claude_settings: IIndividualProviderSettings;
-  deepseek_settings: IIndividualProviderSettings;
-  google_vertex_ai_settings: IIndividualProviderSettings;
-  grok_settings: IIndividualProviderSettings;
-  groq_settings: IIndividualProviderSettings;
-  ollama_settings: IIndividualProviderSettings;
-  openai_settings: IIndividualProviderSettings;
+  individual_provider_settings: IIndividualProviderSettings[];
 
   three_d_model_type_settings: string[];
   audio_model_type_settings: string[];

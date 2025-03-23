@@ -27,7 +27,7 @@
       <p>Last Update: {{ appVersionData?.last_update }}</p>
       <!-- Dark Mode Toggle -->
       <button mat-icon-button (click)="toggleDarkMode()" matTooltip="Toggle Dark Mode">
-        <mat-icon>dark_mode</mat-icon>
+        <mat-icon>{{ uiSettings?.dark_mode ? 'light_mode' : 'dark_mode' }}</mat-icon>
       </button>
     </div>
   }

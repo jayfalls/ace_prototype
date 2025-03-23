@@ -1,6 +1,5 @@
 // DEPENDENCIES
 //// Angular
-import { TitleCasePipe } from "@angular/common";
 import { Component, OnInit } from "@angular/core";
 import { Store } from "@ngrx/store";
 import { filter, take } from "rxjs";
@@ -32,24 +31,23 @@ import { selectSettingsState } from "../../store/settings/settings.selectors";
     MatInputModule,
     MatFormFieldModule,
     MatSelectModule,
-    MatSlideToggleModule,
-    TitleCasePipe
+    MatSlideToggleModule
   ],
   templateUrl: "./settings.component.html",
   styleUrl: "./settings.component.scss"
 })
 export class SettingsComponent implements OnInit {
-  private defaultIndividualModelProviderSettings = {
-    enabled: false,
-    api_key: ""
-  }
-
   appVersionData!: IAppVersionData;
   llmModels: ILLMModelProvider[] = [];
   llmModelTypes: string[] = [];
   selectedLLMModelType: string = "";
   settings!: ISettings;
+
   settingsForm!: FormGroup;
+  generalForm!: FormGroup;
+  uiSettingsForm!: FormGroup;
+  modelProviderForm!: FormGroup;
+  layerSettingsForm!: FormArray;
 
   changesDetected: boolean = false;
 
@@ -62,6 +60,7 @@ export class SettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.store.select(selectAppVersionDataState).subscribe( version_data => this.appVersionData = version_data );
+    this.store.dispatch(modelProviderActions.getLLMModels());
     this.store.dispatch(modelProviderActions.getLLMModelTypes());
     this.store.select(selectLLMModelTypes).pipe(
       filter((model_types: string[]): model_types is string[] => model_types.length > 0),
@@ -79,60 +78,68 @@ export class SettingsComponent implements OnInit {
   }
 
   private initialiseForm(): void {
-    if (this.settingsForm) {
-      this.settingsForm.reset();
-    }
+    this.generalForm = this.formBuilder.group({
+      ace_name: ["", [Validators.required, Validators.maxLength(32)]]
+    });
+
+    this.uiSettingsForm = this.formBuilder.group({
+      dark_mode: [true],
+      show_footer: [true]
+    });
+
+    this.layerSettingsForm = this.formBuilder.array([]);
+
+    this.modelProviderForm = this.formBuilder.group({
+      individual_provider_settings: this.formBuilder.array([]),
+      three_d_model_type_settings: this.formBuilder.array([]),
+      audio_model_type_settings: this.formBuilder.array([]),
+      image_model_type_settings: this.formBuilder.array([]),
+      llm_model_type_settings: this.formBuilder.array([]),
+      rag_model_type_settings: this.formBuilder.array([])
+    });
+
     this.settingsForm = this.formBuilder.group({
-      ace_name: ["", [Validators.required, Validators.maxLength(32)]],
-      ui_settings: this.formBuilder.group({
-        dark_mode: [true],
-        show_footer: [true]
-      }),
-      layer_settings: this.formBuilder.array([]),
-      model_provider_settings: this.formBuilder.group({
-        claude_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        deepseek_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        google_vertex_ai_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        grok_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        groq_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        ollama_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        openai_settings: this.formBuilder.group(this.defaultIndividualModelProviderSettings),
-        three_d_model_type_settings: this.formBuilder.array([]),
-        audio_model_type_settings: this.formBuilder.array([]),
-        image_model_type_settings: this.formBuilder.array([]),
-        llm_model_type_settings: this.formBuilder.array([]),
-        rag_model_type_settings: this.formBuilder.array([])
-      })
+      ...this.generalForm.controls,
+      ui_settings: this.uiSettingsForm,
+      layer_settings: this.layerSettingsForm,
+      model_provider_settings: this.modelProviderForm
     });
 
     this.settingsForm.valueChanges.subscribe(() => {
       this.changesDetected = true;
-    })
+    });
   }
 
   private patchFormValues(): void {
     if (!this.settings) return;
+
     this.initialiseForm();
 
-    // General
-    this.settingsForm.patchValue({
+    this.generalForm.patchValue({
       ace_name: this.settings.ace_name,
     });
 
-    // UI
-    this.settingsForm.patchValue({
-      ui_settings: {
-        dark_mode: this.settings.ui_settings.dark_mode,
-        show_footer: this.settings.ui_settings.show_footer
-      }
+    this.uiSettingsForm.patchValue({
+      dark_mode: this.settings.ui_settings.dark_mode,
+      show_footer: this.settings.ui_settings.show_footer
     });
 
-    // Layers
-    let layerArray = this.layerSettingsControl;
-    layerArray.clear();
+    const modelProviderSettings: IModelProviderSetting = this.settings.model_provider_settings;
+    this.individualModelProviderSettingsControl?.clear();
 
+    modelProviderSettings.individual_provider_settings.forEach(provider => {
+      this.individualModelProviderSettingsControl?.push(
+        this.formBuilder.group({
+          name: [provider.name],
+          enabled: [provider.enabled],
+          api_key: [provider.api_key]
+        })
+      );
+    });
+
+    this.layerSettingsForm.clear();
     this.settings.layer_settings.forEach(layer => {
-      layerArray.push(
+      this.layerSettingsForm.push(
         this.formBuilder.group({
           layer_name: [layer?.layer_name || "", Validators.required],
           model_type: [layer?.model_type || "", Validators.required]
@@ -140,30 +147,11 @@ export class SettingsComponent implements OnInit {
       );
     });
 
-    // Model Provider
-    const modelProviderSettings: IModelProviderSetting = this.settings.model_provider_settings;
-    this.settingsForm.patchValue({
-      model_provider_settings: {
-        claude_settings: modelProviderSettings.claude_settings || this.defaultIndividualModelProviderSettings,
-        deepseek_settings: modelProviderSettings.deepseek_settings || this.defaultIndividualModelProviderSettings,
-        google_vertex_ai_settings: modelProviderSettings.google_vertex_ai_settings || this.defaultIndividualModelProviderSettings,
-        grok_settings: modelProviderSettings.grok_settings || this.defaultIndividualModelProviderSettings,
-        groq_settings: modelProviderSettings.groq_settings || this.defaultIndividualModelProviderSettings,
-        ollama_settings: modelProviderSettings.ollama_settings || this.defaultIndividualModelProviderSettings,
-        openai_settings: modelProviderSettings.openai_settings || this.defaultIndividualModelProviderSettings,
-        three_d_model_type_settings: modelProviderSettings.three_d_model_type_settings || [],
-        audio_model_type_settings: modelProviderSettings.audio_model_type_settings || [],
-        image_model_type_settings: modelProviderSettings.image_model_type_settings || [],
-        llm_model_type_settings: modelProviderSettings.llm_model_type_settings || [],
-        rag_model_type_settings: modelProviderSettings.rag_model_type_settings || []
-      }
-    });
-
     this.settingsForm.markAsPristine();
     this.changesDetected = false;
   }
 
-  formatLayerNames(layerName?: string): string {
+  formatSnakeCase(layerName?: string): string {
     return (layerName || "")
       .split("_")
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
@@ -190,14 +178,14 @@ export class SettingsComponent implements OnInit {
   }
 
   get aceNameControl() {
-    return this.settingsForm.get("ace_name");
+    return this.generalForm.get("ace_name");
   }
 
-  get uiSettingsControl() {
-    return this.settingsForm.get("ui_settings");
+  get individualModelProviderSettingsControl(): FormArray {
+    return this.modelProviderForm.get("individual_provider_settings") as FormArray;
   }
 
   get layerSettingsControl(): FormArray {
-    return this.settingsForm.get("layer_settings") as FormArray;
+    return this.layerSettingsForm;
   }
 }

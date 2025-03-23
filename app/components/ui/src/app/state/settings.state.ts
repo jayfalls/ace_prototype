@@ -17,34 +17,7 @@ export function createInitialSettingsState(): SettingsState {
       },
       layer_settings: [],
       model_provider_settings: {
-        claude_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        deepseek_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        google_vertex_ai_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        grok_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        groq_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        ollama_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
-        openai_settings: {
-          api_key: Values.NOT_LOADED,
-          enabled: false
-        },
+        individual_provider_settings: [],
         three_d_model_type_settings: [],
         audio_model_type_settings: [],
         image_model_type_settings: [],

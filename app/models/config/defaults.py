@@ -13,7 +13,7 @@ from .ui import UISettings
 # UI
 DEFAULT_UI_SETTINGS: UISettings = UISettings(
     dark_mode=True,
-    show_footer=True
+    show_footer=False
 )
 
 

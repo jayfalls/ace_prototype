@@ -36,7 +36,7 @@ class ModelProviderSettings(BaseModel):
         ),
         IndividualProviderSettings(
             name=ModelProviders.OLLAMA,
-            enabled=False,
+            enabled=True,
             api_key=""
         ),
         IndividualProviderSettings(

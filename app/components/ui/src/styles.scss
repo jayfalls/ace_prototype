@@ -20,8 +20,8 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   padding-right: 1rem;
   flex-direction: column;
 
-  &.checkboxes {
-    row-gap: 0.5rem;
+  &.multi-input {
+    row-gap: 0.75rem;
   }
 
   .subsection-divider {
