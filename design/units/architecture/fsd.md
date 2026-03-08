@@ -31,7 +31,7 @@ Define the structural components and their interactions for the ACE Framework MV
 
 #### 4. Persistence Layer
 - **Responsibility**: Data storage and retrieval
-- **Technology**: SQLite (dev), PostgreSQL (prod)
+- **Technology**: PostgreSQL (all environments)
 - **Interfaces**: SQL via ORM (SQLAlchemy or similar)
 
 #### 5. Message Layer
@@ -80,11 +80,11 @@ Response
 - **api**: FastAPI service (serves both API + frontend)
 - **cognitive-engine**: Core ACE processing
 - **nats**: Message broker
-- **postgres**: Database (production) / **sqlite**: File (development)
+- **postgres**: Database
 
 ### Development Mode (Docker Compose)
 - All services in docker-compose.yml
-- SQLite for zero-config setup
+- PostgreSQL for persistence
 - Hot reload enabled
 
 ### Production Mode (Kubernetes)
@@ -97,15 +97,14 @@ Response
 | Component | Technology | Rationale |
 |-----------|------------|-----------|
 | Language | Python + UV | AI ecosystem (LangChain, LlamaIndex), UV for fast deps |
-| Database | SQLite (dev) → PostgreSQL (prod) | Lightweight, zero-config for dev; same SQL for prod scaling |
+| Database | PostgreSQL | Robust, scalable, K8s-native |
 | Message Broker | NATS | Lightweight, native K8s support, perfect for agent swarm |
 | Frontend | HTMX + Alpine.js + Tailwind | Minimal custom code, server-side rendered |
 | API | Built into Python (FastAPI) | Lightweight, auto-docs, works with Python ecosystem |
 
 ### Development Mode (Single Machine)
 - Run all components via Docker Compose
-- SQLite for persistence (single file, no setup)
-- NATS embedded or single container
+- PostgreSQL in container
 
 ### Production Mode (Kubernetes)
 - Each ACE runs as a pod
