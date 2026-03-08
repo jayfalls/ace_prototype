@@ -1,30 +1,73 @@
-# Design Documentation
+# Design
 
-This folder contains comprehensive design documentation for the ACE Framework.
+This is the main living design document for the ACE Framework MVP.
 
-## Document Map
+## Overview
 
-### Core Documentation
-- [source.md](source.md) - ACE Framework source and overview
+The ACE Framework is a conceptual cognitive architecture for building ethical autonomous agents.
 
-### Technical Design
-- [technologies.md](technologies.md) - Technology stack and choices
-- [architecture.md](architecture.md) - System architecture
-- [api.md](api.md) - API design and endpoints
-- [database.md](database.md) - Database schema and models
-- [configuration.md](configuration.md) - Configuration management
+- [Source](source.md) - ACE Framework research and theory
+- [Units](units.md) - Feature/component definitions and templates
 
-### Development
-- [development.md](development.md) - Development setup and workflow
-- [testing.md](testing.md) - Testing strategy
-- [style.md](style.md) - Code style and conventions
-- [glossary.md](glossary.md) - Terminology and definitions
+## 1. Architecture
 
-### Operations
-- [deployment.md](deployment.md) - Deployment procedures
-- [monitoring.md](monitoring.md) - Monitoring and observability
-- [security.md](security.md) - Security considerations
+<!--
+NOTE: Document the system architecture, components, and data flow.
+Should include: Component diagrams, system boundaries, integration points, container breakdown.
+-->
 
-### Project
-- [roadmap.md](roadmap.md) - Project roadmap
-- [contributing.md](contributing.md) - Contributing guidelines
+## 2. Technologies
+
+<!--
+NOTE: Document the technology stack and tools used in the project.
+Should include: Python version, package manager (uv), databases, Docker, message brokers, etc.
+Depends on: Architecture (to know what's needed)
+-->
+
+## 3. Data Model
+
+<!--
+NOTE: Document the database schema, entities, and relationships.
+Should include: Schema diagrams, entity relationships, data flow.
+-->
+
+## 4. API
+
+<!--
+NOTE: High-level API overview - detailed endpoints are defined by each unit.
+-->
+
+## 5. Frontend
+
+<!--
+NOTE: Document the UI/UX design.
+Should include: Component library, styling approach, state management.
+-->
+
+## 6. Deployment
+
+<!--
+NOTE: Document the deployment strategy.
+Should include: Docker configuration, CI/CD, environments.
+-->
+
+## 7. Security
+
+<!--
+NOTE: Document security considerations.
+Should include: Authentication, authorization, data protection.
+-->
+
+## 8. Testing
+
+<!--
+NOTE: Document the testing strategy.
+Should include: Test types, coverage targets, testing tools.
+-->
+
+## 9. Monitoring
+
+<!--
+NOTE: Document observability.
+Should include: Logging, metrics, alerting, dashboards.
+-->
