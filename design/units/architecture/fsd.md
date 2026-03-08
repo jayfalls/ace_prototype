@@ -7,15 +7,15 @@ Define the structural components and their interactions for the ACE Framework MV
 
 ### Core Components
 
-#### 1. API Gateway
+#### 1. API Service
 - **Responsibility**: Entry point for all external requests, authentication, rate limiting
-- **Technology**: [TBD based on tech evaluation]
-- **Interfaces**: REST/HTTP endpoints for client communication
+- **Technology**: FastAPI (built into Python backend)
+- **Interfaces**: REST/HTTP endpoints, OpenAPI docs
 
 #### 2. Frontend
 - **Responsibility**: User interface for interacting with the system
-- **Technology**: [TBD - evaluate options]
-- **Interfaces**: Web UI, WebSocket for real-time updates
+- **Technology**: HTMX + Alpine.js + Tailwind (served by API or static)
+- **Interfaces**: Web UI, HTMX for dynamic content
 
 #### 3. Cognitive Engine
 - **Responsibility**: Implements the 6 ACE Framework layers
@@ -26,37 +26,37 @@ Define the structural components and their interactions for the ACE Framework MV
   - Strategic Layer
   - Tactical Layer
   - Operational Layer
-- **Interfaces**: Internal API for processing requests, message-based communication with other components
+- **Technology**: Python + LangChain/LlamaIndex
+- **Interfaces**: Internal API, message-based communication
 
 #### 4. Persistence Layer
 - **Responsibility**: Data storage and retrieval
-- **Technology**: [TBD - evaluate based on requirements]
-- **Interfaces**: Database connections, ORM
+- **Technology**: SQLite (dev), PostgreSQL (prod)
+- **Interfaces**: SQL via ORM (SQLAlchemy or similar)
 
 #### 5. Message Layer
 - **Responsibility**: Asynchronous communication between components
-- **Technology**: [TBD - evaluate message brokers]
-- **Interfaces**: Message queues/topics for event-driven communication
+- **Technology**: NATS
+- **Interfaces**: Publish/subscribe, request/reply patterns
 
 ### Component Boundaries
 
 | Component | Responsibility | Owns |
 |-----------|---------------|------|
-| API Gateway | Request ingress, auth | HTTP endpoints, authentication logic |
-| Frontend | UI rendering | Web components, state management |
-| Cognitive Engine | Decision making | ACE layer implementations |
-| Persistence | Data storage | Database, data models |
-| Message Layer | Event routing | Message queues, event bus |
+| API Service | Request ingress, auth, routing | HTTP endpoints, auth, OpenAPI |
+| Frontend | UI rendering | HTMX templates, Tailwind styles |
+| Cognitive Engine | Decision making | ACE layer implementations, LangChain |
+| Persistence | Data storage | Database, SQLAlchemy models |
+| Message Layer | Event routing | NATS connections, pub/sub |
 
 ## Communication Patterns
 
 ### Synchronous (Request-Response)
-- Client → API Gateway → Cognitive Engine
-- API Gateway → Persistence (for auth)
+- Client → API Service → Cognitive Engine → Persistence → Response
 
 ### Asynchronous (Event-Based)
-- Cognitive Engine → Message Layer → [any component]
-- Components communicate via events for loose coupling
+- Cognitive Engine → NATS → [any component]
+- Components communicate via NATS for loose coupling
 
 ### Data Flow
 
@@ -77,27 +77,42 @@ Response
 ## Container Strategy
 
 ### Containers
-- **api-gateway**: API Gateway service
-- **frontend**: Frontend application
-- **cognitive-engine**: Core processing service
-- **persistence**: Database service (or managed)
-- **message-broker**: Message queue service (or managed)
+- **api**: FastAPI service (serves both API + frontend)
+- **cognitive-engine**: Core ACE processing
+- **nats**: Message broker
+- **postgres**: Database (production) / **sqlite**: File (development)
 
-### Orchestration
-- [TBD - Kubernetes, Docker Compose, or managed service]
+### Development Mode (Docker Compose)
+- All services in docker-compose.yml
+- SQLite for zero-config setup
+- Hot reload enabled
 
-## Technical Decisions Required
+### Production Mode (Kubernetes)
+- Each ACE cognitive engine as a pod
+- PostgreSQL as managed service or statefulset
+- NATS for inter-agent communication
 
-| Decision | Options | Criteria |
-|----------|---------|----------|
-| Language | Python, Go, Rust | Developer familiarity, AI/ML library support |
-| API Gateway | Kong, Traefik, AWS API Gateway | Features, cost, managed vs self-hosted |
-| Database | PostgreSQL, MongoDB, DynamoDB | Data model fit, scaling needs |
-| Message Broker | RabbitMQ, Kafka, SQS | Throughput, ordering guarantees |
-| Frontend | React, Vue, Svelte | Developer familiarity, bundle size |
+## Technical Decisions
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| Language | Python + UV | AI ecosystem (LangChain, LlamaIndex), UV for fast deps |
+| Database | SQLite (dev) → PostgreSQL (prod) | Lightweight, zero-config for dev; same SQL for prod scaling |
+| Message Broker | NATS | Lightweight, native K8s support, perfect for agent swarm |
+| Frontend | HTMX + Alpine.js + Tailwind | Minimal custom code, server-side rendered |
+| API | Built into Python (FastAPI) | Lightweight, auto-docs, works with Python ecosystem |
+
+### Development Mode (Single Machine)
+- Run all components via Docker Compose
+- SQLite for persistence (single file, no setup)
+- NATS embedded or single container
+
+### Production Mode (Kubernetes)
+- Each ACE runs as a pod
+- PostgreSQL (managed or self-hosted)
+- NATS for inter-agent communication
 
 ## Out of Scope for This FSD
-- Specific technology selections (deferred to evaluation phase)
 - Database schemas (deferred to unit-specific FSDs)
 - API endpoint definitions (deferred to API unit)
 - Deployment configuration (deferred to deployment unit)
