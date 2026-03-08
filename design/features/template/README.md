@@ -13,7 +13,7 @@ This template provides a complete structure for documenting a feature from conce
 To create a new feature:
 1. Copy the `template/` directory to a new folder under `features/`
 2. Rename the folder to your feature name (e.g., `features/my-new-feature/`)
-3. Fill in each document following the guidelines below
+3. Fill in each document as separate PRs (one document per PR)
 
 ## Template Documents
 
@@ -30,7 +30,6 @@ To create a new feature:
 | [migration_and_rollback.md](migration_and_rollback.md) | DB schema changes, migration scripts, rollback steps |
 | [testing.md](testing.md) | Unit tests, integration tests, E2E test cases |
 | [api.md](api.md) | REST/GraphQL endpoints, request/response schemas |
-| [configuration.md](configuration.md) | Environment variables, feature flags |
 | [monitoring.md](monitoring.md) | Log events, metrics, alerting rules |
 | [dependencies.md](dependencies.md) | External services, libraries, API integrations |
 

@@ -31,6 +31,3 @@ Used by: AI agents to understand the "why" and "what" before diving into impleme
 |-----------|--------|--------|
 | [Criterion 1] | [How it's measured] | [Target value] |
 | [Criterion 2] | [How it's measured] | [Target value] |
-
-## Timeline
-[Expected delivery date or milestone]
