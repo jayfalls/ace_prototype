@@ -1,18 +1,18 @@
-# Feature Template
+# Unit Template
 
 <!--
-Intent: Provide a complete template structure for documenting a feature from conception to implementation.
-Scope: All documents needed for a comprehensive feature specification.
-Used by: AI agents to understand the full lifecycle of feature development.
+Intent: Provide a complete template structure for documenting a unit from conception to implementation.
+Scope: All documents needed for a comprehensive unit specification.
+Used by: AI agents to understand the full lifecycle of unit development.
 -->
 
-This template provides a complete structure for documenting a feature from conception to implementation.
+This template provides a complete structure for documenting a unit from conception to implementation.
 
 ## Usage
 
-To create a new feature:
-1. Copy the `template/` directory to a new folder under `features/`
-2. Rename the folder to your feature name (e.g., `features/my-new-feature/`)
+To create a new unit:
+1. Copy the `template/` directory to a new folder under `units/`
+2. Rename the folder to your unit name (e.g., `units/my-new-unit/`)
 3. Fill in each document as separate PRs (one document per PR)
 
 ## Template Documents

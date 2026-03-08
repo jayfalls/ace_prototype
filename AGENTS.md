@@ -1,5 +1,14 @@
 # AGENTS.md
 
+## Working on the Code
+
+### Design Documentation
+- Reference design/README.md for the overall system design
+- Reference design/units/README.md for each individual piece of the system and leg of work
+- When creating a unit of work, fully complete the documentation before beginning with code
+- After fully completing a code change for a unit (merged), create a PR to update the documentation/ folder with relevant changes pertaining to the unit (add files as needed, edit existing files as needed, no changes if nothing relevant)
+- Also, add-by-copying-template/update the relevant changelog file for the day in documentation/changelogs/ with the relevant changes
+
 ## GitHub Workflow
 
 ### Pull Requests
