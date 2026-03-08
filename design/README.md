@@ -9,18 +9,19 @@ The ACE Framework is a conceptual cognitive architecture for building ethical au
 - [Source](source.md) - ACE Framework research and theory
 - [Units](units.md) - Feature/component definitions and templates
 
-## 1. Technologies
-
-<!--
-NOTE: Document the technology stack and tools used in the project.
-Should include: Python version, package manager (uv), databases, Docker, testing frameworks, etc.
--->
-
-## 2. Architecture
+## 1. Architecture
 
 <!--
 NOTE: Document the system architecture, components, and data flow.
-Should include: Component diagrams, system boundaries, integration points.
+Should include: Component diagrams, system boundaries, integration points, container breakdown.
+-->
+
+## 2. Technologies
+
+<!--
+NOTE: Document the technology stack and tools used in the project.
+Should include: Python version, package manager (uv), databases, Docker, message brokers, etc.
+Depends on: Architecture (to know what's needed)
 -->
 
 ## 3. Data Model
