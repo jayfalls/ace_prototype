@@ -2,6 +2,12 @@
 
 VERSION_FILE="app/version"
 
+# Skip if app/version doesn't exist (e.g., during documentation-only branches)
+if [ ! -f "$VERSION_FILE" ]; then
+    echo "Skipping version update (app/version not found)"
+    exit 0
+fi
+
 CURRENT_DATE=$(date +"%Y-%m-%d %H:%M:%S")
 
 if jq --arg date "$CURRENT_DATE" '.last_update = $date' "$VERSION_FILE" > temp.json; then
