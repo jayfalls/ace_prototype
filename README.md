@@ -1,25 +1,34 @@
-![Version](https://img.shields.io/badge/version-0.0.0-blue)
+# ACE Framework Documentation
 
-<h1 align="center">🧠 ACE Prototype 🧠</h1>
+This repository contains documentation about the Autonomous Cognitive Entity (ACE) Framework.
 
+## Overview
 
-# Dependencies
+The ACE Framework is a conceptual cognitive architecture for building ethical autonomous agents. It was developed by David Shapiro et al. at Clemson University and presented in their paper "Conceptual Framework for Autonomous Cognitive Entities" (arXiv:2310.06775).
 
-- Before running install
-    - [Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-    - [JQ](https://jqlang.org/download/)
-    - [Podman](https://podman.io/docs/installation)
-    - [Ollama](https://ollama.com/download)
+The framework is inspired by the OSI model and uses six hierarchical layers to conceptualize artificial cognitive architectures, ranging from moral reasoning to task execution.
 
-# Usage
+## Documentation
 
-```shell
-./ace
-```
+For comprehensive documentation about the ACE Framework, please see:
 
-## Arguments
+**[design/source.md](design/source.md)**
 
-- `-s` Stop the ACE
-- `-r` Restart the ACE
-- `--dev` Run the ACE in development mode
-- `--test` Run the ACE tests
+This document includes:
+- Overview of the ACE Framework
+- Detailed explanation of all six layers:
+  - Aspirational Layer (L1)
+  - Global Strategy (L2)
+  - Agent Model (L3)
+  - Executive Function (L4)
+  - Cognitive Control (L5)
+  - Task Prosecution (L6)
+- Bidirectional communication buses (Northbound and Southbound)
+- System Integrity overlay
+- Key design principles
+- Implementation considerations
+
+## References
+
+- **Paper**: [arXiv:2310.06775](https://arxiv.org/abs/2310.06775) - "Conceptual Framework for Autonomous Cognitive Entities"
+- **GitHub**: [daveshap/ACE_Framework](https://github.com/daveshap/ACE_Framework) (archived, read-only)
