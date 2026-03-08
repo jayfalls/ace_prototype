@@ -17,6 +17,10 @@ The architecture must define the structural components needed to implement the A
 - Component boundaries and responsibilities
 - Communication patterns between components
 
+The architecture must support:
+- **Lightweight single-machine mode**: Easy to run on a laptop for development
+- **Kubernetes scaling**: Each ACE runs as a pod in a K8s cluster for production swarm deployments
+
 The specific implementation approach (monolith vs microservices, layer per service vs domain per service, etc.) will be determined in subsequent design phases.
 
 ## In Scope
@@ -24,6 +28,8 @@ The specific implementation approach (monolith vs microservices, layer per servi
 - Define component boundaries and responsibilities
 - Determine communication patterns needed between components
 - Containerization approach
+- Kubernetes-ready design (each ACE as a pod)
+- Single-machine development setup (Docker Compose or similar)
 
 ## Out of Scope
 - Detailed implementation code
@@ -37,9 +43,11 @@ The specific implementation approach (monolith vs microservices, layer per servi
 A well-defined architecture enables:
 - **Rapid Development**: Clear component definitions allow parallel development
 - **Maintainability**: Clear boundaries make it easy to modify individual components
-- **Scalability**: Components can scale independently based on their needs
+- **Scalability**: Components can scale independently based on their needs, eventually to agent swarms in Kubernetes
 - **Testability**: Clear boundaries enable isolated testing
 - **Team Collaboration**: Multiple developers can work on different components
+- **Lightweight**: Can run on a single machine for development/testing
+- **Easy Setup**: Minimal configuration required to get started
 
 ## Success Criteria
 | Criterion | Metric | Target |
@@ -48,9 +56,13 @@ A well-defined architecture enables:
 | Boundaries Defined | Component responsibilities documented | No unclear responsibilities |
 | Communication Patterns | Patterns needed identified | Documented per component pair |
 | Container Strategy | Container approach decided | Approach documented |
+| Single Machine Ready | Can run locally without multi-machine setup | Tested on single machine |
+| Kubernetes Ready | Can scale to agent swarms in K8s | Pod-based design confirmed |
 
 ## Key Requirements
+- **Lightweight**: Must run on a single machine easily (laptop, desktop)
+- **Easy Setup**: Super easy to get running with minimal configuration
 - **Quick to Implement**: Architecture should enable rapid development start
 - **Maintainable**: Component boundaries should be clear and stable
-- **Scalable**: Architecture should support scaling as needed
+- **Scalable to Swarm**: Designed so each ACE can run as a pod in Kubernetes cluster
 - **Deliverable in Phases**: Architecture should be achievable incrementally
