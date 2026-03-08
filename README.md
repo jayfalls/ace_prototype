@@ -6,4 +6,4 @@ The ACE Framework is a conceptual cognitive architecture for building ethical au
 
 The framework is inspired by the OSI model and uses six hierarchical layers to conceptualize artificial cognitive architectures, ranging from moral reasoning to task execution.
 
-[Source](design/source.md)
+[Design](design/README.md)
