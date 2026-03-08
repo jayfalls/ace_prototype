@@ -9,6 +9,11 @@
 - After fully completing a code change for a unit (merged), create a PR to update the documentation/ folder with relevant changes pertaining to the unit (add files as needed, edit existing files as needed, no changes if nothing relevant)
 - Also, add-by-copying-template/update the relevant changelog file for the day in documentation/changelogs/ with the relevant changes
 
+### Unit Documents
+- **BSD (Business Specification Document)**: Defines the "what" - business case, scope, success criteria. Not the "how" (that's FSD).
+- **FSD (Functional Specification Document)**: Defines the "how" - technical implementation details.
+- BSD comes first, then FSD. Each in separate PRs.
+
 ## GitHub Workflow
 
 ### Pull Requests

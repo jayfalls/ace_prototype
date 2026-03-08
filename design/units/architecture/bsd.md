@@ -1,11 +1,5 @@
 # Business Specification Document
 
-<!--
-Intent: Define the business case, scope, and success criteria for the architecture.
-Scope: Captures what the architecture will and will not include, the problem solved, value delivered, and how to measure success.
-Used by: AI agents to understand the "why" and "what" before diving into implementation details.
--->
-
 ## Unit Name
 Architecture
 
@@ -17,24 +11,19 @@ The ACE Framework lacks a concrete, implementable system architecture. Without a
 - Integration between layers is unclear
 
 ## Solution
-Design a layered, containerized architecture that follows the six-layer ACE Framework model:
-1. Moral Reasoning Layer
-2. High-Level Planning Layer  
-3. Low-Level Planning Layer
-4. Strategic Layer
-5. Tactical Layer
-6. Operational Layer
+The architecture must define the structural components needed to implement the ACE Framework, including:
+- Core cognitive layers (based on ACE Framework's 6 layers)
+- Supporting infrastructure components (frontend, persistence, API gateway, message layer)
+- Component boundaries and responsibilities
+- Communication patterns between components
 
-Each layer will be a separate service/component with clear interfaces, enabling independent development and deployment.
+The specific implementation approach (monolith vs microservices, layer per service vs domain per service, etc.) will be determined in subsequent design phases.
 
 ## In Scope
-- High-level system architecture defining all components and their responsibilities
-- Container breakdown (what runs in each container)
-- Inter-component communication patterns (REST, gRPC, message queue, events)
-- Data flow between layers
-- External service integrations (databases, message brokers, LLM providers)
-- API gateway / entry point design
-- Deployment architecture (development, staging, production)
+- Identify all structural components needed (cognitive layers, frontend, persistence, API, messaging, etc.)
+- Define component boundaries and responsibilities
+- Determine communication patterns needed between components
+- Containerization approach
 
 ## Out of Scope
 - Detailed implementation code
@@ -46,24 +35,22 @@ Each layer will be a separate service/component with clear interfaces, enabling 
 
 ## Value Proposition
 A well-defined architecture enables:
-- **Rapid Development**: Clear interfaces allow parallel development of components
-- **Maintainability**: Modular design makes it easy to modify individual components
-- **Scalability**: Each layer can scale independently based on load
-- **Testability**: Clear boundaries enable isolated testing of each component
-- **Team Collaboration**: Multiple developers can work on different components simultaneously
+- **Rapid Development**: Clear component definitions allow parallel development
+- **Maintainability**: Clear boundaries make it easy to modify individual components
+- **Scalability**: Components can scale independently based on their needs
+- **Testability**: Clear boundaries enable isolated testing
+- **Team Collaboration**: Multiple developers can work on different components
 
 ## Success Criteria
 | Criterion | Metric | Target |
 |-----------|--------|--------|
-| Complete Architecture | All 6 ACE layers defined with components | All layers documented |
-| Container Breakdown | Containers identified | All services mapped to containers |
-| Communication Patterns | Interfaces defined | REST/gRPC/event contracts specified |
-| Implementable | FSD can be created for each component | No gaps blocking implementation |
-| Scalability Path | Horizontal/vertical scaling strategy | Strategy documented per layer |
+| Components Identified | All needed components defined | Complete component list |
+| Boundaries Defined | Component responsibilities documented | No unclear responsibilities |
+| Communication Patterns | Patterns needed identified | Documented per component pair |
+| Container Strategy | Container approach decided | Approach documented |
 
 ## Key Requirements
-- **Quick to Implement**: Architecture should use proven, well-understood patterns and technologies
-- **Maintainable**: Clear separation of concerns, well-defined interfaces
-- **Scalable**: Each layer can scale independently
-- **Deliverable in Phases**: Architecture supports incremental implementation
-- **AI Agent Friendly**: Clear contracts and interfaces that AI agents can implement independently
+- **Quick to Implement**: Architecture should enable rapid development start
+- **Maintainable**: Component boundaries should be clear and stable
+- **Scalable**: Architecture should support scaling as needed
+- **Deliverable in Phases**: Architecture should be achievable incrementally
