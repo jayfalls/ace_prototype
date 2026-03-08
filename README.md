@@ -13,22 +13,3 @@ The framework is inspired by the OSI model and uses six hierarchical layers to c
 For comprehensive documentation about the ACE Framework, please see:
 
 **[design/source.md](design/source.md)**
-
-This document includes:
-- Overview of the ACE Framework
-- Detailed explanation of all six layers:
-  - Aspirational Layer (L1)
-  - Global Strategy (L2)
-  - Agent Model (L3)
-  - Executive Function (L4)
-  - Cognitive Control (L5)
-  - Task Prosecution (L6)
-- Bidirectional communication buses (Northbound and Southbound)
-- System Integrity overlay
-- Key design principles
-- Implementation considerations
-
-## References
-
-- **Paper**: [arXiv:2310.06775](https://arxiv.org/abs/2310.06775) - "Conceptual Framework for Autonomous Cognitive Entities"
-- **GitHub**: [daveshap/ACE_Framework](https://github.com/daveshap/ACE_Framework) (archived, read-only)
