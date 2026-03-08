@@ -9,12 +9,6 @@ The ACE Framework is a conceptual cognitive architecture for building ethical au
 - [Source](source.md) - ACE Framework research and theory
 - [Units](units.md) - Feature/component definitions and templates
 
-<!--
-NOTE: This document should contain detailed information about each section below.
-Each section should be completed incrementally via separate PRs following the order
-that makes sense for dependency reasons (e.g., Technologies before Architecture).
--->
-
 ## 1. Technologies
 
 <!--
@@ -36,49 +30,41 @@ NOTE: Document the database schema, entities, and relationships.
 Should include: Schema diagrams, entity relationships, data flow.
 -->
 
-## 4. Units
+## 4. API
 
 <!--
-NOTE: Document each unit (feature/component) of the system.
-Should link to design/units.md which contains unit definitions and templates.
+NOTE: High-level API overview - detailed endpoints are defined by each unit.
 -->
 
-## 5. API
-
-<!--
-NOTE: Document the API design and endpoints.
-Should include: REST/GraphQL endpoints, request/response schemas, authentication.
--->
-
-## 6. Frontend
+## 5. Frontend
 
 <!--
 NOTE: Document the UI/UX design.
 Should include: Component library, styling approach, state management.
 -->
 
-## 7. Deployment
+## 6. Deployment
 
 <!--
 NOTE: Document the deployment strategy.
 Should include: Docker configuration, CI/CD, environments.
 -->
 
-## 8. Security
+## 7. Security
 
 <!--
 NOTE: Document security considerations.
 Should include: Authentication, authorization, data protection.
 -->
 
-## 9. Testing
+## 8. Testing
 
 <!--
 NOTE: Document the testing strategy.
 Should include: Test types, coverage targets, testing tools.
 -->
 
-## 10. Monitoring
+## 9. Monitoring
 
 <!--
 NOTE: Document observability.
