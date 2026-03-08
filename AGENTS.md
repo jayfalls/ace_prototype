@@ -17,3 +17,4 @@
   - Max 350 lines per frontend edit + Max 150 lines per frontend unit tests edit
 - Attach test results to PRs (both backend and frontend)
 - If a user is asking a question in a comment, answer the question before making changes
+- Always respond to comments you've addressed, explaining the fix or reasoning
