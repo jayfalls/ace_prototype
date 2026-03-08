@@ -7,8 +7,8 @@
 ### Scenarios
 
 **Scenario 1: First-time local setup**
-- Given I have Docker installed on my machine
-- When I run `docker compose up`
+- Given I have Docker (or Podman) installed on my machine
+- When I run `docker compose up` (or `podman compose up`)
 - Then all services start successfully
 - And I can access the web UI at `http://localhost:8000`
 
@@ -101,3 +101,83 @@
 - When I implement a custom layer
 - Then it integrates with the existing framework
 - And other layers remain unchanged
+
+---
+
+## As a user, I want to create custom ACE agents so that I can have agents tailored to specific purposes.
+
+**Priority:** Should Have
+
+### Scenarios
+
+**Scenario 1: Create new agent**
+- Given I am in the web UI
+- When I navigate to agent creation
+- And I configure the ACE layers
+- Then a new agent is created
+- And I can interact with it
+
+**Scenario 2: Configure agent personality**
+- Given I am creating an agent
+- When I set the moral reasoning parameters
+- And I define the planning strategies
+- Then the agent behaves according to my configuration
+
+---
+
+## As a user, I want to talk to my ACE agent like a person so that I can have natural conversations.
+
+**Priority:** Must Have
+
+### Scenarios
+
+**Scenario 1: Conversational interaction**
+- Given I have an ACE agent
+- When I type a message in natural language
+- Then the agent responds as a person would
+- And maintains context across messages
+
+**Scenario 2: Autonomous behavior**
+- Given I am in a conversation with an ACE agent
+- When the agent has relevant information to share
+- Then the agent initiates conversation
+- Without me giving explicit tasks
+
+---
+
+## As a user, I want to track agent usage and history so that I can review past interactions.
+
+**Priority:** Should Have
+
+### Scenarios
+
+**Scenario 1: View conversation history**
+- Given I have interacted with an agent
+- When I view the history
+- Then I see all past conversations
+- And can search through them
+
+**Scenario 2: Usage analytics**
+- Given I am an operator
+- When I view usage metrics
+- Then I see conversation counts
+- And token usage, response times
+
+---
+
+## As a user, I want to manage agent settings so that I can customize behavior.
+
+**Priority:** Should Have
+
+### Scenarios
+
+**Scenario 1: Adjust agent parameters**
+- Given I have an agent
+- When I access settings
+- Then I can modify moral reasoning weight
+- And update planning strategies
+
+**Scenario 2: Enable/disable features**
+- Given I am in settings
+- When I toggle features
+- Then the agent's capabilities change accordingly
