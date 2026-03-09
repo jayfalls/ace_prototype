@@ -145,5 +145,3 @@ After any code change is merged:
 - If a user is asking a question in a comment, answer the question before making changes
 - Always respond to comments you've addressed, explaining the fix or reasoning
 - **PR Descriptions**: Include clear description of changes, test results, and any relevant context
-- **Merging**: Use rebase for clean history when appropriate; merge commits are acceptable for preserving feature branches
-- **Conflicts**: Resolve merge conflicts carefully, ensuring all tests pass after resolution
