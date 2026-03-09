@@ -2,8 +2,8 @@
 
 This directory contains discrete pieces of work: features, components, refactors, etc.
 
-## Architecture
+For creating new units, use the [unit template](template/README.md).
 
-The Architecture unit defines the structural components and interactions for the ACE Framework.
+## MVP
 
-See [architecture/README.md](architecture/README.md) for details.
+- [Architecture](architecture/README.md)

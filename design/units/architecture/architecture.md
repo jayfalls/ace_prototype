@@ -14,22 +14,18 @@
 │         │                      │                         │              │
 │         │              ┌───────┴───────┐                 │              │
 │         │              │               │                 │              │
-│         │         ┌────▼────┐    ┌─────▼─────┐   ┌─────▼─────┐      │
-│         │         │   Auth   │    │  WebSocket │   │   NATS    │      │
-│         │         │   (JWT)  │    │  Handler   │   │  (Async)  │      │
-│         │         └──────────┘    └────────────┘   └─────┬─────┘      │
+│         │         ┌────▼────┐    ┌─────▼─────┐         │              │
+│         │         │   Auth   │    │  WebSocket│         │              │
+│         │         │   (JWT)  │    │  Handler  │         │              │
+│         │         └──────────┘    └───────────┘         │              │
 │         │                                               │              │
-│         │                                               ▼              │
-│         │                                      ┌──────────────────┐     │
-│         │                                      │  Python Workers  │     │
-│         │                                      │  (LLM/AI)       │     │
-│         │                                      └──────────────────┘     │
-│         │                                              │              │
-│         └──────────────────────────────────────────────┼──────────────┘
-│                                                    ┌──▼──────────────┐
-│                                                    │  PostgreSQL     │
-│                                                    │  + SQLC         │
-│                                                    └─────────────────┘
+│         └───────────────────────────────────────────────┼──────────────┘
+│                                                         │              │
+│                                                         ▼              │
+│                                                  ┌───────────┐       │
+│                                                  │PostgreSQL │       │
+│                                                  │+ SQLC    │       │
+│                                                  └───────────┘
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,26 +38,27 @@
 | **Frontend** | User interface, real-time updates | Static + WebSocket |
 | **API (Gin)** | HTTP routes, auth, websocket upgrade, orchestration | REST + WS |
 | **Cognitive Engine** | 6 ACE layer processing, LLM calls | Internal |
-| **WebSocket Handler** | Real-time thought trace streaming | WebSocket |
 | **Auth** | JWT validation, session management | Middleware |
 | **Persistence** | Data storage via SQLC | SQL queries |
-| **Message Layer** | Async communication | NATS pub/sub |
 
 ### Container Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                         Development (Docker Compose)                   │
+│                       Single Agent Mode                                 │
 │                                                                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │   frontend  │  │     api     │  │    nats     │  │   postgres  │   │
-│  │  :5173      │  │   :8080     │  │  :4222      │  │   :5432     │   │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                    │
+│  │   frontend  │  │     api     │  │   postgres  │                    │
+│  │  :5173      │  │   :8080     │  │   :5432     │                    │
+│  └─────────────┘  └─────────────┘  └─────────────┘                    │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
+### Kubernetes (Multi-Agent)
+
+```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                      Production (Kubernetes)                           │
+│                      Kubernetes (Multi-Agent)                           │
 │                                                                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
 │  │   frontend  │  │     api     │  │    nats     │  │  postgres   │   │
@@ -80,11 +77,11 @@
 
 ## Data Flow
 
-### Primary Flow (REST)
-
+### Single Agent Mode (Embedded)
 ```
-User → Frontend → API (Gin) → Cognitive Engine → PostgreSQL → Response
+User → Frontend → API → Cognitive Engine → PostgreSQL
 ```
+The API embeds the Cognitive Engine. All DB access goes through the API layer.
 
 ### Real-Time Flow (WebSocket)
 
@@ -92,12 +89,6 @@ User → Frontend → API (Gin) → Cognitive Engine → PostgreSQL → Response
 User → Frontend → WebSocket → Cognitive Engine → Thought Stream → User
                                       ↓
                                PostgreSQL (persist)
-```
-
-### Async Flow (NATS)
-
-```
-Cognitive Engine → NATS → Worker (LLM) → NATS → Cognitive Engine → User
 ```
 
 ## Sequence Diagram
@@ -109,23 +100,23 @@ sequenceDiagram
     participant API
     participant CognitiveEngine
     participant Database
-    participant NATS
-    participant Worker
-
-    Note over User,Worker: REST Flow
+    
+    Note over User,Database: Single Agent Mode
     User->>Frontend: Open page
     Frontend-->>User: Render UI
     
     User->>Frontend: Send message
     Frontend->>API: POST /api/chat
     API->>CognitiveEngine: Process request
-    CognitiveEngine->>Database: Save conversation
-    Database-->>CognitiveEngine: Confirm
-    CognitiveEngine-->>API: Response
+    CognitiveEngine->>API: Save/retrieve data
+    API->>Database: Query
+    Database-->>API: Result
+    API-->>CognitiveEngine: Response
+    CognitiveEngine-->>API: Result
     API-->>Frontend: JSON response
     Frontend-->>User: Update UI
 
-    Note over User,Worker: WebSocket Flow
+    Note over User,Database: WebSocket Flow
     User->>Frontend: Connect ws://api/ws
     Frontend->>API: WS Upgrade
     API->>Frontend: WS Connected
@@ -135,17 +126,11 @@ sequenceDiagram
     API->>CognitiveEngine: Stream request
     
     loop Thought Processing
-        CognitiveEngine->>NATS: Publish thought event
-        NATS->>Worker: Process with LLM
-        Worker-->>NATS: LLM Response
-        NATS->>CognitiveEngine: Response
         CognitiveEngine->>API: Thought update
         API->>Frontend: WS frame (thought)
-        Frontend-->>User: Real-time update
+        CognitiveEngine->>API: Save data
+        API->>Database: Persist
     end
-    
-    CognitiveEngine->>Database: Save final response
-    Database-->>CognitiveEngine: Confirm
 ```
 
 ## Integration Points
@@ -163,8 +148,7 @@ sequenceDiagram
 |-----------|-----------|----------------|
 | Frontend ↔ API | REST + WebSocket | JSON, text stream |
 | API ↔ Database | SQLC queries | Structured data |
-| API ↔ NATS | NATS client | Events, async tasks |
-| Cognitive Engine ↔ Workers | NATS pub/sub | Thought events, LLM requests |
+| Cognitive Engine | Embedded in API | Direct function calls |
 
 ## Event Flow
 
@@ -173,10 +157,6 @@ sequenceDiagram
 | `thought.start` | Cognitive Engine | Frontend (WS) | `{ agent_id, request_id, layer }` |
 | `thought.update` | Cognitive Engine | Frontend (WS) | `{ request_id, thought, layer, metadata }` |
 | `thought.complete` | Cognitive Engine | Frontend (WS) | `{ request_id, final, metrics }` |
-| `llm.request` | Cognitive Engine | Worker | `{ request_id, prompt, model, options }` |
-| `llm.response` | Worker | Cognitive Engine | `{ request_id, response, tokens }` |
-| `agent.created` | API | Database | `{ agent_id, config }` |
-| `agent.message` | API | Cognitive Engine | `{ agent_id, message, session_id }` |
 
 ## System Boundaries
 
@@ -215,13 +195,11 @@ localhost:5173 (Frontend)
 localhost:8080 (API) 
     ↓ 
 localhost:5432 (PostgreSQL)
-localhost:4222 (NATS)
 ```
 
 ### Production (K8s)
 ```
 Internet → LoadBalancer → frontend (443)
                        → api (443)
-                       → nats (443)
                        → postgres (managed)
 ```
