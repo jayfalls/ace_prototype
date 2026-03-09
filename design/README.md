@@ -172,6 +172,27 @@ The API structure is defined in the Core Infrastructure unit.
 - Real-time thought streaming
 - Agent status updates
 
+## 5. Frontend
+
+### Tech Stack
+- **SvelteKit**: Full-stack framework
+- **TypeScript**: Type-safe code
+
+### Features
+- User authentication UI (login/register)
+- Agent management (create, configure, start, stop, delete)
+- Real-time chat interface
+- Live thought trace visualization
+- Memory browser and search
+- Settings management
+
+## 6. Deployment
+
+<!--
+NOTE: Document the deployment strategy.
+Should include: Docker configuration, CI/CD, environments.
+-->
+
 ## 7. Security
 
 Security is defined in the Core Infrastructure unit.
