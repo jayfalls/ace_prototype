@@ -301,9 +301,18 @@ db/
 4. Token refresh before expiration
 
 ### Protected Routes
+All routes require authentication except:
+- `POST /api/auth/register` - Registration
+- `POST /api/auth/login` - Login
+- `GET /api/tools/sources` - List available tool sources
+
+Protected routes:
 - `/api/agents/*` - Requires auth
 - `/api/sessions/*` - Requires auth
 - `/api/memories/*` - Requires auth
+- `/api/llm-providers/*` - Requires auth
+- `/api/settings/*` - Requires auth (admin)
+- `/api/users/*` - Requires auth
 - `/ws/*` - Requires auth
 
 ## Data Validation
