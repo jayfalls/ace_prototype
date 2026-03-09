@@ -166,6 +166,44 @@ NATS enables communication between ACE layers within the cognitive engine.
 - Status updates: Layer pulls from loop (cycle-by-cycle)
 - Output: Loop feeds final output to layer on completion
 
+### Global Loops (HRM)
+
+Beyond layer-specific loops, ACE has global loops that operate across the entire cognitive architecture:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      Global Loops                                        │
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │   Chat      │  │   Safety    │  │   Swarm     │  │   Memory    │  │
+│  │   Interface │  │   Monitor   │  │   Coord     │  │   Manager   │  │
+│  │  (fast)    │  │   (fast)    │  │  (medium)   │  │   (slow)   │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
+│         │                │                │                │           │
+│         └────────────────┼────────────────┼────────────────┘           │
+│                          │                │                             │
+│                          ▼                ▼                             │
+│                 ┌─────────────────┐ ┌─────────────┐                     │
+│                 │  Cognitive      │ │   Learning  │                     │
+│                 │  State (shared)│ │    Loop     │                     │
+│                 └─────────────────┘ └─────────────┘                     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+| Global Loop | Purpose | Frequency | Access |
+|-------------|---------|-----------|--------|
+| **Chat Interface** | Human interaction, bidirectional | Fast | Full cognitive state |
+| **Safety Monitor** | Threat detection, emergency stop | Fast (constant) | All layers, sensors |
+| **Swarm Coordinator** | Multi-agent communication | Medium | Shared state, agents |
+| **Memory Manager** | Consolidation, pruning, retrieval | Slow (periodic) | Long-term memory |
+| **Learning Loop** | Feedback integration, adaptation | Medium | All layer outputs |
+
+**HRM Implementation:**
+- Global loops run at different frequencies (model sizes)
+- Each loop can use different compute (small→fast, large→slow)
+- Loops operate in parallel, accessing shared cognitive state
+- Enables adaptive computation: more thought on hard problems
+
 ### Telemetry (Senses)
 
 ```
