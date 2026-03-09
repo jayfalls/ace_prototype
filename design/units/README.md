@@ -7,3 +7,4 @@ For creating new units, use the [unit template](template/README.md).
 ## MVP
 
 - [Architecture](architecture/README.md)
+- [Core Infrastructure](core-infra/README.md)
