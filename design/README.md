@@ -110,11 +110,28 @@ See [units/architecture/architecture.md](units/architecture/architecture.md) for
 
 ## 2. Technologies
 
-<!--
-NOTE: Document the technology stack and tools used in the project.
-Should include: Python version, package manager (uv), databases, Docker, message brokers, etc.
-Depends on: Architecture (to know what's needed)
--->
+### Backend
+- **Go** - Primary language for API and Cognitive Engine
+- **Gin** - HTTP web framework
+- **SQLC** - Type-safe SQL access to PostgreSQL
+- **NATS** - Message broker for inter-layer communication
+
+### Frontend
+- **SvelteKit** - Full-stack web framework
+- **TypeScript** - Type-safe frontend code
+
+### Database
+- **PostgreSQL** - Primary data store
+- **SQLC** - Compile-time SQL type checking
+
+### Authentication
+- **JWT** - Token-based authentication
+- **oauth2-proxy** - OAuth integration (future)
+
+### Infrastructure
+- **Docker** - Containerization
+- **Kubernetes** - Orchestration for multi-agent deployments
+- **WebSocket** - Real-time communication
 
 ## 3. Data Model
 
