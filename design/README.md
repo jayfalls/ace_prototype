@@ -11,18 +11,127 @@ The ACE Framework is a conceptual cognitive architecture for building ethical au
 
 ## 1. Architecture
 
-<!--
-NOTE: Document the system architecture, components, and data flow.
-Should include: Component diagrams, system boundaries, integration points, container breakdown.
--->
+### High-Level Overview
+
+The ACE Framework consists of:
+- **Telemetry (Senses)** - Input handling (chat, sensors, metrics, webhooks)
+- **Cognitive Engine** - 6 ACE layers with NATS for northbound/southbound communication
+- **Actuators (Outputs)** - Output handling (chat, tools, signals, export)
+- **Memory** - Per-layer + global memory modules
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              ACE Framework                               │
+│                                                                          │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────────────┐  │
+│  │   Frontend   │      │    API       │      │   Cognitive Engine  │  │
+│  │  SvelteKit   │◄────►│     Go       │◄────►│        Go           │  │
+│  │   (Web UI)   │      │    (Gin)     │      │   (6 ACE Layers)   │  │
+│  └──────┬───────┘      └──────┬───────┘      └──────────┬───────────┘  │
+│         │                      │                         │              │
+│         │              ┌───────┴───────┐                 │              │
+│         │              │   Auth (JWT)  │                 │              │
+│         │              │  WebSocket    │                 │              │
+│         └──────────────┼───────────────┼─────────────────┘              │
+│                        │               │                                  │
+│         ┌──────────────┼───────────────┼───────────────────────────┐    │
+│         │         Telemetry/Senses                            │    │
+│         │  Inputs: Chat | Sensors | Metrics | Webhooks       │    │
+│         └──────────────┬───────────────┬───────────────────────────┘    │
+│                        │               │                                  │
+│                        ▼               ▼                                  │
+│                 ┌───────────┐   ┌───────────┐                          │
+│                 │PostgreSQL │   │   NATS    │                          │
+│                 │  + SQLC   │   │(Pub/Sub)  │                          │
+│                 └───────────┘   └───────────┘                          │
+│                        │               │                                  │
+│                        ▼               ▼                                  │
+│                 ┌─────────────────────────────────────────────────────┐   │
+│                 │              Actuators (Outputs)                    │   │
+│                 │  Chat | Tools | Signals | Export                   │   │
+│                 └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+| Component | Responsibility |
+|-----------|---------------|
+| **Frontend** | User interface, real-time updates (SvelteKit) |
+| **API (Gin)** | HTTP routes, auth, websocket, orchestration |
+| **Cognitive Engine** | 6 ACE layers with NATS inter-layer communication |
+| **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks |
+| **Actuators (Outputs)** | Output handling: chat, tools, signals, export |
+| **Memory** | Per-layer + global modules (long/medium/short term) |
+| **Message Broker (NATS)** | Inter-layer communication (northbound/southbound) |
+| **Persistence** | PostgreSQL + SQLC |
+
+### Layer Communication
+
+- **NATS** for inter-layer (northbound/southbound buses)
+- Each message includes: `timestamp`, `cycle_id`, `layer_id`
+- Multiple messages per cycle aggregated at cycle boundary
+- Variable layer speeds handled via async NATS messaging
+
+### Loops
+
+**Within Layers:**
+- Configurable loops (task prosecution: infinite, planning: finite)
+- Max loops, max cycles, max time per loop defined in config
+- Pull-based status updates, output on completion
+
+**Global Loops (HRM):**
+- Chat Interface (fast) - human interaction
+- Safety Monitor (fast) - threat detection
+- Swarm Coordinator (medium) - multi-agent
+- Memory Manager (slow) - consolidation
+- Learning Loop (medium) - feedback integration
+
+### Memory Architecture
+
+Each layer has its own memory module + global module:
+- **Long-term**: Tree structure with tags, query via tree traversal + tag search
+- **Medium-term**: Always injected
+- **Short-term**: Always injected
+- **Isolation**: Layer only accesses own module + global module
+
+### Container Architecture
+
+**Single Agent Mode:**
+- frontend (:5173), api (:8080), telemetry (:8081), nats (:4222), postgres (:5432)
+
+**Kubernetes (Multi-Agent):**
+- Frontend, API, Telemetry (Deployments)
+- NATS (StatefulSet)
+- PostgreSQL (Managed)
+- Cognitive Engine pods
+
+See [units/architecture/architecture.md](units/architecture/architecture.md) for detailed diagrams and specifications.
 
 ## 2. Technologies
 
-<!--
-NOTE: Document the technology stack and tools used in the project.
-Should include: Python version, package manager (uv), databases, Docker, message brokers, etc.
-Depends on: Architecture (to know what's needed)
--->
+### Backend
+- **Go** - Primary language for API and Cognitive Engine
+- **Gin** - HTTP web framework
+- **SQLC** - Type-safe SQL access to PostgreSQL
+- **NATS** - Message broker for inter-layer communication
+
+### Frontend
+- **SvelteKit** - Full-stack web framework
+- **TypeScript** - Type-safe frontend code
+
+### Database
+- **PostgreSQL** - Primary data store
+- **SQLC** - Compile-time SQL type checking
+
+### Authentication
+- **JWT** - Token-based authentication
+- **oauth2-proxy** - OAuth integration (future)
+
+### Infrastructure
+- **Docker** - Containerization
+- **Kubernetes** - Orchestration for multi-agent deployments
+- **WebSocket** - Real-time communication
 
 ## 3. Data Model
 
