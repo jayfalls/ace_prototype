@@ -19,13 +19,27 @@
 │         │         │   (JWT)  │    │  Handler  │         │              │
 │         │         └──────────┘    └───────────┘         │              │
 │         │                                               │              │
-│         └───────────────────────────────────────────────┼──────────────┘
-│                                                         │              │
-│                                                         ▼              │
-│                                                  ┌───────────┐       │
-│                                                  │PostgreSQL │       │
-│                                                  │+ SQLC    │       │
-│                                                  └───────────┘
+│         └───────────────────────────┬───────────────────┘              │
+│                                     │                                  │
+│         ┌───────────────────────────┼───────────────────────────────┐    │
+│         │                    Telemetry                               │    │
+│         │  ┌─────────────────────────────────────────────────────┐ │    │
+│         │  │  Senses: Chat | Sensors | Metrics | Webhooks      │ │    │
+│         │  │  Data Distribution: Pull API + Push Events         │ │    │
+│         │  └─────────────────────────────────────────────────────┘ │    │
+│         └───────────────────────────┬───────────────────────────────┘    │
+│                                     │                                  │
+│                                     ▼                                  │
+│                                                  ┌───────────┐           │
+│                                                  │PostgreSQL │           │
+│                                                  │+ SQLC    │           │
+│                                                  └───────────┘           │
+│                                     │                                  │
+│                                     ▼ (Layer communication)            │
+│                              ┌────────────┐                             │
+│                              │    NATS    │                             │
+│                              │ (Pub/Sub)  │                             │
+│                              └────────────┘                             │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -38,7 +52,8 @@
 | **Frontend** | User interface, real-time updates | Static + WebSocket |
 | **API (Gin)** | HTTP routes, auth, websocket upgrade, orchestration | REST + WS |
 | **Cognitive Engine** | 6 ACE layer processing, LLM calls | Internal |
-| **Message Broker (NATS)** | Inter-layer communication | Pub/Sub |
+| **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks | Pull API + Push Events |
+| **Message Broker (NATS)** | Inter-layer communication (northbound/southbound buses) | Pub/Sub |
 | **Auth** | JWT validation, session management | Middleware |
 | **Persistence** | Data storage via SQLC | SQL queries |
 
@@ -49,10 +64,15 @@
 │                       Single Agent Mode                                 │
 │                                                                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │   frontend  │  │     api     │  │    nats     │  │   postgres  │   │
-│  │  :5173      │  │   :8080     │  │  :4222      │  │   :5432     │   │
+│  │   frontend  │  │     api     │  │  telemetry  │  │   nats     │   │
+│  │  :5173      │  │   :8080     │  │   :8081    │  │  :4222     │   │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
-│                                                                          │
+│                                        │                               │
+│                                        ▼                               │
+│                               ┌─────────────┐                         │
+│                               │  postgres   │                         │
+│                               │   :5432     │                         │
+│                               └─────────────┘                         │
 └─────────────────────────────────────────────────────────────────────────┘
 
 ### Kubernetes (Multi-Agent)
@@ -62,9 +82,14 @@
 │                      Kubernetes (Multi-Agent)                           │
 │                                                                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
-│  │   frontend  │  │     api     │  │    nats     │  │  postgres   │   │
-│  │  (Deployment)│ │  (Deployment)│ │  (StatefulSet)│ │(Managed)   │   │
+│  │   frontend  │  │     api     │  │  telemetry  │  │    nats    │   │
+│  │  (Deployment)│ │  (Deployment)│ │  (Deployment)│ │(StatefulSet)│   │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐                                      │
+│  │  postgres   │  │  cognitive-engine                                 │
+│  │  (Managed) │  │  (Deployment with HPA)                            │
+│  └─────────────┘  └─────────────────────────────────────────────────┘  │
 │                                                                          │
 │  ┌─────────────────────────────────────────────────────────────────┐    │
 │  │                     cognitive-engine                            │    │
@@ -98,6 +123,40 @@ User → Frontend → WebSocket → Cognitive Engine → Thought Stream → User
 Layer 1 → NATS → Layer 2 → NATS → Layer 3 → ... → Layer 6
 ```
 NATS enables communication between ACE layers within the cognitive engine.
+
+### Telemetry (Senses)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Telemetry / Senses                               │
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │    Chat    │  │   Sensors   │  │  Metrics    │  │  Webhooks   │  │
+│  │   Input    │  │   Input     │  │   Input     │  │   Input     │  │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  │
+│         │                 │                 │                 │         │
+│         └─────────────────┼─────────────────┼─────────────────┘         │
+│                           ▼                                           │
+│                  ┌─────────────────────┐                               │
+│                  │   Normalize &       │                               │
+│                  │   Validate          │                               │
+│                  └──────────┬──────────┘                               │
+│                             │                                           │
+│                             ▼                                           │
+│                  ┌─────────────────────┐                               │
+│                  │   Data Distribution │                               │
+│                  │                     │                               │
+│                  │  Pull API:          │──────► Layer requests context  │
+│                  │    Layers pull      │                               │
+│                  │                     │                               │
+│                  │  Push Events:       │──────► Urgent events to       │
+│                  │    Alerts/Immediate│        layers                 │
+│                  └─────────────────────┘                               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Pull Model**: Layers request context when ready (handles variable processing speeds)
+**Push Model**: Urgent events (alerts, new user messages) pushed immediately
 
 ## Sequence Diagram
 
@@ -155,14 +214,19 @@ sequenceDiagram
 | Component | Interface | Data Exchanged |
 |-----------|-----------|----------------|
 | Frontend ↔ API | REST + WebSocket | JSON, text stream |
-| API ↔ Database | SQLC queries | Structured data |
-| Cognitive Engine | Embedded in API | Direct function calls |
+| API ↔ Telemetry | HTTP/gRPC | Sensor data, metrics, chat |
+| Telemetry ↔ Layers | Pull API + Push | Context data, events |
 | Layer ↔ Layer | NATS | Thought events, layer outputs |
+| API ↔ Database | SQLC queries | Structured data |
 
 ## Event Flow
 
 | Event | Producer | Consumer | Payload |
 |-------|----------|----------|---------|
+| `telemetry.chat` | User/Chat | Telemetry | `{ user_id, message, timestamp }` |
+| `telemetry.sensor` | Sensors | Telemetry | `{ sensor_id, data, timestamp }` |
+| `telemetry.metric` | Metrics | Telemetry | `{ metric_name, value, timestamp }` |
+| `telemetry.webhook` | Webhooks | Telemetry | `{ event_type, payload }` |
 | `layer.input` | Layer N | Layer N+1 | `{ request_id, input, layer }` |
 | `layer.output` | Layer N | Layer N+1 | `{ request_id, output, layer }` |
 | `thought.start` | Cognitive Engine | Frontend (WS) | `{ agent_id, request_id, layer }` |
@@ -205,6 +269,8 @@ localhost:5173 (Frontend)
     ↓ 
 localhost:8080 (API) 
     ↓ 
+localhost:8081 (Telemetry)
+    ↓ 
 localhost:5432 (PostgreSQL)
 localhost:4222 (NATS)
 ```
@@ -213,6 +279,7 @@ localhost:4222 (NATS)
 ```
 Internet → LoadBalancer → frontend (443)
                        → api (443)
+                       → telemetry (443)
                        → nats (443)
                        → postgres (managed)
 ```
