@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ace/framework/backend/internal/middleware"
+	"github.com/ace/framework/backend/internal/models"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -85,7 +86,7 @@ func (h *SessionHandler) List(c *gin.Context) {
 	limit, _ := strconv.ParseInt(c.DefaultQuery("limit", "20"), 10, 32)
 	offset, _ := strconv.ParseInt(c.DefaultQuery("offset", "0"), 10, 32)
 
-	var sessions []interface{}
+	var sessions []models.Session
 	var err error
 
 	if agentID != "" {

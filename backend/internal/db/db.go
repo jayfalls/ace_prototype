@@ -6,9 +6,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/ace/framework/backend/internal/config"
+	db "github.com/ace/framework/backend/internal/db/sqlc"
 )
 
 var Pool *pgxpool.Pool
+var Queries *db.Queries
 
 func Connect(cfg *config.DatabaseConfig) error {
 	connStr := fmt.Sprintf(
@@ -31,7 +33,12 @@ func Connect(cfg *config.DatabaseConfig) error {
 	}
 
 	Pool = pool
+	Queries = db.New(pool)
 	return nil
+}
+
+func GetQueries() *db.Queries {
+	return Queries
 }
 
 func Disconnect() {

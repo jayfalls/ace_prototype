@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/ace/framework/backend/internal/middleware"
-	"github.com/ace/framework/backend/internal/models"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

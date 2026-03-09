@@ -36,9 +36,8 @@ func main() {
 	defer db.Disconnect()
 	logger.Info().Msg("Connected to database")
 
-	// Initialize services
-	authService := services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
-	_ = authService
+	// Initialize services (for future use)
+	_ = services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	// Create Gin router
 	router := gin.Default()
@@ -67,8 +66,19 @@ func main() {
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 
-	// Demo login endpoint
+	// Demo login endpoint (no auth required)
 	v1.POST("/demo/login", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"data": gin.H{
+				"access_token":  "demo-token",
+				"refresh_token": "demo-refresh",
+				"expires_in":    900,
+			},
+		})
+	})
+
+	// Demo register
+	v1.POST("/demo/register", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"data": gin.H{
 				"access_token":  "demo-token",
