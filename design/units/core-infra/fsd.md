@@ -149,31 +149,27 @@ CREATE TABLE system_settings (
 );
 ```
 
-#### Tool
-```sql
--- Tools available to agents
-CREATE TABLE tools (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT UNIQUE NOT NULL,
-    description TEXT,
-    schema JSONB NOT NULL, -- tool input schema
-    handler TEXT NOT NULL, -- handler function name
-    config JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-```
+### Tool Sources
 
-#### AgentTool
+Tools are dynamically loaded from multiple sources, not stored in DB:
+- **Hardcoded Tools**: Built-in tools (filesystem, HTTP, etc.)
+- **MCP Servers**: Model Context Protocol servers
+- **Anthropic Skills**: Anthropic skill definitions
+
+### AgentToolWhitelist
 ```sql
--- Tools available to specific agents
-CREATE TABLE agent_tools (
+-- Whitelist of tools available to specific agents
+-- Tools are loaded dynamically from sources (hardcoded, MCP, skills)
+-- This table stores which tools are enabled for each agent
+CREATE TABLE agent_tool_whitelist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     agent_id UUID REFERENCES agents(id),
-    tool_id UUID REFERENCES tools(id),
+    tool_source TEXT NOT NULL, -- hardcoded, mcp, skill
+    tool_name TEXT NOT NULL, -- tool identifier from source
     enabled BOOLEAN DEFAULT TRUE,
     config JSONB DEFAULT '{}',
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(agent_id, tool_source, tool_name)
 );
 ```
 
@@ -249,16 +245,12 @@ CREATE TABLE agent_tools (
 | GET | /api/settings | Get system settings (admin) |
 | PUT | /api/settings | Update system settings (admin) |
 
-#### Tools
+#### Tools (Whitelist)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | /api/tools | List available tools |
-| POST | /api/tools | Create tool |
-| GET | /api/tools/:id | Get tool |
-| PUT | /api/tools/:id | Update tool |
-| DELETE | /api/tools/:id | Delete tool |
-| GET | /api/agents/:id/tools | List agent's enabled tools |
-| PUT | /api/agents/:id/tools | Update agent's tool configuration |
+| GET | /api/agents/:id/tools | List agent's tool whitelist |
+| PUT | /api/agents/:id/tools | Update agent's tool whitelist |
+| GET | /api/tools/sources | Get available tool sources (hardcoded, MCP, skills) |
 
 ### WebSocket Messages
 
