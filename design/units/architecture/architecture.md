@@ -204,6 +204,69 @@ Beyond layer-specific loops, ACE has global loops that operate across the entire
 - Loops operate in parallel, accessing shared cognitive state
 - Enables adaptive computation: more thought on hard problems
 
+### Memory Architecture
+
+Each layer has its own memory module, plus a global module for inter-layer context:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Memory Architecture                                   │
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │              Layer 6 Memory Module                               │   │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐             │   │
+│  │  │ Long-term  │  │ Medium-term│  │ Short-term │             │   │
+│  │  │ (tree)     │  │(always inj)│  │(always inj)│             │   │
+│  │  │ + tags     │  │            │  │            │             │   │
+│  │  └────────────┘  └────────────┘  └────────────┘             │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                    .                                    │
+│                                    .                                    │
+│                                    .                                    │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │              Global Memory Module                                │   │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐             │   │
+│  │  │ Long-term  │  │ Medium-term│  │ Short-term │             │   │
+│  │  │ (tree)     │  │(always inj)│  │(always inj)│             │   │
+│  │  │ + tags     │  │            │  │            │             │   │
+│  │  └────────────┘  └────────────┘  └────────────┘             │   │
+│  │                                                                  │   │
+│  │  - Inter-layer context                                          │   │
+│  │  - Chat model access                                            │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Layer Memory Injection (per cycle):**
+
+| Source | Type | Delivery |
+|--------|------|----------|
+| Layer's own | Medium-term | Always inject |
+| Layer's own | Short-term | Always inject |
+| Global | Medium-term | Always inject |
+| Global | Short-term | Always inject |
+| Layer's own | Long-term | Query (tree search + tag search) |
+| Global | Long-term | Query (tree search + tag search) |
+
+**Long-term Query:**
+
+```
+Tree search loop:
+  1. Forward: root → leaves (collect summaries)
+  2. Backward: leaves → root (unpack memories)
+  3. Continue until satisfied
+
+Tag search:
+  - First page return by tag
+
+Combined: forms total long-term memory injected into layer
+```
+
+**Isolation:**
+- Each layer only accesses: own module + global module
+- Layer N cannot see Layer M's memory
+- Global module enables inter-layer context sharing
+
 ### Telemetry (Senses)
 
 ```
