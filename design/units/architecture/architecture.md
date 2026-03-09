@@ -124,6 +124,48 @@ Layer 1 → NATS → Layer 2 → NATS → Layer 3 → ... → Layer 6
 ```
 NATS enables communication between ACE layers within the cognitive engine.
 
+**Multiple messages per cycle:**
+- Each bus message includes: `timestamp`, `cycle_id`, `layer_id`
+- All messages with same `cycle_id` aggregated at cycle boundary
+- Preserves ordering within cycle for debugging/replay
+
+### Loops within Layers
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Loops within Layer N                                  │
+│                                                                          │
+│  Layer N Iteration 1 ──► Spawn Loop 1 ──► runs to completion          │
+│        │                                        │                        │
+│        │◄───── pull status updates ─────────────┘                        │
+│        │                                                                │
+│  Layer N Iteration 2 ──► (loop complete, use output)                   │
+│        │                                                                │
+│  Layer N Iteration 3 ──► Spawn Loop 2 ──► runs to completion          │
+│        │                                        │                        │
+│        │◄───── pull status updates ─────────────┘                        │
+│        │                                                                │
+│  Layer N Iteration 4 ──► (loop complete, use output)                   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Loop Types:**
+
+| Type | Behavior | Boundary |
+|------|----------|----------|
+| **Task Prosecution** | Run until cancelled | Infinite (user terminates) |
+| **Planning** | Run until condition met | Finite (max cycles/time) |
+
+**Configuration:**
+- Max loops per layer
+- Max cycles per loop
+- Max time per loop
+- Defined in layer config
+
+**Communication:**
+- Status updates: Layer pulls from loop (cycle-by-cycle)
+- Output: Loop feeds final output to layer on completion
+
 ### Telemetry (Senses)
 
 ```
