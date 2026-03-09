@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS system_settings CASCADE;
+DROP TABLE IF EXISTS agent_settings CASCADE;

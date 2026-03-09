@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS llm_attachments CASCADE;
+DROP TABLE IF EXISTS llm_providers CASCADE;
