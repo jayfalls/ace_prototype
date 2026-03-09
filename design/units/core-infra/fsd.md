@@ -90,6 +90,93 @@ CREATE TABLE users (
 );
 ```
 
+#### LLMProvider
+```sql
+-- LLM provider configurations (OpenAI, Anthropic, Ollama, etc.)
+CREATE TABLE llm_providers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT NOT NULL, -- openai, anthropic, ollama
+    api_key TEXT, -- encrypted
+    base_url TEXT, -- for custom endpoints
+    default_model TEXT,
+    config JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### LLMAttachment
+```sql
+-- Which LLM is attached to which layer/component
+CREATE TABLE llm_attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES agents(id),
+    provider_id UUID REFERENCES llm_providers(id),
+    target_type TEXT NOT NULL, -- layer, global_loop, task_prosecution
+    target_id TEXT NOT NULL, -- layer number or loop name
+    model TEXT NOT NULL,
+    config JSONB DEFAULT '{}', -- temperature, max_tokens, etc.
+    priority INTEGER DEFAULT 0, -- which attachment to use first
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### AgentSetting
+```sql
+-- Agent-specific settings
+CREATE TABLE agent_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES agents(id),
+    key TEXT NOT NULL,
+    value JSONB NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### SystemSetting
+```sql
+-- Global system settings
+CREATE TABLE system_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key TEXT UNIQUE NOT NULL,
+    value JSONB NOT NULL,
+    description TEXT,
+    is_secret BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### Tool
+```sql
+-- Tools available to agents
+CREATE TABLE tools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    schema JSONB NOT NULL, -- tool input schema
+    handler TEXT NOT NULL, -- handler function name
+    config JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+#### AgentTool
+```sql
+-- Tools available to specific agents
+CREATE TABLE agent_tools (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    agent_id UUID REFERENCES agents(id),
+    tool_id UUID REFERENCES tools(id),
+    enabled BOOLEAN DEFAULT TRUE,
+    config JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
 ## API Structure
 
 ### REST Endpoints
@@ -135,6 +222,43 @@ CREATE TABLE users (
 | POST | /api/auth/register | Register user |
 | POST | /api/auth/login | Login user |
 | GET | /api/users/me | Get current user |
+
+#### LLM Providers
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/llm-providers | List LLM providers |
+| POST | /api/llm-providers | Create provider |
+| GET | /api/llm-providers/:id | Get provider |
+| PUT | /api/llm-providers/:id | Update provider |
+| DELETE | /api/llm-providers/:id | Delete provider |
+
+#### LLM Attachments
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/agents/:id/llm-attachments | List agent's LLM attachments |
+| POST | /api/agents/:id/llm-attachments | Create attachment |
+| GET | /api/agents/:id/llm-attachments/:att_id | Get attachment |
+| PUT | /api/agents/:id/llm-attachments/:att_id | Update attachment |
+| DELETE | /api/agents/:id/llm-attachments/:att_id | Delete attachment |
+
+#### Settings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/agents/:id/settings | Get agent settings |
+| PUT | /api/agents/:id/settings | Update agent settings |
+| GET | /api/settings | Get system settings (admin) |
+| PUT | /api/settings | Update system settings (admin) |
+
+#### Tools
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/tools | List available tools |
+| POST | /api/tools | Create tool |
+| GET | /api/tools/:id | Get tool |
+| PUT | /api/tools/:id | Update tool |
+| DELETE | /api/tools/:id | Delete tool |
+| GET | /api/agents/:id/tools | List agent's enabled tools |
+| PUT | /api/agents/:id/tools | Update agent's tool configuration |
 
 ### WebSocket Messages
 
