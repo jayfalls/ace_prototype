@@ -3,19 +3,32 @@
 ## Overview
 Define the structural components and their interactions for the ACE Framework MVP.
 
+## Technology Stack
+
+| Component | Technology | Rationale |
+|-----------|------------|-----------|
+| Language | Go (all components) | Full control, no library constraints, best for custom cognitive layers |
+| API | Gin | Fast, minimal, great for websockets |
+| Frontend | SvelteKit + TypeScript | Best developer experience, minimal code, easiest to maintain quality |
+| Database | PostgreSQL + SQLC | Type-safe SQL, no ORM overhead |
+| Real-time | WebSockets | Native to Go, for cognitive trace updates |
+| Auth | JWT (now) / oauth2-proxy (later) | Simple start, scales to OAuth |
+| Message | NATS | For scaling to agent swarms |
+| Migrations | golang-migrate | Schema evolution |
+
 ## Components
 
 ### Core Components
 
 #### 1. API Service
-- **Responsibility**: Entry point for all external requests, authentication, rate limiting
-- **Technology**: FastAPI (built into Python backend)
-- **Interfaces**: REST/HTTP endpoints, OpenAPI docs
+- **Responsibility**: Entry point for all requests, authentication, websocket handling, cognitive orchestration
+- **Technology**: Go + Gin
+- **Interfaces**: REST/HTTP endpoints, WebSockets
 
 #### 2. Frontend
-- **Responsibility**: User interface for interacting with the system
-- **Technology**: HTMX + Alpine.js + Tailwind (served by API or static)
-- **Interfaces**: Web UI, HTMX for dynamic content
+- **Responsibility**: User interface for interacting with agents
+- **Technology**: SvelteKit + TypeScript
+- **Interfaces**: Web UI, WebSocket client
 
 #### 3. Cognitive Engine
 - **Responsibility**: Implements the 6 ACE Framework layers
@@ -26,48 +39,50 @@ Define the structural components and their interactions for the ACE Framework MV
   - Strategic Layer
   - Tactical Layer
   - Operational Layer
-- **Technology**: Python + LangChain/LlamaIndex
-- **Interfaces**: Internal API, message-based communication
+- **Technology**: Go (no external AI libraries - full custom control)
+- **Interfaces**: WebSocket for real-time updates, NATS for async
 
 #### 4. Persistence Layer
 - **Responsibility**: Data storage and retrieval
-- **Technology**: PostgreSQL (all environments)
-- **Interfaces**: SQL via ORM (SQLAlchemy or similar)
+- **Technology**: PostgreSQL + SQLC
+- **Interfaces**: Type-safe SQL queries
 
 #### 5. Message Layer
 - **Responsibility**: Asynchronous communication between components
 - **Technology**: NATS
-- **Interfaces**: Publish/subscribe, request/reply patterns
+- **Interfaces**: Publish/subscribe, request/reply
 
 ### Component Boundaries
 
 | Component | Responsibility | Owns |
 |-----------|---------------|------|
-| API Service | Request ingress, auth, routing | HTTP endpoints, auth, OpenAPI |
-| Frontend | UI rendering | HTMX templates, Tailwind styles |
-| Cognitive Engine | Decision making | ACE layer implementations, LangChain |
-| Persistence | Data storage | Database, SQLAlchemy models |
+| API Service | Request ingress, auth, websocket, orchestration | HTTP/WebSocket endpoints, auth, routing |
+| Frontend | UI rendering | Svelte components, stores |
+| Cognitive Engine | Decision making | ACE layer implementations |
+| Persistence | Data storage | PostgreSQL, SQLC queries |
 | Message Layer | Event routing | NATS connections, pub/sub |
 
 ## Communication Patterns
 
 ### Synchronous (Request-Response)
-- Client → API Service → Cognitive Engine → Persistence → Response
+- Client → API → Cognitive Engine → Persistence → Response
 
-### Asynchronous (Event-Based)
+### Asynchronous (Real-time)
+- Client ↔ WebSocket ↔ Cognitive Engine (for thought traces)
+
+### Event-Based (Scaling)
 - Cognitive Engine → NATS → [any component]
-- Components communicate via NATS for loose coupling
 
 ### Data Flow
 
 ```
 Client Request
     ↓
-API Gateway (auth, validate)
+API (auth, validate)
     ↓
 Cognitive Engine (process)
     ↓
-[optional] Message Layer (async tasks)
+[optional] NATS (async tasks)
     ↓
 Persistence (store/retrieve)
     ↓
@@ -77,38 +92,19 @@ Response
 ## Container Strategy
 
 ### Containers
-- **api**: FastAPI service (serves both API + frontend)
-- **cognitive-engine**: Core ACE processing
+- **api**: Go + Gin service
+- **frontend**: SvelteKit (served by API or static)
+- **cognitive-engine**: Go cognitive processing
 - **nats**: Message broker
 - **postgres**: Database
 
 ### Development Mode (Docker Compose)
 - All services in docker-compose.yml
-- PostgreSQL for persistence
 - Hot reload enabled
 
 ### Production Mode (Kubernetes)
-- Each ACE cognitive engine as a pod
+- Each component as a pod
 - PostgreSQL as managed service or statefulset
-- NATS for inter-agent communication
-
-## Technical Decisions
-
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Language | Python + UV | AI ecosystem (LangChain, LlamaIndex), UV for fast deps |
-| Database | PostgreSQL | Robust, scalable, K8s-native |
-| Message Broker | NATS | Lightweight, native K8s support, perfect for agent swarm |
-| Frontend | HTMX + Alpine.js + Tailwind | Minimal custom code, server-side rendered |
-| API | Built into Python (FastAPI) | Lightweight, auto-docs, works with Python ecosystem |
-
-### Development Mode (Single Machine)
-- Run all components via Docker Compose
-- PostgreSQL in container
-
-### Production Mode (Kubernetes)
-- Each ACE runs as a pod
-- PostgreSQL (managed or self-hosted)
 - NATS for inter-agent communication
 
 ## Out of Scope for This FSD
