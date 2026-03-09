@@ -135,37 +135,62 @@ See [units/architecture/architecture.md](units/architecture/architecture.md) for
 
 ## 3. Data Model
 
-<!--
-NOTE: Document the database schema, entities, and relationships.
-Should include: Schema diagrams, entity relationships, data flow.
--->
+The data model is defined in the Core Infrastructure unit.
+
+### Core Entities
+- **Agent**: Autonomous cognitive entity (id, name, description, config, status)
+- **Memory**: Long-term memory with tree structure (id, parent_id, content, tags, memory_type, importance)
+- **Session**: User-agent interaction sessions (id, agent_id, user_id, status, context)
+- **Thought**: Individual thought records for debugging/traceability (id, session_id, layer, cycle, content)
+- **User**: User accounts (id, email, name, password_hash)
+- **LLMProvider**: LLM configurations (id, name, api_key, base_url, default_model)
+- **LLMAttachment**: LLM to layer/component mapping (id, agent_id, provider_id, target_type, target_id, model)
+- **AgentSetting**: Agent-specific settings (id, agent_id, key, value)
+- **SystemSetting**: Global system settings (id, key, value, is_secret)
+- **AgentToolWhitelist**: Per-agent tool whitelist (id, agent_id, tool_source, tool_name, enabled)
+
+### Relationships
+- Agent 1:N Memories
+- Agent 1:N Sessions
+- Session 1:N Thoughts
+- Agent N:N LLMProvider (via LLMAttachment)
+- Agent N:N Tools (via AgentToolWhitelist)
 
 ## 4. API
 
-<!--
-NOTE: High-level API overview - detailed endpoints are defined by each unit.
--->
+The API structure is defined in the Core Infrastructure unit.
 
-## 5. Frontend
+### REST API
+- **Agents**: CRUD + lifecycle (start/stop)
+- **Memories**: CRUD + search
+- **Sessions**: CRUD + thought traces
+- **LLM Providers**: CRUD
+- **Settings**: Agent + system level
+- **Tools**: Whitelist management
 
-<!--
-NOTE: Document the UI/UX design.
-Should include: Component library, styling approach, state management.
--->
-
-## 6. Deployment
-
-<!--
-NOTE: Document the deployment strategy.
-Should include: Docker configuration, CI/CD, environments.
--->
+### WebSocket
+- Real-time thought streaming
+- Agent status updates
 
 ## 7. Security
 
-<!--
-NOTE: Document security considerations.
-Should include: Authentication, authorization, data protection.
--->
+Security is defined in the Core Infrastructure unit.
+
+### Authentication
+- JWT-based stateless authentication
+- Token includes: `user_id`, `exp`, `roles`
+- Token refresh before expiration
+
+### Protected Routes
+All routes require authentication except:
+- `POST /api/auth/register` - Registration
+- `POST /api/auth/login` - Login
+- `GET /api/tools/sources` - List available tool sources
+
+### Data Protection
+- SQL injection prevention via SQLC (parameterized queries)
+- XSS prevention on user inputs
+- API keys encrypted in database
 
 ## 8. Testing
 
