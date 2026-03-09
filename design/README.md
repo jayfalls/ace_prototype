@@ -188,10 +188,19 @@ The API structure is defined in the Core Infrastructure unit.
 
 ## 6. Deployment
 
-<!--
-NOTE: Document the deployment strategy.
-Should include: Docker configuration, CI/CD, environments.
--->
+### Containerization
+- **Docker**: All services containerized
+- **Multi-stage builds**: Minimal production images
+
+### Environments
+- **Development**: Local Docker Compose
+- **Production (Single ACE)**: Docker Compose (end users)
+- **Production (ACE Swarm)**: Kubernetes (enterprise)
+
+### CI/CD
+- **GitHub Actions**: Automated testing and build
+- **Image registry**: Container registry for releases
+- **Rolling deployments**: Zero-downtime updates
 
 ## 7. Security
 
@@ -215,14 +224,34 @@ All routes require authentication except:
 
 ## 8. Testing
 
-<!--
-NOTE: Document the testing strategy.
-Should include: Test types, coverage targets, testing tools.
--->
+### Test Types
+- **Unit tests**: Core business logic
+- **Integration tests**: API endpoints, database operations
+- **E2E tests**: Critical user flows
+
+### Coverage Targets
+- **Unit**: 80% coverage target
+- **Integration**: Key pathways covered
+- **E2E**: Happy path + error handling
+
+### Tools
+- **Go**: Built-in testing framework
+- **SvelteKit**: Vitest for frontend
+- **Playwright**: E2E testing
 
 ## 9. Monitoring
 
-<!--
-NOTE: Document observability.
-Should include: Logging, metrics, alerting, dashboards.
--->
+### Logging
+- **Structured JSON logs**: Machine-parseable
+- **Log levels**: Debug, Info, Warn, Error
+- **Correlation IDs**: Request tracing
+
+### Metrics
+- **Prometheus metrics**: Request latency, error rates
+- **Custom metrics**: Agent lifecycle, memory usage
+- **Dashboards**: Grafana for visualization
+
+### Alerting
+- **Error alerts**: PagerDuty or similar
+- **Performance thresholds**: Latency SLAs
+- **Health checks**: Kubernetes probes
