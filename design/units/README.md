@@ -8,3 +8,4 @@ For creating new units, use the [unit template](template/README.md).
 
 - [Architecture](architecture/README.md)
 - [Core Infrastructure](core-infra/README.md)
+- [Frontend](frontend/README.md)
