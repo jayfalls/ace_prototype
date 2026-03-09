@@ -38,6 +38,7 @@
 | **Frontend** | User interface, real-time updates | Static + WebSocket |
 | **API (Gin)** | HTTP routes, auth, websocket upgrade, orchestration | REST + WS |
 | **Cognitive Engine** | 6 ACE layer processing, LLM calls | Internal |
+| **Message Broker (NATS)** | Inter-layer communication | Pub/Sub |
 | **Auth** | JWT validation, session management | Middleware |
 | **Persistence** | Data storage via SQLC | SQL queries |
 
@@ -47,10 +48,10 @@
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       Single Agent Mode                                 │
 │                                                                          │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                    │
-│  │   frontend  │  │     api     │  │   postgres  │                    │
-│  │  :5173      │  │   :8080     │  │   :5432     │                    │
-│  └─────────────┘  └─────────────┘  └─────────────┘                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐   │
+│  │   frontend  │  │     api     │  │    nats     │  │   postgres  │   │
+│  │  :5173      │  │   :8080     │  │  :4222      │  │   :5432     │   │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘   │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 
@@ -90,6 +91,13 @@ User → Frontend → WebSocket → Cognitive Engine → Thought Stream → User
                                       ↓
                                PostgreSQL (persist)
 ```
+
+### Layer Communication (NATS)
+
+```
+Layer 1 → NATS → Layer 2 → NATS → Layer 3 → ... → Layer 6
+```
+NATS enables communication between ACE layers within the cognitive engine.
 
 ## Sequence Diagram
 
@@ -149,11 +157,14 @@ sequenceDiagram
 | Frontend ↔ API | REST + WebSocket | JSON, text stream |
 | API ↔ Database | SQLC queries | Structured data |
 | Cognitive Engine | Embedded in API | Direct function calls |
+| Layer ↔ Layer | NATS | Thought events, layer outputs |
 
 ## Event Flow
 
 | Event | Producer | Consumer | Payload |
 |-------|----------|----------|---------|
+| `layer.input` | Layer N | Layer N+1 | `{ request_id, input, layer }` |
+| `layer.output` | Layer N | Layer N+1 | `{ request_id, output, layer }` |
 | `thought.start` | Cognitive Engine | Frontend (WS) | `{ agent_id, request_id, layer }` |
 | `thought.update` | Cognitive Engine | Frontend (WS) | `{ request_id, thought, layer, metadata }` |
 | `thought.complete` | Cognitive Engine | Frontend (WS) | `{ request_id, final, metrics }` |
@@ -195,11 +206,13 @@ localhost:5173 (Frontend)
 localhost:8080 (API) 
     ↓ 
 localhost:5432 (PostgreSQL)
+localhost:4222 (NATS)
 ```
 
 ### Production (K8s)
 ```
 Internet → LoadBalancer → frontend (443)
                        → api (443)
+                       → nats (443)
                        → postgres (managed)
 ```
