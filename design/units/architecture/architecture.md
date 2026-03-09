@@ -53,6 +53,7 @@
 | **API (Gin)** | HTTP routes, auth, websocket upgrade, orchestration | REST + WS |
 | **Cognitive Engine** | 6 ACE layer processing, LLM calls | Internal |
 | **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks | Pull API + Push Events |
+| **Actuators (Outputs)** | Output handling: chat, tools, signals, export | Response aggregation + routing |
 | **Message Broker (NATS)** | Inter-layer communication (northbound/southbound buses) | Pub/Sub |
 | **Auth** | JWT validation, session management | Middleware |
 | **Persistence** | Data storage via SQLC | SQL queries |
@@ -300,6 +301,50 @@ Combined: forms total long-term memory injected into layer
 
 **Pull Model**: Layers request context when ready (handles variable processing speeds)
 **Push Model**: Urgent events (alerts, new user messages) pushed immediately
+
+### Actuators (Outputs)
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Actuators (Outputs)                              │
+│                                                                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │    Chat    │  │    Tool     │  │   Signal    │  │   Export    │  │
+│  │  Response  │  │  Execution  │  │   Output    │  │    Data     │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  │
+│         │                │                │                │              │
+│         └────────────────┼────────────────┼────────────────┘              │
+│                          ▼                                              │
+│                  ┌─────────────────────┐                               │
+│                  │   Response          │                               │
+│                  │   Aggregation       │                               │
+│                  └──────────┬──────────┘                               │
+│                             │                                           │
+│                             ▼                                           │
+│                  ┌─────────────────────┐                               │
+│                  │   Output Router     │                               │
+│                  │                     │                               │
+│                  │  - User (WS/REST)  │──────► Frontend               │
+│                  │  - External API   │──────► 3rd party              │
+│                  │  - Database       │──────► Persistence             │
+│                  │  - Queue          │──────► Async processing        │
+│                  └─────────────────────┘                               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Actuator Types:**
+
+| Actuator | Purpose | Output |
+|----------|---------|--------|
+| **Chat Response** | User-facing messages | Text, UI updates |
+| **Tool Execution** | Run external tools | API calls, commands |
+| **Signal Output** | Control signals | Hardware, APIs |
+| **Export Data** | Data export | Files, streams |
+
+**Flow:**
+```
+Layer output → Actuator Router → (User | External | DB | Queue)
+```
 
 ## Sequence Diagram
 
