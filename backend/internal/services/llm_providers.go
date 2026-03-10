@@ -59,7 +59,8 @@ func (s *LLMProviderService) CreateProvider(ctx context.Context, input CreatePro
 		config = []byte("{}")
 	}
 
-	return s.queries.CreateLLMProvider(ctx, models.CreateLLMProviderParams{
+	// Create the provider
+	provider, err := s.queries.CreateLLMProvider(ctx, models.CreateLLMProviderParams{
 		OwnerID:         input.OwnerID,
 		Name:            input.Name,
 		ProviderType:    input.ProviderType,
@@ -68,6 +69,38 @@ func (s *LLMProviderService) CreateProvider(ctx context.Context, input CreatePro
 		Model:           input.Model,
 		Config:          config,
 	})
+	if err != nil {
+		return provider, err
+	}
+
+	// Auto-wire to all layers for this provider (default behavior)
+	// This creates LLMAttachments for all 6 layers + global loops
+	layers := []string{
+		"aspirational",
+		"global_strategy",
+		"agent_model",
+		"executive_function",
+		"cognitive_control",
+		"task_prosecution",
+		"global_loop",      // Global loop layer
+		"layer_loop",       // Layer loop for each layer
+	}
+
+	for i, layer := range layers {
+		_, err := s.queries.CreateLLMAttachment(ctx, models.CreateLLMAttachmentParams{
+			AgentID:   input.OwnerID, // Use ownerID as default agent context
+			ProviderID: provider.ID,
+			Layer:     layer,
+			Priority:  int32(i),
+			Config:    config,
+		})
+		if err != nil {
+			// Log but don't fail - attachments are best-effort
+			continue
+		}
+	}
+
+	return provider, nil
 }
 
 func (s *LLMProviderService) GetProvider(ctx context.Context, id, ownerID uuid.UUID) (models.LLMProvider, error) {
