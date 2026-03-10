@@ -1198,3 +1198,50 @@ func (pm *ProviderManager) GetSupportedProviders() []ProviderType {
 		ProviderOpenRouter,
 	}
 }
+
+// TestProvider tests a provider configuration by creating a provider and calling TestConnection
+func TestProvider(providerType string, apiKey string, baseURL string, model string) error {
+	pt := ProviderType(providerType)
+	if pt == "" {
+		return fmt.Errorf("provider type is required")
+	}
+
+	// Set default base URL if not provided
+	if baseURL == "" {
+		switch pt {
+		case ProviderOpenAI:
+			baseURL = "https://api.openai.com/v1"
+		case ProviderAnthropic:
+			baseURL = "https://api.anthropic.com"
+		case ProviderOpenRouter:
+			baseURL = "https://openrouter.ai/api/v1"
+		case ProviderOllama:
+			baseURL = "http://localhost:11434"
+		}
+	}
+
+	config := Config{
+		APIKey:  apiKey,
+		BaseURL: baseURL,
+		Model:   model,
+	}
+
+	provider, err := NewProvider(pt, config)
+	if err != nil {
+		return fmt.Errorf("failed to create provider: %w", err)
+	}
+
+	// Type assert to get the TestConnection method
+	switch p := provider.(type) {
+	case *OpenAIProvider:
+		return p.TestConnection()
+	case *AnthropicProvider:
+		return p.TestConnection()
+	case *OpenRouterProvider:
+		return p.TestConnection()
+	case *OllamaProvider:
+		return p.TestConnection()
+	default:
+		return fmt.Errorf("test not implemented for provider type: %s", providerType)
+	}
+}

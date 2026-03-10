@@ -235,12 +235,49 @@ func (h *LLMProviderHandler) ListAttachments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"data": attachments})
 }
 
+type TestProviderRequest struct {
+	ProviderType string  `json:"provider_type" binding:"required"`
+	APIKey       *string `json:"api_key"`
+	BaseURL      *string `json:"base_url"`
+	Model        *string `json:"model"`
+}
+
+func (h *LLMProviderHandler) TestProvider(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Not authenticated"}})
+		return
+	}
+
+	var req TestProviderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+		return
+	}
+
+	// Test the provider by sending a simple ping message
+	err := h.providerService.TestProvider(c.Request.Context(), services.TestProviderInput{
+		ProviderType: req.ProviderType,
+		APIKey:       req.APIKey,
+		BaseURL:      req.BaseURL,
+		Model:        req.Model,
+	})
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "TEST_FAILED", "message": err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"data": gin.H{"message": "Provider connection successful"}})
+}
+
 func (h *LLMProviderHandler) RegisterRoutes(r *gin.RouterGroup) {
 	r.POST("/llm-providers", h.CreateProvider)
 	r.GET("/llm-providers", h.ListProviders)
 	r.GET("/llm-providers/:id", h.GetProvider)
 	r.PUT("/llm-providers/:id", h.UpdateProvider)
 	r.DELETE("/llm-providers/:id", h.DeleteProvider)
+	r.POST("/providers/test", h.TestProvider)
 
 	r.POST("/agents/:agent_id/llm-attachments", h.CreateAttachment)
 	r.GET("/agents/:agent_id/llm-attachments", h.ListAttachments)

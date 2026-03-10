@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/ace/framework/backend/internal/llm"
 	"github.com/ace/framework/backend/internal/models"
 	"github.com/google/uuid"
 )
@@ -12,6 +13,13 @@ var (
 	ErrProviderNotFound = errors.New("provider not found")
 	ErrProviderAccess  = errors.New("access denied to provider")
 )
+
+type TestProviderInput struct {
+	ProviderType string
+	APIKey       *string
+	BaseURL      *string
+	Model        *string
+}
 
 type LLMProviderService struct {
 	queries interface {
@@ -193,4 +201,21 @@ func (s *LLMProviderService) ListAttachments(ctx context.Context, agentID uuid.U
 
 func (s *LLMProviderService) DeleteAttachment(ctx context.Context, id uuid.UUID) error {
 	return s.queries.DeleteLLMAttachment(ctx, id)
+}
+
+func (s *LLMProviderService) TestProvider(ctx context.Context, input TestProviderInput) error {
+	_ = ctx
+	apiKey := ""
+	if input.APIKey != nil {
+		apiKey = *input.APIKey
+	}
+	baseURL := ""
+	if input.BaseURL != nil {
+		baseURL = *input.BaseURL
+	}
+	model := ""
+	if input.Model != nil {
+		model = *input.Model
+	}
+	return llm.TestProvider(input.ProviderType, apiKey, baseURL, model)
 }
