@@ -440,3 +440,22 @@ func (l *TaskProsecutionLayer) Process(ctx context.Context, input *LayerInput) (
 		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerTaskProsecution, Content: "Executing: " + execution}},
 	}, nil
 }
+
+// WireAllLayers wires all layers to the same provider
+func WireAllLayers(engine *Engine, provider llm.Provider, model string) {
+	for lt := LayerAspirational; lt <= LayerTaskProsecution; lt++ {
+		layer, ok := engine.GetLayer(lt)
+		if !ok {
+			continue
+		}
+		
+		layer.SetConfig(LayerConfig{
+			Model:   model,
+			Enabled: true,
+		})
+		
+		if provider != nil {
+			layer.SetLLMProvider(provider)
+		}
+	}
+}

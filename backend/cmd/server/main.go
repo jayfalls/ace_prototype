@@ -93,10 +93,6 @@ func main() {
 	defer msgBus.Close()
 	logger.Info().Msg("Messaging initialized")
 
-	// Initialize LLM provider manager
-	providerManager := llm.NewProviderManager()
-	logger.Info().Msg("LLM providers initialized")
-
 	// Initialize LLM provider based on configuration
 	var llmProvider llm.Provider
 	providerType := llm.ProviderType(cfg.LLM.Provider)
@@ -130,18 +126,7 @@ func main() {
 	
 	// Wire LLM to all layers if available
 	if llmProvider != nil {
-		// Set LLM provider on each layer
-		for lt := layers.LayerAspirational; lt <= layers.LayerTaskProsecution; lt++ {
-			layer, ok := engine.GetLayer(lt)
-			if ok {
-				layer.SetConfig(layers.LayerConfig{
-					Model:   cfg.LLM.DefaultModel,
-					Enabled: true,
-				})
-				layer.SetLLMProvider(llmProvider)
-				logger.Info().Str("layer", layer.Name()).Msg("Layer wired to LLM provider")
-			}
-		}
+		layers.WireAllLayers(engine, llmProvider, cfg.LLM.DefaultModel)
 		logger.Info().Msg("Cognitive engine ready with LLM provider")
 	} else {
 		logger.Warn().Msg("Running without LLM - using mock layer responses")
