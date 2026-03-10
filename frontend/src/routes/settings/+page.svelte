@@ -8,9 +8,12 @@
 	let agent: Agent | null = null;
 	let settings: {key: string, value: string}[] = [];
 	let providers: Provider[] = [];
+	let availableTools: {id: string, name: string, description: string, category: string}[] = [];
+	let agentTools: {id: string, tool_id: string, name: string, enabled: boolean}[] = [];
 	let loading = false;
 	let error = '';
 	let showProviderModal = false;
+	let showToolModal = false;
 	let newProvider = {
 		name: '',
 		provider_type: 'openai',
@@ -36,6 +39,8 @@
 			agent = await api.getAgent(agentId);
 			settings = await api.getAgentSettings(agentId);
 			providers = await api.getProviders();
+			availableTools = await api.getTools();
+			agentTools = await api.getAgentTools(agentId);
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -75,6 +80,26 @@
 		try {
 			await api.deleteProvider(id);
 			providers = providers.filter(p => p.id !== id);
+		} catch (e: any) {
+			error = e.message;
+		}
+	}
+
+	async function addTool(toolId: string) {
+		try {
+			await api.addAgentTool(agentId, toolId);
+			agentTools = await api.getAgentTools(agentId);
+			showToolModal = false;
+		} catch (e: any) {
+			error = e.message;
+		}
+	}
+
+	async function removeTool(toolId: string) {
+		if (!confirm('Are you sure you want to remove this tool?')) return;
+		try {
+			await api.removeAgentTool(agentId, toolId);
+			agentTools = agentTools.filter(t => t.id !== toolId);
 		} catch (e: any) {
 			error = e.message;
 		}
@@ -201,6 +226,31 @@
 						</div>
 					{/if}
 				</div>
+
+				<!-- Tools -->
+				<div class="card providers">
+					<div class="card-header">
+						<h2>Tools</h2>
+						<button class="add" on:click={() => showToolModal = true}>+ Add Tool</button>
+					</div>
+					
+					{#if agentTools.length === 0}
+						<p class="empty-text">No tools enabled. Add tools to extend agent capabilities.</p>
+					{:else}
+						<div class="provider-list">
+							{#each agentTools as tool}
+								<div class="provider-item">
+									<div class="provider-info">
+										<h3>{tool.name}</h3>
+										<p>Enabled: {tool.enabled ? 'Yes' : 'No'}</p>
+									</div>
+									<button class="danger" on:click={() => removeTool(tool.id)}>Remove</button>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
 				{/if}
 			</div>
 			{/if}
@@ -247,6 +297,38 @@
 				<button class="primary" on:click={createProvider} disabled={loading}>
 					{loading ? 'Creating...' : 'Create Provider'}
 				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+{#if showToolModal}
+	<div class="modal-overlay" on:click={() => showToolModal = false}>
+		<div class="modal" on:click|stopPropagation>
+			<h3>Add Tool</h3>
+			
+			<p class="modal-desc">Select a tool to enable for this agent.</p>
+			
+			<div class="tool-list">
+				{#each availableTools as tool}
+					{@const isAdded = agentTools.some(t => t.tool_id === tool.id)}
+					<div class="tool-item" class:disabled={isAdded}>
+						<div class="tool-info">
+							<h4>{tool.name}</h4>
+							<p>{tool.description}</p>
+							<span class="category">{tool.category}</span>
+						</div>
+						{#if isAdded}
+							<span class="added">Added</span>
+						{:else}
+							<button class="add" on:click={() => addTool(tool.id)}>Add</button>
+						{/if}
+					</div>
+				{/each}
+			</div>
+			
+			<div class="modal-actions">
+				<button on:click={() => showToolModal = false}>Close</button>
 			</div>
 		</div>
 	</div>
@@ -432,6 +514,56 @@
 
 	.provider-info .url {
 		color: #00d9ff;
+		font-size: 12px;
+	}
+
+	.modal-desc {
+		color: #888;
+		margin-bottom: 16px;
+	}
+
+	.tool-list {
+		max-height: 400px;
+		overflow-y: auto;
+	}
+
+	.tool-item {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 12px;
+		background: #0a0a15;
+		border-radius: 8px;
+		margin-bottom: 8px;
+	}
+
+	.tool-item.disabled {
+		opacity: 0.6;
+	}
+
+	.tool-info h4 {
+		margin: 0 0 4px;
+		color: white;
+	}
+
+	.tool-info p {
+		margin: 0;
+		color: #888;
+		font-size: 12px;
+	}
+
+	.tool-info .category {
+		display: inline-block;
+		background: #334155;
+		padding: 2px 8px;
+		border-radius: 4px;
+		font-size: 11px;
+		color: #aaa;
+		margin-top: 4px;
+	}
+
+	.tool-item .added {
+		color: #10b981;
 		font-size: 12px;
 	}
 

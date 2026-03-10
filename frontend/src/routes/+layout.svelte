@@ -1,6 +1,27 @@
 <script lang="ts">
 	import '../app.css';
 	import { page } from '$app/stores';
+	import { api } from '$lib/api';
+	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+
+	let user: { name: string; email: string } | null = null;
+
+	onMount(async () => {
+		const token = api.getToken();
+		if (token && token !== 'demo-token') {
+			try {
+				user = await api.getMe();
+			} catch {
+				// Token invalid, use demo mode
+			}
+		}
+	});
+
+	function logout() {
+		api.logout();
+		goto('/login');
+	}
 </script>
 
 <div class="app">
@@ -34,7 +55,24 @@
 					<span>Settings</span>
 				</a>
 			</li>
+			<li>
+				<a href="/memory" class:active={$page.url.pathname.startsWith('/memory')}>
+					<span class="icon">🧠</span>
+					<span>Memory</span>
+				</a>
+			</li>
 		</ul>
+		<div class="user-section">
+			{#if user}
+				<div class="user-info">
+					<span class="user-name">{user.name}</span>
+					<span class="user-email">{user.email}</span>
+				</div>
+				<button class="logout-btn" on:click={logout}>Logout</button>
+			{:else}
+				<a href="/login" class="login-link">Login</a>
+			{/if}
+		</div>
 	</nav>
 	<main class="content">
 		<slot />
@@ -106,6 +144,50 @@
 	
 	.nav-links .icon {
 		font-size: 20px;
+	}
+	
+	.user-section {
+		border-top: 1px solid #333;
+		padding-top: 16px;
+	}
+	
+	.user-info {
+		margin-bottom: 12px;
+	}
+	
+	.user-name {
+		display: block;
+		font-weight: bold;
+		color: white;
+	}
+	
+	.user-email {
+		display: block;
+		font-size: 12px;
+		color: #888;
+	}
+	
+	.logout-btn {
+		width: 100%;
+		padding: 8px;
+		background: transparent;
+		border: 1px solid #444;
+		color: #888;
+		border-radius: 4px;
+		cursor: pointer;
+	}
+	
+	.logout-btn:hover {
+		background: #333;
+		color: white;
+	}
+	
+	.login-link {
+		display: block;
+		text-align: center;
+		color: #00d9ff;
+		text-decoration: none;
+		padding: 8px;
 	}
 	
 	.content {

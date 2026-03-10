@@ -121,20 +121,32 @@ class ApiClient {
 
   // Auth
   async login(email: string, password: string) {
-    const data = await this.request<{ access_token: string; refresh_token: string }>('/demo/login', {
+    const data = await this.request<{ token: string; expires_in: number }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(data.access_token);
+    this.setToken(data.token);
     return data;
   }
 
   async register(email: string, password: string, name: string) {
-    const data = await this.request<{ access_token: string; refresh_token: string }>('/demo/register', {
+    const data = await this.request<{ user: User; token: string; expires_in: number }>('/auth/register', {
       method: 'POST',
       body: JSON.stringify({ email, password, name }),
     });
-    this.setToken(data.access_token);
+    this.setToken(data.token);
+    return data;
+  }
+
+  async getMe(): Promise<User> {
+    return this.request<User>('/auth/me');
+  }
+
+  async refreshToken(): Promise<{ token: string; expires_in: number }> {
+    const data = await this.request<{ token: string; expires_in: number }>('/auth/refresh', {
+      method: 'POST',
+    });
+    this.setToken(data.token);
     return data;
   }
 
@@ -232,18 +244,69 @@ class ApiClient {
 
   // ============ MEMORIES ============
   async getMemories(agentId: string): Promise<Memory[]> {
-    return this.request<Memory[]>(`/memories?agent_id=${agentId}`);
+    return this.request<Memory[]>(`/agents/${agentId}/memories`);
   }
 
-  async createMemory(agentId: string, content: string, memoryType: string = 'short_term'): Promise<Memory> {
-    return this.request<Memory>('/memories', {
+  async getMemory(agentId: string, memoryId: string): Promise<Memory> {
+    return this.request<Memory>(`/agents/${agentId}/memories/${memoryId}`);
+  }
+
+  async createMemory(agentId: string, data: {
+    content: string;
+    memory_type?: string;
+    tags?: string[];
+    parent_id?: string;
+    importance?: number;
+  }): Promise<Memory> {
+    return this.request<Memory>(`/agents/${agentId}/memories`, {
       method: 'POST',
-      body: JSON.stringify({ agent_id: agentId, content, memory_type: memoryType }),
+      body: JSON.stringify(data),
     });
   }
 
-  async deleteMemory(id: string): Promise<void> {
-    await this.request<void>(`/memories/${id}`, {
+  async updateMemory(agentId: string, memoryId: string, data: {
+    content?: string;
+    tags?: string[];
+    importance?: number;
+  }): Promise<Memory> {
+    return this.request<Memory>(`/agents/${agentId}/memories/${memoryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMemory(agentId: string, memoryId: string): Promise<void> {
+    await this.request<void>(`/agents/${agentId}/memories/${memoryId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async searchMemories(agentId: string, query?: string, tags?: string): Promise<Memory[]> {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (tags) params.set('tags', tags);
+    const queryStr = params.toString() ? `?${params.toString()}` : '';
+    return this.request<Memory[]>(`/agents/${agentId}/memories/search${queryStr}`);
+  }
+
+  // ============ TOOLS ============
+  async getTools(): Promise<{id: string, name: string, description: string, category: string}[]> {
+    return this.request<{id: string, name: string, description: string, category: string}[]>('/tools');
+  }
+
+  async getAgentTools(agentId: string): Promise<{id: string, tool_id: string, name: string, enabled: boolean}[]> {
+    return this.request<{id: string, tool_id: string, name: string, enabled: boolean}[]>(`/agents/${agentId}/tools`);
+  }
+
+  async addAgentTool(agentId: string, toolId: string): Promise<any> {
+    return this.request<any>(`/agents/${agentId}/tools`, {
+      method: 'POST',
+      body: JSON.stringify({ tool_id: toolId }),
+    });
+  }
+
+  async removeAgentTool(agentId: string, toolId: string): Promise<void> {
+    await this.request<void>(`/agents/${agentId}/tools/${toolId}`, {
       method: 'DELETE',
     });
   }

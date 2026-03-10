@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,9 +15,33 @@ import (
 	"github.com/ace/framework/backend/internal/db"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
+	"golang.org/x/crypto/bcrypt"
+)
+
+type User struct {
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	PasswordHash string `json:"-"`
+	CreatedAt    string `json:"created_at"`
+}
+
+type JWTClaims struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
+
+// In-memory stores
+var (
+	users         = make(map[string]*User)
+	userByEmail   = make(map[string]*User)
+	jwtSecret     = "ace-mvp-secret-key-change-in-production"
+	tokenExpiry   = time.Hour
 )
 
 func main() {
@@ -119,7 +144,27 @@ func main() {
 			c.Abort()
 			return
 		}
-		// Accept demo-token for testing
+		
+		// Extract token from "Bearer <token>"
+		tokenString := authHeader
+		if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+			tokenString = authHeader[7:]
+		}
+		
+		// First try JWT validation
+		claims := &JWTClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+			return []byte(jwtSecret), nil
+		})
+		
+		if err == nil && token.Valid {
+			c.Set("userID", claims.UserID)
+			c.Set("email", claims.Email)
+			c.Next()
+			return
+		}
+		
+		// Fallback: accept demo-token for testing
 		if authHeader != "Bearer demo-token" {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Invalid token"}})
 			c.Abort()
@@ -127,6 +172,219 @@ func main() {
 		}
 		c.Set("userID", "demo-user-id")
 		c.Next()
+	})
+
+	// ============ AUTH ============
+	// Register
+	v1.POST("/auth/register", func(c *gin.Context) {
+		var req struct {
+			Email    string `json:"email" binding:"required,email"`
+			Password string `json:"password" binding:"required,min=8"`
+			Name     string `json:"name" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+		
+		// Check if user exists
+		if _, exists := userByEmail[req.Email]; exists {
+			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"code": "EMAIL_EXISTS", "message": "Email already registered"}})
+			return
+		}
+		
+		// Hash password
+		hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "HASH_ERROR", "message": "Failed to hash password"}})
+			return
+		}
+		
+		user := &User{
+			ID:           uuid.New().String(),
+			Email:        req.Email,
+			Name:         req.Name,
+			PasswordHash: string(hash),
+			CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		}
+		users[user.ID] = user
+		userByEmail[user.Email] = user
+		
+		// Generate token
+		token, err := generateToken(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
+			return
+		}
+		
+		c.JSON(http.StatusCreated, gin.H{"data": gin.H{
+			"user": gin.H{
+				"id":         user.ID,
+				"email":      user.Email,
+				"name":       user.Name,
+				"created_at": user.CreatedAt,
+			},
+			"token":      token,
+			"expires_in": int(tokenExpiry.Seconds()),
+		}})
+	})
+
+	// Login
+	v1.POST("/auth/login", func(c *gin.Context) {
+		var req struct {
+			Email    string `json:"email" binding:"required,email"`
+			Password string `json:"password" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+		
+		user, exists := userByEmail[req.Email]
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Invalid email or password"}})
+			return
+		}
+		
+		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Invalid email or password"}})
+			return
+		}
+		
+		token, err := generateToken(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{
+			"token":      token,
+			"expires_in": int(tokenExpiry.Seconds()),
+		}})
+	})
+
+	// Get current user
+	protected.GET("/auth/me", func(c *gin.Context) {
+		userID := c.GetString("userID")
+		user, exists := users[userID]
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "User not found"}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{
+			"id":         user.ID,
+			"email":      user.Email,
+			"name":       user.Name,
+			"created_at": user.CreatedAt,
+		}})
+	})
+
+	// Refresh token
+	protected.POST("/auth/refresh", func(c *gin.Context) {
+		userID := c.GetString("userID")
+		user, exists := users[userID]
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "User not found"}})
+			return
+		}
+		
+		token, err := generateToken(user)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{
+			"token":      token,
+			"expires_in": int(tokenExpiry.Seconds()),
+		}})
+	})
+
+	// ============ TOOLS ============
+	// Available tools (static list for MVP)
+	availableTools := []map[string]interface{}{
+		{"id": "web_search", "name": "Web Search", "description": "Search the web for information", "category": "research"},
+		{"id": "file_read", "name": "File Read", "description": "Read files from disk", "category": "filesystem"},
+		{"id": "file_write", "name": "File Write", "description": "Write files to disk", "category": "filesystem"},
+		{"id": "execute_code", "name": "Execute Code", "description": "Run code snippets", "category": "execution"},
+		{"id": "curl", "name": "HTTP Request", "description": "Make HTTP requests", "category": "network"},
+		{"id": "database_query", "name": "Database Query", "description": "Execute database queries", "category": "data"},
+	}
+
+	// Agent tool whitelist store
+	agentTools := make(map[string][]map[string]interface{})
+
+	// List available tools
+	protected.GET("/tools", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": availableTools})
+	})
+
+	// List agent tools
+	protected.GET("/agents/:id/tools", func(c *gin.Context) {
+		agentID := c.Param("id")
+		tools, exists := agentTools[agentID]
+		if !exists {
+			tools = []map[string]interface{}{}
+		}
+		c.JSON(http.StatusOK, gin.H{"data": tools})
+	})
+
+	// Add tool to whitelist
+	protected.POST("/agents/:id/tools", func(c *gin.Context) {
+		agentID := c.Param("id")
+		var req struct {
+			ToolID string `json:"tool_id" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+		
+		// Find tool
+		var tool map[string]interface{}
+		for _, t := range availableTools {
+			if t["id"] == req.ToolID {
+				tool = t
+				break
+			}
+		}
+		if tool == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Tool not found"}})
+			return
+		}
+		
+		// Add to whitelist
+		whitelistTool := map[string]interface{}{
+			"id":         uuid.New().String(),
+			"agent_id":   agentID,
+			"tool_id":    req.ToolID,
+			"name":       tool["name"],
+			"enabled":    true,
+			"created_at": time.Now().UTC().Format(time.RFC3339),
+		}
+		agentTools[agentID] = append(agentTools[agentID], whitelistTool)
+		c.JSON(http.StatusCreated, gin.H{"data": whitelistTool})
+	})
+
+	// Remove tool from whitelist
+	protected.DELETE("/agents/:id/tools/:toolId", func(c *gin.Context) {
+		agentID := c.Param("id")
+		toolID := c.Param("toolId")
+		
+		tools, exists := agentTools[agentID]
+		if !exists {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "No tools found for agent"}})
+			return
+		}
+		
+		for i, t := range tools {
+			if t["id"] == toolID {
+				agentTools[agentID] = append(tools[:i], tools[i+1:]...)
+				c.JSON(http.StatusOK, gin.H{"message": "Tool removed"})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Tool not found"}})
 	})
 
 	// ============ AGENTS ============
@@ -398,58 +656,156 @@ func main() {
 	})
 
 	// ============ MEMORIES ============
-	// List memories
-	protected.GET("/memories", func(c *gin.Context) {
-		agentID := c.Query("agent_id")
-		if agentID != "" {
-			var filtered []map[string]interface{}
-			for _, m := range demoMemories {
-				if m["agent_id"] == agentID {
-					filtered = append(filtered, m)
-				}
+	// List memories by agent
+	protected.GET("/agents/:id/memories", func(c *gin.Context) {
+		agentID := c.Param("id")
+		var filtered []map[string]interface{}
+		for _, m := range demoMemories {
+			if m["agent_id"] == agentID {
+				filtered = append(filtered, m)
 			}
-			c.JSON(http.StatusOK, gin.H{"data": filtered})
-			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": demoMemories})
+		c.JSON(http.StatusOK, gin.H{"data": filtered})
 	})
 
-	// Create memory
-	protected.POST("/memories", func(c *gin.Context) {
+	// Create memory for agent
+	protected.POST("/agents/:id/memories", func(c *gin.Context) {
+		agentID := c.Param("id")
 		var req struct {
-			AgentID    string `json:"agent_id"`
-			Content    string `json:"content"`
-			MemoryType string `json:"memory_type"`
+			Content    string   `json:"content" binding:"required"`
+			Tags       []string `json:"tags"`
+			MemoryType string   `json:"memory_type"`
+			ParentID   string   `json:"parent_id"`
+			Importance int      `json:"importance"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
+		if req.MemoryType == "" {
+			req.MemoryType = "short_term"
+		}
+		if req.Importance == 0 {
+			req.Importance = 5
+		}
 		memory := map[string]interface{}{
 			"id":          uuid.New().String(),
-			"agent_id":    req.AgentID,
+			"agent_id":    agentID,
+			"parent_id":   req.ParentID,
 			"owner_id":    "demo-user-id",
 			"content":     req.Content,
+			"tags":        req.Tags,
 			"memory_type": req.MemoryType,
-			"tags":        []string{},
-			"created_at":  time.Now().UTC(),
-			"updated_at":  time.Now().UTC(),
+			"importance":  req.Importance,
+			"created_at":  time.Now().UTC().Format(time.RFC3339),
+			"updated_at":  time.Now().UTC().Format(time.RFC3339),
 		}
 		demoMemories = append(demoMemories, memory)
 		c.JSON(http.StatusCreated, gin.H{"data": memory})
 	})
 
-	// Delete memory
-	protected.DELETE("/memories/:id", func(c *gin.Context) {
-		id := c.Param("id")
+	// Get memory
+	protected.GET("/agents/:id/memories/:memoryId", func(c *gin.Context) {
+		memoryID := c.Param("memoryId")
+		for _, m := range demoMemories {
+			if m["id"] == memoryID {
+				c.JSON(http.StatusOK, gin.H{"data": m})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+	})
+
+	// Update memory
+	protected.PUT("/agents/:id/memories/:memoryId", func(c *gin.Context) {
+		memoryID := c.Param("memoryId")
+		var req struct {
+			Content    string   `json:"content"`
+			Tags       []string `json:"tags"`
+			Importance int      `json:"importance"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
 		for i, m := range demoMemories {
-			if m["id"] == id {
+			if m["id"] == memoryID {
+				if req.Content != "" {
+					m["content"] = req.Content
+				}
+				if req.Tags != nil {
+					m["tags"] = req.Tags
+				}
+				if req.Importance > 0 {
+					m["importance"] = req.Importance
+				}
+				m["updated_at"] = time.Now().UTC().Format(time.RFC3339)
+				demoMemories[i] = m
+				c.JSON(http.StatusOK, gin.H{"data": m})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+	})
+
+	// Delete memory
+	protected.DELETE("/agents/:id/memories/:memoryId", func(c *gin.Context) {
+		memoryID := c.Param("memoryId")
+		for i, m := range demoMemories {
+			if m["id"] == memoryID {
 				demoMemories = append(demoMemories[:i], demoMemories[i+1:]...)
 				c.JSON(http.StatusOK, gin.H{"message": "Memory deleted"})
 				return
 			}
 		}
 		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+	})
+
+	// Search memories
+	protected.GET("/agents/:id/memories/search", func(c *gin.Context) {
+		agentID := c.Param("id")
+		query := c.Query("q")
+		tags := c.Query("tags")
+		
+		var filtered []map[string]interface{}
+		tagMap := make(map[string]bool)
+		if tags != "" {
+			for _, t := range splitAndTrim(tags) {
+				tagMap[t] = true
+			}
+		}
+		
+		for _, m := range demoMemories {
+			if m["agent_id"] != agentID {
+				continue
+			}
+			// Match query in content
+			if query != "" {
+				content, ok := m["content"].(string)
+				if !ok || !contains(content, query) {
+					continue
+				}
+			}
+			// Match tags
+			if len(tagMap) > 0 {
+				mTags, ok := m["tags"].([]string)
+				if !ok {
+					continue
+				}
+				match := false
+				for _, t := range mTags {
+					if tagMap[t] {
+						match = true
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+			}
+			filtered = append(filtered, m)
+		}
+		c.JSON(http.StatusOK, gin.H{"data": filtered})
 	})
 
 	// ============ LLM PROVIDERS (Settings) ============
@@ -587,4 +943,33 @@ func main() {
 	}
 
 	logger.Info().Msg("Server exited")
+}
+
+func generateToken(user *User) (string, error) {
+	claims := JWTClaims{
+		UserID: user.ID,
+		Email:  user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(jwtSecret))
+}
+
+func splitAndTrim(s string) []string {
+	var result []string
+	for _, part := range strings.Split(s, ",") {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func contains(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
