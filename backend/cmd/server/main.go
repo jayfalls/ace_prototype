@@ -12,6 +12,9 @@ import (
 	"time"
 
 	"github.com/ace/framework/backend/internal/config"
+	"github.com/ace/framework/backend/internal/db"
+	"github.com/ace/framework/backend/internal/llm"
+	"github.com/ace/framework/backend/internal/messaging"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -20,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/time/rate"
 )
 
 type User struct {
@@ -55,20 +59,58 @@ func main() {
 	}
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	// Note: For MVP, we use in-memory storage. 
-	// Database connection would be required for production.
-	// if err := db.Connect(&cfg.Database); err != nil {
-	//     logger.Error().Err(err).Msg("Failed to connect to database")
-	//     os.Exit(1)
-	// }
-	// defer db.Disconnect()
-	logger.Info().Msg("Using in-memory storage (MVP mode)")
+	// Initialize database (PostgreSQL if DATABASE_URL provided, otherwise in-memory)
+	ctx := context.Background()
+	database, err := db.NewDatabase(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to initialize database")
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	// Initialize in-memory DB with demo data
+	if inMemDB, ok := database.(*db.InMemoryDB); ok {
+		inMemDB.CreateDemoData()
+	}
+
+	logger.Info().Msg("Database initialized")
+
+	// Initialize NATS (optional - falls back to in-memory if not available)
+	var msgBus messaging.Publisher
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL != "" {
+		msgBus, err = messaging.NewNATSClient(natsURL)
+		if err != nil {
+			logger.Warn().Err(err).Msg("Failed to connect to NATS, using in-memory messaging")
+			msgBus = messaging.NewInMemoryMessageBus()
+		}
+	} else {
+		msgBus = messaging.NewInMemoryMessageBus()
+	}
+	defer msgBus.Close()
+	logger.Info().Msg("Messaging initialized")
+
+	// Initialize LLM provider manager
+	_ = llm.NewProviderManager()
+	logger.Info().Msg("LLM providers initialized")
 
 	// Initialize services
-	_ = services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
+	authService := services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
+	_ = authService // suppress unused warning
 
 	// Create Gin router
 	router := gin.Default()
+	
+	// Rate limiting middleware
+	rateLimiter := rate.NewLimiter(rate.Limit(100), 100) // 100 requests per second
+	router.Use(func(c *gin.Context) {
+		if !rateLimiter.Allow() {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
 	
 	// CORS middleware
 	router.Use(func(c *gin.Context) {
