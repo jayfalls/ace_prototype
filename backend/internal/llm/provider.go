@@ -82,6 +82,7 @@ type Provider interface {
 	StreamChat(req ChatRequest, onChunk func(StreamChunk)) error
 	GetModels() ([]string, error)
 	GetProviderType() ProviderType
+	TestConnection() error
 }
 
 // RateLimiter for API calls
@@ -207,6 +208,32 @@ func (p *OpenAIProvider) GetModels() ([]string, error) {
 
 func (p *OpenAIProvider) GetProviderType() ProviderType { return ProviderOpenAI }
 
+func (p *OpenAIProvider) TestConnection() error {
+	// Try to call the API with a simple models request
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+	
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	return nil
+}
+
 // ============ Anthropic Provider ============
 
 type AnthropicProvider struct {
@@ -296,6 +323,31 @@ func (p *AnthropicProvider) GetModels() ([]string, error) {
 
 func (p *AnthropicProvider) GetProviderType() ProviderType { return ProviderAnthropic }
 
+func (p *AnthropicProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("x-api-key", p.config.APIKey)
+	req.Header.Set("anthropic-version", "2023-06-01")
+	
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+	
+	return nil
+}
+
 // ============ XAI (Grok) Provider ============
 
 type XAIProvider struct {
@@ -384,6 +436,25 @@ func (p *XAIProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk)) err
 
 func (p *XAIProvider) GetModels() ([]string, error) { return []string{"grok-beta", "grok-vision-beta"}, nil }
 func (p *XAIProvider) GetProviderType() ProviderType { return ProviderXAI }
+func (p *XAIProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+	}
+	return nil
+}
 
 // ============ Ollama Provider ============
 
@@ -475,6 +546,24 @@ func (p *OllamaProvider) GetModels() ([]string, error) {
 }
 
 func (p *OllamaProvider) GetProviderType() ProviderType { return ProviderOllama }
+func (p *OllamaProvider) TestConnection() error {
+	// Ollama - try /api/tags endpoint
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/api/tags", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 func (p *OllamaProvider) getOllamaURL() string {
 	if p.config.BaseURL != "" {
@@ -569,6 +658,24 @@ func (p *LlamaCppProvider) GetModels() ([]string, error) {
 }
 
 func (p *LlamaCppProvider) GetProviderType() ProviderType { return ProviderLlamaCpp }
+func (p *LlamaCppProvider) TestConnection() error {
+	// Llama.cpp - try /v1/models endpoint
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/v1/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // ============ DeepSeek Provider ============
 
@@ -654,6 +761,24 @@ func (p *DeepSeekProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk)
 
 func (p *DeepSeekProvider) GetModels() ([]string, error) { return []string{"deepseek-chat", "deepseek-coder"}, nil }
 func (p *DeepSeekProvider) GetProviderType() ProviderType { return ProviderDeepSeek }
+func (p *DeepSeekProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // ============ Mistral Provider ============
 
@@ -739,6 +864,24 @@ func (p *MistralProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk))
 
 func (p *MistralProvider) GetModels() ([]string, error) { return []string{"mistral-large-latest", "mistral-medium", "mistral-small"}, nil }
 func (p *MistralProvider) GetProviderType() ProviderType { return ProviderMistral }
+func (p *MistralProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/v1/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // ============ Cohere Provider ============
 
@@ -824,6 +967,24 @@ func (p *CohereProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk)) 
 
 func (p *CohereProvider) GetModels() ([]string, error) { return []string{"command-r-plus", "command-r", "command"}, nil }
 func (p *CohereProvider) GetProviderType() ProviderType { return ProviderCohere }
+func (p *CohereProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/v1/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // ============ OpenRouter Provider ============
 
@@ -942,6 +1103,24 @@ func (p *OpenRouterProvider) GetModels() ([]string, error) {
 }
 
 func (p *OpenRouterProvider) GetProviderType() ProviderType { return ProviderOpenRouter }
+func (p *OpenRouterProvider) TestConnection() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to connect: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+	return nil
+}
 
 // ============ Provider Factory ============
 

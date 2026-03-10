@@ -1121,6 +1121,70 @@ func main() {
 		c.JSON(http.StatusCreated, gin.H{"data": provider})
 	})
 
+	// Test provider connection
+	protected.POST("/providers/test", func(c *gin.Context) {
+		var req struct {
+			ProviderType string `json:"provider_type"`
+			APIKey       string `json:"api_key"`
+			BaseURL      string `json:"base_url"`
+			Model        string `json:"model"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+
+		// Get the base URL for the provider type
+		baseURL := req.BaseURL
+		if baseURL == "" {
+			switch req.ProviderType {
+			case "openrouter":
+				baseURL = "https://openrouter.ai/api/v1"
+			case "openai":
+				baseURL = "https://api.openai.com/v1"
+			case "anthropic":
+				baseURL = "https://api.anthropic.com"
+			case "xai":
+				baseURL = "https://api.x.ai/v1"
+			case "ollama":
+				baseURL = "http://localhost:11434"
+			case "llama.cpp":
+				baseURL = "http://localhost:8080"
+			case "deepseek":
+				baseURL = "https://api.deepseek.com/v1"
+			case "mistral":
+				baseURL = "https://api.mistral.ai/v1"
+			case "cohere":
+				baseURL = "https://api.cohere.ai/v1"
+			default:
+				baseURL = "https://api.openai.com/v1"
+			}
+		}
+
+		llmConfig := llm.Config{
+			APIKey:     req.APIKey,
+			BaseURL:    baseURL,
+			Model:      req.Model,
+			MaxRetries: 3,
+			Timeout:    30,
+		}
+
+		providerType := llm.ProviderType(req.ProviderType)
+		provider, err := llm.NewProvider(providerType, llmConfig)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "PROVIDER_ERROR", "message": err.Error()}})
+			return
+		}
+
+		err = provider.(llm.Provider).TestConnection()
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "CONNECTION_FAILED", "message": err.Error()}})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"data": gin.H{"status": "ok", "message": "Connection successful"}})
+	})
+
 	// Update provider
 	protected.PUT("/providers/:id", func(c *gin.Context) {
 		id := c.Param("id")

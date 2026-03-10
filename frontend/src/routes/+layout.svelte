@@ -9,17 +9,25 @@
 
 	onMount(async () => {
 		const token = api.getToken();
-		if (token && token !== 'demo-token') {
-			try {
-				user = await api.getMe();
-			} catch {
-				// Token invalid, use demo mode
+		// Check if user is logged in (has valid token or demo mode)
+		if (token) {
+			if (token === 'demo-token') {
+				// Demo mode - show demo user
+				user = { name: 'Demo User', email: 'demo@example.com' };
+			} else {
+				try {
+					user = await api.getMe();
+				} catch {
+					// Token invalid
+					user = null;
+				}
 			}
 		}
 	});
 
 	function logout() {
 		api.logout();
+		user = null;
 		goto('/login');
 	}
 </script>

@@ -88,7 +88,7 @@
 
 <div class="page">
 	<header>
-		<button class="back" on:click={goBack}>← Back</button>
+		
 		<h1>Chat with {agentName}</h1>
 	</header>
 
