@@ -7,10 +7,13 @@ import (
 )
 
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Log      LogConfig
+	Server     ServerConfig
+	Database   DatabaseConfig
+	JWT        JWTConfig
+	Log        LogConfig
+	LLM        LLMConfig
+	NATS       NATSConfig
+	Telemetry TelemetryConfig
 }
 
 type ServerConfig struct {
@@ -39,6 +42,27 @@ type LogConfig struct {
 	Format string
 }
 
+type LLMConfig struct {
+	Provider      string
+	APIKey        string
+	BaseURL       string
+	DefaultModel  string
+	MaxRetries    int
+	Timeout       int
+}
+
+type NATSConfig struct {
+	URL         string
+	UseInMemory bool
+}
+
+type TelemetryConfig struct {
+	Enabled        bool
+	Endpoint       string
+	ServiceName    string
+	ServiceVersion string
+}
+
 func Load() *Config {
 	return &Config{
 		Server: ServerConfig{
@@ -62,6 +86,24 @@ func Load() *Config {
 		Log: LogConfig{
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Format: getEnv("LOG_FORMAT", "json"),
+		},
+		LLM: LLMConfig{
+			Provider:      getEnv("LLM_PROVIDER", "openrouter"),
+			APIKey:        getEnv("OPENROUTER_API_KEY", ""),
+			BaseURL:       getEnv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
+			DefaultModel:  getEnv("LLM_DEFAULT_MODEL", "openrouter/free"),
+			MaxRetries:    getIntEnv("LLM_MAX_RETRIES", 3),
+			Timeout:       getIntEnv("LLM_TIMEOUT", 120),
+		},
+		NATS: NATSConfig{
+			URL:         getEnv("NATS_URL", "nats://localhost:4222"),
+			UseInMemory: getEnv("NATS_USE_IN_MEMORY", "true") == "true",
+		},
+		Telemetry: TelemetryConfig{
+			Enabled:        getEnv("TELEMETRY_ENABLED", "true") == "true",
+			Endpoint:       getEnv("TELEMETRY_ENDPOINT", "localhost:4317"),
+			ServiceName:    getEnv("TELEMETRY_SERVICE_NAME", "ace-framework"),
+			ServiceVersion: getEnv("TELEMETRY_SERVICE_VERSION", "1.0.0"),
 		},
 	}
 }

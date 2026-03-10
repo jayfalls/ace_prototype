@@ -18,6 +18,18 @@ services:
       timeout: 5s
       retries: 5
 
+  nats:
+    image: nats:2.10-alpine
+    container_name: ace_nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   api:
     build:
       context: ./backend
@@ -36,10 +48,21 @@ services:
       JWT_REFRESH_EXPIRY: 168h
       LOG_LEVEL: info
       LOG_FORMAT: json
+      LLM_PROVIDER: openrouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-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}
+      LLM_DEFAULT_MODEL: openrouter/free
+      LLM_TIMEOUT: 120
+      NATS_URL: nats://nats:4222
+      NATS_USE_IN_MEMORY: "false"
+      TELEMETRY_ENABLED: "true"
+      TELEMETRY_ENDPOINT: localhost:4317
+      TELEMETRY_SERVICE_NAME: ace-framework
     ports:
       - "8080:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     restart: unless-stopped
 

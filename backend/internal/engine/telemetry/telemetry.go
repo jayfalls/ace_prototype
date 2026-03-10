@@ -4,12 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/ace/framework/backend/internal/engine/layers"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // InputType represents the type of input
@@ -30,6 +38,223 @@ type Input struct {
 	Content   string
 	Metadata  map[string]interface{}
 	Timestamp time.Time
+}
+
+// MetricsCollector collects application metrics
+type MetricsCollector struct {
+	mu              sync.RWMutex
+	requestCount    map[string]int
+	requestDuration map[string]time.Duration
+	errorCount      map[string]int
+	layerCycles     map[string]int
+	llmCalls        int
+	llmErrors       int
+}
+
+// NewMetricsCollector creates a new metrics collector
+func NewMetricsCollector() *MetricsCollector {
+	return &MetricsCollector{
+		requestCount:    make(map[string]int),
+		requestDuration: make(map[string]time.Duration),
+		errorCount:      make(map[string]int),
+		layerCycles:    make(map[string]int),
+	}
+}
+
+// IncrementRequest increments request count for an endpoint
+func (m *MetricsCollector) IncrementRequest(endpoint string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requestCount[endpoint]++
+}
+
+// RecordDuration records request duration
+func (m *MetricsCollector) RecordDuration(endpoint string, duration time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.requestDuration[endpoint] += duration
+}
+
+// IncrementError increments error count for an endpoint
+func (m *MetricsCollector) IncrementError(endpoint string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.errorCount[endpoint]++
+}
+
+// IncrementLayerCycle increments layer cycle count
+func (m *MetricsCollector) IncrementLayerCycle(layer string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.layerCycles[layer]++
+}
+
+// IncrementLLMCall increments LLM call count
+func (m *MetricsCollector) IncrementLLMCall() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.llmCalls++
+}
+
+// IncrementLLMError increments LLM error count
+func (m *MetricsCollector) IncrementLLMError() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.llmErrors++
+}
+
+// GetMetrics returns current metrics
+func (m *MetricsCollector) GetMetrics() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return map[string]interface{}{
+		"requests":       m.requestCount,
+		"duration":       m.requestDuration,
+		"errors":         m.errorCount,
+		"layer_cycles":  m.layerCycles,
+		"llm_calls":     m.llmCalls,
+		"llm_errors":    m.llmErrors,
+	}
+}
+
+// Tracer provides distributed tracing
+type Tracer struct {
+	provider *sdktrace.TracerProvider
+	tracer   trace.Tracer
+}
+
+// NewTracer creates a new tracer
+func NewTracer(serviceName string) (*Tracer, error) {
+	// Create stdout exporter for demonstration
+	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create resource
+	res, err := resource.New(context.Background(),
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create tracer provider
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+
+	// Register provider
+	otel.SetTracerProvider(tp)
+
+	return &Tracer{
+		provider: tp,
+		tracer:   tp.Tracer(serviceName),
+	}, nil
+}
+
+// StartSpan starts a new span
+func (t *Tracer) StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	return t.tracer.Start(ctx, name)
+}
+
+// AddAttributes adds attributes to a span
+func (t *Tracer) AddAttributes(span trace.Span, attrs ...attribute.KeyValue) {
+	span.SetAttributes(attrs...)
+}
+
+// End ends a span
+func (t *Tracer) End(span trace.Span) {
+	span.End()
+}
+
+// Shutdown shuts down the tracer
+func (t *Tracer) Shutdown(ctx context.Context) error {
+	return t.provider.Shutdown(ctx)
+}
+
+// Logger provides structured logging
+type Logger struct {
+	logger *log.Logger
+	mu     sync.Mutex
+}
+
+// NewLogger creates a new logger
+func NewLogger(prefix string) *Logger {
+	return &Logger{
+		logger: log.New(log.Default().Writer(), prefix, log.LstdFlags),
+	}
+}
+
+// Log logs a message with level
+func (l *Logger) Log(level, msg string, fields map[string]interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	
+	fieldsJSON, _ := json.Marshal(fields)
+	l.logger.Printf("[%s] %s %s", level, msg, fieldsJSON)
+}
+
+// Info logs an info message
+func (l *Logger) Info(msg string, fields map[string]interface{}) {
+	l.Log("INFO", msg, fields)
+}
+
+// Error logs an error message
+func (l *Logger) Error(msg string, fields map[string]interface{}) {
+	l.Log("ERROR", msg, fields)
+}
+
+// Warn logs a warning message
+func (l *Logger) Warn(msg string, fields map[string]interface{}) {
+	l.Log("WARN", msg, fields)
+}
+
+// Debug logs a debug message
+func (l *Logger) Debug(msg string, fields map[string]interface{}) {
+	l.Log("DEBUG", msg, fields)
+}
+
+// Observability combines metrics, tracing, and logging
+type Observability struct {
+	Metrics *MetricsCollector
+	Tracer  *Tracer
+	Logger  *Logger
+	enabled bool
+}
+
+// NewObservability creates a new observability instance
+func NewObservability(serviceName string, enabled bool) (*Observability, error) {
+	obs := &Observability{
+		Metrics: NewMetricsCollector(),
+		Logger:  NewLogger("[ACE] "),
+		enabled: enabled,
+	}
+
+	if enabled {
+		tracer, err := NewTracer(serviceName)
+		if err != nil {
+			return nil, err
+		}
+		obs.Tracer = tracer
+		obs.Logger.Info("Observability initialized", map[string]interface{}{
+			"service": serviceName,
+			"tracing": true,
+		})
+	}
+
+	return obs, nil
+}
+
+// Shutdown shuts down observability
+func (o *Observability) Shutdown(ctx context.Context) {
+	if o.Tracer != nil {
+		o.Tracer.Shutdown(ctx)
+	}
+	o.Logger.Info("Observability shutdown complete", map[string]interface{}{})
 }
 
 // Processor handles incoming observations

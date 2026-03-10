@@ -2,8 +2,10 @@ package layers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/ace/framework/backend/internal/llm"
 	"github.com/google/uuid"
 )
 
@@ -45,6 +47,8 @@ type LayerConfig struct {
 	MaxTime      time.Duration // Maximum time per execution
 	LoopType     LoopType      // finite or infinite
 	Enabled      bool          // Whether layer is active
+	LLMProvider  interface{}  // LLM provider for this layer
+	Model        string        // Model to use
 }
 
 // LoopType defines the processing loop behavior
@@ -69,6 +73,7 @@ type BaseLayer struct {
 	layerType    LayerType
 	name         string
 	config       LayerConfig
+	llmProvider  llm.Provider
 }
 
 // NewBaseLayer creates a new base layer
@@ -89,6 +94,35 @@ func (b *BaseLayer) Type() LayerType     { return b.layerType }
 func (b *BaseLayer) Name() string        { return b.name }
 func (b *BaseLayer) Config() LayerConfig { return b.config }
 func (b *BaseLayer) SetConfig(config LayerConfig) { b.config = config }
+
+// SetLLMProvider sets the LLM provider for this layer
+func (b *BaseLayer) SetLLMProvider(provider llm.Provider) {
+	b.llmProvider = provider
+}
+
+// ProcessWithLLM processes input using the LLM
+func (b *BaseLayer) ProcessWithLLM(ctx context.Context, layerName, systemPrompt, userInput string) (string, error) {
+	if b.llmProvider == nil {
+		return fmt.Sprintf("[Mock] Processed through %s layer: %s", layerName, userInput), nil
+	}
+
+	req := llm.ChatRequest{
+		Model: b.config.Model,
+		Messages: []llm.Message{
+			{Role: "system", Content: systemPrompt},
+			{Role: "user", Content: userInput},
+		},
+		Temperature: 0.7,
+		MaxTokens:  2048,
+	}
+
+	resp, err := b.llmProvider.Chat(ctx, req)
+	if err != nil {
+		return "", err
+	}
+
+	return resp.Content, nil
+}
 
 // LayerInput represents input to a layer
 type LayerInput struct {

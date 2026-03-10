@@ -17,7 +17,7 @@ import (
 type ProviderType string
 
 const (
-	ProviderOpenAI   ProviderType = "openai"
+	ProviderOpenAI    ProviderType = "openai"
 	ProviderAnthropic ProviderType = "anthropic"
 	ProviderXAI      ProviderType = "xai"
 	ProviderQrok     ProviderType = "qrok"
@@ -26,6 +26,7 @@ const (
 	ProviderDeepSeek ProviderType = "deepseek"
 	ProviderMistral  ProviderType = "mistral"
 	ProviderCohere   ProviderType = "cohere"
+	ProviderOpenRouter ProviderType = "openrouter"
 )
 
 // Message represents a chat message
@@ -73,6 +74,14 @@ type Config struct {
 	Model      string `json:"model"`
 	MaxRetries int    `json:"max_retries"`
 	Timeout    int    `json:"timeout"`
+}
+
+// Provider interface for all LLM providers
+type Provider interface {
+	Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error)
+	StreamChat(req ChatRequest, onChunk func(StreamChunk)) error
+	GetModels() ([]string, error)
+	GetProviderType() ProviderType
 }
 
 // RateLimiter for API calls
@@ -816,6 +825,124 @@ func (p *CohereProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk)) 
 func (p *CohereProvider) GetModels() ([]string, error) { return []string{"command-r-plus", "command-r", "command"}, nil }
 func (p *CohereProvider) GetProviderType() ProviderType { return ProviderCohere }
 
+// ============ OpenRouter Provider ============
+
+type OpenRouterProvider struct {
+	config    Config
+	rateLimit *RateLimiter
+	client    *http.Client
+}
+
+func NewOpenRouterProvider(config Config) (*OpenRouterProvider, error) {
+	timeout := 120
+	if config.Timeout > 0 {
+		timeout = config.Timeout
+	}
+	return &OpenRouterProvider{
+		config:    config,
+		rateLimit: globalRateLimiter,
+		client:    &http.Client{Timeout: time.Duration(timeout) * time.Second},
+	}, nil
+}
+
+func (p *OpenRouterProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	_ = ctx
+	baseURL := "https://openrouter.ai/api/v1"
+	if p.config.BaseURL != "" {
+		baseURL = p.config.BaseURL
+	}
+
+	model := req.Model
+	if model == "" {
+		model = "openrouter/free" // Default to free models
+	}
+
+	// Convert messages to OpenRouter format
+	openRouterMessages := make([]map[string]string, len(req.Messages))
+	for i, msg := range req.Messages {
+		openRouterMessages[i] = map[string]string{
+			"role":    msg.Role,
+			"content": msg.Content,
+		}
+	}
+
+	openAIRreq := map[string]interface{}{
+		"model":       model,
+		"messages":    openRouterMessages,
+		"temperature": req.Temperature,
+	}
+
+	if req.MaxTokens > 0 {
+		openAIRreq["max_tokens"] = req.MaxTokens
+	}
+
+	jsonData, _ := json.Marshal(openAIRreq)
+	httpReq, _ := http.NewRequestWithContext(context.Background(), "POST", baseURL+"/chat/completions", strings.NewReader(string(jsonData)))
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	httpReq.Header.Set("HTTP-Referer", "https://ace-framework.dev")
+	httpReq.Header.Set("X-Title", "ACE Framework")
+
+	resp, err := p.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("OpenRouter API error: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("OpenRouter API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	var openAIResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	json.Unmarshal(body, &openAIResp)
+
+	content := ""
+	finishReason := ""
+	if len(openAIResp.Choices) > 0 {
+		content = openAIResp.Choices[0].Message.Content
+		finishReason = openAIResp.Choices[0].FinishReason
+	}
+
+	return &ChatResponse{
+		Model:        model,
+		Provider:     "openrouter",
+		Content:      content,
+		Usage:        Usage{InputTokens: openAIResp.Usage.PromptTokens, OutputTokens: openAIResp.Usage.CompletionTokens, TotalTokens: openAIResp.Usage.TotalTokens},
+		FinishReason: finishReason,
+	}, nil
+}
+
+func (p *OpenRouterProvider) StreamChat(req ChatRequest, onChunk func(StreamChunk)) error {
+	return fmt.Errorf("streaming not yet implemented")
+}
+
+func (p *OpenRouterProvider) GetModels() ([]string, error) {
+	// Return common free models available on OpenRouter
+	return []string{
+		"openrouter/free",
+		"google/gemma-3n-e4b-it",
+		"qwen/qwen3-8b",
+		"deepseek/deepseek-chat",
+		"mistralai/mistral-7b-instruct",
+		"meta-llama/llama-3-8b-instruct",
+	}, nil
+}
+
+func (p *OpenRouterProvider) GetProviderType() ProviderType { return ProviderOpenRouter }
+
 // ============ Provider Factory ============
 
 // NewProvider creates a new LLM provider based on type and config
@@ -837,6 +964,8 @@ func NewProvider(providerType ProviderType, config Config) (interface{}, error) 
 		return NewMistralProvider(config)
 	case ProviderCohere:
 		return NewCohereProvider(config)
+	case ProviderOpenRouter:
+		return NewOpenRouterProvider(config)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}
@@ -854,14 +983,15 @@ func NewProviderManager() *ProviderManager {
 	pm := &ProviderManager{
 		providers: make(map[string]interface{}),
 		defaults: map[ProviderType]string{
-			ProviderOpenAI:   "gpt-4o",
+			ProviderOpenAI:     "gpt-4o",
 			ProviderAnthropic: "claude-3-5-sonnet-20241022",
-			ProviderXAI:     "grok-beta",
-			ProviderOllama: "llama2",
-			ProviderLlamaCpp: "llama-3.1-8b-instruct",
-			ProviderDeepSeek: "deepseek-chat",
-			ProviderMistral: "mistral-large-latest",
-			ProviderCohere: "command-r-plus",
+			ProviderXAI:       "grok-beta",
+			ProviderOllama:    "llama2",
+			ProviderLlamaCpp:  "llama-3.1-8b-instruct",
+			ProviderDeepSeek:  "deepseek-chat",
+			ProviderMistral:   "mistral-large-latest",
+			ProviderCohere:    "command-r-plus",
+			ProviderOpenRouter: "openrouter/free",
 		},
 	}
 	return pm
@@ -886,5 +1016,6 @@ func (pm *ProviderManager) GetSupportedProviders() []ProviderType {
 		ProviderDeepSeek,
 		ProviderMistral,
 		ProviderCohere,
+		ProviderOpenRouter,
 	}
 }
