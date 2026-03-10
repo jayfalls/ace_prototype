@@ -57,6 +57,8 @@
 			runningAgentId = agent.id;
 			// Update agent status in list
 			agents = agents.map(a => a.id === agent.id ? { ...a, status: 'running' } : a);
+			// Navigate to visualizations to see startup sequence
+			goto(`/visualizations?session=${session.id}&agent=${agent.id}`);
 		} catch (e: any) {
 			error = e.message;
 		}
@@ -85,15 +87,18 @@
 		}
 	}
 
-	function openChat(agent: Agent) {
-		if (agent.status === 'running' && currentSession) {
-			goto(`/chat?session=${currentSession.id}&agent=${agent.id}`);
-		}
-	}
-
 	function openVisualizations(agent: Agent) {
 		if (agent.status === 'running' && currentSession) {
 			goto(`/visualizations?session=${currentSession.id}&agent=${agent.id}`);
+		}
+	}
+
+	function openChat(agent: Agent) {
+		// Only allow chat when agent is confirmed running
+		if (agent.status === 'running' && currentSession) {
+			goto(`/chat?session=${currentSession.id}&agent=${agent.id}`);
+		} else {
+			error = 'Start the agent first and wait for it to be ready before chatting';
 		}
 	}
 </script>

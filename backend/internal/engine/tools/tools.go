@@ -124,25 +124,19 @@ func NewBaseTool(name, desc string, exec func(ctx context.Context, input map[str
 func BuiltInTools() []Tool {
 	return []Tool{
 		NewBaseTool("web_search", "Search the web", func(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-			query, _ := input["query"].(string)
-			return map[string]interface{}{"results": []string{"mock search result for: " + query}}, nil
+			return nil, fmt.Errorf("web_search tool not configured - requires MCP server or external API")
 		}),
 		NewBaseTool("calculator", "Perform calculations", func(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-			expr, _ := input["expression"].(string)
-			return map[string]interface{}{"result": "mock: " + expr}, nil
+			return nil, fmt.Errorf("calculator tool not configured - requires MCP server or external API")
 		}),
 		NewBaseTool("code_executor", "Execute code", func(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-			_, _ = input["code"]
-			lang, _ := input["language"].(string)
-			return map[string]interface{}{"output": "mock execution of " + lang + " code"}, nil
+			return nil, fmt.Errorf("code_executor tool not configured - requires MCP server or external API")
 		}),
 		NewBaseTool("file_reader", "Read files", func(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-			path, _ := input["path"].(string)
-			return map[string]interface{}{"content": "mock file content: " + path}, nil
+			return nil, fmt.Errorf("file_reader tool not configured - requires MCP server or external API")
 		}),
 		NewBaseTool("webpage_fetch", "Fetch webpage content", func(ctx context.Context, input map[string]interface{}) (map[string]interface{}, error) {
-			url, _ := input["url"].(string)
-			return map[string]interface{}{"content": "mock webpage: " + url}, nil
+			return nil, fmt.Errorf("webpage_fetch tool not configured - requires MCP server or external API")
 		}),
 	}
 }

@@ -277,13 +277,6 @@ class ApiClient {
     return this.request<Thought[]>(`/thoughts?session_id=${sessionId}`);
   }
 
-  async simulateThoughts(sessionId: string): Promise<Thought[]> {
-    return this.request<Thought[]>('/thoughts/simulate', {
-      method: 'POST',
-      body: JSON.stringify({ session_id: sessionId }),
-    });
-  }
-
   // ============ MEMORIES ============
   async getMemories(agentId: string): Promise<Memory[]> {
     return this.request<Memory[]>(`/agents/${agentId}/memories`);
