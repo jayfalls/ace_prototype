@@ -10,6 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/ace/framework/backend/internal/config"
+	"github.com/rs/zerolog/log"
 )
 
 // Database interface for data access
@@ -786,11 +788,35 @@ func containsHelper(s, substr string) bool {
 }
 
 // NewDatabase creates a new database based on environment
-func NewDatabase(ctx context.Context) (Database, error) {
+func NewDatabase(ctx context.Context, cfg *config.DatabaseConfig) (Database, error) {
+	// Try PostgreSQL first if config is provided
+	if cfg != nil && cfg.Host != "" {
+		connStr := fmt.Sprintf(
+			"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			cfg.User,
+			cfg.Password,
+			cfg.Host,
+			cfg.Port,
+			cfg.DBName,
+			cfg.SSLMode,
+		)
+		// Try PostgreSQL connection
+		if pgdb, err := NewPostgresDB(ctx, connStr); err == nil {
+			logger.Info().Str("host", cfg.Host).Msg("Connected to PostgreSQL")
+			return pgdb, nil
+		} else {
+			logger.Warn().Err(err).Msgf("Failed to connect to PostgreSQL at %s, using in-memory", cfg.Host)
+		}
+	}
+	
+	// Fall back to DATABASE_URL env var
 	connStr := os.Getenv("DATABASE_URL")
 	if connStr != "" {
 		return NewPostgresDB(ctx, connStr)
 	}
+	
+	// Default to in-memory
+	logger.Info().Msg("Using in-memory database")
 	return NewInMemoryDB(), nil
 }
 

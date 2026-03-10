@@ -62,9 +62,9 @@ func main() {
 	}
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	// Initialize database (PostgreSQL if DATABASE_URL provided, otherwise in-memory)
+	// Initialize database (PostgreSQL if configured, otherwise in-memory)
 	ctx := context.Background()
-	database, err := db.NewDatabase(ctx)
+	database, err := db.NewDatabase(ctx, &cfg.Database)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to initialize database")
 		os.Exit(1)
