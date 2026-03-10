@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, type Thought, type Session } from '$lib/api';
+	import { agentWs, type Thought as WsThought } from '$lib/websocket';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -12,6 +13,7 @@
 	let error = '';
 	let autoRefresh = false;
 	let refreshInterval: number;
+	let wsConnected = false;
 
 	onMount(async () => {
 		sessionId = $page.url.searchParams.get('session') || '';
@@ -32,8 +34,35 @@
 			}
 		}
 
+		// Connect WebSocket for real-time thoughts
+		if (agentId) {
+			agentWs.connect(agentId);
+			wsConnected = true;
+			
+			// Listen for real-time thoughts
+			agentWs.onThought((thought: WsThought) => {
+				thoughts = [...thoughts, {
+					id: thought.id,
+					session_id: sessionId,
+					layer: thought.layer,
+					content: thought.content,
+					metadata: { cycle: thought.cycle },
+					created_at: thought.created_at
+				}];
+			});
+			
+			agentWs.onClose(() => {
+				wsConnected = false;
+			});
+		}
+
 		// Load initial thoughts
 		await loadThoughts();
+		
+		return () => {
+			agentWs.disconnect();
+			if (refreshInterval) clearInterval(refreshInterval);
+		};
 	});
 
 	async function loadThoughts() {
@@ -102,13 +131,14 @@
 			<!-- Agent Status -->
 			<div class="card">
 				<h2>Agent Status</h2>
-				<div class="status-indicator running">
+				<div class="status-indicator" class:running={wsConnected} class:stopped={!wsConnected}>
 					<span class="dot"></span>
-					<span>Running</span>
+					<span>{wsConnected ? 'Connected' : 'Disconnected'}</span>
 				</div>
 				<div class="info">
 					<p><strong>Session ID:</strong> {sessionId.slice(0, 8)}...</p>
 					<p><strong>Agent ID:</strong> {agentId.slice(0, 8)}...</p>
+					<p><strong>WebSocket:</strong> {wsConnected ? 'Live' : 'Polling'}</p>
 				</div>
 			</div>
 

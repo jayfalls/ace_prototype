@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, type ChatMessage, type Session } from '$lib/api';
+	import { agentWs, type Thought } from '$lib/websocket';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -11,6 +12,8 @@
 	let newMessage = '';
 	let loading = false;
 	let error = '';
+	let wsConnected = false;
+	let agentThoughts: Thought[] = [];
 
 	onMount(async () => {
 		sessionId = $page.url.searchParams.get('session') || '';
@@ -31,8 +34,27 @@
 			}
 		}
 
+		// Connect WebSocket for real-time updates
+		if (agentId) {
+			agentWs.connect(agentId);
+			wsConnected = true;
+			
+			// Listen for agent thoughts
+			agentWs.onThought((thought) => {
+				agentThoughts = [...agentThoughts, thought];
+			});
+			
+			agentWs.onClose(() => {
+				wsConnected = false;
+			});
+		}
+
 		// Load existing messages
 		await loadMessages();
+		
+		return () => {
+			agentWs.disconnect();
+		};
 	});
 
 	async function loadMessages() {

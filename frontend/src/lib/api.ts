@@ -72,25 +72,71 @@ export interface User {
 
 class ApiClient {
   private token: string | null = null;
+  private refreshToken: string | null = null;
 
-  setToken(token: string | null) {
+  setToken(token: string | null, refreshToken: string | null = null) {
     this.token = token;
     if (token) {
-      localStorage.setItem('ace_token', token);
+      localStorage.setItem('access_token', token);
     } else {
-      localStorage.removeItem('ace_token');
+      localStorage.removeItem('access_token');
+    }
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken);
     }
   }
 
-  getToken(): string | null {
+  getToken(): string {
     if (!this.token) {
-      this.token = localStorage.getItem('ace_token');
+      this.token = localStorage.getItem('access_token');
     }
     if (!this.token) {
       this.token = 'demo-token';
-      localStorage.setItem('ace_token', 'demo-token');
+      localStorage.setItem('access_token', 'demo-token');
     }
     return this.token;
+  }
+
+  getRefreshToken(): string | null {
+    if (!this.refreshToken) {
+      this.refreshToken = localStorage.getItem('refresh_token');
+    }
+    return this.refreshToken;
+  }
+
+  async refreshAccessToken(): Promise<boolean> {
+    const refreshToken = this.getRefreshToken();
+    if (!refreshToken) return false;
+    
+    try {
+      const response = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.getToken()}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        this.setToken(data.token || data.data?.token);
+        return true;
+      }
+    } catch (e) {
+      console.error('Token refresh failed:', e);
+    }
+    return false;
+  }
+
+  isAuthenticated(): boolean {
+    return this.getToken() !== null;
+  }
+
+  logout() {
+    this.token = null;
+    this.refreshToken = null;
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {

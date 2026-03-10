@@ -44,6 +44,7 @@ type JWTClaims struct {
 var (
 	users         = make(map[string]*User)
 	userByEmail   = make(map[string]*User)
+	refreshTokens = make(map[string]string) // userID -> refreshToken
 	jwtSecret     = "ace-mvp-secret-key-change-in-production"
 	tokenExpiry   = time.Hour
 )
@@ -349,7 +350,11 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
 		}
-		
+
+		// Store refresh token
+		refreshToken := uuid.New().String()
+		refreshTokens[user.ID] = refreshToken
+
 		c.JSON(http.StatusCreated, gin.H{"data": gin.H{
 			"user": gin.H{
 				"id":         user.ID,
@@ -357,8 +362,9 @@ func main() {
 				"name":       user.Name,
 				"created_at": user.CreatedAt,
 			},
-			"token":      token,
-			"expires_in": int(tokenExpiry.Seconds()),
+			"access_token":  token,
+			"refresh_token": refreshToken,
+			"expires_in":    int(tokenExpiry.Seconds()),
 		}})
 	})
 
@@ -389,10 +395,15 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
 		}
-		
+
+		// Store refresh token
+		refreshToken := uuid.New().String()
+		refreshTokens[user.ID] = refreshToken
+
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{
-			"token":      token,
-			"expires_in": int(tokenExpiry.Seconds()),
+			"access_token":  token,
+			"refresh_token": refreshToken,
+			"expires_in":    int(tokenExpiry.Seconds()),
 		}})
 	})
 
@@ -415,21 +426,45 @@ func main() {
 	// Refresh token
 	protected.POST("/auth/refresh", func(c *gin.Context) {
 		userID := c.GetString("userID")
+		
+		// Verify refresh token was provided
+		var req struct {
+			RefreshToken string `json:"refresh_token"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			// If no body, try header
+			req.RefreshToken = c.GetHeader("X-Refresh-Token")
+		}
+		
+		// Validate refresh token
+		if req.RefreshToken != "" {
+			storedToken, exists := refreshTokens[userID]
+			if !exists || storedToken != req.RefreshToken {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_TOKEN", "message": "Invalid refresh token"}})
+				return
+			}
+		}
+
 		user, exists := users[userID]
 		if !exists {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "User not found"}})
 			return
 		}
-		
+
 		token, err := generateToken(user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
 		}
-		
+
+		// Optionally rotate refresh token
+		newRefreshToken := uuid.New().String()
+		refreshTokens[userID] = newRefreshToken
+
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{
-			"token":      token,
-			"expires_in": int(tokenExpiry.Seconds()),
+			"access_token":  token,
+			"refresh_token": newRefreshToken,
+			"expires_in":   int(tokenExpiry.Seconds()),
 		}})
 	})
 
