@@ -12,11 +12,11 @@ import (
 	"time"
 
 	"github.com/ace/framework/backend/internal/config"
-	"github.com/ace/framework/backend/internal/db"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"golang.org/x/crypto/bcrypt"
@@ -55,13 +55,14 @@ func main() {
 	}
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	// Connect to database
-	if err := db.Connect(&cfg.Database); err != nil {
-		logger.Error().Err(err).Msg("Failed to connect to database")
-		os.Exit(1)
-	}
-	defer db.Disconnect()
-	logger.Info().Msg("Connected to database")
+	// Note: For MVP, we use in-memory storage. 
+	// Database connection would be required for production.
+	// if err := db.Connect(&cfg.Database); err != nil {
+	//     logger.Error().Err(err).Msg("Failed to connect to database")
+	//     os.Exit(1)
+	// }
+	// defer db.Disconnect()
+	logger.Info().Msg("Using in-memory storage (MVP mode)")
 
 	// Initialize services
 	_ = services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -101,6 +102,96 @@ func main() {
 
 	// Prometheus metrics
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// WebSocket upgrader
+	var upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			return true // Allow all origins for MVP
+		},
+	}
+
+	// WebSocket endpoint for real-time thought streaming
+	router.GET("/ws/agents/:id", func(c *gin.Context) {
+		agentID := c.Param("id")
+		
+		// Validate token from query param or header
+		token := c.Query("token")
+		if token == "" {
+			authHeader := c.GetHeader("Authorization")
+			if len(authHeader) > 7 {
+				token = authHeader[7:]
+			}
+		}
+		
+		// Validate token (accept demo-token for now)
+		if token != "demo-token" && token != "" {
+			claims := &JWTClaims{}
+			_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+				return []byte(jwtSecret), nil
+			})
+			if err != nil {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				return
+			}
+		}
+
+		// Upgrade to WebSocket
+		conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+		if err != nil {
+			log.Printf("WebSocket upgrade error: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		// Send welcome message
+		conn.WriteJSON(gin.H{
+			"type": "connected",
+			"data": gin.H{
+				"agent_id": agentID,
+				"message":  "Connected to agent thought stream",
+			},
+		})
+
+		// Simulate thought updates
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+
+		cycle := 0
+		for {
+			select {
+			case <-ticker.C:
+				cycle++
+				layers := []string{"perception", "reasoning", "action", "reflection"}
+				contents := []string{
+					"Processing input from user",
+					"Analyzing available options",
+					"Executing selected action",
+					"Reviewing and reflecting on results",
+				}
+				
+				for i, layer := range layers {
+					thought := gin.H{
+						"id":         uuid.New().String(),
+						"agent_id":   agentID,
+						"layer":      layer,
+						"content":    contents[i],
+						"cycle":      cycle,
+						"created_at": time.Now().UTC().Format(time.RFC3339),
+					}
+					
+					err := conn.WriteJSON(gin.H{
+						"type": "thought",
+						"data": thought,
+					})
+					if err != nil {
+						return
+					}
+				}
+			}
+		}
+	})
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -961,6 +1052,9 @@ func generateToken(user *User) (string, error) {
 
 func splitAndTrim(s string) []string {
 	var result []string
+	if s == "" {
+		return []string{}
+	}
 	for _, part := range strings.Split(s, ",") {
 		trimmed := strings.TrimSpace(part)
 		if trimmed != "" {
