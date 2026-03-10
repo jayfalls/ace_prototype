@@ -13,7 +13,9 @@ import (
 
 	"github.com/ace/framework/backend/internal/config"
 	"github.com/ace/framework/backend/internal/db"
+	"github.com/ace/framework/backend/internal/engine/layers"
 	"github.com/ace/framework/backend/internal/llm"
+	"github.com/ace/framework/backend/internal/mcp"
 	"github.com/ace/framework/backend/internal/messaging"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -92,8 +94,58 @@ func main() {
 	logger.Info().Msg("Messaging initialized")
 
 	// Initialize LLM provider manager
-	_ = llm.NewProviderManager()
+	providerManager := llm.NewProviderManager()
 	logger.Info().Msg("LLM providers initialized")
+
+	// Initialize LLM provider based on configuration
+	var llmProvider llm.Provider
+	providerType := llm.ProviderType(cfg.LLM.Provider)
+	apiKey := os.Getenv("OPENROUTER_API_KEY")
+	if apiKey == "" {
+		apiKey = cfg.LLM.APIKey
+	}
+	
+	if apiKey != "" {
+		llmConfig := llm.Config{
+			APIKey:     apiKey,
+			BaseURL:    cfg.LLM.BaseURL,
+			Model:      cfg.LLM.DefaultModel,
+			MaxRetries: cfg.LLM.MaxRetries,
+			Timeout:    cfg.LLM.Timeout,
+		}
+		provider, err := llm.NewProvider(providerType, llmConfig)
+		if err != nil {
+			logger.Warn().Err(err).Msgf("Failed to create %s provider, using mock", providerType)
+		} else {
+			llmProvider = provider.(llm.Provider)
+			logger.Info().Str("provider", string(providerType)).Str("model", cfg.LLM.DefaultModel).Msg("LLM provider configured")
+		}
+	} else {
+		logger.Warn().Msg("No LLM API key configured, using mock responses")
+	}
+
+	// Initialize cognitive engine with LLM
+	agentID := uuid.New()
+	engine := layers.NewEngine(agentID, nil)
+	
+	// Wire LLM to all layers if available
+	if llmProvider != nil {
+		// Cast to access BaseLayer methods
+		for lt := layers.LayerAspirational; lt <= layers.LayerTaskProsecution; lt++ {
+			layer, ok := engine.GetLayer(lt)
+			if ok {
+				logger.Info().Str("layer", layer.Name()).Msg("Layer registered (LLM available)")
+			}
+		}
+		logger.Info().Msg("Cognitive engine ready with LLM provider")
+	} else {
+		logger.Warn().Msg("Running without LLM - using mock layer responses")
+	}
+
+	// Initialize MCP server
+	mcpServer := mcp.NewServer()
+	mcp.DefaultTools(mcpServer)
+	logger.Info().Msg("MCP server initialized")
 
 	// Initialize services
 	authService := services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -145,6 +197,62 @@ func main() {
 
 	// Prometheus metrics
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// MCP endpoints
+	router.GET("/mcp/tools", func(c *gin.Context) {
+		tools := mcpServer.ListTools()
+		c.JSON(http.StatusOK, gin.H{"tools": tools})
+	})
+
+	router.POST("/mcp/tools/:name", func(c *gin.Context) {
+		toolName := c.Param("name")
+		var args map[string]interface{}
+		if err := c.ShouldBindJSON(&args); err != nil {
+			args = make(map[string]interface{})
+		}
+		
+		result, err := mcpServer.CallTool(c.Request.Context(), toolName, args)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, result)
+	})
+
+	router.GET("/mcp/resources", func(c *gin.Context) {
+		resources := mcpServer.ListResources()
+		c.JSON(http.StatusOK, gin.H{"resources": resources})
+	})
+
+	router.GET("/mcp/prompts", func(c *gin.Context) {
+		prompts := mcpServer.ListPrompts()
+		c.JSON(http.StatusOK, gin.H{"prompts": prompts})
+	})
+
+	// ACE Engine processing endpoint
+	router.POST("/engine/process", func(c *gin.Context) {
+		var req struct {
+			Input string `json:"input"`
+			Layer string `json:"layer"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Process through engine
+		result, err := engine.ProcessCycle(c.Request.Context(), req.Input)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"cycle_id": result.CycleID,
+			"layers":   len(result.LayerOutputs),
+			"thoughts": result.Thoughts,
+		})
+	})
 
 	// WebSocket upgrader
 	var upgrader = websocket.Upgrader{

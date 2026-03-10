@@ -15,6 +15,7 @@ This directory contains documentation for the ACE Framework MVP implementation.
 - **Service**: `postgres:15-alpine` on port 5432
 - **Credentials**: `ace/ace` (configurable via environment)
 - **Database**: `ace_framework`
+- **Migrations**: SQL migration file at `backend/db/migrations/001_initial_schema.sql`
 - **Fallback**: In-memory store available if connection fails
 
 ### 3. NATS Messaging ✅
@@ -26,10 +27,11 @@ This directory contains documentation for the ACE Framework MVP implementation.
 ### 4. Real LLM Execution ✅
 - **Provider Interface**: Added in `backend/internal/llm/provider.go`
 - **Layer Integration**: `layers/types.go` updated with `SetLLMProvider()` and `ProcessWithLLM()`
+- **Main.go Wiring**: LLM provider initialized and wired to cognitive engine
 - **Default**: Falls back to mock responses if no LLM configured
 - **Wired to**: All 6 ACE layers can use LLM for processing
 
-### 5. 8 LLM Providers ✅
+### 5. 8+ LLM Providers ✅
 All providers defined in `backend/internal/llm/provider.go`:
 1. OpenAI
 2. Anthropic
@@ -42,11 +44,16 @@ All providers defined in `backend/internal/llm/provider.go`:
 9. **OpenRouter** (newly added)
 
 ### 6. MCP (Model Context Protocol) ✅
-**New file**: `backend/internal/mcp/server.go`
+**File**: `backend/internal/mcp/server.go`
 - Server implementation with:
   - Tool registration and execution
   - Resource management
   - Prompt management
+- HTTP endpoints exposed:
+  - `GET /mcp/tools` - List tools
+  - `POST /mcp/tools/:name` - Call tool
+  - `GET /mcp/resources` - List resources
+  - `GET /mcp/prompts` - List prompts
 - Default ACE Framework tools:
   - `memory_search` - Search memory
   - `memory_store` - Store to memory
@@ -56,7 +63,7 @@ All providers defined in `backend/internal/llm/provider.go`:
   - `telemetry_query` - Query metrics
 
 ### 7. Layer Loops ✅
-**Existing implementation**: `backend/internal/engine/loops/loops.go`
+**Implementation**: `backend/internal/engine/loops/loops.go`
 - `LayerLoop` - Processes input through all ACE layers
 - Configurable:
   - `MaxCycles` - Maximum cycles (0 = infinite)
@@ -71,7 +78,7 @@ All providers defined in `backend/internal/llm/provider.go`:
   - L6 Task Prosecution (execution)
 
 ### 8. Global Loops ✅
-**Existing implementation**: `backend/internal/engine/loops/loops.go`
+**Implementation**: `backend/internal/engine/loops/loops.go`
 - `GlobalLoops` - Human-Model Reference (HRM) loop manager
 - Implemented loops:
   - `ChatLoop` - Fast human interaction
@@ -82,7 +89,7 @@ All providers defined in `backend/internal/llm/provider.go`:
   - Learning Loop
 
 ### 9. Telemetry & Observability ✅
-**Updated**: `backend/internal/engine/telemetry/telemetry.go`
+**Implementation**: `backend/internal/engine/telemetry/telemetry.go`
 - **MetricsCollector**: Request counts, durations, errors, LLM calls
 - **Tracer**: OpenTelemetry integration with stdout exporter
 - **Logger**: Structured JSON logging
@@ -91,6 +98,46 @@ All providers defined in `backend/internal/llm/provider.go`:
   - `TELEMETRY_ENABLED`
   - `TELEMETRY_ENDPOINT`
   - `TELEMETRY_SERVICE_NAME`
+
+### 10. Health Check & Metrics Endpoints ✅
+- `GET /health` - Basic health check
+- `GET /health/ready` - Readiness check
+- `GET /metrics` - Prometheus metrics
+
+### 11. WebSocket Support ✅
+- `GET /ws/agents/:id` - Real-time thought streaming
+
+### 12. API Endpoints ✅
+Full REST API in `main.go`:
+- `/api/v1/auth/*` - Authentication
+- `/api/v1/agents/*` - Agent management
+- `/api/v1/sessions/*` - Session management
+- `/api/v1/memories/*` - Memory management
+- `/api/v1/providers/*` - LLM provider management
+- `/api/v1/tools/*` - Tool management
+- `/api/v1/chats/*` - Chat endpoints
+- `/api/v1/thoughts/*` - Thought visualization
+
+### 13. Database Migrations ✅
+- `backend/db/migrations/001_initial_schema.sql` - Full schema:
+  - users
+  - agents
+  - memories (tree structure)
+  - sessions
+  - thoughts
+  - llm_providers
+  - llm_attachments
+  - agent_settings
+  - system_settings
+  - agent_tool_whitelists
+
+### 14. SQLC Integration ✅
+- `backend/sqlc.yaml` - Configuration
+- `backend/internal/db/sqlc/` - Generated code
+- `backend/internal/db/queries/` - Query definitions
+
+### 15. Frontend Dockerfile ✅
+- `frontend/Dockerfile` - Multi-stage build for production
 
 ## Configuration
 
@@ -121,11 +168,26 @@ docker-compose up -d
 # (set NATS_USE_IN_MEMORY=true)
 ```
 
+## API Testing
+
+```bash
+# Health check
+curl http://localhost:8080/health
+
+# MCP tools
+curl http://localhost:8080/mcp/tools
+
+# Engine process
+curl -X POST http://localhost:8080/engine/process \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello"}'
+```
+
 ## Screenshots
 
 Due to the headless environment, actual screenshots would be captured from:
 1. **API Health**: `GET /health` endpoint
-2. **WebSocket**: Real-time thought streaming
+2. **WebSocket**: Real-time thought streaming at `ws://localhost:8080/ws/agents/:id`
 3. **Metrics**: Prometheus endpoint at `/metrics`
 4. **NATS Monitor**: http://localhost:8222
 
