@@ -86,13 +86,9 @@ class ApiClient {
     }
   }
 
-  getToken(): string {
+  getToken(): string | null {
     if (!this.token) {
       this.token = localStorage.getItem('access_token');
-    }
-    if (!this.token) {
-      this.token = 'demo-token';
-      localStorage.setItem('access_token', 'demo-token');
     }
     return this.token;
   }

@@ -19,6 +19,9 @@
 		model: ''
 	};
 
+	// Check if any agent is running
+	$: hasRunningAgent = agents.some(a => a.status === 'running');
+
 	onMount(async () => {
 		selectedAgentId = $page.url.searchParams.get('agent') || '';
 		await loadData();
@@ -28,8 +31,8 @@
 		loading = true;
 		try {
 			providers = await api.getProviders();
+			agents = await api.getAgents();
 			if (selectedAgentId) {
-				agents = await api.getAgents();
 				const found = agents.find(a => a.id === selectedAgentId);
 				if (found) {
 					agent = found;
@@ -64,7 +67,7 @@
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${localStorage.getItem('token') || 'demo-token'}`
+					'Authorization': `Bearer ${localStorage.getItem('token')}`
 				},
 				body: JSON.stringify({
 					provider_type: newProvider.provider_type,
@@ -140,6 +143,58 @@
 			</div>
 
 			<div class="card">
+				<h2>Provider Selection</h2>
+				<div class="form-group">
+					<label>Global LLM Provider</label>
+					<select 
+						value={getSettingValue('global_provider', '')}
+						on:change={(e) => {
+							const idx = settings.findIndex(s => s.key === 'global_provider');
+							if (idx >= 0) settings[idx].value = e.currentTarget.value;
+							else settings.push({key: 'global_provider', value: e.currentTarget.value});
+						}}
+					>
+						<option value="">Select a provider...</option>
+						{#each providers as provider}
+							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-group">
+					<label>Layer Loop Provider</label>
+					<select 
+						value={getSettingValue('layer_provider', '')}
+						on:change={(e) => {
+							const idx = settings.findIndex(s => s.key === 'layer_provider');
+							if (idx >= 0) settings[idx].value = e.currentTarget.value;
+							else settings.push({key: 'layer_provider', value: e.currentTarget.value});
+						}}
+					>
+						<option value="">Select a provider...</option>
+						{#each providers as provider}
+							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
+						{/each}
+					</select>
+				</div>
+				<div class="form-group">
+					<label>Global Loop Provider</label>
+					<select 
+						value={getSettingValue('global_loop_provider', '')}
+						on:change={(e) => {
+							const idx = settings.findIndex(s => s.key === 'global_loop_provider');
+							if (idx >= 0) settings[idx].value = e.currentTarget.value;
+							else settings.push({key: 'global_loop_provider', value: e.currentTarget.value});
+						}}
+					>
+						<option value="">Select a provider...</option>
+						{#each providers as provider}
+							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
+						{/each}
+					</select>
+				</div>
+			</div>
+
+			<div class="card">
 				<h2>LLM Settings</h2>
 				<div class="form-group">
 					<label>Max Tokens</label>
@@ -175,7 +230,11 @@
 			<div class="card providers">
 				<div class="card-header">
 					<h2>LLM Providers</h2>
-					<button class="add" on:click={() => showProviderModal = true}>+ Add Provider</button>
+					{#if hasRunningAgent}
+						<span class="warning-text">Stop all agents to modify providers</span>
+					{:else}
+						<button class="add" on:click={() => showProviderModal = true}>+ Add Provider</button>
+					{/if}
 				</div>
 				
 				{#if providers.length === 0}
@@ -196,48 +255,6 @@
 						{/each}
 					</div>
 				{/if}
-			</div>
-
-			<div class="card status">
-				<h2>Component Status</h2>
-				<table class="status-table">
-					<tr>
-						<td><strong>PostgreSQL</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>Connected to localhost:5432</td>
-					</tr>
-					<tr>
-						<td><strong>NATS Messaging</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>Connected to nats://localhost:4222</td>
-					</tr>
-					<tr>
-						<td><strong>LLM Execution</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>OpenRouter free model</td>
-					</tr>
-					<tr>
-						<td><strong>MCP Server</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>MCP server implemented</td>
-					</tr>
-					<tr>
-						<td><strong>Layer Loops</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>Task & planning loops</td>
-					</tr>
-					<tr>
-						<td><strong>Telemetry</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>Metrics collector</td>
-					</tr>
-					<tr>
-						<td><strong>Observability</strong></td>
-						<td><span class="status-success">✅ Active</span></td>
-						<td>Logging + telemetry</td>
-					</tr>
-				</table>
-			</div>
 		</div>
 	{/if}
 </div>
@@ -384,6 +401,11 @@
 
 	.card-header h2 {
 		margin: 0;
+	}
+
+	.warning-text {
+		color: #f59e0b;
+		font-size: 14px;
 	}
 
 	.form-group {

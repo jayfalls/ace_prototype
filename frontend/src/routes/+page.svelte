@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { api, type Agent, type Session } from '$lib/api';
+	import { api, type Agent, type Session, type Provider } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
 	let agents: Agent[] = [];
+	let providers: Provider[] = [];
 	let loading = true;
 	let error = '';
 	let showCreateModal = false;
@@ -12,7 +13,7 @@
 	let currentSession: Session | null = null;
 
 	onMount(async () => {
-		await loadAgents();
+		await Promise.all([loadAgents(), loadProviders()]);
 	});
 
 	async function loadAgents() {
@@ -25,8 +26,20 @@
 		}
 	}
 
+	async function loadProviders() {
+		try {
+			providers = await api.getProviders();
+		} catch (e: any) {
+			// Ignore - might not be logged in
+		}
+	}
+
 	async function createAgent() {
 		if (!newAgentName.trim()) return;
+		if (providers.length === 0) {
+			error = 'Please add a provider in Settings before creating an agent';
+			return;
+		}
 		try {
 			const agent = await api.createAgent(newAgentName);
 			agents = [...agents, agent];

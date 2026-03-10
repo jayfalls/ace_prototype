@@ -789,11 +789,22 @@ func containsHelper(s, substr string) bool {
 	return false
 }
 
-// NewDatabase creates a new database based on environment
+// NewDatabase creates a new database - requires PostgreSQL
 func NewDatabase(ctx context.Context, cfg *config.DatabaseConfig) (Database, error) {
-	// Try PostgreSQL first if config is provided
+	// First try DATABASE_URL env var
+	connStr := os.Getenv("DATABASE_URL")
+	if connStr != "" {
+		if pgdb, err := NewPostgresDB(ctx, connStr); err == nil {
+			logger.Info().Msg("Connected to PostgreSQL via DATABASE_URL")
+			return pgdb, nil
+		} else {
+			return nil, fmt.Errorf("failed to connect to PostgreSQL via DATABASE_URL: %w", err)
+		}
+	}
+
+	// Then try config
 	if cfg != nil && cfg.Host != "" {
-		connStr := fmt.Sprintf(
+		connStr = fmt.Sprintf(
 			"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 			cfg.User,
 			cfg.Password,
@@ -802,24 +813,16 @@ func NewDatabase(ctx context.Context, cfg *config.DatabaseConfig) (Database, err
 			cfg.DBName,
 			cfg.SSLMode,
 		)
-		// Try PostgreSQL connection
 		if pgdb, err := NewPostgresDB(ctx, connStr); err == nil {
 			logger.Info().Str("host", cfg.Host).Msg("Connected to PostgreSQL")
 			return pgdb, nil
 		} else {
-			logger.Warn().Err(err).Msgf("Failed to connect to PostgreSQL at %s, using in-memory", cfg.Host)
+			return nil, fmt.Errorf("failed to connect to PostgreSQL at %s: %w", cfg.Host, err)
 		}
 	}
-	
-	// Fall back to DATABASE_URL env var
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr != "" {
-		return NewPostgresDB(ctx, connStr)
-	}
-	
-	// Default to in-memory
-	logger.Info().Msg("Using in-memory database")
-	return NewInMemoryDB(), nil
+
+	// No database configured
+	return nil, fmt.Errorf("PostgreSQL connection required. Set DATABASE_URL or configure database in config")
 }
 
 // CreateDemoData creates demo data for testing

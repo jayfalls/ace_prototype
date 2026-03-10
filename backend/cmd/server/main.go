@@ -71,24 +71,18 @@ func main() {
 	}
 	defer database.Close()
 
-	// Initialize in-memory DB with demo data
-	if inMemDB, ok := database.(*db.InMemoryDB); ok {
-		inMemDB.CreateDemoData()
-	}
-
 	logger.Info().Msg("Database initialized")
 
-	// Initialize NATS (optional - falls back to in-memory if not available)
+	// Initialize NATS (required)
 	var msgBus messaging.Publisher
 	natsURL := os.Getenv("NATS_URL")
-	if natsURL != "" {
-		msgBus, err = messaging.NewNATSClient(natsURL)
-		if err != nil {
-			logger.Warn().Err(err).Msg("Failed to connect to NATS, using in-memory messaging")
-			msgBus = messaging.NewInMemoryMessageBus()
-		}
-	} else {
-		msgBus = messaging.NewInMemoryMessageBus()
+	if natsURL == "" {
+		natsURL = "nats://localhost:4222"
+	}
+	msgBus, err = messaging.NewNATSClient(natsURL)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Failed to connect to NATS - NATS is required")
+		return
 	}
 	defer msgBus.Close()
 	logger.Info().Msg("Messaging initialized")

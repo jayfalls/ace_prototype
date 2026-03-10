@@ -37,7 +37,7 @@ class AgentWebSocket {
     this.agentId = agentId;
     this.disconnect();
     
-    const token = localStorage.getItem('access_token') || 'demo-token';
+    const token = localStorage.getItem('access_token') || '';
     const wsUrl = `${WS_BASE}/agents/${agentId}?token=${encodeURIComponent(token)}`;
     
     this.ws = new WebSocket(wsUrl);
