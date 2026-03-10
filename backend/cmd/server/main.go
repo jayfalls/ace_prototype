@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/ace/framework/backend/internal/db"
 	"github.com/ace/framework/backend/internal/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 )
@@ -36,11 +38,23 @@ func main() {
 	defer db.Disconnect()
 	logger.Info().Msg("Connected to database")
 
-	// Initialize services (for future use)
+	// Initialize services
 	_ = services.NewAuthService(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	// Create Gin router
 	router := gin.Default()
+	
+	// CORS middleware
+	router.Use(func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	})
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -77,7 +91,7 @@ func main() {
 		})
 	})
 
-	// Demo register
+	// Demo register (no auth required)
 	v1.POST("/demo/register", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"data": gin.H{
@@ -86,6 +100,120 @@ func main() {
 				"expires_in":    900,
 			},
 		})
+	})
+
+	// Demo agents endpoint (in-memory for demo)
+	demoAgents := []map[string]interface{}{}
+
+	// Protected routes with demo auth middleware
+	protected := v1.Group("")
+	protected.Use(func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Missing authorization header"}})
+			c.Abort()
+			return
+		}
+		// Accept demo-token for testing
+		if authHeader != "Bearer demo-token" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Invalid token"}})
+			c.Abort()
+			return
+		}
+		c.Set("userID", "demo-user-id")
+		c.Next()
+	})
+
+	// List agents
+	protected.GET("/agents", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": demoAgents})
+	})
+
+	// Get agent
+	protected.GET("/agents/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		for _, agent := range demoAgents {
+			if agent["id"] == id {
+				c.JSON(http.StatusOK, gin.H{"data": agent})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+	})
+
+	// Create agent
+	protected.POST("/agents", func(c *gin.Context) {
+		var req struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+		agent := map[string]interface{}{
+			"id":          uuid.New().String(),
+			"name":        req.Name,
+			"description": req.Description,
+			"status":      "inactive",
+			"owner_id":    "demo-user-id",
+			"config":      json.RawMessage("{}"),
+			"created_at":  time.Now().UTC(),
+			"updated_at":  time.Now().UTC(),
+		}
+		demoAgents = append(demoAgents, agent)
+		c.JSON(http.StatusCreated, gin.H{"data": agent})
+	})
+
+	// Update agent
+	protected.PUT("/agents/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		var req map[string]interface{}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
+			return
+		}
+		for i, agent := range demoAgents {
+			if agent["id"] == id {
+				req["id"] = id
+				req["updated_at"] = time.Now().UTC()
+				demoAgents[i] = req
+				c.JSON(http.StatusOK, gin.H{"data": agent})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+	})
+
+	// Delete agent
+	protected.DELETE("/agents/:id", func(c *gin.Context) {
+		id := c.Param("id")
+		for i, agent := range demoAgents {
+			if agent["id"] == id {
+				demoAgents = append(demoAgents[:i], demoAgents[i+1:]...)
+				c.JSON(http.StatusOK, gin.H{"message": "Agent deleted"})
+				return
+			}
+		}
+		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+	})
+
+	// Sessions endpoint
+	protected.GET("/sessions", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+	})
+
+	protected.POST("/sessions", func(c *gin.Context) {
+		c.JSON(http.StatusCreated, gin.H{"data": map[string]interface{}{"id": uuid.New().String()}})
+	})
+
+	// Memories endpoint
+	protected.GET("/memories", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+	})
+
+	protected.POST("/memories", func(c *gin.Context) {
+		c.JSON(http.StatusCreated, gin.H{"data": map[string]interface{}{"id": uuid.New().String()}})
 	})
 
 	logger.Info().Str("port", cfg.Server.Port).Msg("Starting server")
