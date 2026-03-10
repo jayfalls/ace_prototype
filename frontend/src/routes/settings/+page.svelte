@@ -227,6 +227,63 @@
 					{/if}
 				</div>
 
+				<!-- Component Status -->
+				<div class="card status">
+					<h2>Component Status</h2>
+					<table class="status-table">
+						<tr>
+							<td><strong>PostgreSQL</strong></td>
+							<td><span class="status-warning">⚠️ Fallback</span></td>
+							<td>Uses in-memory store - no actual DB connection</td>
+						</tr>
+						<tr>
+							<td><strong>NATS Messaging</strong></td>
+							<td><span class="status-warning">⚠️ Fallback</span></td>
+							<td>Uses in-memory pub/sub - no NATS server</td>
+						</tr>
+						<tr>
+							<td><strong>Real LLM Execution</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>OpenRouter free model configured</td>
+						</tr>
+						<tr>
+							<td><strong>8 LLM Providers</strong></td>
+							<td><span class="status-warning">⚠️ Defined</span></td>
+							<td>Defined in code but only OpenRouter wired</td>
+						</tr>
+						<tr>
+							<td><strong>MCP Server</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>MCP protocol implemented</td>
+						</tr>
+						<tr>
+							<td><strong>6 ACE Layers</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>L1-L6 layers defined</td>
+						</tr>
+						<tr>
+							<td><strong>Global Loops</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>Chat, Safety, Swarm, Memory loops defined</td>
+						</tr>
+						<tr>
+							<td><strong>Layer Loops</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>Task prosecution (infinite), planning (finite) loops</td>
+						</tr>
+						<tr>
+							<td><strong>Telemetry</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>Metrics collector implemented</td>
+						</tr>
+						<tr>
+							<td><strong>Observability</strong></td>
+							<td><span class="status-success">✅ Active</span></td>
+							<td>Structured logging + telemetry tools</td>
+						</tr>
+					</table>
+				</div>
+
 				<!-- Tools -->
 				<div class="card providers">
 					<div class="card-header">
@@ -609,5 +666,27 @@
 		.card.providers {
 			grid-column: span 1;
 		}
+	}
+
+	.status-table {
+		width: 100%;
+		border-collapse: collapse;
+	}
+
+	.status-table td {
+		padding: 8px 12px;
+		border-bottom: 1px solid #2a2a3e;
+	}
+
+	.status-table tr:last-child td {
+		border-bottom: none;
+	}
+
+	.status-warning {
+		color: #f59e0b;
+	}
+
+	.status-success {
+		color: #10b981;
 	}
 </style>

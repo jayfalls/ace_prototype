@@ -50,15 +50,15 @@
 				</a>
 			</li>
 			<li>
-				<a href="/settings" class:active={$page.url.pathname.startsWith('/settings')}>
-					<span class="icon">⚙️</span>
-					<span>Settings</span>
-				</a>
-			</li>
-			<li>
 				<a href="/memory" class:active={$page.url.pathname.startsWith('/memory')}>
 					<span class="icon">🧠</span>
 					<span>Memory</span>
+				</a>
+			</li>
+			<li>
+				<a href="/settings" class:active={$page.url.pathname.startsWith('/settings')}>
+					<span class="icon">⚙️</span>
+					<span>Settings</span>
 				</a>
 			</li>
 		</ul>
