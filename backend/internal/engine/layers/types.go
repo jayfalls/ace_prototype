@@ -223,17 +223,33 @@ func NewAspirationalLayer() *AspirationalLayer {
 }
 
 func (l *AspirationalLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Mock implementation - returns ethical guidance
+	// Try to use LLM for ethical reasoning
+	var ethicalGuidance string
+	var err error
+	
+	// Check if LLM is available
+	if l.llmProvider != nil {
+		ethicalGuidance, err = l.ProcessWithLLM(ctx, "L1_Aspirational", 
+			"You are the moral compass layer. Provide ethical guidance for the following input.",
+			fmt.Sprintf("Input: %v", input.Data))
+		if err != nil {
+			ethicalGuidance = fmt.Sprintf("[LLM Error: %v] Ensure actions align with core values", err)
+		}
+	} else {
+		// Fallback to mock
+		ethicalGuidance = "Ensure actions align with core values"
+	}
+	
 	return &LayerOutput{
 		LayerID:    input.LayerID,
 		CycleID:    input.CycleID,
-		Data:       map[string]interface{}{"ethical_guidance": "Ensure actions align with core values"},
+		Data:       map[string]interface{}{"ethical_guidance": ethicalGuidance},
 		Northbound: []Message{},
 		Southbound: []Message{},
 		Thoughts: []Thought{{
 			ID:      uuid.New(),
 			Layer:   LayerAspirational,
-			Content: "Evaluating ethical implications",
+			Content: "Evaluating ethical implications: " + ethicalGuidance,
 		}},
 		Actions: []Action{},
 	}, nil
@@ -251,11 +267,28 @@ func NewGlobalStrategyLayer() *GlobalStrategyLayer {
 }
 
 func (l *GlobalStrategyLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
+	// Try to use LLM for strategic planning
+	var strategy string
+	var err error
+	
+	inputStr := fmt.Sprintf("%v", input.Data)
+	
+	if l.llmProvider != nil {
+		strategy, err = l.ProcessWithLLM(ctx, "L2_GlobalStrategy",
+			"You are the strategic planning layer. Create high-level plans and strategies.",
+			fmt.Sprintf("Current task: %s", inputStr))
+		if err != nil {
+			strategy = fmt.Sprintf("[LLM Error: %v] High-level plan created", err)
+		}
+	} else {
+		strategy = "High-level plan created"
+	}
+	
 	return &LayerOutput{
 		LayerID:  input.LayerID,
 		CycleID:  input.CycleID,
-		Data:     map[string]interface{}{"strategy": "High-level plan created"},
-		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerGlobalStrategy, Content: "Formulating strategy"}},
+		Data:     map[string]interface{}{"strategy": strategy},
+		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerGlobalStrategy, Content: "Formulating strategy: " + strategy}},
 	}, nil
 }
 
@@ -271,11 +304,28 @@ func NewAgentModelLayer() *AgentModelLayer {
 }
 
 func (l *AgentModelLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
+	// Try to use LLM for self-modeling
+	var selfModel string
+	var err error
+	
+	inputStr := fmt.Sprintf("%v", input.Data)
+	
+	if l.llmProvider != nil {
+		selfModel, err = l.ProcessWithLLM(ctx, "L3_AgentModel",
+			"You are the self-modeling layer. Analyze the agent's capabilities and limitations.",
+			fmt.Sprintf("Current context: %s", inputStr))
+		if err != nil {
+			selfModel = fmt.Sprintf("[LLM Error: %v] Agent state updated", err)
+		}
+	} else {
+		selfModel = "Agent state updated"
+	}
+	
 	return &LayerOutput{
 		LayerID:  input.LayerID,
 		CycleID:  input.CycleID,
-		Data:     map[string]interface{}{"self_model": "Agent state updated"},
-		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerAgentModel, Content: "Updating self-model"}},
+		Data:     map[string]interface{}{"self_model": selfModel},
+		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerAgentModel, Content: "Updating self-model: " + selfModel}},
 	}, nil
 }
 
@@ -291,11 +341,28 @@ func NewExecutiveFunctionLayer() *ExecutiveFunctionLayer {
 }
 
 func (l *ExecutiveFunctionLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
+	// Try to use LLM for task management
+	var taskMgmt string
+	var err error
+	
+	inputStr := fmt.Sprintf("%v", input.Data)
+	
+	if l.llmProvider != nil {
+		taskMgmt, err = l.ProcessWithLLM(ctx, "L4_ExecutiveFunction",
+			"You are the executive function layer. Manage tasks, switch contexts, and allocate cognitive resources.",
+			fmt.Sprintf("Current context: %s", inputStr))
+		if err != nil {
+			taskMgmt = fmt.Sprintf("[LLM Error: %v] Task list managed", err)
+		}
+	} else {
+		taskMgmt = "Task list managed"
+	}
+	
 	return &LayerOutput{
 		LayerID:  input.LayerID,
 		CycleID:  input.CycleID,
-		Data:     map[string]interface{}{"tasks": "Task list managed"},
-		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerExecutiveFunction, Content: "Managing tasks"}},
+		Data:     map[string]interface{}{"tasks": taskMgmt},
+		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerExecutiveFunction, Content: "Managing tasks: " + taskMgmt}},
 	}, nil
 }
 
@@ -311,11 +378,28 @@ func NewCognitiveControlLayer() *CognitiveControlLayer {
 }
 
 func (l *CognitiveControlLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
+	// Try to use LLM for decision making
+	var decision string
+	var err error
+	
+	inputStr := fmt.Sprintf("%v", input.Data)
+	
+	if l.llmProvider != nil {
+		decision, err = l.ProcessWithLLM(ctx, "L5_CognitiveControl",
+			"You are the cognitive control layer. Make decisions, manage attention, and resolve conflicts.",
+			fmt.Sprintf("Current context: %s", inputStr))
+		if err != nil {
+			decision = fmt.Sprintf("[LLM Error: %v] Decision made", err)
+		}
+	} else {
+		decision = "Decision made"
+	}
+	
 	return &LayerOutput{
 		LayerID:  input.LayerID,
 		CycleID:  input.CycleID,
-		Data:     map[string]interface{}{"decision": "Decision made"},
-		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerCognitiveControl, Content: "Making decision"}},
+		Data:     map[string]interface{}{"decision": decision},
+		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerCognitiveControl, Content: "Making decision: " + decision}},
 	}, nil
 }
 
@@ -331,10 +415,27 @@ func NewTaskProsecutionLayer() *TaskProsecutionLayer {
 }
 
 func (l *TaskProsecutionLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
+	// Try to use LLM for execution
+	var execution string
+	var err error
+	
+	inputStr := fmt.Sprintf("%v", input.Data)
+	
+	if l.llmProvider != nil {
+		execution, err = l.ProcessWithLLM(ctx, "L6_TaskProsecution",
+			"You are the task prosecution layer. Execute actions and interact with the environment.",
+			fmt.Sprintf("Current task: %s", inputStr))
+		if err != nil {
+			execution = fmt.Sprintf("[LLM Error: %v] Executed", err)
+		}
+	} else {
+		execution = "Executed"
+	}
+	
 	return &LayerOutput{
 		LayerID:  input.LayerID,
 		CycleID:  input.CycleID,
-		Data:     map[string]interface{}{"executed": true},
-		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerTaskProsecution, Content: "Executing action"}},
+		Data:     map[string]interface{}{"executed": true, "result": execution},
+		Thoughts: []Thought{{ID: uuid.New(), Layer: LayerTaskProsecution, Content: "Executing: " + execution}},
 	}, nil
 }
