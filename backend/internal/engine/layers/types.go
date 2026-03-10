@@ -66,6 +66,7 @@ type Layer interface {
 	Config() LayerConfig
 	Process(ctx context.Context, input *LayerInput) (*LayerOutput, error)
 	SetConfig(config LayerConfig)
+	SetLLMProvider(provider llm.Provider)
 }
 
 // BaseLayer provides common functionality for all layers

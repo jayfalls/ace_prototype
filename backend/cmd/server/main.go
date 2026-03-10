@@ -130,11 +130,16 @@ func main() {
 	
 	// Wire LLM to all layers if available
 	if llmProvider != nil {
-		// Cast to access BaseLayer methods
+		// Set LLM provider on each layer
 		for lt := layers.LayerAspirational; lt <= layers.LayerTaskProsecution; lt++ {
 			layer, ok := engine.GetLayer(lt)
 			if ok {
-				logger.Info().Str("layer", layer.Name()).Msg("Layer registered (LLM available)")
+				layer.SetConfig(layers.LayerConfig{
+					Model:   cfg.LLM.DefaultModel,
+					Enabled: true,
+				})
+				layer.SetLLMProvider(llmProvider)
+				logger.Info().Str("layer", layer.Name()).Msg("Layer wired to LLM provider")
 			}
 		}
 		logger.Info().Msg("Cognitive engine ready with LLM provider")
