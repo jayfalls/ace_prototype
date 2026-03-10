@@ -33,7 +33,7 @@ func NewNATSBus(natsURL string, agentID uuid.UUID) (*NATSBus, error) {
 	// Subscribe to layer subjects
 	for lt := LayerAspirational; lt <= LayerTaskProsecution; lt++ {
 		subject := subjectForLayer(agentID, lt)
-		if err := conn.QueueSubscribe(subject, "ace-workers", func(msg *nats.Msg) {
+		sub, err := conn.QueueSubscribe(subject, "ace-workers", func(msg *nats.Msg) {
 			var m Message
 			if err := json.Unmarshal(msg.Data, &m); err != nil {
 				return
@@ -46,9 +46,11 @@ func NewNATSBus(natsURL string, agentID uuid.UUID) (*NATSBus, error) {
 				default:
 				}
 			}
-		}); err != nil {
+		})
+		if err != nil {
 			return nil, err
 		}
+		_ = sub
 	}
 
 	return bus, nil

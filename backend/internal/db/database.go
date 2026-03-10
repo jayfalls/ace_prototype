@@ -14,6 +14,8 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+var logger = log.Logger
+
 // Database interface for data access
 type Database interface {
 	// Users
