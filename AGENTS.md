@@ -2,6 +2,87 @@
 
 ## Getting Started
 
+### Development Environment Setup
+
+This section covers how to set up the complete development environment for ACE Framework.
+
+#### Prerequisites
+
+Ensure you have the following installed:
+- **Go 1.23+** - Backend runtime
+- **Node.js 22+** - Frontend runtime
+- **Docker & Docker Compose** - For PostgreSQL and NATS services
+
+#### 1. Install System Dependencies
+
+```bash
+# Install Go 1.23 (if not installed)
+wget https://go.dev/dl/go1.23.5.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.23.5.linux-amd64.tar.gz
+export PATH=$PATH:/usr/local/go/bin
+
+# Install Node.js 22 (if not installed)
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+```
+
+#### 2. Start Docker Services
+
+The project requires PostgreSQL (database) and NATS (message queue):
+
+```bash
+cd /workspace/project/ace_prototype
+
+# Start Docker services
+docker compose up -d
+
+# Verify services are running
+docker compose ps
+# Should show: postgres (port 5432), nats (port 4222)
+```
+
+#### 3. Set Up Backend
+
+```bash
+cd /workspace/project/ace_prototype/backend
+
+# Install Go dependencies
+go mod tidy
+
+# Run database migrations
+go run cmd/migrate/main.go
+
+# Start the backend server
+go run cmd/server/main.go
+# Backend runs on http://localhost:8080
+```
+
+#### 4. Set Up Frontend
+
+```bash
+cd /workspace/project/ace_prototype/frontend
+
+# Install dependencies (use npm, not pnpm/yarn)
+npm install
+
+# Ensure Svelte 5 is installed (latest)
+npm install svelte@latest --save-dev
+
+# Build to verify everything works
+npm run build
+
+# Start development server
+npm run dev -- --host
+# Frontend runs on http://localhost:3000
+```
+
+#### 5. Verify Setup
+
+- Backend: http://localhost:8080/health
+- Frontend: http://localhost:3000
+- PostgreSQL: localhost:5432 (user: ace, password: ace123, db: ace)
+- NATS: localhost:4222
+
 ### Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work on the codebase
 - Reference `design/units/README.md` for individual unit documentation

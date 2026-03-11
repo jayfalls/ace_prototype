@@ -6,7 +6,7 @@
 	let agents: Agent[] = [];
 	let selectedAgentId = '';
 	let agent: Agent | null = null;
-	let settings: {key: string, value: string}[] = [];
+	let settings: { key: string; value: string }[] = [];
 	let providers: Provider[] = [];
 	let loading = false;
 	let error = '';
@@ -19,8 +19,7 @@
 		model: ''
 	};
 
-	// Check if any agent is running
-	$: hasRunningAgent = agents.some(a => a.status === 'running');
+	$: hasRunningAgent = agents.some((a) => a.status === 'running');
 
 	onMount(async () => {
 		selectedAgentId = $page.url.searchParams.get('agent') || '';
@@ -33,7 +32,7 @@
 			providers = await api.getProviders();
 			agents = await api.getAgents();
 			if (selectedAgentId) {
-				const found = agents.find(a => a.id === selectedAgentId);
+				const found = agents.find((a) => a.id === selectedAgentId);
 				if (found) {
 					agent = found;
 					settings = await api.getAgentSettings(selectedAgentId);
@@ -67,7 +66,7 @@
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${localStorage.getItem('token')}`
+					Authorization: `Bearer ${localStorage.getItem('token')}`
 				},
 				body: JSON.stringify({
 					provider_type: newProvider.provider_type,
@@ -76,15 +75,15 @@
 					model: newProvider.model
 				})
 			});
-			
+
 			if (!testRes.ok) {
 				const err = await testRes.json();
 				throw new Error(err.error?.message || 'Connection test failed');
 			}
-			
+
 			const testData = await testRes.json();
 			alert(`✅ Connection successful: ${testData.data.message}`);
-			
+
 			const provider = await api.createProvider(newProvider);
 			providers = [...providers, provider];
 			showProviderModal = false;
@@ -100,14 +99,14 @@
 		if (!confirm('Are you sure you want to delete this provider?')) return;
 		try {
 			await api.deleteProvider(id);
-			providers = providers.filter(p => p.id !== id);
+			providers = providers.filter((p) => p.id !== id);
 		} catch (e: any) {
 			error = e.message;
 		}
 	}
 
 	function getSettingValue(key: string, defaultValue: string): string {
-		const found = settings.find(s => s.key === key);
+		const found = settings.find((s) => s.key === key);
 		return found ? found.value : defaultValue;
 	}
 </script>
@@ -126,105 +125,36 @@
 	{:else}
 		<div class="settings-grid">
 			{#if agent}
-			<div class="card">
-				<h2>Agent Configuration</h2>
-				<div class="form-group">
-					<label>Agent Name</label>
-					<input type="text" bind:value={agent.name} disabled />
+				<div class="card">
+					<h2>Agent Configuration</h2>
+					<div class="form-group">
+						<label>Agent Name</label>
+						<input type="text" bind:value={agent.name} disabled />
+					</div>
+					<div class="form-group">
+						<label>Description</label>
+						<textarea bind:value={agent.description} rows="3"></textarea>
+					</div>
+					<div class="form-group">
+						<label>Status</label>
+						<input type="text" value={agent.status} disabled />
+					</div>
 				</div>
-				<div class="form-group">
-					<label>Description</label>
-					<textarea bind:value={agent.description} rows="3"></textarea>
-				</div>
-				<div class="form-group">
-					<label>Status</label>
-					<input type="text" value={agent.status} disabled />
-				</div>
-			</div>
+			{/if}
 
-			<div class="card">
-				<h2>Provider Selection</h2>
-				<div class="form-group">
-					<label>Global LLM Provider</label>
-					<select 
-						value={getSettingValue('global_provider', '')}
-						on:change={(e) => {
-							const idx = settings.findIndex(s => s.key === 'global_provider');
-							if (idx >= 0) settings[idx].value = e.currentTarget.value;
-							else settings.push({key: 'global_provider', value: e.currentTarget.value});
-						}}
-					>
-						<option value="">Select a provider...</option>
-						{#each providers as provider}
-							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
-						{/each}
-					</select>
+			{#if settings.length > 0}
+				<div class="card">
+					<h2>Agent Settings</h2>
+					{#each settings as setting}
+						<div class="form-group">
+							<label>{setting.key}</label>
+							<input type="text" bind:value={setting.value} />
+						</div>
+					{/each}
+					<button on:click={updateSettings} disabled={loading}>
+						{loading ? 'Saving...' : 'Save Settings'}
+					</button>
 				</div>
-				<div class="form-group">
-					<label>Layer Loop Provider</label>
-					<select 
-						value={getSettingValue('layer_provider', '')}
-						on:change={(e) => {
-							const idx = settings.findIndex(s => s.key === 'layer_provider');
-							if (idx >= 0) settings[idx].value = e.currentTarget.value;
-							else settings.push({key: 'layer_provider', value: e.currentTarget.value});
-						}}
-					>
-						<option value="">Select a provider...</option>
-						{#each providers as provider}
-							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
-						{/each}
-					</select>
-				</div>
-				<div class="form-group">
-					<label>Global Loop Provider</label>
-					<select 
-						value={getSettingValue('global_loop_provider', '')}
-						on:change={(e) => {
-							const idx = settings.findIndex(s => s.key === 'global_loop_provider');
-							if (idx >= 0) settings[idx].value = e.currentTarget.value;
-							else settings.push({key: 'global_loop_provider', value: e.currentTarget.value});
-						}}
-					>
-						<option value="">Select a provider...</option>
-						{#each providers as provider}
-							<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
-						{/each}
-					</select>
-				</div>
-			</div>
-
-			<div class="card">
-				<h2>LLM Settings</h2>
-				<div class="form-group">
-					<label>Max Tokens</label>
-					<input 
-						type="number" 
-						value={getSettingValue('max_tokens', '2048')}
-						on:change={(e) => {
-							const idx = settings.findIndex(s => s.key === 'max_tokens');
-							if (idx >= 0) settings[idx].value = e.currentTarget.value;
-						}}
-					/>
-				</div>
-				<div class="form-group">
-					<label>Temperature</label>
-					<input 
-						type="number" 
-						step="0.1"
-						min="0"
-						max="2"
-						value={getSettingValue('temperature', '0.7')}
-						on:change={(e) => {
-							const idx = settings.findIndex(s => s.key === 'temperature');
-							if (idx >= 0) settings[idx].value = e.currentTarget.value;
-						}}
-					/>
-				</div>
-				<button on:click={updateSettings} disabled={loading}>
-					{loading ? 'Saving...' : 'Save Settings'}
-				</button>
-			</div>
 			{/if}
 
 			<div class="card providers">
@@ -233,10 +163,10 @@
 					{#if hasRunningAgent}
 						<span class="warning-text">Stop all agents to modify providers</span>
 					{:else}
-						<button class="add" on:click={() => showProviderModal = true}>+ Add Provider</button>
+						<button class="add" on:click={() => (showProviderModal = true)}>+ Add Provider</button>
 					{/if}
 				</div>
-				
+
 				{#if providers.length === 0}
 					<p class="empty-text">No providers configured. Add a provider to enable AI capabilities.</p>
 				{:else}
@@ -255,20 +185,19 @@
 						{/each}
 					</div>
 				{/if}
+			</div>
 		</div>
 	{/if}
 </div>
 
 {#if showProviderModal}
-	<div class="modal-overlay" on:click={() => showProviderModal = false}>
+	<div class="modal-overlay" on:click={() => (showProviderModal = false)}>
 		<div class="modal" on:click|stopPropagation>
 			<h3>Add LLM Provider</h3>
-			
 			<div class="form-group">
-				<label>Name</label>
+				<label>Provider Name</label>
 				<input type="text" bind:value={newProvider.name} placeholder="My OpenAI" />
 			</div>
-			
 			<div class="form-group">
 				<label>Provider Type</label>
 				<select bind:value={newProvider.provider_type}>
@@ -277,30 +206,28 @@
 					<option value="google">Google</option>
 					<option value="azure">Azure OpenAI</option>
 					<option value="openrouter">OpenRouter</option>
-					<option value="local">Local/Other</option>
 				</select>
 			</div>
-			
 			<div class="form-group">
 				<label>API Key</label>
 				<input type="password" bind:value={newProvider.api_key} placeholder="sk-..." />
 			</div>
-			
 			<div class="form-group">
 				<label>Base URL (optional)</label>
 				<input type="text" bind:value={newProvider.base_url} placeholder="https://api.openai.com/v1" />
 			</div>
-			
 			<div class="form-group">
 				<label>Model (optional)</label>
 				<input type="text" bind:value={newProvider.model} placeholder="gpt-4" />
 			</div>
-			
 			<div class="modal-actions">
-				<button on:click={() => showProviderModal = false}>Cancel</button>
-				<button class="primary" on:click={createProvider} disabled={loading}>
+				<button
+					on:click={createProvider}
+					disabled={loading || !newProvider.name || !newProvider.api_key}
+				>
 					{loading ? 'Creating...' : 'Create Provider'}
 				</button>
+				<button class="secondary" on:click={() => (showProviderModal = false)}>Cancel</button>
 			</div>
 		</div>
 	</div>
@@ -308,176 +235,189 @@
 
 <style>
 	.page {
+		padding: 2rem;
 		max-width: 1200px;
 		margin: 0 auto;
 	}
 
 	header {
-		margin-bottom: 32px;
+		margin-bottom: 2rem;
 	}
 
-	header h1 {
-		margin: 0;
-		color: white;
-		font-size: 28px;
+	h1 {
+		font-size: 1.75rem;
+		font-weight: 600;
+		color: #1a1a2e;
 	}
 
-	button {
-		padding: 10px 20px;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		font-size: 14px;
-		background: #2a2a3e;
-		color: white;
-		transition: all 0.2s;
-	}
-
-	button:hover:not(:disabled) {
-		background: #3a3a4e;
-	}
-
-	button.primary {
-		background: #00d9ff;
-		color: #0a0a15;
-	}
-
-	button.add {
-		background: #10b981;
-	}
-
-	button.danger {
-		background: #ef4444;
-	}
-
-	button:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
+	h2 {
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-bottom: 1rem;
+		color: #2a2a3e;
 	}
 
 	.error {
-		background: rgba(239, 68, 68, 0.2);
-		color: #ef4444;
-		padding: 12px;
-		border-radius: 6px;
-		margin-bottom: 20px;
+		background: #fee2e2;
+		color: #dc2626;
+		padding: 1rem;
+		border-radius: 8px;
+		margin-bottom: 1rem;
 	}
 
 	.loading {
 		text-align: center;
-		padding: 40px;
-		color: #888;
+		padding: 2rem;
+		color: #6b7280;
 	}
 
 	.settings-grid {
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 24px;
+		grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+		gap: 1.5rem;
 	}
 
 	.card {
-		background: #1a1a2e;
+		background: white;
 		border-radius: 12px;
-		padding: 24px;
-		border: 1px solid #2a2a3e;
-	}
-
-	.card h2 {
-		margin: 0 0 20px;
-		color: white;
-		font-size: 18px;
-	}
-
-	.card.providers {
-		grid-column: span 2;
+		padding: 1.5rem;
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
 	.card-header {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-bottom: 20px;
+		margin-bottom: 1rem;
 	}
 
 	.card-header h2 {
-		margin: 0;
+		margin-bottom: 0;
+	}
+
+	.form-group {
+		margin-bottom: 1rem;
+	}
+
+	label {
+		display: block;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #374151;
+		margin-bottom: 0.5rem;
+	}
+
+	input,
+	select,
+	textarea {
+		width: 100%;
+		padding: 0.625rem;
+		border: 1px solid #d1d5db;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		background: white;
+	}
+
+	input:focus,
+	select:focus,
+	textarea:focus {
+		outline: none;
+		border-color: #3b82f6;
+		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+	}
+
+	button {
+		background: #3b82f6;
+		color: white;
+		border: none;
+		padding: 0.625rem 1.25rem;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: background 0.2s;
+	}
+
+	button:hover:not(:disabled) {
+		background: #2563eb;
+	}
+
+	button:disabled {
+		background: #9ca3af;
+		cursor: not-allowed;
+	}
+
+	button.secondary {
+		background: #6b7280;
+	}
+
+	button.secondary:hover:not(:disabled) {
+		background: #4b5563;
+	}
+
+	button.add {
+		background: #10b981;
+		padding: 0.5rem 1rem;
+		font-size: 0.8125rem;
+	}
+
+	button.add:hover:not(:disabled) {
+		background: #059669;
+	}
+
+	button.danger {
+		background: #ef4444;
+		padding: 0.5rem 1rem;
+		font-size: 0.8125rem;
+	}
+
+	button.danger:hover:not(:disabled) {
+		background: #dc2626;
 	}
 
 	.warning-text {
 		color: #f59e0b;
-		font-size: 14px;
-	}
-
-	.form-group {
-		margin-bottom: 20px;
-	}
-
-	.form-group label {
-		display: block;
-		margin-bottom: 8px;
-		color: #888;
-		font-size: 14px;
-	}
-
-	.form-group input,
-	.form-group textarea,
-	.form-group select {
-		width: 100%;
-		padding: 12px;
-		border: 1px solid #2a2a3e;
-		border-radius: 6px;
-		background: #0a0a15;
-		color: white;
-		font-size: 14px;
-		box-sizing: border-box;
-	}
-
-	.form-group input:focus,
-	.form-group textarea:focus,
-	.form-group select:focus {
-		outline: none;
-		border-color: #00d9ff;
-	}
-
-	.form-group input:disabled {
-		opacity: 0.5;
+		font-size: 0.8125rem;
 	}
 
 	.empty-text {
-		color: #666;
+		color: #6b7280;
 		text-align: center;
-		padding: 20px;
+		padding: 1rem;
 	}
 
 	.provider-list {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 1rem;
 	}
 
 	.provider-item {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 16px;
-		background: #0a0a15;
+		padding: 1rem;
+		background: #f9fafb;
 		border-radius: 8px;
 	}
 
 	.provider-info h3 {
-		margin: 0 0 4px;
-		color: white;
+		font-size: 1rem;
+		font-weight: 600;
+		margin: 0 0 0.25rem 0;
+		color: #1f2937;
 	}
 
 	.provider-info p {
+		font-size: 0.875rem;
+		color: #6b7280;
 		margin: 0;
-		color: #888;
-		font-size: 13px;
 	}
 
 	.provider-info .url {
-		color: #00d9ff;
-		font-size: 12px;
+		font-size: 0.75rem;
+		color: #9ca3af;
+		margin-top: 0.25rem;
 	}
 
 	.modal-overlay {
@@ -486,63 +426,33 @@
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background: rgba(0, 0, 0, 0.7);
+		background: rgba(0, 0, 0, 0.5);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		z-index: 100;
+		z-index: 1000;
 	}
 
 	.modal {
-		background: #1a1a2e;
-		padding: 32px;
+		background: white;
 		border-radius: 12px;
-		width: 480px;
-		max-width: 90%;
-		border: 1px solid #2a2a3e;
+		padding: 1.5rem;
+		width: 90%;
+		max-width: 500px;
+		max-height: 90vh;
+		overflow-y: auto;
 	}
 
 	.modal h3 {
-		margin: 0 0 24px;
-		color: white;
+		font-size: 1.25rem;
+		font-weight: 600;
+		margin-bottom: 1.5rem;
+		color: #1f2937;
 	}
 
 	.modal-actions {
 		display: flex;
-		gap: 12px;
-		justify-content: flex-end;
-		margin-top: 24px;
-	}
-
-	@media (max-width: 800px) {
-		.settings-grid {
-			grid-template-columns: 1fr;
-		}
-
-		.card.providers {
-			grid-column: span 1;
-		}
-	}
-
-	.status-table {
-		width: 100%;
-		border-collapse: collapse;
-	}
-
-	.status-table td {
-		padding: 8px 12px;
-		border-bottom: 1px solid #2a2a3e;
-	}
-
-	.status-table tr:last-child td {
-		border-bottom: none;
-	}
-
-	.status-warning {
-		color: #f59e0b;
-	}
-
-	.status-success {
-		color: #10b981;
+		gap: 1rem;
+		margin-top: 1.5rem;
 	}
 </style>
