@@ -185,10 +185,32 @@ curl -X POST http://localhost:8080/engine/process \
 
 ## Screenshots
 
-Due to the headless environment, actual screenshots would be captured from:
-1. **API Health**: `GET /health` endpoint
-2. **WebSocket**: Real-time thought streaming at `ws://localhost:8080/ws/agents/:id`
-3. **Metrics**: Prometheus endpoint at `/metrics`
-4. **NATS Monitor**: http://localhost:8222
+The following screenshots document the ACE Framework MVP implementation:
+
+### 01-agents-page.png
+Main agents page - Landing page with navigation and agent creation
+
+### 02-login-page.png  
+Login page - User authentication interface
+
+### 03-home-logged-in.png
+Home page (logged in) - View after successful authentication
+
+### 04-chat-page.png
+Chat page - Real-time chat interface with agents
+
+### 05-create-agent-dialog.png
+Create Agent Dialog - Modal for creating new AI agents
+
+### 06-visualizations-page.png
+Visualizations page - Data visualization and analytics
+
+### 07-memory-page.png
+Memory page - Agent memory and knowledge management
+
+### 08-settings-page.png
+Settings page - LLM provider configuration and system settings
+
+---
 
 The implementation is complete and pushed to the `mvp` branch.
