@@ -36,7 +36,10 @@
 
 	async function createAgent() {
 		if (!newAgentName.trim()) return;
-		// Note: Agents can be created without a provider - will use fallback LLM
+		if (providers.length === 0) {
+			error = 'Please add a provider in Settings before creating an agent';
+			return;
+		}
 		try {
 			const agent = await api.createAgent(newAgentName);
 			agents = [...agents, agent];

@@ -13,7 +13,7 @@
 		try {
 			await api.login(email, password);
 			// Force a page reload to ensure layout picks up the new auth state
-			window.location.href = '/';
+			window.location.reload();
 		} catch (e: any) {
 			error = e.message;
 		} finally {
