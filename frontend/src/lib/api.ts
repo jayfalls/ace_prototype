@@ -128,13 +128,6 @@ class ApiClient {
     return this.getToken() !== null;
   }
 
-  logout() {
-    this.token = null;
-    this.refreshToken = null;
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-  }
-
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE}${endpoint}`;
     const headers: Record<string, string> = {
@@ -163,21 +156,39 @@ class ApiClient {
 
   // Auth
   async login(email: string, password: string) {
-    const data = await this.request<{ token: string; expires_in: number }>('/auth/login', {
+    const response = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(data.token);
-    return data;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Login failed' } }));
+      throw new Error(error.error?.message || 'Login failed');
+    }
+    const json = await response.json();
+    const data = json.data || json;
+    const token = data.access_token || data.token;
+    const refreshToken = data.refresh_token;
+    this.setToken(token, refreshToken || undefined);
+    return { token, expires_in: data.expires_in };
   }
 
   async register(email: string, password: string, name: string) {
-    const data = await this.request<{ user: User; token: string; expires_in: number }>('/auth/register', {
+    const response = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, name }),
     });
-    this.setToken(data.token);
-    return data;
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Registration failed' } }));
+      throw new Error(error.error?.message || 'Registration failed');
+    }
+    const json = await response.json();
+    const data = json.data || json;
+    const token = data.access_token || data.token;
+    const refreshToken = data.refresh_token;
+    this.setToken(token, refreshToken || undefined);
+    return { user: data.user, token, expires_in: data.expires_in };
   }
 
   async getMe(): Promise<User> {

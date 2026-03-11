@@ -23,7 +23,8 @@
 		error = '';
 		try {
 			await api.register(email, password, name);
-			goto('/');
+			// Force a page reload to ensure layout picks up the new auth state
+			window.location.href = '/';
 		} catch (e: any) {
 			error = e.message;
 		} finally {

@@ -4,10 +4,21 @@
 	import { api } from '$lib/api';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 
 	let user: { name: string; email: string } | null = null;
 
 	onMount(async () => {
+		await checkAuth();
+	});
+
+	// Check auth whenever page changes
+	$: if (browser && $page.url.pathname) {
+		checkAuth();
+	}
+
+	async function checkAuth() {
+		if (!browser) return; // Skip SSR
 		const token = api.getToken();
 		if (token) {
 			try {
@@ -15,8 +26,10 @@
 			} catch {
 				user = null;
 			}
+		} else {
+			user = null;
 		}
-	});
+	}
 
 	function logout() {
 		api.logout();
