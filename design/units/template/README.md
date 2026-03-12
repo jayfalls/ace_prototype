@@ -18,8 +18,9 @@ To create a new unit:
 ## Template Documents
 
 - [bsd.md](bsd.md)
-- [fsd.md](fsd.md)
 - [user_stories.md](user_stories.md)
+- [research.md](research.md)
+- [fsd.md](fsd.md)
 - [architecture.md](architecture.md)
 - [implementation.md](implementation.md)
 - [security.md](security.md)
@@ -35,8 +36,9 @@ To create a new unit:
 
 1. Start with **bsd.md** to define the business case
 2. Create **user_stories.md** to capture user requirements
-3. Write **fsd.md** for technical details
-4. Design **architecture.md** for system integration
-5. Plan **implementation.md** for execution
-6. Document **security.md** considerations
-7. Complete remaining documents as needed
+3. Conduct **research.md** to evaluate different approaches and make informed design decisions
+4. Write **fsd.md** for technical details
+5. Design **architecture.md** for system integration
+6. Plan **implementation.md** for execution
+7. Document **security.md** considerations
+8. Complete remaining documents as needed
