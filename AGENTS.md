@@ -180,6 +180,7 @@ When suggesting technologies, libraries, or frameworks:
 - If a user is asking a question in a comment, answer the question before making changes
 - Always respond to comments you've addressed, explaining the fix or reasoning
 - **PR Descriptions**: Include clear description of changes, test results, and any relevant context
+- **Issue Linking**: Always include "Closes #XX" or "Fixes #XX" in the PR description to automatically close the referenced issue when the PR is merged
 - **Post-Merge Changelog**: After a PR is merged, immediately update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes
 - **Documentation Requirement**: After creating a PR AND after addressing any PR comments, always update the documentation:
   - Add or update relevant documentation files in `documentation/` if needed
