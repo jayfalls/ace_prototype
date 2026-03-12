@@ -4,6 +4,8 @@
 Intent: Define the testing strategy and specific test cases for the feature.
 Scope: Unit tests, integration tests, E2E tests, and their coverage targets.
 Used by: AI agents to write comprehensive tests that validate the feature.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

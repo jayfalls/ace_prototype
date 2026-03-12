@@ -7,6 +7,8 @@ This is the foundation that informs the BSD.
 
 The agent should ask questions in a loop until the problem space is fully understood.
 Do NOT proceed to BSD until you have clear answers to all questions.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Initial Discovery

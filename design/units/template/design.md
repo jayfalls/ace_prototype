@@ -4,6 +4,8 @@
 Intent: Document the "why" behind technical choices made during implementation.
 Scope: All significant design decisions, alternatives considered, and rationale.
 Used by: AI agents to understand trade-offs and make informed decisions about future changes.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

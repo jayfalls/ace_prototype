@@ -10,7 +10,8 @@ Always perform web searches to determine:
 - Current industry standards and popular solutions
 - Latest versions of mentioned technologies
 - Active maintenance status of libraries/frameworks
-- Recent community feedback and adoption trends
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Topic

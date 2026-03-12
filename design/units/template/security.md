@@ -4,6 +4,8 @@
 Intent: Define security requirements, threat modeling, and controls for the feature.
 Scope: Authentication, authorization, data protection, input validation, and compliance.
 Used by: AI agents to ensure the feature is built securely.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Security Overview

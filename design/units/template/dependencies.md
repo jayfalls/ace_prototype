@@ -4,6 +4,8 @@
 Intent: Define all external dependencies required by the feature.
 Scope: Libraries, services, APIs, and tools that the feature depends on.
 Used by: AI agents to understand what external resources are needed and how to integrate with them.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

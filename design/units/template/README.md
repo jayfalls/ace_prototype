@@ -4,6 +4,8 @@
 Intent: Provide a complete template structure for documenting a unit from conception to implementation.
 Scope: All documents needed for a comprehensive unit specification.
 Used by: AI agents to understand the full lifecycle of unit development.
+
+NOTE: Remove this comment block in the final document
 -->
 
 This template provides a complete structure for documenting a unit from conception to implementation.

@@ -4,6 +4,8 @@
 Intent: Define user-facing behavior in executable format that can drive tests.
 Scope: All user interactions and flows expressed in Gherkin syntax.
 Used by: AI agents to generate acceptance tests and ensure feature meets user expectations.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Gherkin Syntax Guide

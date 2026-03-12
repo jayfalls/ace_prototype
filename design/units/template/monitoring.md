@@ -4,6 +4,8 @@
 Intent: Define observability requirements for the feature.
 Scope: Logging, metrics, alerting, and dashboards needed to monitor the feature.
 Used by: AI agents to implement proper observability and respond to issues.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview
