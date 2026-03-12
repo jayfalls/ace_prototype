@@ -6,10 +6,10 @@ This document outlines the technical implementation for the Core Infrastructure 
 ## Architecture
 
 ### Components
-1. **Go Backend** - Containerized with hot reloading via air
-2. **SvelteKit Frontend** - Containerized with Vite HMR
-3. **PostgreSQL** - Official Docker image for data persistence
-4. **NATS** - Official Docker image for messaging
+1. **ace_api** - Go API service with hot reloading via air
+2. **ace_fe** - SvelteKit Frontend with Vite HMR
+3. **ace_db** - PostgreSQL for data persistence
+4. **ace_broker** - NATS for messaging
 
 ### Network Architecture
 ```
@@ -46,6 +46,7 @@ This document outlines the technical implementation for the Core Infrastructure 
 **Environment Variables:**
 | Variable | Description | Default |
 |----------|-------------|---------|
+| CONTAINER_ORCHESTRATOR | Choose between docker or podman | docker |
 | POSTGRES_HOST | PostgreSQL host | ace_db |
 | POSTGRES_PORT | PostgreSQL port | 5432 |
 | POSTGRES_USER | PostgreSQL user | postgres |
@@ -55,24 +56,25 @@ This document outlines the technical implementation for the Core Infrastructure 
 
 ### Backend Implementation
 
-**Dockerfile.dev:**
+**Dockerfile:**
 - Based on golang:1.26 (latest stable)
-- Install air for hot reloading
-- Mount source code as volume
+- Install air for hot reloading during development
+- Mount source code as volume for hot reloading
 - Expose port 8080
+- Single Dockerfile handles both dev and prod (use build args for dev-specific features)
 
 **air Configuration:**
-- Watch entire backend directory
+- Watch entire api directory
 - Exclude vendor, .git, node_modules
 - Build command: go build -o /app/main
 - Run command: /app/main
 
 ### Frontend Implementation
 
-**Dockerfile.dev:**
+**Dockerfile:**
 - Based on node:25 (latest stable)
 - Install dependencies with npm install
-- Run with npm run dev
+- Single Dockerfile handles both dev and prod
 - Expose port 5173 (Vite default)
 
 **Vite Configuration:**
@@ -97,16 +99,14 @@ This document outlines the technical implementation for the Core Infrastructure 
 ```
 ├── docker-compose.yml
 ├── Makefile
-├── backend/
+├── api/
 │   ├── Dockerfile
-│   ├── Dockerfile.dev
 │   ├── air.toml
 │   ├── go.mod
 │   ├── go.sum
 │   └── main.go
 ├── frontend/
 │   ├── Dockerfile
-│   ├── Dockerfile.dev
 │   ├── package.json
 │   ├── svelte.config.js
 │   ├── vite.config.ts
@@ -119,11 +119,11 @@ This document outlines the technical implementation for the Core Infrastructure 
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Start all services |
+| `make up` | Start all services using ${CONTAINER_ORCHESTRATOR} |
 | `make down` | Stop all services |
 | `make logs` | View aggregated logs |
-| `make logs-backend` | View backend logs only |
-| `make logs-frontend` | View frontend logs only |
+| `make logs-api` | View ace_api logs only |
+| `make logs-fe` | View ace_fe logs only |
 | `make clean` | Remove all containers and volumes |
 | `make re` | Restart all services |
 
@@ -151,13 +151,13 @@ This document outlines the technical implementation for the Core Infrastructure 
 
 ## Hot Reloading Behavior
 
-### Backend
-- Source code changes in `./backend` trigger automatic rebuild
+### ace_api
+- Source code changes in `./api` trigger automatic rebuild
 - air watches for file changes and rebuilds
 - Binary restarts automatically
 - Build output visible in logs
 
-### Frontend
+### ace_fe
 - Source code changes in `./frontend` trigger HMR
 - Vite updates modules without full reload
 - Browser automatically reflects changes (via HMR)
@@ -166,6 +166,9 @@ This document outlines the technical implementation for the Core Infrastructure 
 
 ### .env.example
 ```env
+# Container Orchestrator
+CONTAINER_ORCHESTRATOR=docker
+
 # Backend
 POSTGRES_HOST=ace_db
 POSTGRES_PORT=5432
