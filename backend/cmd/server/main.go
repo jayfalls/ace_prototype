@@ -475,7 +475,7 @@ func main() {
 		}
 		
 		if err := database.CreateUser(c.Request.Context(), user); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create user"}})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create user: " + err.Error()}})
 			return
 		}
 		
