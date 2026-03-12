@@ -66,7 +66,7 @@
 		testStatus = 'testing';
 		testError = '';
 		try {
-			const testRes = await fetch('/api/v1/providers/test', {
+			const testRes = await fetch('http://localhost:8080/api/v1/providers/test', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
