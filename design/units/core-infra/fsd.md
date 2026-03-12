@@ -56,7 +56,7 @@ This document outlines the technical implementation for the Core Infrastructure 
 ### Backend Implementation
 
 **Dockerfile.dev:**
-- Based on golang:1.21 (latest stable)
+- Based on golang:1.26 (latest stable)
 - Install air for hot reloading
 - Mount source code as volume
 - Expose port 8080
@@ -82,13 +82,13 @@ This document outlines the technical implementation for the Core Infrastructure 
 ### Database Configuration
 
 **PostgreSQL:**
-- Image: postgres:16
+- Image: postgres:18 (latest stable)
 - Volume: postgres_data for persistence
 - Environment variables configured via .env
 - Initialize with empty database
 
 **NATS:**
-- Image: nats:2.10
+- Image: nats:2.12 (latest stable)
 - No persistence needed (dev environment)
 - Expose port 4222 for client connections
 
@@ -186,17 +186,17 @@ VITE_API_URL=http://localhost:8080
 ## Dependencies
 
 ### Backend
-- Go 1.21+ (latest stable)
+- Go 1.26+ (latest stable)
 - air (hot reload)
 - Standard library only for initial setup
 
 ### Frontend
-- Node.js 20+ (latest stable)
+- Node.js 25+ (latest stable)
 - SvelteKit
 - Vite
 
 ### Infrastructure
 - Docker/Podman
 - Docker Compose
-- PostgreSQL 16
-- NATS 2.10
+- PostgreSQL 18
+- NATS 2.12
