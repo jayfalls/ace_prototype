@@ -9,6 +9,7 @@
 	let error = '';
 	let showCreateModal = false;
 	let newAgentName = '';
+	let selectedProviderId = '';
 	let runningAgentId: string | null = null;
 	let currentSession: Session | null = null;
 
@@ -45,10 +46,15 @@
 			error = 'Please add a provider in Settings before creating an agent';
 			return;
 		}
+		if (!selectedProviderId) {
+			error = 'Please select a provider for the agent';
+			return;
+		}
 		try {
-			const agent = await api.createAgent(newAgentName);
+			const agent = await api.createAgent(newAgentName, undefined, selectedProviderId);
 			agents = [...agents, agent];
 			newAgentName = '';
+			selectedProviderId = '';
 			showCreateModal = false;
 		} catch (e: any) {
 			error = e.message;
@@ -184,6 +190,12 @@
 				placeholder="Agent name"
 				on:keydown={(e) => e.key === 'Enter' && createAgent()}
 			/>
+			<select bind:value={selectedProviderId}>
+				<option value="">Select a provider</option>
+				{#each providers as provider}
+					<option value={provider.id}>{provider.name} ({provider.provider_type})</option>
+				{/each}
+			</select>
 			<div class="modal-actions">
 				<button on:click={() => showCreateModal = false}>Cancel</button>
 				<button class="primary" on:click={createAgent}>Create</button>
@@ -395,6 +407,23 @@
 	}
 
 	.modal input:focus {
+		outline: none;
+		border-color: #00d9ff;
+	}
+
+	.modal select {
+		width: 100%;
+		padding: 12px;
+		border: 1px solid #2a2a3e;
+		border-radius: 6px;
+		font-size: 14px;
+		margin-bottom: 20px;
+		box-sizing: border-box;
+		background: #0a0a15;
+		color: white;
+	}
+
+	.modal select:focus {
 		outline: none;
 		border-color: #00d9ff;
 	}

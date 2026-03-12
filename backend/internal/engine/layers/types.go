@@ -110,7 +110,7 @@ func (b *BaseLayer) GetLLMProvider() llm.Provider {
 // ProcessWithLLM processes input using the LLM
 func (b *BaseLayer) ProcessWithLLM(ctx context.Context, layerName, systemPrompt, userInput string) (string, error) {
 	if b.llmProvider == nil {
-		return fmt.Sprintf("[Mock] Processed through %s layer: %s", layerName, userInput), nil
+		return "", fmt.Errorf("no LLM provider configured for layer %s", layerName)
 	}
 
 	req := llm.ChatRequest{
@@ -230,21 +230,28 @@ func NewAspirationalLayer() *AspirationalLayer {
 }
 
 func (l *AspirationalLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for ethical reasoning
-	var ethicalGuidance string
-	var err error
-	
 	// Check if LLM is available
-	if l.llmProvider != nil {
-		ethicalGuidance, err = l.ProcessWithLLM(ctx, "L1_Aspirational", 
-			"You are the moral compass layer. Provide ethical guidance for the following input.",
-			fmt.Sprintf("Input: %v", input.Data))
-		if err != nil {
-			ethicalGuidance = fmt.Sprintf("[LLM Error: %v] Ensure actions align with core values", err)
-		}
-	} else {
-		// Fallback to mock
-		ethicalGuidance = "Ensure actions align with core values"
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:    input.LayerID,
+			CycleID:    input.CycleID,
+			Data:       map[string]interface{}{"error": "no LLM provider configured"},
+			Northbound: []Message{},
+			Southbound: []Message{},
+			Thoughts: []Thought{{
+				ID:      uuid.New(),
+				Layer:   LayerAspirational,
+				Content: "Cannot process: no LLM provider configured",
+			}},
+			Actions: []Action{},
+		}, nil
+	}
+
+	ethicalGuidance, err := l.ProcessWithLLM(ctx, "L1_Aspirational", 
+		"You are the moral compass layer. Provide ethical guidance for the following input.",
+		fmt.Sprintf("Input: %v", input.Data))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{
@@ -274,21 +281,23 @@ func NewGlobalStrategyLayer() *GlobalStrategyLayer {
 }
 
 func (l *GlobalStrategyLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for strategic planning
-	var strategy string
-	var err error
-	
+	// Check if LLM is available
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:  input.LayerID,
+			CycleID:  input.CycleID,
+			Data:     map[string]interface{}{"error": "no LLM provider configured"},
+			Thoughts: []Thought{{ID: uuid.New(), Layer: LayerGlobalStrategy, Content: "Cannot process: no LLM provider configured"}},
+		}, nil
+	}
+
 	inputStr := fmt.Sprintf("%v", input.Data)
 	
-	if l.llmProvider != nil {
-		strategy, err = l.ProcessWithLLM(ctx, "L2_GlobalStrategy",
-			"You are the strategic planning layer. Create high-level plans and strategies.",
-			fmt.Sprintf("Current task: %s", inputStr))
-		if err != nil {
-			strategy = fmt.Sprintf("[LLM Error: %v] High-level plan created", err)
-		}
-	} else {
-		strategy = "High-level plan created"
+	strategy, err := l.ProcessWithLLM(ctx, "L2_GlobalStrategy",
+		"You are the strategic planning layer. Create high-level plans and strategies.",
+		fmt.Sprintf("Current task: %s", inputStr))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{
@@ -311,21 +320,23 @@ func NewAgentModelLayer() *AgentModelLayer {
 }
 
 func (l *AgentModelLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for self-modeling
-	var selfModel string
-	var err error
-	
+	// Check if LLM is available
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:  input.LayerID,
+			CycleID:  input.CycleID,
+			Data:     map[string]interface{}{"error": "no LLM provider configured"},
+			Thoughts: []Thought{{ID: uuid.New(), Layer: LayerAgentModel, Content: "Cannot process: no LLM provider configured"}},
+		}, nil
+	}
+
 	inputStr := fmt.Sprintf("%v", input.Data)
 	
-	if l.llmProvider != nil {
-		selfModel, err = l.ProcessWithLLM(ctx, "L3_AgentModel",
-			"You are the self-modeling layer. Analyze the agent's capabilities and limitations.",
-			fmt.Sprintf("Current context: %s", inputStr))
-		if err != nil {
-			selfModel = fmt.Sprintf("[LLM Error: %v] Agent state updated", err)
-		}
-	} else {
-		selfModel = "Agent state updated"
+	selfModel, err := l.ProcessWithLLM(ctx, "L3_AgentModel",
+		"You are the self-modeling layer. Analyze the agent's capabilities and limitations.",
+		fmt.Sprintf("Current context: %s", inputStr))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{
@@ -348,21 +359,23 @@ func NewExecutiveFunctionLayer() *ExecutiveFunctionLayer {
 }
 
 func (l *ExecutiveFunctionLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for task management
-	var taskMgmt string
-	var err error
-	
+	// Check if LLM is available
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:  input.LayerID,
+			CycleID:  input.CycleID,
+			Data:     map[string]interface{}{"error": "no LLM provider configured"},
+			Thoughts: []Thought{{ID: uuid.New(), Layer: LayerExecutiveFunction, Content: "Cannot process: no LLM provider configured"}},
+		}, nil
+	}
+
 	inputStr := fmt.Sprintf("%v", input.Data)
 	
-	if l.llmProvider != nil {
-		taskMgmt, err = l.ProcessWithLLM(ctx, "L4_ExecutiveFunction",
-			"You are the executive function layer. Manage tasks, switch contexts, and allocate cognitive resources.",
-			fmt.Sprintf("Current context: %s", inputStr))
-		if err != nil {
-			taskMgmt = fmt.Sprintf("[LLM Error: %v] Task list managed", err)
-		}
-	} else {
-		taskMgmt = "Task list managed"
+	taskMgmt, err := l.ProcessWithLLM(ctx, "L4_ExecutiveFunction",
+		"You are the executive function layer. Manage tasks, switch contexts, and allocate cognitive resources.",
+		fmt.Sprintf("Current context: %s", inputStr))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{
@@ -385,21 +398,23 @@ func NewCognitiveControlLayer() *CognitiveControlLayer {
 }
 
 func (l *CognitiveControlLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for decision making
-	var decision string
-	var err error
-	
+	// Check if LLM is available
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:  input.LayerID,
+			CycleID:  input.CycleID,
+			Data:     map[string]interface{}{"error": "no LLM provider configured"},
+			Thoughts: []Thought{{ID: uuid.New(), Layer: LayerCognitiveControl, Content: "Cannot process: no LLM provider configured"}},
+		}, nil
+	}
+
 	inputStr := fmt.Sprintf("%v", input.Data)
 	
-	if l.llmProvider != nil {
-		decision, err = l.ProcessWithLLM(ctx, "L5_CognitiveControl",
-			"You are the cognitive control layer. Make decisions, manage attention, and resolve conflicts.",
-			fmt.Sprintf("Current context: %s", inputStr))
-		if err != nil {
-			decision = fmt.Sprintf("[LLM Error: %v] Decision made", err)
-		}
-	} else {
-		decision = "Decision made"
+	decision, err := l.ProcessWithLLM(ctx, "L5_CognitiveControl",
+		"You are the cognitive control layer. Make decisions, manage attention, and resolve conflicts.",
+		fmt.Sprintf("Current context: %s", inputStr))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{
@@ -422,21 +437,23 @@ func NewTaskProsecutionLayer() *TaskProsecutionLayer {
 }
 
 func (l *TaskProsecutionLayer) Process(ctx context.Context, input *LayerInput) (*LayerOutput, error) {
-	// Try to use LLM for execution
-	var execution string
-	var err error
-	
+	// Check if LLM is available
+	if l.llmProvider == nil {
+		return &LayerOutput{
+			LayerID:  input.LayerID,
+			CycleID:  input.CycleID,
+			Data:     map[string]interface{}{"error": "no LLM provider configured"},
+			Thoughts: []Thought{{ID: uuid.New(), Layer: LayerTaskProsecution, Content: "Cannot process: no LLM provider configured"}},
+		}, nil
+	}
+
 	inputStr := fmt.Sprintf("%v", input.Data)
 	
-	if l.llmProvider != nil {
-		execution, err = l.ProcessWithLLM(ctx, "L6_TaskProsecution",
-			"You are the task prosecution layer. Execute actions and interact with the environment.",
-			fmt.Sprintf("Current task: %s", inputStr))
-		if err != nil {
-			execution = fmt.Sprintf("[LLM Error: %v] Executed", err)
-		}
-	} else {
-		execution = "Executed"
+	execution, err := l.ProcessWithLLM(ctx, "L6_TaskProsecution",
+		"You are the task prosecution layer. Execute actions and interact with the environment.",
+		fmt.Sprintf("Current task: %s", inputStr))
+	if err != nil {
+		return nil, fmt.Errorf("LLM processing failed: %w", err)
 	}
 	
 	return &LayerOutput{

@@ -38,14 +38,19 @@
 
 	async function loadData() {
 		loading = true;
+		error = '';
 		try {
 			providers = await api.getProviders();
 			agents = await api.getAgents();
+			
+			// Only fetch settings if an agent is selected
 			if (selectedAgentId) {
 				const found = agents.find((a) => a.id === selectedAgentId);
 				if (found) {
 					agent = found;
 					settings = await api.getAgentSettings(selectedAgentId);
+				} else {
+					error = 'Agent not found';
 				}
 			}
 		} catch (e: any) {

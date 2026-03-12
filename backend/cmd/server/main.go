@@ -1418,6 +1418,13 @@ func main() {
 	protected.GET("/agents/:id/settings", func(c *gin.Context) {
 		agentID := c.Param("id")
 		
+		// Verify agent exists
+		agent, err := database.GetAgent(c.Request.Context(), agentID)
+		if err != nil || agent == nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+			return
+		}
+		
 		// Get provider config if available
 		enginesMu.RLock()
 		llmConfig, hasConfig := agentLLMConfigs[agentID]
@@ -1427,7 +1434,7 @@ func main() {
 			{"key": "max_tokens", "value": "2048"},
 			{"key": "temperature", "value": "0.7"},
 			{"key": "top_p", "value": "0.9"},
-			{"key": "provider_id", "value": ""},
+			{"key": "provider_id", "value": agent.Config["provider_id"]},
 		}
 		
 		if hasConfig {
