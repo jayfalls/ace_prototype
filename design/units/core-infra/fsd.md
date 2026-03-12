@@ -17,6 +17,7 @@ This document outlines the technical implementation for the Core Infrastructure 
 │           Docker/Podman Network             │
 │                                             │
 │  ┌──────────┐    ┌──────────┐              │
+│  │  ace_api │    │  ace_fe  │              │
 │  │   Go     │    │ SvelteKit│              │
 │  │ Backend  │    │ Frontend │              │
 │  └────┬─────┘    └────┬─────┘              │
@@ -26,7 +27,8 @@ This document outlines the technical implementation for the Core Infrastructure 
 │    ┌───────────┴───────────┐                │
 │    │                       │                │
 │ ┌──┴───┐             ┌────┴────┐          │
-│ │PostgreSQL│           │  NATS  │          │
+│ │ ace_db│           │ace_broker│          │
+│ │PostgreSQL│          │   NATS  │          │
 │ └────────┘            └─────────┘          │
 └─────────────────────────────────────────────┘
 ```
@@ -36,20 +38,20 @@ This document outlines the technical implementation for the Core Infrastructure 
 ### Docker Compose Configuration
 
 **Services:**
-- `backend` - Go application with air for hot reload
-- `frontend` - SvelteKit application with Vite HMR
-- `postgres` - PostgreSQL database
-- `nats` - NATS messaging server
+- `ace_api` - Go application with air for hot reload
+- `ace_fe` - SvelteKit application with Vite HMR
+- `ace_db` - PostgreSQL database
+- `ace_broker` - NATS messaging server
 
 **Environment Variables:**
 | Variable | Description | Default |
 |----------|-------------|---------|
-| POSTGRES_HOST | PostgreSQL host | postgres |
+| POSTGRES_HOST | PostgreSQL host | ace_db |
 | POSTGRES_PORT | PostgreSQL port | 5432 |
 | POSTGRES_USER | PostgreSQL user | postgres |
 | POSTGRES_PASSWORD | PostgreSQL password | postgres |
 | POSTGRES_DB | Database name | ace |
-| NATS_URL | NATS server URL | nats://nats:4222 |
+| NATS_URL | NATS server URL | nats://ace_broker:4222 |
 
 ### Backend Implementation
 
@@ -165,12 +167,12 @@ This document outlines the technical implementation for the Core Infrastructure 
 ### .env.example
 ```env
 # Backend
-POSTGRES_HOST=postgres
+POSTGRES_HOST=ace_db
 POSTGRES_PORT=5432
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_DB=ace
-NATS_URL=nats://nats:4222
+NATS_URL=nats://ace_broker:4222
 
 # Frontend
 VITE_API_URL=http://localhost:8080
