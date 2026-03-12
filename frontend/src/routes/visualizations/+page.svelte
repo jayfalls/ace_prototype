@@ -1,20 +1,43 @@
 <script lang="ts">
-	import { api, type Thought, type Session } from '$lib/api';
-	import { agentWs, type Thought as WsThought } from '$lib/websocket';
+	import { api, type Thought } from '$lib/api';
 	import { sessionStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
+	interface StartupStep {
+		step: string;
+		status: 'pending' | 'running' | 'completed' | 'failed';
+		error?: string;
+		duration_ms: number;
+	}
+
+	interface AgentStatus {
+		status: string;
+		engine_active: boolean;
+		startup_status: StartupStep[];
+		cycle_count: number;
+		bus_messages: number;
+	}
+
 	let sessionId = '';
 	let agentId = '';
 	let agentName = 'Agent';
+	let agentStatus: AgentStatus | null = null;
 	let thoughts: Thought[] = [];
 	let loading = false;
 	let error = '';
-	let autoRefresh = false;
-	let refreshInterval: number;
-	let wsConnected = false;
+	let statusPolling: number;
+	let lastStatusCheck = new Date();
+
+	// Step display names
+	const stepNames: Record<string, string> = {
+		'provider': 'Provider',
+		'layers': 'Layers',
+		'bus': 'Message Bus',
+		'tools': 'Tools',
+		'ready': 'Ready'
+	};
 
 	onMount(async () => {
 		// Check authentication
@@ -36,7 +59,7 @@
 			}
 		}
 		
-		if (!sessionId) {
+		if (!sessionId || !agentId) {
 			error = 'No active session. Please start an agent first.';
 			return;
 		}
@@ -51,56 +74,27 @@
 			}
 		}
 
-		// Connect WebSocket for real-time thoughts
-		if (agentId) {
-			agentWs.connect(agentId);
-			wsConnected = true;
-			
-			// Listen for real-time thoughts
-			agentWs.onThought((thought: WsThought) => {
-				thoughts = [...thoughts, {
-					id: thought.id,
-					session_id: sessionId,
-					layer: thought.layer,
-					content: thought.content,
-					metadata: { cycle: thought.cycle },
-					created_at: thought.created_at
-				}];
-			});
-			
-			agentWs.onClose(() => {
-				wsConnected = false;
-			});
-		}
-
+		// Start polling for agent status
+		await loadAgentStatus();
+		statusPolling = setInterval(loadAgentStatus, 2000) as unknown as number;
+		
 		// Load initial thoughts
 		await loadThoughts();
 		
 		return () => {
-			agentWs.disconnect();
-			if (refreshInterval) clearInterval(refreshInterval);
+			if (statusPolling) clearInterval(statusPolling);
 		};
 	});
 
-	// Map backend layer names to display names
-	const layerDisplayNames: Record<string, string> = {
-		'aspirational': 'Aspirational',
-		'global_strategy': 'Strategy',
-		'agent_model': 'Self-Model',
-		'executive_function': 'Executive',
-		'cognitive_control': 'Decision',
-		'task_prosecution': 'Action',
-		// Legacy names for backward compatibility
-		'perception': 'Perception',
-		'evaluation': 'Evaluation',
-		'decision': 'Decision',
-		'action': 'Action',
-		'reflection': 'Reflection',
-	};
-
-	// Get display name for a layer
-	function getLayerDisplayName(layer: string): string {
-		return layerDisplayNames[layer] || layer;
+	async function loadAgentStatus() {
+		if (!agentId) return;
+		try {
+			const status = await (api as any).getAgentStatus(agentId);
+			agentStatus = status;
+			lastStatusCheck = new Date();
+		} catch (e: any) {
+			console.error('Failed to get agent status:', e);
+		}
 	}
 
 	async function loadThoughts() {
@@ -108,14 +102,18 @@
 		try {
 			thoughts = await api.getThoughts(sessionId);
 		} catch (e: any) {
-			error = e.message;
+			console.error('Failed to get thoughts:', e);
 		}
 	}
+
+	// Check if agent is ready for chat
+	$: isReady = agentStatus?.startup_status?.some(s => s.step === 'ready' && s.status === 'completed') ?? false;
+	$: failedStep = agentStatus?.startup_status?.find(s => s.status === 'failed');
 </script>
 
 <div class="page">
 	<header>
-		<h1>ACE Layer Visualizations</h1>
+		<h1>Agent Visualizations</h1>
 		<div class="agent-info">
 			<span class="agent-name">{agentName}</span>
 			<span class="session-id">Session: {sessionId}</span>
@@ -126,286 +124,338 @@
 		<div class="error">{error}</div>
 	{/if}
 
-	<div class="visualization-container">
-		<div class="layers-grid">
-			<!-- Aspirational Layer -->
-			<div class="layer aspirational" class:active={thoughts.some(t => t.layer === 'aspirational')}>
-				<div class="layer-header">
-					<span class="layer-icon">🌟</span>
-					<h3>Aspirational</h3>
-				</div>
-				<div class="layer-content">
-					<p>Defines long-term goals and values (L1)</p>
-					{#each thoughts.filter(t => t.layer === 'aspirational') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
-			</div>
+	<!-- Startup Sequence Status -->
+	<div class="section">
+		<h2>Startup Sequence</h2>
+		<div class="startup-timeline">
+			{#if agentStatus?.startup_status}
+				{#each agentStatus.startup_status as step}
+					<div class="startup-step" class:pending={step.status === 'pending'} class:running={step.status === 'running'} class:completed={step.status === 'completed'} class:failed={step.status === 'failed'}>
+						<div class="step-indicator">
+							{#if step.status === 'pending'}
+								<span class="icon">○</span>
+							{:else if step.status === 'running'}
+								<span class="icon spinning">◐</span>
+							{:else if step.status === 'completed'}
+								<span class="icon">✓</span>
+							{:else if step.status === 'failed'}
+								<span class="icon">✗</span>
+							{/if}
+						</div>
+						<div class="step-info">
+							<span class="step-name">{stepNames[step.step] || step.step}</span>
+							{#if step.status === 'running'}
+								<span class="step-status">Processing...</span>
+							{:else if step.status === 'completed'}
+								<span class="step-duration">{step.duration_ms}ms</span>
+							{:else if step.status === 'failed'}
+								<span class="step-error">{step.error}</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			{:else}
+				<div class="no-status">Loading startup status...</div>
+			{/if}
+		</div>
+	</div>
 
-			<!-- Global Strategy Layer -->
-			<div class="layer global_strategy" class:active={thoughts.some(t => t.layer === 'global_strategy')}>
-				<div class="layer-header">
-					<span class="layer-icon">🎯</span>
-					<h3>Strategy</h3>
-				</div>
-				<div class="layer-content">
-					<p>High-level planning and goal decomposition (L2)</p>
-					{#each thoughts.filter(t => t.layer === 'global_strategy') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
+	<!-- Agent Runtime Status -->
+	<div class="section">
+		<h2>Runtime Status</h2>
+		<div class="runtime-grid">
+			<div class="runtime-card">
+				<span class="label">Status</span>
+				<span class="value" class:running={isReady} class:error={failedStep}>
+					{#if failedStep}
+						FAILED
+					{:else if isReady}
+						RUNNING
+					{:else}
+						STARTING
+					{/if}
+				</span>
 			</div>
-
-			<!-- Agent Model Layer -->
-			<div class="layer agent_model" class:active={thoughts.some(t => t.layer === 'agent_model')}>
-				<div class="layer-header">
-					<span class="layer-icon">🧠</span>
-					<h3>Self-Model</h3>
-				</div>
-				<div class="layer-content">
-					<p>Self-awareness and capability modeling (L3)</p>
-					{#each thoughts.filter(t => t.layer === 'agent_model') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
+			<div class="runtime-card">
+				<span class="label">Cycles</span>
+				<span class="value">{agentStatus?.cycle_count ?? 0}</span>
 			</div>
-
-			<!-- Executive Function Layer -->
-			<div class="layer executive_function" class:active={thoughts.some(t => t.layer === 'executive_function')}>
-				<div class="layer-header">
-					<span class="layer-icon">📋</span>
-					<h3>Executive</h3>
-				</div>
-				<div class="layer-content">
-					<p>Task management and context switching (L4)</p>
-					{#each thoughts.filter(t => t.layer === 'executive_function') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
+			<div class="runtime-card">
+				<span class="label">Bus Messages</span>
+				<span class="value">{agentStatus?.bus_messages ?? 0}</span>
 			</div>
-
-			<!-- Cognitive Control Layer -->
-			<div class="layer cognitive_control" class:active={thoughts.some(t => t.layer === 'cognitive_control')}>
-				<div class="layer-header">
-					<span class="layer-icon">⚖️</span>
-					<h3>Decision</h3>
-				</div>
-				<div class="layer-content">
-					<p>Decision making and conflict resolution (L5)</p>
-					{#each thoughts.filter(t => t.layer === 'cognitive_control') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Task Prosecution Layer -->
-			<div class="layer task_prosecution" class:active={thoughts.some(t => t.layer === 'task_prosecution')}>
-				<div class="layer-header">
-					<span class="layer-icon">⚡</span>
-					<h3>Action</h3>
-				</div>
-				<div class="layer-content">
-					<p>Execution and environment interaction (L6)</p>
-					{#each thoughts.filter(t => t.layer === 'task_prosecution') as thought}
-						<div class="thought-bubble">{thought.content}</div>
-					{/each}
-				</div>
+			<div class="runtime-card">
+				<span class="label">Last Update</span>
+				<span class="value">{lastStatusCheck.toLocaleTimeString()}</span>
 			</div>
 		</div>
+	</div>
 
-		<div class="thought-stream">
-			<h3>Live Thought Stream</h3>
-			{#if thoughts.length === 0}
-				<p class="no-thoughts">No thoughts recorded yet. The agent is starting up...</p>
-			{:else}
-				<div class="thoughts-list">
+	<!-- Active Loops (placeholder for future) -->
+	<div class="section">
+		<h2>Active Loops</h2>
+		<div class="loops-list">
+			<div class="loop-item" class:active={isReady}>
+				<span class="loop-icon">💬</span>
+				<span class="loop-name">Chat Loop</span>
+				<span class="loop-status">{isReady ? 'Active' : 'Waiting'}</span>
+			</div>
+			<div class="loop-item" class:active={isReady}>
+				<span class="loop-icon">📡</span>
+				<span class="loop-name">Global Loop</span>
+				<span class="loop-status">{isReady ? 'Active' : 'Waiting'}</span>
+			</div>
+		</div>
+	</div>
+
+	<!-- Thoughts Stream -->
+	{#if isReady}
+		<div class="section">
+			<h2>Thoughts Stream</h2>
+			<div class="thoughts-container">
+				{#if thoughts.length === 0}
+					<div class="no-thoughts">No thoughts yet. Start chatting to see cognitive processing.</div>
+				{:else}
 					{#each thoughts as thought}
-						<div class="thought-item {thought.layer}">
-							<span class="layer-tag">{getLayerDisplayName(thought.layer)}</span>
+						<div class="thought-item">
+							<span class="thought-layer">{thought.layer}</span>
 							<span class="thought-content">{thought.content}</span>
 							<span class="thought-time">{new Date(thought.created_at).toLocaleTimeString()}</span>
 						</div>
 					{/each}
-				</div>
-			{/if}
-			<button class="refresh-btn" on:click={loadThoughts} disabled={loading}>
-				{loading ? 'Refreshing...' : 'Refresh Thoughts'}
-			</button>
+				{/if}
+			</div>
 		</div>
-	</div>
+	{:else}
+		<div class="section">
+			<div class="waiting-message">
+				{#if failedStep}
+					<p class="error-text">Agent failed to start. Check startup sequence above.</p>
+					<p>Error: {failedStep.error}</p>
+				{:else}
+					<p>Waiting for agent to complete startup...</p>
+				{/if}
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
 	.page {
-		max-width: 1400px;
-		margin: 0 auto;
 		padding: 20px;
+		max-width: 1200px;
+		margin: 0 auto;
 	}
 
 	header {
 		margin-bottom: 30px;
 	}
 
-	header h1 {
-		font-size: 2rem;
+	h1 {
+		font-size: 24px;
 		margin-bottom: 10px;
 	}
 
 	.agent-info {
 		display: flex;
 		gap: 20px;
-		color: var(--text-secondary);
-	}
-
-	.agent-name {
-		font-weight: 600;
+		color: #666;
 	}
 
 	.error {
-		background: var(--danger);
-		color: white;
-		padding: 12px;
-		border-radius: 8px;
+		background: #fee;
+		color: #c00;
+		padding: 10px;
+		border-radius: 4px;
 		margin-bottom: 20px;
 	}
 
-	.visualization-container {
-		display: grid;
-		grid-template-columns: 2fr 1fr;
-		gap: 30px;
+	.section {
+		margin-bottom: 30px;
 	}
 
-	.layers-grid {
+	.section h2 {
+		font-size: 18px;
+		margin-bottom: 15px;
+		color: #333;
+	}
+
+	/* Startup Timeline */
+	.startup-timeline {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.startup-step {
+		display: flex;
+		align-items: center;
+		gap: 15px;
+		padding: 12px;
+		border-radius: 8px;
+		background: #f5f5f5;
+	}
+
+	.startup-step.pending {
+		background: #f0f0f0;
+		color: #999;
+	}
+
+	.startup-step.running {
+		background: #e3f2fd;
+	}
+
+	.startup-step.completed {
+		background: #e8f5e9;
+	}
+
+	.startup-step.failed {
+		background: #ffebee;
+		color: #c00;
+	}
+
+	.step-indicator .icon {
+		font-size: 20px;
+	}
+
+	.step-indicator .icon.spinning {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.step-info {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.step-name {
+		font-weight: 600;
+	}
+
+	.step-duration {
+		font-size: 12px;
+		color: #666;
+	}
+
+	.step-error {
+		font-size: 12px;
+		color: #c00;
+	}
+
+	/* Runtime Grid */
+	.runtime-grid {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 		gap: 15px;
 	}
 
-	.layer {
-		background: var(--surface);
-		border: 2px solid var(--border);
-		border-radius: 12px;
+	.runtime-card {
+		background: #f5f5f5;
 		padding: 15px;
-		transition: all 0.3s ease;
+		border-radius: 8px;
+		text-align: center;
 	}
 
-	.layer.active {
-		border-color: var(--primary);
-		box-shadow: 0 0 15px rgba(0, 123, 255, 0.2);
+	.runtime-card .label {
+		display: block;
+		font-size: 12px;
+		color: #666;
+		margin-bottom: 5px;
 	}
 
-	.layer-header {
+	.runtime-card .value {
+		font-size: 20px;
+		font-weight: 600;
+	}
+
+	.runtime-card .value.running {
+		color: #4caf50;
+	}
+
+	.runtime-card .value.error {
+		color: #f44336;
+	}
+
+	/* Active Loops */
+	.loops-list {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+
+	.loop-item {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		margin-bottom: 10px;
+		gap: 15px;
+		padding: 12px;
+		background: #f5f5f5;
+		border-radius: 8px;
 	}
 
-	.layer-icon {
-		font-size: 1.5rem;
+	.loop-item.active {
+		background: #e8f5e9;
 	}
 
-	.layer-header h3 {
-		margin: 0;
-		font-size: 1rem;
+	.loop-icon {
+		font-size: 20px;
 	}
 
-	.layer-content p {
-		font-size: 0.85rem;
-		color: var(--text-secondary);
-		margin: 0 0 10px 0;
+	.loop-name {
+		flex: 1;
+		font-weight: 500;
 	}
 
-	.thought-bubble {
-		background: var(--background);
-		padding: 8px;
-		border-radius: 6px;
-		font-size: 0.8rem;
-		margin-top: 8px;
-		border-left: 3px solid var(--primary);
+	.loop-status {
+		font-size: 14px;
+		color: #666;
 	}
 
-	.thought-stream {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: 12px;
+	.loop-item.active .loop-status {
+		color: #4caf50;
+	}
+
+	/* Thoughts */
+	.thoughts-container {
+		max-height: 400px;
+		overflow-y: auto;
+		background: #f9f9f9;
+		border-radius: 8px;
+		padding: 15px;
+	}
+
+	.no-thoughts, .no-status, .waiting-message {
+		text-align: center;
+		color: #666;
 		padding: 20px;
 	}
 
-	.thought-stream h3 {
-		margin-top: 0;
-		margin-bottom: 15px;
-	}
-
-	.no-thoughts {
-		color: var(--text-secondary);
-		font-style: italic;
-	}
-
-	.thoughts-list {
-		max-height: 500px;
-		overflow-y: auto;
-	}
-
 	.thought-item {
-		padding: 10px;
-		border-bottom: 1px solid var(--border);
 		display: flex;
-		flex-direction: column;
-		gap: 5px;
+		gap: 10px;
+		padding: 10px;
+		border-bottom: 1px solid #eee;
 	}
 
-	.thought-item:last-child {
-		border-bottom: none;
+	.thought-layer {
+		font-weight: 600;
+		color: #666;
+		min-width: 80px;
 	}
-
-	.layer-tag {
-		font-size: 0.7rem;
-		text-transform: uppercase;
-		padding: 2px 6px;
-		border-radius: 4px;
-		width: fit-content;
-	}
-
-	.thought-item.perception .layer-tag { background: #e3f2fd; color: #1565c0; }
-	.thought-item.evaluation .layer-tag { background: #f3e5f5; color: #7b1fa2; }
-	.thought-item.decision .layer-tag { background: #fff3e0; color: #e65100; }
-	.thought-item.action .layer-tag { background: #e8f5e9; color: #2e7d32; }
-	.thought-item.reflection .layer-tag { background: #e0f7fa; color: #00838f; }
-	.thought-item.aspirational .layer-tag { background: #fff8e1; color: #ff8f00; }
-	.thought-item.global_strategy .layer-tag { background: #fff8e1; color: #ff8f00; }
-	.thought-item.agent_model .layer-tag { background: #f3e5f5; color: #7b1fa2; }
-	.thought-item.executive_function .layer-tag { background: #e3f2fd; color: #1565c0; }
-	.thought-item.cognitive_control .layer-tag { background: #fff3e0; color: #e65100; }
-	.thought-item.task_prosecution .layer-tag { background: #e8f5e9; color: #2e7d32; }
 
 	.thought-content {
-		font-size: 0.9rem;
+		flex: 1;
 	}
 
 	.thought-time {
-		font-size: 0.7rem;
-		color: var(--text-secondary);
+		color: #999;
+		font-size: 12px;
 	}
 
-	.refresh-btn {
-		margin-top: 15px;
-		padding: 10px 20px;
-		background: var(--primary);
-		color: white;
-		border: none;
-		border-radius: 6px;
-		cursor: pointer;
-		width: 100%;
-	}
-
-	.refresh-btn:hover:not(:disabled) {
-		background: #0056b3;
-	}
-
-	.refresh-btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.error-text {
+		color: #c00;
 	}
 </style>
-

@@ -215,6 +215,10 @@ class ApiClient {
     return this.request<Agent>(`/agents/${id}`);
   }
 
+  async getAgentStatus(id: string): Promise<any> {
+    return this.request<any>(`/agents/${id}/status`);
+  }
+
   async createAgent(name: string, description?: string, providerId?: string): Promise<Agent> {
     return this.request<Agent>('/agents', {
       method: 'POST',

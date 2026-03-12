@@ -143,11 +143,24 @@ func RegisterAgentRoutes(router *gin.RouterGroup, protected *gin.RouterGroup, cf
 		
 		// Check if engine is running
 		engine := getAgentEngine(id)
-		engineRunning := engine != nil && engine.IsRunning()
+		engineRunning := false
+		startupStatus := []*layers.StartupStatus{}
+		cycleCount := 0
+		busMessages := 0
+		
+		if engine != nil {
+			engineRunning = engine.IsRunning()
+			startupStatus = engine.GetStartupStatus()
+			cycleCount = engine.GetCycleCount()
+			busMessages = engine.GetBusMessageCount()
+		}
 		
 		c.JSON(http.StatusOK, gin.H{"data": gin.H{
-			"status":       agent.Status,
-			"engine_active": engineRunning,
+			"status":         agent.Status,
+			"engine_active":  engineRunning,
+			"startup_status": startupStatus,
+			"cycle_count":    cycleCount,
+			"bus_messages":   busMessages,
 		}})
 	})
 

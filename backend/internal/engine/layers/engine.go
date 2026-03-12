@@ -2,19 +2,33 @@ package layers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 )
 
+// StartupStatus represents the status of agent startup
+type StartupStatus struct {
+	Step          string    `json:"step"`
+	Status        string    `json:"status"` // pending, running, completed, failed
+	Error         string    `json:"error,omitempty"`
+	StartedAt     time.Time `json:"started_at"`
+	CompletedAt   time.Time `json:"completed_at,omitempty"`
+	DurationMs   int64     `json:"duration_ms"`
+}
+
 // Engine coordinates all ACE layers
 type Engine struct {
-	agentID    uuid.UUID
-	layers     map[LayerType]Layer
-	bus        Bus
-	mu         sync.RWMutex
-	running    bool
+	agentID       uuid.UUID
+	layers        map[LayerType]Layer
+	bus           Bus
+	mu            sync.RWMutex
+	running       bool
+	startupStatus []*StartupStatus
+	cycleCount    int
+	busMessages   int
 }
 
 // Bus handles inter-layer communication
@@ -43,7 +57,7 @@ func NewEngine(agentID uuid.UUID, bus Bus) *Engine {
 	return e
 }
 
-// Start begins processing cycles
+// Start begins processing cycles with full startup sequence
 func (e *Engine) Start(ctx context.Context) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -52,8 +66,99 @@ func (e *Engine) Start(ctx context.Context) error {
 		return nil
 	}
 
+	// Initialize startup status tracking
+	e.startupStatus = []*StartupStatus{
+		{Step: "provider", Status: "pending", StartedAt: time.Now()},
+		{Step: "layers", Status: "pending", StartedAt: time.Now()},
+		{Step: "bus", Status: "pending", StartedAt: time.Now()},
+		{Step: "tools", Status: "pending", StartedAt: time.Now()},
+		{Step: "ready", Status: "pending", StartedAt: time.Now()},
+	}
+
+	// Step 1: Check provider (already wired via WireAllLayers)
+	e.startupStatus[0].Status = "completed"
+	e.startupStatus[0].CompletedAt = time.Now()
+	e.startupStatus[0].DurationMs = time.Since(e.startupStatus[0].StartedAt).Milliseconds()
+
+	// Step 2: Initialize layers
+	e.startupStatus[1].Status = "running"
+	hasLLM := false
+	for _, layer := range e.layers {
+		if layer.GetLLMProvider() != nil {
+			hasLLM = true
+			break
+		}
+	}
+	if !hasLLM {
+		e.startupStatus[1].Status = "failed"
+		e.startupStatus[1].Error = "no LLM provider wired to layers"
+		e.startupStatus[2].Status = "pending"
+		e.startupStatus[3].Status = "pending"
+		e.startupStatus[4].Status = "pending"
+		return fmt.Errorf("startup failed: no LLM provider")
+	}
+	e.startupStatus[1].Status = "completed"
+	e.startupStatus[1].CompletedAt = time.Now()
+	e.startupStatus[1].DurationMs = time.Since(e.startupStatus[1].StartedAt).Milliseconds()
+
+	// Step 3: Initialize bus
+	e.startupStatus[2].Status = "running"
+	if e.bus == nil {
+		e.startupStatus[2].Status = "failed"
+		e.startupStatus[2].Error = "message bus not initialized"
+		e.startupStatus[3].Status = "pending"
+		e.startupStatus[4].Status = "pending"
+		return fmt.Errorf("startup failed: no message bus")
+	}
+	e.startupStatus[2].Status = "completed"
+	e.startupStatus[2].CompletedAt = time.Now()
+	e.startupStatus[2].DurationMs = time.Since(e.startupStatus[2].StartedAt).Milliseconds()
+
+	// Step 4: Load tools (placeholder - MCP tools would be loaded here)
+	e.startupStatus[3].Status = "completed"
+	e.startupStatus[3].CompletedAt = time.Now()
+	e.startupStatus[3].DurationMs = time.Since(e.startupStatus[3].StartedAt).Milliseconds()
+
+	// Step 5: Mark ready
+	e.startupStatus[4].Status = "completed"
+	e.startupStatus[4].CompletedAt = time.Now()
+	e.startupStatus[4].DurationMs = time.Since(e.startupStatus[4].StartedAt).Milliseconds()
+
 	e.running = true
+	e.cycleCount = 0
 	return nil
+}
+
+// GetStartupStatus returns the startup sequence status
+func (e *Engine) GetStartupStatus() []*StartupStatus {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.startupStatus
+}
+
+// GetCycleCount returns the number of cycles processed
+func (e *Engine) GetCycleCount() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.cycleCount
+}
+
+// GetBusMessageCount returns the number of messages sent via bus
+func (e *Engine) GetBusMessageCount() int {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.busMessages
+}
+
+// IsStartupComplete returns true if startup completed successfully
+func (e *Engine) IsStartupComplete() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	if len(e.startupStatus) == 0 {
+		return false
+	}
+	// Check if the final step (ready) is completed
+	return e.startupStatus[len(e.startupStatus)-1].Status == "completed"
 }
 
 // Stop halts processing

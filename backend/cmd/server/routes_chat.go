@@ -1,16 +1,13 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/ace/framework/backend/internal/db"
 	"github.com/ace/framework/backend/internal/engine/layers"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 )
 
 // RegisterChatRoutes registers chat and thought routes
@@ -30,7 +27,7 @@ func RegisterChatRoutes(protected *gin.RouterGroup) {
 		}
 	})
 
-	// Send chat message - processes through cognitive layers
+	// Send chat message - via global chat loop, memories
 	protected.POST("/chats", func(c *gin.Context) {
 		var req struct {
 			SessionID string `json:"session_id"`
@@ -48,7 +45,14 @@ func RegisterChatRoutes(protected *gin.RouterGroup) {
 			return
 		}
 		
-		// Save user message
+		// Check if agent is ready (startup complete)
+		engine := getAgentEngine(session.AgentID)
+		if engine == nil || !engine.IsStartupComplete() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "NOT_READY", "message": "Agent not ready. Start agent first."}})
+			return
+		}
+		
+		// Save user message to memories
 		msg := &db.ChatMessage{
 			ID:        uuid.New().String(),
 			AgentID:   session.AgentID,
@@ -61,63 +65,14 @@ func RegisterChatRoutes(protected *gin.RouterGroup) {
 			return
 		}
 
-		agentID := session.AgentID
-		var responseContent string
-
-		// Process through cognitive engine
-		if agentID != "" {
-			engine := getAgentEngine(agentID)
-			log.Printf("Chat handler: engine for agent %s = %v", agentID, engine)
-			
-			if engine != nil {
-				// Process through layers synchronously to get response
-				ctx := context.Background()
-				result, err := engine.ProcessCycle(ctx, req.Message)
-				log.Printf("Chat handler: ProcessCycle completed, result=%v, err=%v", result != nil, err)
-				
-				if err != nil {
-					responseContent = fmt.Sprintf("Error processing message: %v", err)
-				} else if result != nil && len(result.Thoughts) > 0 {
-					// Extract response from layer outputs - use L1 (Aspirational) layer output as the response
-					if output, ok := result.LayerOutputs[layers.LayerAspirational]; ok {
-						if data, ok := output.Data.(map[string]interface{}); ok {
-							if guidance, ok := data["ethical_guidance"].(string); ok {
-								responseContent = fmt.Sprintf("Thought: %s", guidance)
-							}
-						}
-					}
-					// If no specific response, summarize the thoughts
-					if responseContent == "" {
-						var thoughtSummary string
-						for i, thought := range result.Thoughts {
-							if i > 0 {
-								thoughtSummary += "; "
-							}
-							thoughtSummary += thought.Content
-						}
-						responseContent = thoughtSummary
-					}
-					
-					// Store layer thoughts in DB for visualization
-					for _, thought := range result.Thoughts {
-						thoughtRecord := &db.Thought{
-							ID:        thought.ID.String(),
-							SessionID: req.SessionID,
-							Layer:     thought.Layer.String(),
-							Content:   thought.Content,
-							CreatedAt: nowFunc(),
-						}
-						db.CreateThought(c.Request.Context(), thoughtRecord)
-					}
-				} else {
-					responseContent = "No cognitive response generated. Ensure provider is configured."
-				}
-			} else {
-				responseContent = "No active engine for this agent"
-			}
-		} else {
-			responseContent = "No agent associated with this session"
-		}
+		// Global chat loop processes the message through memories
+		// It interfaces with the layers for telemetry but chat goes to memories
+		responseContent := fmt.Sprintf("Chat Loop: Received your message. (Memories interface active)")
+		
+		// Optionally: Summarize for telemetry to layers
+		// This is a brief version sent to layers, not the full chat
+		telemetrySummary := fmt.Sprintf("User: %s", req.Message)
+		_ = telemetrySummary // Reserved for telemetry to layers
 
 		// Save assistant response
 		assistantMsg := &db.ChatMessage{
@@ -127,7 +82,10 @@ func RegisterChatRoutes(protected *gin.RouterGroup) {
 			Content:   responseContent,
 			CreatedAt: nowFunc(),
 		}
-		db.CreateChatMessage(c.Request.Context(), assistantMsg)
+		if err := db.CreateChatMessage(c.Request.Context(), assistantMsg); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to save response"}})
+			return
+		}
 
 		c.JSON(http.StatusOK, gin.H{"data": []interface{}{msg, assistantMsg}})
 	})

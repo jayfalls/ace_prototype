@@ -61,6 +61,41 @@ func RegisterSessionRoutes(protected *gin.RouterGroup, cfg *config.Config) {
 		engine := createAgentEngine(req.AgentID, providerType, apiKey, baseURL, model)
 		setAgentEngine(req.AgentID, engine)
 
+		// Start the engine with full startup sequence
+		ctx := context.Background()
+		startupErr := engine.Start(ctx)
+		
+		// Get startup status
+		startupStatus := engine.GetStartupStatus()
+		
+		// Check if startup failed
+		if startupErr != nil || !engine.IsStartupComplete() {
+			// Find the failed step
+			var failedStep string
+			for _, s := range startupStatus {
+				if s.Status == "failed" {
+					failedStep = s.Step
+					break
+				}
+			}
+			
+			// Remove the engine since startup failed
+			removeAgentEngine(req.AgentID)
+			
+			// Update agent status to failed
+			agent.Status = "failed"
+			agent.UpdatedAt = nowFunc()
+			db.UpdateAgent(c.Request.Context(), agent)
+			
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{
+				"code": "STARTUP_FAILED",
+				"message": "Agent startup failed",
+				"failed_step": failedStep,
+				"startup_status": startupStatus,
+			}})
+			return
+		}
+
 		now := nowFunc()
 		session := &db.Session{
 			ID:        uuid.New().String(),
@@ -81,7 +116,11 @@ func RegisterSessionRoutes(protected *gin.RouterGroup, cfg *config.Config) {
 		agent.UpdatedAt = now
 		db.UpdateAgent(c.Request.Context(), agent)
 		
-		c.JSON(http.StatusCreated, gin.H{"data": session})
+		// Return session with startup info
+		c.JSON(http.StatusCreated, gin.H{"data": gin.H{
+			"session": session,
+			"startup_status": startupStatus,
+		}})
 	})
 
 	// End session (stop agent)
