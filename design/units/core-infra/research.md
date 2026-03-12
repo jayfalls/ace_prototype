@@ -55,10 +55,10 @@ Containerized development environment setup for Go backend and SvelteKit fronten
 - Cons: More files to maintain
 
 **Approach 3: Single Dockerfile with build argument**
-- Pros: Single file, conditional dev tools
+- Pros: Single file to maintain, conditional dev tools based on build args, minimal production images
 - Cons: More complex build process
 
-**Recommendation**: Use separate Dockerfiles (Dockerfile and Dockerfile.dev) to keep production images minimal and development images with necessary tools.
+**Recommendation**: Use **single Dockerfile with build arguments** to toggle between development and production configurations. This keeps a single image definition while conditionally including dev tools (air, developer dependencies) based on the build flag.
 
 ### Volume Mounting Strategy
 
@@ -90,7 +90,9 @@ Containerized development environment setup for Go backend and SvelteKit fronten
 - **Frontend Hot Reload**: Vite built-in HMR (no additional setup needed)
 - **Database**: PostgreSQL official Docker image
 - **Messaging**: NATS official Docker image
-- **Orchestration**: Docker Compose
+- **Orchestration**: Docker & Podman Compose
+- **Docker Images**: Single Dockerfile with build flags (`--build-arg DEV=true`)
+- **Security**: Rootless by default - all containers run as non-root appuser from the start
 
 ## Rationale
 1. Docker is the industry standard with the largest ecosystem and community support
@@ -98,13 +100,16 @@ Containerized development environment setup for Go backend and SvelteKit fronten
 3. SvelteKit with Vite has excellent built-in HMR that requires no additional configuration
 4. Official images for PostgreSQL and NATS are well-maintained and widely used
 5. Docker Compose provides a clean way to orchestrate all services with environment variables
+6. Single Dockerfile with build flags keeps maintenance simple while allowing conditional dev tools
+7. Rootless containers with appuser from the start follows security best practices and avoids permission issues
 
 ## Risks and Mitigation
 | Risk | Mitigation |
 |------|------------|
 | File system performance on macOS/Windows | Document that Docker Desktop with filesystem cache may be needed |
 | Port conflicts | Use environment variables for all port configurations |
-| Volume permission issues | Document proper volume ownership with USER directive |
+| Root container vulnerabilities | Use non-root appuser in all containers from the start (rootless by default) |
+| Volume permission issues | Create appuser in Dockerfile and set appropriate USER directive |
 
 ## References
 - https://github.com/cosmtrek/air - Air Go hot reload
