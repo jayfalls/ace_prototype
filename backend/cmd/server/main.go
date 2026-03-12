@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -333,8 +332,8 @@ func main() {
 			}
 		}
 		
-		// Validate token (accept demo-token for now)
-		if token != "demo-token" && token != "" {
+		// Validate JWT token
+		if token != "" {
 			claims := &JWTClaims{}
 			_, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
 				return []byte(jwtSecret), nil
@@ -343,6 +342,8 @@ func main() {
 				c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
 				return
 			}
+			// Set user ID from claims
+			c.Set("userID", claims.UserID)
 		}
 
 		// Upgrade to WebSocket
@@ -404,37 +405,7 @@ func main() {
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 
-	// Demo login endpoint (no auth required)
-	v1.POST("/demo/login", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"data": gin.H{
-				"access_token":  "demo-token",
-				"refresh_token": "demo-refresh",
-				"expires_in":    900,
-			},
-		})
-	})
-
-	// Demo register (no auth required)
-	v1.POST("/demo/register", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"data": gin.H{
-				"access_token":  "demo-token",
-				"refresh_token": "demo-refresh",
-				"expires_in":    900,
-			},
-		})
-	})
-
-	// Demo agents endpoint (in-memory for demo)
-	demoAgents := []map[string]interface{}{}
-	demoSessions := []map[string]interface{}{}
-	demoMemories := []map[string]interface{}{}
-	demoProviders := []map[string]interface{}{}
-	demoThoughts := []map[string]interface{}{}
-	demoChats := []map[string]interface{}{}
-
-	// Protected routes with demo auth middleware
+	// Protected routes with JWT auth middleware
 	protected := v1.Group("")
 	protected.Use(func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -450,26 +421,19 @@ func main() {
 			tokenString = authHeader[7:]
 		}
 		
-		// First try JWT validation
+		// Validate JWT
 		claims := &JWTClaims{}
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 			return []byte(jwtSecret), nil
 		})
 		
-		if err == nil && token.Valid {
-			c.Set("userID", claims.UserID)
-			c.Set("email", claims.Email)
-			c.Next()
-			return
-		}
-		
-		// Fallback: accept demo-token for testing
-		if authHeader != "Bearer demo-token" {
+		if err != nil || !token.Valid {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "UNAUTHORIZED", "message": "Invalid token"}})
 			c.Abort()
 			return
 		}
-		c.Set("userID", "demo-user-id")
+		c.Set("userID", claims.UserID)
+		c.Set("email", claims.Email)
 		c.Next()
 	})
 
@@ -730,23 +694,29 @@ func main() {
 	// ============ AGENTS ============
 	// List agents
 	protected.GET("/agents", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"data": demoAgents})
+		userID := c.GetString("userID")
+		agents, err := database.GetAgents(c.Request.Context(), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get agents"}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": agents})
 	})
 
 	// Get agent
 	protected.GET("/agents/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for _, agent := range demoAgents {
-			if agent["id"] == id {
-				c.JSON(http.StatusOK, gin.H{"data": agent})
-				return
-			}
+		agent, err := database.GetAgent(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+		c.JSON(http.StatusOK, gin.H{"data": agent})
 	})
 
 	// Create agent
 	protected.POST("/agents", func(c *gin.Context) {
+		userID := c.GetString("userID")
 		var req struct {
 			Name        string `json:"name"`
 			Description string `json:"description"`
@@ -757,90 +727,107 @@ func main() {
 			return
 		}
 		// Build config with provider_id if provided
-		config := json.RawMessage("{}")
+		config := map[string]interface{}{}
 		if req.ProviderID != "" {
-			cfg := map[string]string{"provider_id": req.ProviderID}
-			configBytes, _ := json.Marshal(cfg)
-			config = json.RawMessage(configBytes)
+			config["provider_id"] = req.ProviderID
 		}
-		agent := map[string]interface{}{
-			"id":          uuid.New().String(),
-			"name":        req.Name,
-			"description": req.Description,
-			"status":      "inactive",
-			"owner_id":    "demo-user-id",
-			"config":      config,
-			"created_at":  time.Now().UTC(),
-			"updated_at":  time.Now().UTC(),
+		now := time.Now().UTC()
+		agent := &db.Agent{
+			ID:          uuid.New().String(),
+			Name:        req.Name,
+			Description: req.Description,
+			UserID:      userID,
+			Config:      config,
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		}
-		demoAgents = append(demoAgents, agent)
+		if err := database.CreateAgent(c.Request.Context(), agent); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create agent"}})
+			return
+		}
 		c.JSON(http.StatusCreated, gin.H{"data": agent})
 	})
 
 	// Update agent
 	protected.PUT("/agents/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		var req map[string]interface{}
+		var req struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+			ProviderID  string `json:"provider_id"`
+		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		for i, agent := range demoAgents {
-			if agent["id"] == id {
-				req["id"] = id
-				req["updated_at"] = time.Now().UTC()
-				demoAgents[i] = req
-				c.JSON(http.StatusOK, gin.H{"data": agent})
-				return
-			}
+		agent, err := database.GetAgent(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+		if req.Name != "" {
+			agent.Name = req.Name
+		}
+		if req.Description != "" {
+			agent.Description = req.Description
+		}
+		if req.ProviderID != "" {
+			agent.Config["provider_id"] = req.ProviderID
+		}
+		agent.UpdatedAt = time.Now().UTC()
+		if err := database.UpdateAgent(c.Request.Context(), agent); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to update agent"}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": agent})
 	})
 
 	// Delete agent
 	protected.DELETE("/agents/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for i, agent := range demoAgents {
-			if agent["id"] == id {
-				demoAgents = append(demoAgents[:i], demoAgents[i+1:]...)
-				c.JSON(http.StatusOK, gin.H{"message": "Agent deleted"})
-				return
-			}
+		if err := database.DeleteAgent(c.Request.Context(), id); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
+		c.JSON(http.StatusOK, gin.H{"message": "Agent deleted"})
 	})
 
 	// ============ SESSIONS (Running) ============
 	// List sessions
 	protected.GET("/sessions", func(c *gin.Context) {
+		userID := c.GetString("userID")
 		agentID := c.Query("agent_id")
+		
+		var sessions []db.Session
+		var err error
+		
 		if agentID != "" {
-			var filtered []map[string]interface{}
-			for _, s := range demoSessions {
-				if s["agent_id"] == agentID {
-					filtered = append(filtered, s)
-				}
-			}
-			c.JSON(http.StatusOK, gin.H{"data": filtered})
+			sessions, err = database.GetSessions(c.Request.Context(), agentID)
+		} else {
+			sessions, err = database.GetSessionsByUser(c.Request.Context(), userID)
+		}
+		
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get sessions"}})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": demoSessions})
+		c.JSON(http.StatusOK, gin.H{"data": sessions})
 	})
 
 	// Get session
 	protected.GET("/sessions/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for _, session := range demoSessions {
-			if session["id"] == id {
-				c.JSON(http.StatusOK, gin.H{"data": session})
-				return
-			}
+		session, err := database.GetSession(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+		c.JSON(http.StatusOK, gin.H{"data": session})
 	})
 
 	// Create session (start agent)
 	protected.POST("/sessions", func(c *gin.Context) {
+		userID := c.GetString("userID")
 		var req struct {
 			AgentID string `json:"agent_id"`
 		}
@@ -848,15 +835,10 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		// Find agent
-		var agent map[string]interface{}
-		for _, a := range demoAgents {
-			if a["id"] == req.AgentID {
-				agent = a
-				break
-			}
-		}
-		if agent == nil {
+		
+		// Get agent from DB
+		agent, err := database.GetAgent(c.Request.Context(), req.AgentID)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
 			return
 		}
@@ -866,43 +848,13 @@ func main() {
 		apiKey, baseURL, model := "", "", "gpt-4"
 		
 		// Check agent config for provider_id
-		log.Printf("Session creation: agentID=%s", req.AgentID)
-		if cfg, ok := agent["config"].(json.RawMessage); ok {
-			var cfgMap map[string]interface{}
-			if err := json.Unmarshal(cfg, &cfgMap); err == nil {
-				log.Printf("Session creation: agent config=%v", cfgMap)
-				if providerID, ok := cfgMap["provider_id"].(string); ok && providerID != "" {
-					log.Printf("Session creation: providerID=%s", providerID)
-					// Look up the provider
-					for _, p := range demoProviders {
-						log.Printf("Session creation: checking provider %v", p["id"])
-						if p["id"] == providerID {
-							// Get API key from config - handle both map and json.RawMessage
-							if pcfg, ok := p["config"].(map[string]interface{}); ok {
-								if key, ok := pcfg["api_key"].(string); ok && key != "" {
-									apiKey = key
-								}
-							} else if pcfg, ok := p["config"].(json.RawMessage); ok {
-								var pcfgMap map[string]interface{}
-								if err := json.Unmarshal(pcfg, &pcfgMap); err == nil {
-									if key, ok := pcfgMap["api_key"].(string); ok && key != "" {
-										apiKey = key
-									}
-								}
-							}
-							if bu, ok := p["base_url"].(string); ok {
-								baseURL = bu
-							}
-							if m, ok := p["default_model"].(string); ok && m != "" {
-								model = m
-							}
-							if pt, ok := p["provider_type"].(string); ok {
-								providerType = llm.ProviderType(pt)
-							}
-							break
-						}
-					}
-				}
+		if providerID, ok := agent.Config["provider_id"].(string); ok && providerID != "" {
+			provider, err := database.GetProvider(c.Request.Context(), providerID)
+			if err == nil && provider != nil {
+				apiKey = provider.APIKey
+				baseURL = provider.BaseURL
+				model = provider.Model
+				providerType = llm.ProviderType(provider.Type)
 			}
 		}
 		
@@ -918,69 +870,77 @@ func main() {
 		engine := createAgentEngine(req.AgentID, providerType, apiKey, baseURL, model)
 		setAgentEngine(req.AgentID, engine)
 
-		session := map[string]interface{}{
-			"id":         uuid.New().String(),
-			"agent_id":   req.AgentID,
-			"owner_id":   "demo-user-id",
-			"status":     "running",
-			"started_at": time.Now().UTC(),
-			"metadata":   json.RawMessage("{}"),
+		now := time.Now().UTC()
+		session := &db.Session{
+			ID:        uuid.New().String(),
+			AgentID:   req.AgentID,
+			UserID:    userID,
+			Status:    "running",
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
-		// Update agent status
-		for i, a := range demoAgents {
-			if a["id"] == req.AgentID {
-				a["status"] = "running"
-				demoAgents[i] = a
-				break
-			}
+		
+		if err := database.CreateSession(c.Request.Context(), session); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create session"}})
+			return
 		}
-		demoSessions = append(demoSessions, session)
+		
+		// Update agent status in DB
+		agent.Status = "running"
+		agent.UpdatedAt = now
+		database.UpdateAgent(c.Request.Context(), agent)
+		
 		c.JSON(http.StatusCreated, gin.H{"data": session})
 	})
 
 	// End session (stop agent)
 	protected.DELETE("/sessions/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for i, session := range demoSessions {
-			if session["id"] == id {
-				now := time.Now().UTC()
-				session["status"] = "ended"
-				session["ended_at"] = now
-				demoSessions[i] = session
-				// Update agent status and stop engine
-				if agentID, ok := session["agent_id"].(string); ok {
-					for j, a := range demoAgents {
-						if a["id"] == agentID {
-							a["status"] = "inactive"
-							demoAgents[j] = a
-							break
-						}
-					}
-					// Stop the agent engine
-					removeAgentEngine(agentID)
-				}
-				c.JSON(http.StatusOK, gin.H{"data": session})
-				return
-			}
+		
+		session, err := database.GetSession(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+		
+		now := time.Now().UTC()
+		session.Status = "ended"
+		session.UpdatedAt = now
+		database.UpdateSession(c.Request.Context(), session)
+		
+		// Update agent status and stop engine
+		if agent, err := database.GetAgent(c.Request.Context(), session.AgentID); err == nil {
+			agent.Status = "inactive"
+			agent.UpdatedAt = now
+			database.UpdateAgent(c.Request.Context(), agent)
+		}
+		
+		// Stop the agent engine
+		removeAgentEngine(session.AgentID)
+		
+		c.JSON(http.StatusOK, gin.H{"data": session})
 	})
 
 	// ============ CHAT ============
-	// List chats for session
+	// List chats for session (get chat messages)
 	protected.GET("/chats", func(c *gin.Context) {
 		sessionID := c.Query("session_id")
 		if sessionID != "" {
-			var filtered []map[string]interface{}
-			for _, chat := range demoChats {
-				if chat["session_id"] == sessionID {
-					filtered = append(filtered, chat)
-				}
+			// Get session to find agent
+			session, err := database.GetSession(c.Request.Context(), sessionID)
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+				return
 			}
-			c.JSON(http.StatusOK, gin.H{"data": filtered})
-			return
+			messages, err := database.GetChatMessages(c.Request.Context(), session.AgentID, 50)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get messages"}})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"data": messages})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
 		}
-		c.JSON(http.StatusOK, gin.H{"data": demoChats})
 	})
 
 	// Send chat message - goes to global memory, Chat Loop generates response
@@ -993,14 +953,26 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		userMsg := map[string]interface{}{
-			"id":         uuid.New().String(),
-			"session_id": req.SessionID,
-			"role":       "user",
-			"content":    req.Message,
-			"created_at": time.Now().UTC(),
+		
+		// Get session to find agent
+		session, err := database.GetSession(c.Request.Context(), req.SessionID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Session not found"}})
+			return
 		}
-		demoChats = append(demoChats, userMsg)
+		
+		// Save user message
+		msg := &db.ChatMessage{
+			ID:        uuid.New().String(),
+			AgentID:   session.AgentID,
+			Role:      "user",
+			Content:   req.Message,
+			CreatedAt: time.Now().UTC(),
+		}
+		if err := database.CreateChatMessage(c.Request.Context(), msg); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to save message"}})
+			return
+		}
 
 		// Store in global memory (simulated memory store)
 		sessionMemKey := fmt.Sprintf("memory:%s", req.SessionID)
@@ -1014,15 +986,7 @@ func main() {
 			"time":    time.Now().UTC(),
 		})
 
-		// Find session and get agent
-		var agentID string
-		for _, s := range demoSessions {
-			if s["id"] == req.SessionID {
-				agentID, _ = s["agent_id"].(string)
-				break
-			}
-		}
-
+		agentID := session.AgentID
 		var responseContent string
 
 		// Chat Loop generates fast response from global memory (NOT from layers)
@@ -1078,20 +1042,12 @@ func main() {
 						}
 						for _, thought := range result.Thoughts {
 							memoryStore[thoughtsKey] = append(memoryStore[thoughtsKey].([]map[string]interface{}), map[string]interface{}{
-								"layer":   thought.Layer.String(),
-								"content": thought.Content,
-								"time":    time.Now().UTC(),
-							})
-							// Also add to demoThoughts for API
-							demoThought := map[string]interface{}{
 								"id":         thought.ID,
 								"session_id": req.SessionID,
 								"layer":      thought.Layer.String(),
 								"content":    thought.Content,
-								"metadata":   json.RawMessage("{}"),
 								"created_at": time.Now().UTC(),
-							}
-							demoThoughts = append(demoThoughts, demoThought)
+							})
 						}
 					}
 				}
@@ -1100,16 +1056,17 @@ func main() {
 			responseContent = fmt.Sprintf("I received your message: %s. (No active session)", req.Message)
 		}
 
-		agentMsg := map[string]interface{}{
-			"id":         uuid.New().String(),
-			"session_id": req.SessionID,
-			"role":       "assistant",
-			"content":    responseContent,
-			"created_at": time.Now().UTC(),
+		// Save assistant response
+		assistantMsg := &db.ChatMessage{
+			ID:        uuid.New().String(),
+			AgentID:   session.AgentID,
+			Role:      "assistant",
+			Content:   responseContent,
+			CreatedAt: time.Now().UTC(),
 		}
-		demoChats = append(demoChats, agentMsg)
+		database.CreateChatMessage(c.Request.Context(), assistantMsg)
 
-		c.JSON(http.StatusOK, gin.H{"data": []map[string]interface{}{userMsg, agentMsg}})
+		c.JSON(http.StatusOK, gin.H{"data": []interface{}{msg, assistantMsg}})
 	})
 
 	// ============ THOUGHTS (Visualizations) ============
@@ -1117,62 +1074,28 @@ func main() {
 	protected.GET("/thoughts", func(c *gin.Context) {
 		sessionID := c.Query("session_id")
 		if sessionID != "" {
-			var filtered []map[string]interface{}
-			for _, thought := range demoThoughts {
-				if thought["session_id"] == sessionID {
-					filtered = append(filtered, thought)
-				}
+			thoughtsKey := fmt.Sprintf("thoughts:%s", sessionID)
+			thoughts, ok := memoryStore[thoughtsKey].([]map[string]interface{})
+			if !ok {
+				c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+				return
 			}
-			c.JSON(http.StatusOK, gin.H{"data": filtered})
-			return
+			c.JSON(http.StatusOK, gin.H{"data": thoughts})
+		} else {
+			c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
 		}
-		c.JSON(http.StatusOK, gin.H{"data": demoThoughts})
-	})
-
-	// Simulate thought generation
-	protected.POST("/thoughts/simulate", func(c *gin.Context) {
-		var req struct {
-			SessionID string `json:"session_id"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
-			return
-		}
-		// Generate demo thoughts with proper layer names
-		layers := []string{"aspirational", "global_strategy", "agent_model", "executive_function", "cognitive_control", "task_prosecution"}
-		contents := []string{
-			"Evaluating ethical implications: Ensure actions align with core values",
-			"Formulating strategy: High-level plan created",
-			"Updating self-model: Agent state updated",
-			"Managing tasks: Task list managed",
-			"Making decision: Decision made",
-			"Executing: Executed",
-		}
-		for i, layer := range layers {
-			thought := map[string]interface{}{
-				"id":         uuid.New().String(),
-				"session_id": req.SessionID,
-				"layer":      layer,
-				"content":    contents[i],
-				"metadata":   json.RawMessage("{}"),
-				"created_at": time.Now().UTC(),
-			}
-			demoThoughts = append(demoThoughts, thought)
-		}
-		c.JSON(http.StatusOK, gin.H{"data": demoThoughts})
 	})
 
 	// ============ MEMORIES ============
 	// List memories by agent
 	protected.GET("/agents/:id/memories", func(c *gin.Context) {
 		agentID := c.Param("id")
-		var filtered []map[string]interface{}
-		for _, m := range demoMemories {
-			if m["agent_id"] == agentID {
-				filtered = append(filtered, m)
-			}
+		memories, err := database.GetMemoriesByAgent(c.Request.Context(), agentID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get memories"}})
+			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": filtered})
+		c.JSON(http.StatusOK, gin.H{"data": memories})
 	})
 
 	// Create memory for agent
@@ -1195,32 +1118,39 @@ func main() {
 		if req.Importance == 0 {
 			req.Importance = 5
 		}
-		memory := map[string]interface{}{
-			"id":          uuid.New().String(),
-			"agent_id":    agentID,
-			"parent_id":   req.ParentID,
-			"owner_id":    "demo-user-id",
-			"content":     req.Content,
-			"tags":        req.Tags,
+		
+		now := time.Now().UTC()
+		metadata := map[string]interface{}{
+			"tags":       req.Tags,
+			"importance": req.Importance,
 			"memory_type": req.MemoryType,
-			"importance":  req.Importance,
-			"created_at":  time.Now().UTC().Format(time.RFC3339),
-			"updated_at":  time.Now().UTC().Format(time.RFC3339),
+			"parent_id":  req.ParentID,
 		}
-		demoMemories = append(demoMemories, memory)
+		memory := &db.Memory{
+			ID:        uuid.New().String(),
+			AgentID:   agentID,
+			Type:      req.MemoryType,
+			Content:   req.Content,
+			Metadata:  metadata,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+		if err := database.CreateMemory(c.Request.Context(), memory); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create memory"}})
+			return
+		}
 		c.JSON(http.StatusCreated, gin.H{"data": memory})
 	})
 
 	// Get memory
 	protected.GET("/agents/:id/memories/:memoryId", func(c *gin.Context) {
 		memoryID := c.Param("memoryId")
-		for _, m := range demoMemories {
-			if m["id"] == memoryID {
-				c.JSON(http.StatusOK, gin.H{"data": m})
-				return
-			}
+		memory, err := database.GetMemory(c.Request.Context(), memoryID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+		c.JSON(http.StatusOK, gin.H{"data": memory})
 	})
 
 	// Update memory
@@ -1235,102 +1165,84 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		for i, m := range demoMemories {
-			if m["id"] == memoryID {
-				if req.Content != "" {
-					m["content"] = req.Content
-				}
-				if req.Tags != nil {
-					m["tags"] = req.Tags
-				}
-				if req.Importance > 0 {
-					m["importance"] = req.Importance
-				}
-				m["updated_at"] = time.Now().UTC().Format(time.RFC3339)
-				demoMemories[i] = m
-				c.JSON(http.StatusOK, gin.H{"data": m})
-				return
-			}
+		memory, err := database.GetMemory(c.Request.Context(), memoryID)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+		if req.Content != "" {
+			memory.Content = req.Content
+		}
+		if req.Tags != nil {
+			memory.Metadata["tags"] = req.Tags
+		}
+		if req.Importance > 0 {
+			memory.Metadata["importance"] = req.Importance
+		}
+		memory.UpdatedAt = time.Now().UTC()
+		if err := database.UpdateMemory(c.Request.Context(), memory); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to update memory"}})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": memory})
 	})
 
 	// Delete memory
 	protected.DELETE("/agents/:id/memories/:memoryId", func(c *gin.Context) {
 		memoryID := c.Param("memoryId")
-		for i, m := range demoMemories {
-			if m["id"] == memoryID {
-				demoMemories = append(demoMemories[:i], demoMemories[i+1:]...)
-				c.JSON(http.StatusOK, gin.H{"message": "Memory deleted"})
-				return
-			}
+		if err := database.DeleteMemory(c.Request.Context(), memoryID); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Memory not found"}})
+		c.JSON(http.StatusOK, gin.H{"message": "Memory deleted"})
 	})
 
 	// Search memories
 	protected.GET("/agents/:id/memories/search", func(c *gin.Context) {
 		agentID := c.Param("id")
 		query := c.Query("q")
-		tags := c.Query("tags")
 		
-		var filtered []map[string]interface{}
-		tagMap := make(map[string]bool)
-		if tags != "" {
-			for _, t := range splitAndTrim(tags) {
-				tagMap[t] = true
-			}
+		var memories []db.Memory
+		var err error
+		
+		if query != "" {
+			memories, err = database.SearchMemories(c.Request.Context(), agentID, query)
+		} else {
+			memories, err = database.GetMemoriesByAgent(c.Request.Context(), agentID)
 		}
 		
-		for _, m := range demoMemories {
-			if m["agent_id"] != agentID {
-				continue
-			}
-			// Match query in content
-			if query != "" {
-				content, ok := m["content"].(string)
-				if !ok || !contains(content, query) {
-					continue
-				}
-			}
-			// Match tags
-			if len(tagMap) > 0 {
-				mTags, ok := m["tags"].([]string)
-				if !ok {
-					continue
-				}
-				match := false
-				for _, t := range mTags {
-					if tagMap[t] {
-						match = true
-						break
-					}
-				}
-				if !match {
-					continue
-				}
-			}
-			filtered = append(filtered, m)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to search memories"}})
+			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": filtered})
+		c.JSON(http.StatusOK, gin.H{"data": memories})
 	})
 
 	// ============ LLM PROVIDERS (Settings) ============
 	// List providers
 	protected.GET("/providers", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"data": demoProviders})
+		providers, err := database.GetProviders(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get providers"}})
+			return
+		}
+		// Mask API keys in response
+		for i := range providers {
+			providers[i].APIKey = "***"
+		}
+		c.JSON(http.StatusOK, gin.H{"data": providers})
 	})
 
 	// Get provider
 	protected.GET("/providers/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for _, p := range demoProviders {
-			if p["id"] == id {
-				c.JSON(http.StatusOK, gin.H{"data": p})
-				return
-			}
+		provider, err := database.GetProvider(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+		provider.APIKey = "***"
+		c.JSON(http.StatusOK, gin.H{"data": provider})
 	})
 
 	// Create provider
@@ -1346,25 +1258,27 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		// Store API key in config (not encrypted in demo mode)
-		cfg := map[string]string{
-			"api_key": req.APIKey,
-		}
-		cfgBytes, _ := json.Marshal(cfg)
 		
-		provider := map[string]interface{}{
-			"id":                uuid.New().String(),
-			"owner_id":          "demo-user-id",
-			"name":              req.Name,
-			"provider_type":     req.ProviderType,
-			"api_key_encrypted": "***",
-			"base_url":          req.BaseURL,
-			"default_model":     req.Model,
-			"config":            json.RawMessage(cfgBytes),
-			"created_at":        time.Now().UTC(),
-			"updated_at":        time.Now().UTC(),
+		now := time.Now().UTC()
+		provider := &db.Provider{
+			ID:       uuid.New().String(),
+			Name:     req.Name,
+			Type:     req.ProviderType,
+			APIKey:   req.APIKey,
+			BaseURL:  req.BaseURL,
+			Model:    req.Model,
+			Enabled:  true,
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
-		demoProviders = append(demoProviders, provider)
+		
+		if err := database.CreateProvider(c.Request.Context(), provider); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create provider"}})
+			return
+		}
+		
+		// Mask API key in response
+		provider.APIKey = "***"
 		c.JSON(http.StatusCreated, gin.H{"data": provider})
 	})
 
@@ -1435,34 +1349,62 @@ func main() {
 	// Update provider
 	protected.PUT("/providers/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		var req map[string]interface{}
+		var req struct {
+			Name         string `json:"name"`
+			ProviderType string `json:"provider_type"`
+			APIKey       string `json:"api_key"`
+			BaseURL      string `json:"base_url"`
+			Model        string `json:"model"`
+			Enabled      *bool  `json:"enabled"`
+		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		for i, p := range demoProviders {
-			if p["id"] == id {
-				req["id"] = id
-				req["updated_at"] = time.Now().UTC()
-				demoProviders[i] = req
-				c.JSON(http.StatusOK, gin.H{"data": p})
-				return
-			}
+		
+		provider, err := database.GetProvider(c.Request.Context(), id)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+		
+		if req.Name != "" {
+			provider.Name = req.Name
+		}
+		if req.ProviderType != "" {
+			provider.Type = req.ProviderType
+		}
+		if req.APIKey != "" && req.APIKey != "***" {
+			provider.APIKey = req.APIKey
+		}
+		if req.BaseURL != "" {
+			provider.BaseURL = req.BaseURL
+		}
+		if req.Model != "" {
+			provider.Model = req.Model
+		}
+		if req.Enabled != nil {
+			provider.Enabled = *req.Enabled
+		}
+		provider.UpdatedAt = time.Now().UTC()
+		
+		if err := database.UpdateProvider(c.Request.Context(), provider); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to update provider"}})
+			return
+		}
+		
+		provider.APIKey = "***"
+		c.JSON(http.StatusOK, gin.H{"data": provider})
 	})
 
 	// Delete provider
 	protected.DELETE("/providers/:id", func(c *gin.Context) {
 		id := c.Param("id")
-		for i, p := range demoProviders {
-			if p["id"] == id {
-				demoProviders = append(demoProviders[:i], demoProviders[i+1:]...)
-				c.JSON(http.StatusOK, gin.H{"message": "Provider deleted"})
-				return
-			}
+		if err := database.DeleteProvider(c.Request.Context(), id); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+			return
 		}
-		c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Provider not found"}})
+		c.JSON(http.StatusOK, gin.H{"message": "Provider deleted"})
 	})
 
 	// ============ AGENT SETTINGS ============

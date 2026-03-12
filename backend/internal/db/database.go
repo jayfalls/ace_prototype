@@ -58,6 +58,14 @@ type Database interface {
 	CreateChatMessage(ctx context.Context, msg *ChatMessage) error
 	GetChatMessages(ctx context.Context, agentID string, limit int) ([]ChatMessage, error)
 
+	// Sessions
+	CreateSession(ctx context.Context, session *Session) error
+	GetSession(ctx context.Context, id string) (*Session, error)
+	GetSessions(ctx context.Context, agentID string) ([]Session, error)
+	GetSessionsByUser(ctx context.Context, userID string) ([]Session, error)
+	UpdateSession(ctx context.Context, session *Session) error
+	DeleteSession(ctx context.Context, id string) error
+
 	Close() error
 }
 
@@ -80,8 +88,19 @@ type Agent struct {
 	Config      map[string]interface{} `json:"config"`
 	Model       string                 `json:"model"`
 	Provider    string                 `json:"provider"`
+	Status      string                 `json:"status"`
 	CreatedAt   time.Time              `json:"created_at"`
 	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+// Session represents a session in the system
+type Session struct {
+	ID        string    `json:"id"`
+	AgentID   string    `json:"agent_id"`
+	UserID    string    `json:"user_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Memory represents a memory in the system
@@ -170,6 +189,7 @@ func (db *PostgresDB) migrate(ctx context.Context) error {
 			config JSONB,
 			model VARCHAR(255),
 			provider VARCHAR(255),
+			status VARCHAR(50) DEFAULT 'inactive',
 			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 		)`,
@@ -208,6 +228,14 @@ func (db *PostgresDB) migrate(ctx context.Context) error {
 			role VARCHAR(50) NOT NULL,
 			content TEXT NOT NULL,
 			created_at TIMESTAMP NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS sessions (
+			id UUID PRIMARY KEY,
+			agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
+			user_id UUID REFERENCES users(id),
+			status VARCHAR(50) DEFAULT 'pending',
+			created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMP NOT NULL DEFAULT NOW()
 		)`,
 	}
 
@@ -488,6 +516,65 @@ func (db *PostgresDB) GetChatMessages(ctx context.Context, agentID string, limit
 		messages = append(messages, msg)
 	}
 	return messages, nil
+}
+
+// ============ Sessions ============
+
+func (db *PostgresDB) CreateSession(ctx context.Context, session *Session) error {
+	_, err := db.pool.Exec(ctx,
+		"INSERT INTO sessions (id, agent_id, user_id, status, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)",
+		session.ID, session.AgentID, session.UserID, session.Status, session.CreatedAt, session.UpdatedAt)
+	return err
+}
+
+func (db *PostgresDB) GetSession(ctx context.Context, id string) (*Session, error) {
+	var session Session
+	err := db.pool.QueryRow(ctx, "SELECT id, agent_id, user_id, status, created_at, updated_at FROM sessions WHERE id = $1", id).
+		Scan(&session.ID, &session.AgentID, &session.UserID, &session.Status, &session.CreatedAt, &session.UpdatedAt)
+	return &session, err
+}
+
+func (db *PostgresDB) GetSessions(ctx context.Context, agentID string) ([]Session, error) {
+	rows, err := db.pool.Query(ctx, "SELECT id, agent_id, user_id, status, created_at, updated_at FROM sessions WHERE agent_id = $1 ORDER BY created_at DESC", agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		rows.Scan(&session.ID, &session.AgentID, &session.UserID, &session.Status, &session.CreatedAt, &session.UpdatedAt)
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+func (db *PostgresDB) GetSessionsByUser(ctx context.Context, userID string) ([]Session, error) {
+	rows, err := db.pool.Query(ctx, "SELECT id, agent_id, user_id, status, created_at, updated_at FROM sessions WHERE user_id = $1 ORDER BY created_at DESC", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		rows.Scan(&session.ID, &session.AgentID, &session.UserID, &session.Status, &session.CreatedAt, &session.UpdatedAt)
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+func (db *PostgresDB) UpdateSession(ctx context.Context, session *Session) error {
+	_, err := db.pool.Exec(ctx, "UPDATE sessions SET status = $1, updated_at = $2 WHERE id = $3",
+		session.Status, session.UpdatedAt, session.ID)
+	return err
+}
+
+func (db *PostgresDB) DeleteSession(ctx context.Context, id string) error {
+	_, err := db.pool.Exec(ctx, "DELETE FROM sessions WHERE id = $1", id)
+	return err
 }
 
 // ============ In-Memory Database (MVP) ============

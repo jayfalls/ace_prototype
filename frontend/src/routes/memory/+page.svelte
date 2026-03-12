@@ -21,6 +21,12 @@
 	};
 
 	onMount(async () => {
+		// Check authentication
+		if (!api.getToken()) {
+			goto('/login');
+			return;
+		}
+		
 		agentId = $page.url.searchParams.get('agent') || '';
 		
 		if (!agentId) {

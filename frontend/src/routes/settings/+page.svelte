@@ -25,6 +25,12 @@
 	$: canCreateProvider = newProvider.name && newProvider.api_key && testStatus === 'passed';
 
 	onMount(async () => {
+		// Check authentication
+		if (!api.getToken()) {
+			goto('/login');
+			return;
+		}
+		
 		selectedAgentId = $page.url.searchParams.get('agent') || '';
 		await loadData();
 	});

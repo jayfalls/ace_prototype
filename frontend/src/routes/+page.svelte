@@ -13,6 +13,11 @@
 	let currentSession: Session | null = null;
 
 	onMount(async () => {
+		// Check if authenticated first
+		if (!api.getToken()) {
+			goto('/login');
+			return;
+		}
 		await Promise.all([loadAgents(), loadProviders()]);
 	});
 
