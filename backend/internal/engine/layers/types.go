@@ -450,14 +450,11 @@ func (l *TaskProsecutionLayer) Process(ctx context.Context, input *LayerInput) (
 
 // WireAllLayers wires all layers to the same provider
 func WireAllLayers(engine *Engine, provider llm.Provider, model string) {
-	log.Printf("WireAllLayers: starting for engine=%p, provider=%p", engine, provider)
 	for lt := LayerAspirational; lt <= LayerTaskProsecution; lt++ {
 		layer, ok := engine.GetLayer(lt)
 		if !ok {
 			continue
 		}
-		
-		log.Printf("WireAllLayers: wiring layer %v, current provider=%p", lt, layer.GetLLMProvider())
 		
 		layer.SetConfig(LayerConfig{
 			Model:   model,
@@ -466,7 +463,6 @@ func WireAllLayers(engine *Engine, provider llm.Provider, model string) {
 		
 		if provider != nil {
 			layer.SetLLMProvider(provider)
-			log.Printf("WireAllLayers: set provider for layer %v, new provider=%p", lt, layer.GetLLMProvider())
 		}
 	}
 }
