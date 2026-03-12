@@ -58,6 +58,10 @@ type Database interface {
 	CreateChatMessage(ctx context.Context, msg *ChatMessage) error
 	GetChatMessages(ctx context.Context, agentID string, limit int) ([]ChatMessage, error)
 
+	// Thoughts
+	CreateThought(ctx context.Context, thought *Thought) error
+	GetThoughtsBySession(ctx context.Context, sessionID string) ([]Thought, error)
+
 	// Sessions
 	CreateSession(ctx context.Context, session *Session) error
 	GetSession(ctx context.Context, id string) (*Session, error)
@@ -112,6 +116,16 @@ type Memory struct {
 	Metadata  map[string]interface{} `json:"metadata"`
 	CreatedAt time.Time              `json:"created_at"`
 	UpdatedAt time.Time              `json:"updated_at"`
+}
+
+// Thought represents a thought/trace in the system
+type Thought struct {
+	ID        string                 `json:"id"`
+	SessionID string                 `json:"session_id"`
+	Layer     string                 `json:"layer"`
+	Content   string                 `json:"content"`
+	Metadata  map[string]interface{} `json:"metadata"`
+	CreatedAt time.Time              `json:"created_at"`
 }
 
 // Tool represents a tool in the system
@@ -518,6 +532,35 @@ func (db *PostgresDB) GetChatMessages(ctx context.Context, agentID string, limit
 	return messages, nil
 }
 
+// ============ Thoughts ============
+
+func (db *PostgresDB) CreateThought(ctx context.Context, thought *Thought) error {
+	_, err := db.pool.Exec(ctx,
+		"INSERT INTO thoughts (id, session_id, layer, content, metadata, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+		thought.ID, thought.SessionID, thought.Layer, thought.Content, thought.Metadata, thought.CreatedAt)
+	return err
+}
+
+func (db *PostgresDB) GetThoughtsBySession(ctx context.Context, sessionID string) ([]Thought, error) {
+	rows, err := db.pool.Query(ctx, "SELECT id, session_id, layer, content, metadata, created_at FROM thoughts WHERE session_id = $1 ORDER BY created_at ASC", sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var thoughts []Thought
+	for rows.Next() {
+		var thought Thought
+		var metadata []byte
+		rows.Scan(&thought.ID, &thought.SessionID, &thought.Layer, &thought.Content, &metadata, &thought.CreatedAt)
+		if metadata != nil {
+			json.Unmarshal(metadata, &thought.Metadata)
+		}
+		thoughts = append(thoughts, thought)
+	}
+	return thoughts, nil
+}
+
 // ============ Sessions ============
 
 func (db *PostgresDB) CreateSession(ctx context.Context, session *Session) error {
@@ -585,6 +628,7 @@ type InMemoryDB struct {
 	usersByEmail map[string]*User
 	agents      map[string]*Agent
 	memories    map[string]*Memory
+	thoughts    map[string][]Thought
 	tools       map[string]*Tool
 	providers   map[string]*Provider
 	messages    map[string][]ChatMessage
@@ -860,6 +904,19 @@ func (db *InMemoryDB) GetChatMessages(ctx context.Context, agentID string, limit
 		return messages[:limit], nil
 	}
 	return messages, nil
+}
+
+func (db *InMemoryDB) CreateThought(ctx context.Context, thought *Thought) error {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.thoughts[thought.SessionID] = append(db.thoughts[thought.SessionID], *thought)
+	return nil
+}
+
+func (db *InMemoryDB) GetThoughtsBySession(ctx context.Context, sessionID string) ([]Thought, error) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	return db.thoughts[sessionID], nil
 }
 
 // Helper function

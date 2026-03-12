@@ -1035,19 +1035,16 @@ func main() {
 						log.Printf("Chat handler: thoughts count = %d", len(result.Thoughts))
 					}
 					if err == nil && result != nil && len(result.Thoughts) > 0 {
-						// Store layer thoughts in memory for visualization
-						thoughtsKey := fmt.Sprintf("thoughts:%s", req.SessionID)
-						if memoryStore[thoughtsKey] == nil {
-							memoryStore[thoughtsKey] = []map[string]interface{}{}
-						}
+						// Store layer thoughts in DB for visualization
 						for _, thought := range result.Thoughts {
-							memoryStore[thoughtsKey] = append(memoryStore[thoughtsKey].([]map[string]interface{}), map[string]interface{}{
-								"id":         thought.ID,
-								"session_id": req.SessionID,
-								"layer":      thought.Layer.String(),
-								"content":    thought.Content,
-								"created_at": time.Now().UTC(),
-							})
+							thoughtRecord := &db.Thought{
+								ID:        thought.ID,
+								SessionID: req.SessionID,
+								Layer:     thought.Layer.String(),
+								Content:   thought.Content,
+								CreatedAt: time.Now().UTC(),
+							}
+							database.CreateThought(c.Request.Context(), thoughtRecord)
 						}
 					}
 				}
@@ -1074,10 +1071,9 @@ func main() {
 	protected.GET("/thoughts", func(c *gin.Context) {
 		sessionID := c.Query("session_id")
 		if sessionID != "" {
-			thoughtsKey := fmt.Sprintf("thoughts:%s", sessionID)
-			thoughts, ok := memoryStore[thoughtsKey].([]map[string]interface{})
-			if !ok {
-				c.JSON(http.StatusOK, gin.H{"data": []interface{}{}})
+			thoughts, err := database.GetThoughtsBySession(c.Request.Context(), sessionID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get thoughts: " + err.Error()}})
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"data": thoughts})
