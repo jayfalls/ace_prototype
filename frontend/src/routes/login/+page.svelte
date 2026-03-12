@@ -1,19 +1,22 @@
 <script lang="ts">
 	import { api } from '$lib/api';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let email = '';
 	let password = '';
 	let error = '';
 	let loading = false;
 
+	// Show success message if user just registered
+	$: registered = $page.url.searchParams.get('registered') === 'true';
+
 	async function handleLogin() {
 		loading = true;
 		error = '';
 		try {
 			await api.login(email, password);
-			// Force a page reload to ensure layout picks up the new auth state
-			window.location.reload();
+			goto('/');
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -31,6 +34,10 @@
 
 		<h2>Welcome Back</h2>
 		<p class="subtitle">Sign in to continue</p>
+
+		{#if registered}
+			<div class="success">Account created! Please sign in.</div>
+		{/if}
 
 		{#if error}
 			<div class="error">{error}</div>

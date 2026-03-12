@@ -160,7 +160,9 @@ docker compose ps
 docker compose down -v
 docker compose up -d
 sleep 5
-go run cmd/migrate/main.go
+
+# Run migrations using golang-migrate CLI
+migrate -path backend/db/migrations -database "postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" up
 ```
 
 ### NATS Connection Error

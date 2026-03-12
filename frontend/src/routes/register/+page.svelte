@@ -23,10 +23,10 @@
 		error = '';
 		try {
 			await api.register(email, password, name);
-			// Force a page reload to ensure layout picks up the new auth state
-			window.location.reload();
+			// Registration successful - redirect to login with success message
+			goto('/login?registered=true');
 		} catch (e: any) {
-			error = e.message;
+			error = e.message || 'Registration failed';
 		} finally {
 			loading = false;
 		}
