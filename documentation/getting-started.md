@@ -9,7 +9,46 @@
 git clone https://github.com/jayfalls/ace_prototype.git
 cd ace_prototype
 
+# Copy the example environment file
+cp .env.example .env
+
 # Start all services in development mode
+make up
+```
+
+## Configuration
+
+All configuration is done through the `.env` file. Copy `.env.example` to `.env` and customize as needed:
+
+```bash
+# Example .env file
+CONTAINER_ORCHESTRATOR=docker
+ENVIRONMENT=dev
+
+# Database
+POSTGRES_HOST=ace_db
+POSTGRES_PORT=5432
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=ace
+
+# NATS Broker
+NATS_URL=nats://ace_broker:4222
+
+# Frontend
+VITE_API_URL=http://localhost:8080
+```
+
+### Using Podman
+
+To use podman instead of docker, update your `.env` file:
+
+```bash
+CONTAINER_ORCHESTRATOR=podman
+```
+
+Then run:
+```bash
 make up
 ```
 
