@@ -1,0 +1,72 @@
+services:
+  ace_api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: ace_api
+    ports:
+      - "8080:8080"
+    environment:
+      - POSTGRES_HOST=${POSTGRES_HOST:-ace_db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-ace}
+      - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
+    volumes:
+      - ./api:/app
+    depends_on:
+      - ace_db
+      - ace_broker
+    networks:
+      - ace_network
+
+  ace_fe:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ace_fe
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - ace_api
+    networks:
+      - ace_network
+
+  ace_db:
+    image: postgres:18
+    container_name: ace_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-ace}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ace_network
+
+  ace_broker:
+    image: nats:2.12
+    container_name: ace_broker
+    ports:
+      - "4222:4222"
+    command: ["-js"]
+    volumes:
+      - nats_data:/data
+    networks:
+      - ace_network
+
+networks:
+  ace_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  nats_data:
