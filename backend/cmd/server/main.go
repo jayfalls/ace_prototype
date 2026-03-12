@@ -726,10 +726,20 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		// Build config with provider_id if provided
-		config := map[string]interface{}{}
-		if req.ProviderID != "" {
-			config["provider_id"] = req.ProviderID
+		// Validate: provider_id is required
+		if req.ProviderID == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "provider_id is required"}})
+			return
+		}
+		// Verify provider exists
+		provider, err := database.GetProvider(c.Request.Context(), req.ProviderID)
+		if err != nil || provider == nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": "Invalid provider_id: provider not found"}})
+			return
+		}
+		// Build config with provider_id
+		config := map[string]interface{}{
+			"provider_id": req.ProviderID,
 		}
 		now := time.Now().UTC()
 		agent := &db.Agent{
@@ -1038,7 +1048,7 @@ func main() {
 						// Store layer thoughts in DB for visualization
 						for _, thought := range result.Thoughts {
 							thoughtRecord := &db.Thought{
-								ID:        thought.ID,
+								ID:        thought.ID.String(),
 								SessionID: req.SessionID,
 								Layer:     thought.Layer.String(),
 								Content:   thought.Content,

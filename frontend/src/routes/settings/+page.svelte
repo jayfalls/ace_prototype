@@ -2,6 +2,7 @@
 	import { api, type Agent, type Provider } from '$lib/api';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 
 	let agents: Agent[] = [];
 	let selectedAgentId = '';

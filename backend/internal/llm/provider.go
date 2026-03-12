@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -209,11 +210,29 @@ func (p *OpenAIProvider) GetModels() ([]string, error) {
 func (p *OpenAIProvider) GetProviderType() ProviderType { return ProviderOpenAI }
 
 func (p *OpenAIProvider) TestConnection() error {
-	// Try to call the API with a simple models request
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Try to call the API with a simple chat completion request (validates API key works)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	
-	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	// Use a minimal request to validate the API key
+	model := p.config.Model
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
+	
+	reqBody := map[string]interface{}{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "user", "content": "test"},
+		},
+		"max_tokens": 1,
+	}
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+	
+	req, err := http.NewRequestWithContext(ctx, "POST", p.config.BaseURL+"/chat/completions", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -1106,20 +1125,39 @@ func (p *OpenRouterProvider) GetModels() ([]string, error) {
 
 func (p *OpenRouterProvider) GetProviderType() ProviderType { return ProviderOpenRouter }
 func (p *OpenRouterProvider) TestConnection() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Test with actual chat completion (validates API key works)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", p.config.BaseURL+"/models", nil)
+	
+	// Use a free model for testing
+	model := p.config.Model
+	if model == "" {
+		model = "google/gemma-3n-e4b-it"
+	}
+	
+	reqBody := map[string]interface{}{
+		"model": model,
+		"messages": []map[string]string{
+			{"role": "user", "content": "Hi"},
+		},
+		"max_tokens": 1,
+	}
+	bodyBytes, _ := json.Marshal(reqBody)
+	
+	req, err := http.NewRequestWithContext(ctx, "POST", p.config.BaseURL+"/chat/completions", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+p.config.APIKey)
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := p.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("API returned status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
 	return nil
 }
