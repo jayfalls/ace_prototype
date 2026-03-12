@@ -39,32 +39,35 @@ Units are discrete pieces of work in the ACE Framework. Each unit represents a f
 - Refactoring existing code
 
 **Unit Template Structure**
-Each unit should have a complete set of documentation. The template includes 13 documents:
+Each unit should have a complete set of documentation. The template includes 14 documents:
 1. `BSD.md` - Business Specification Document (what we're building and why)
-2. `FSD.md` - Functional Specification Document (how we'll build it)
-3. `user_stories.md` - User stories and acceptance criteria
-4. `architecture.md` - Technical architecture decisions
-5. `implementation.md` - Implementation plan and details
-6. `security.md` - Security considerations
-7. `design.md` - Visual/UX design specifications
-8. `mockups.md` - Wireframes and mockups
-9. `migration_and_rollback.md` - Database migration and rollback plans
-10. `testing.md` - Testing strategy and test cases
-11. `api.md` - API specifications
-12. `monitoring.md` - Observability requirements
-13. `dependencies.md` - External dependencies
+2. `user_stories.md` - User stories and acceptance criteria
+3. `research.md` - Research and evaluate different approaches before design decisions
+4. `FSD.md` - Functional Specification Document (how we'll build it)
+5. `architecture.md` - Technical architecture decisions
+6. `implementation.md` - Implementation plan and details
+7. `security.md` - Security considerations
+8. `design.md` - Visual/UX design specifications
+9. `mockups.md` - Wireframes and mockups
+10. `migration_and_rollback.md` - Database migration and rollback plans
+11. `testing.md` - Testing strategy and test cases
+12. `api.md` - API specifications
+13. `monitoring.md` - Observability requirements
+14. `dependencies.md` - External dependencies
 
 **Unit Workflow**
 1. Create a new unit by copying the template directory: `cp -r design/units/template design/units/<unit-name>`
-2. Complete ALL planning documents (BSD through dependencies) BEFORE writing any code
-3. Create a PR for the BSD first, then the FSD
+2. Complete ALL planning documents (research through dependencies) BEFORE writing any code
+3. Create a PR for the BSD first, then user_stories, then research
 4. Only begin implementation after all design documents are approved
-5. One document type per PR (e.g., one PR for BSD, one for FSD)
+5. One document type per PR (e.g., one PR for research, one for BSD)
 
 ### Unit Documents
 - **BSD (Business Specification Document)**: Defines the "what" - business case, scope, success criteria. Not the "how" (that's FSD).
+- **User Stories**: Captures user requirements and acceptance criteria.
+- **Research Document**: Research and evaluate different approaches before making design decisions. Includes industry standards, pros/cons analysis, and recommendations.
 - **FSD (Functional Specification Document)**: Defines the "how" - technical implementation details.
-- BSD comes first, then FSD. Each in separate PRs.
+- BSD comes first, then user_stories, then research, then FSD. Each in separate PRs.
 
 ### Coding Best Practices
 
