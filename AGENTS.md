@@ -62,10 +62,29 @@ Each unit should have a complete set of documentation. The template includes 14 
 4. Only begin implementation after all design documents are approved
 5. One document type per PR (e.g., one PR for research, one for BSD)
 
+### Problem Space Discovery (Before BSD)
+**IMPORTANT**: Before starting any BSD, the agent must explore the problem space through a question loop with the user.
+
+1. **Initial Discovery**: Ask clarifying questions to understand:
+   - What problem are we trying to solve?
+   - Who are the users?
+   - What are the success criteria?
+   - What constraints exist (budget, timeline, tech stack)?
+
+2. **Iterative Exploration**: Ask follow-up questions in a loop until the problem space is fully understood:
+   - Clarify ambiguous requirements
+   - Explore edge cases
+   - Identify dependencies and integrations
+   - Understand non-functional requirements (performance, security, scalability)
+
+3. **Document Findings**: The answers form `problem_space.md` which becomes the foundation for the BSD
+
+4. **Do NOT proceed to BSD** until you have a clear understanding of the problem space. It is better to ask more questions than to assume.
+
 ### Unit Documents
 - **BSD (Business Specification Document)**: Defines the "what" - business case, scope, success criteria. Not the "how" (that's FSD).
 - **User Stories**: Captures user requirements and acceptance criteria.
-- **Research Document**: Research and evaluate different approaches before making design decisions. Includes industry standards, pros/cons analysis, and recommendations.
+- **Research Document**: Research and evaluate different approaches before making design decisions. Includes industry standards, pros/cons analysis, and recommendations. **Always perform web searches to determine current industry standards, latest versions, and actively maintained technologies.**
 - **FSD (Functional Specification Document)**: Defines the "how" - technical implementation details.
 - BSD comes first, then user_stories, then research, then FSD. Each in separate PRs.
 
@@ -130,6 +149,14 @@ After any code change is merged:
 ### Commit Messages
 - Use clear, descriptive commit messages
 - Conventional commits are optional but recommended: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
+
+### Technology Recommendations
+When suggesting technologies, libraries, or frameworks:
+1. **Always perform web searches** to find current options
+2. **Provide multiple alternatives** - never recommend just one
+3. **Verify active maintenance** - check GitHub activity, last release date, issue response time
+4. **Recommend latest stable versions** - check for the most recent releases
+5. **Consider community adoption** - look at stars, downloads, and real-world usage
 
 ### Pull Requests
 - Always link PRs to the user once you have created them
