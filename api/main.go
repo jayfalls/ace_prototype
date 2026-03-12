@@ -1,26 +1,30 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	// Simple health check endpoint
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "OK")
+	r := gin.Default()
+
+	// Health check endpoint
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status": "OK",
+		})
 	})
 
 	// Root endpoint
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "ACE API Server")
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "ACE API Server",
+		})
 	})
 
 	log.Println("Starting ACE API server on port 8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := r.Run(":8080"); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }

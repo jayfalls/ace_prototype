@@ -24,8 +24,17 @@ WORKDIR /app
 # Install ca-certificates for HTTPS
 RUN apk --no-cache add ca-certificates
 
+# Create non-root user
+RUN adduser -D -u 1000 appuser
+
 # Copy binary from builder
 COPY --from=builder /ace-api .
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8080
