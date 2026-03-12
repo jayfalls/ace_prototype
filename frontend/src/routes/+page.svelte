@@ -65,7 +65,25 @@
 	}
 
 	async function stopAgent(agent: Agent) {
-		if (!currentSession) return;
+		console.log('Stopping agent:', agent.id, 'session:', currentSession?.id);
+		if (!currentSession) {
+			console.log('No current session, trying to find one');
+			// Try to get the running session for this agent
+			try {
+				const sessions = await api.getSessions(agent.id);
+				const runningSession = sessions.find(s => s.status === 'active' || s.status === 'running');
+				if (runningSession) {
+					console.log('Found running session:', runningSession.id);
+					await api.endSession(runningSession.id);
+				}
+			} catch (e) {
+				console.error('Error finding session:', e);
+			}
+			currentSession = null;
+			runningAgentId = null;
+			agents = agents.map(a => a.id === agent.id ? { ...a, status: 'inactive' } : a);
+			return;
+		}
 		try {
 			await api.endSession(currentSession.id);
 			currentSession = null;
@@ -73,6 +91,7 @@
 			// Update agent status in list
 			agents = agents.map(a => a.id === agent.id ? { ...a, status: 'inactive' } : a);
 		} catch (e: any) {
+			console.error('Error stopping agent:', e);
 			error = e.message;
 		}
 	}
