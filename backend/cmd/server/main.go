@@ -697,7 +697,7 @@ func main() {
 		userID := c.GetString("userID")
 		agents, err := database.GetAgents(c.Request.Context(), userID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get agents"}})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get agents: " + err.Error()}})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": agents})
@@ -742,7 +742,7 @@ func main() {
 			UpdatedAt:   now,
 		}
 		if err := database.CreateAgent(c.Request.Context(), agent); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create agent"}})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create agent: " + err.Error()}})
 			return
 		}
 		c.JSON(http.StatusCreated, gin.H{"data": agent})
@@ -776,7 +776,7 @@ func main() {
 		}
 		agent.UpdatedAt = time.Now().UTC()
 		if err := database.UpdateAgent(c.Request.Context(), agent); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to update agent"}})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to update agent: " + err.Error()}})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": agent})
