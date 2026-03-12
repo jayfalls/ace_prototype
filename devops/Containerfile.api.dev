@@ -7,11 +7,11 @@ RUN go install github.com/air-verse/air@latest
 WORKDIR /app
 
 # Copy go mod files first for better caching
-COPY go.mod go.sum ./
+COPY api/go.mod api/go.sum ./
 RUN go mod download
 
 # Copy source code
-COPY . .
+COPY api/ .
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -o /ace-api .
@@ -32,6 +32,7 @@ ENV GOTOOLCHAIN=local
 # Copy binary from builder
 COPY --from=builder /ace-api .
 COPY --from=builder /go/bin/air /usr/local/bin/air
+COPY --from=builder /app/api/air.toml .
 
 # Create tmp directory for air and change ownership
 RUN mkdir -p /app/tmp
