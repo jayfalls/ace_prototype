@@ -1,9 +1,10 @@
 services:
   ace_api:
     build:
-      context: ./api
-      dockerfile: Dockerfile.prod
+      context: ..
+      dockerfile: devops/Containerfile.api.dev
     container_name: ace_api
+    user: root
     ports:
       - "8080:8080"
     environment:
@@ -13,6 +14,9 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-ace}
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
+    volumes:
+      - ../api:/app:Z
+    command: air -c air.toml
     depends_on:
       - ace_db
       - ace_broker
@@ -21,14 +25,19 @@ services:
 
   ace_fe:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.prod
+      context: ..
+      dockerfile: devops/Containerfile.fe.dev
     container_name: ace_fe
+    user: root
     ports:
       - "5173:5173"
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
-      - NODE_ENV=production
+      - NODE_ENV=development
+    volumes:
+      - ../frontend:/app:Z
+      - /app/node_modules
+    command: npm run dev
     depends_on:
       - ace_api
     networks:

@@ -2,6 +2,9 @@
 # Supports CONTAINER_ORCHESTRATOR environment variable (docker or podman)
 # Supports ENVIRONMENT variable (dev or prod)
 
+# Load .env file if it exists
+-include .env
+
 # Validate CONTAINER_ORCHESTRATOR
 ORCHESTRATOR := $(or $(CONTAINER_ORCHESTRATOR),docker)
 VALID_ORCHESTRATORS := docker podman
@@ -18,7 +21,7 @@ ifeq ($(filter $(ENVIRONMENT),$(VALID_ENVIRONMENTS)),)
 $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
-COMPOSE := $(ORCHESTRATOR) compose -f docker-compose.$(ENVIRONMENT).yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/compose.$(ENVIRONMENT).yml
 
 # Colors
 GREEN := \033[0;32m
