@@ -39,56 +39,54 @@
 </script>
 
 <div class="app">
-	<nav class="sidebar">
-		<div class="logo">
-			<h1>ACE</h1>
-			<span>Framework</span>
-		</div>
-		<ul class="nav-links">
-			<li>
-				<a href="/" class:active={$page.url.pathname === '/'}>
-					<span class="icon">🤖</span>
-					<span>Agents</span>
-				</a>
-			</li>
-			<li>
-				<a href="/chat" class:active={$page.url.pathname.startsWith('/chat')}>
-					<span class="icon">💬</span>
-					<span>Chat</span>
-				</a>
-			</li>
-			<li>
-				<a href="/visualizations" class:active={$page.url.pathname.startsWith('/visualizations')}>
-					<span class="icon">📊</span>
-					<span>Visualizations</span>
-				</a>
-			</li>
-			<li>
-				<a href="/memory" class:active={$page.url.pathname.startsWith('/memory')}>
-					<span class="icon">🧠</span>
-					<span>Memory</span>
-				</a>
-			</li>
-			<li>
-				<a href="/settings" class:active={$page.url.pathname.startsWith('/settings')}>
-					<span class="icon">⚙️</span>
-					<span>Settings</span>
-				</a>
-			</li>
-		</ul>
-		<div class="user-section">
-			{#if user}
+	{#if user}
+		<nav class="sidebar">
+			<div class="logo">
+				<h1>ACE</h1>
+				<span>Framework</span>
+			</div>
+			<ul class="nav-links">
+				<li>
+					<a href="/" class:active={$page.url.pathname === '/'}>
+						<span class="icon">🤖</span>
+						<span>Agents</span>
+					</a>
+				</li>
+				<li>
+					<a href="/chat" class:active={$page.url.pathname.startsWith('/chat')}>
+						<span class="icon">💬</span>
+						<span>Chat</span>
+					</a>
+				</li>
+				<li>
+					<a href="/visualizations" class:active={$page.url.pathname.startsWith('/visualizations')}>
+						<span class="icon">📊</span>
+						<span>Visualizations</span>
+					</a>
+				</li>
+				<li>
+					<a href="/memory" class:active={$page.url.pathname.startsWith('/memory')}>
+						<span class="icon">🧠</span>
+						<span>Memory</span>
+					</a>
+				</li>
+				<li>
+					<a href="/settings" class:active={$page.url.pathname.startsWith('/settings')}>
+						<span class="icon">⚙️</span>
+						<span>Settings</span>
+					</a>
+				</li>
+			</ul>
+			<div class="user-section">
 				<div class="user-info">
 					<span class="user-name">{user.name}</span>
 					<span class="user-email">{user.email}</span>
 				</div>
 				<button class="logout-btn" on:click={logout}>Logout</button>
-			{:else}
-				<a href="/login" class="login-link">Login</a>
-			{/if}
-		</div>
-	</nav>
-	<main class="content">
+			</div>
+		</nav>
+	{/if}
+	<main class="content" class:full-width={!user}>
 		<slot />
 	</main>
 </div>
