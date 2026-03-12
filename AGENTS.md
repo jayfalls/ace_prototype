@@ -197,6 +197,7 @@ When all design documents for a unit have been approved and merged:
    - Detail that the agent must read `design/README.md` and `design/units/<unit-name>/` before starting
    - Reference the relevant unit name and document
    - Include acceptance criteria from the user stories or implementation plan
+   - **IMPORTANT**: Include instruction that the agent MUST respond to the issue with the PR link once created
    - Be small enough to be implemented in a single PR
 4. Create one GitHub issue per micro-PR
 5. After creating all issues, update the changelog with a summary of the issues created

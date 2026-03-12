@@ -4,6 +4,8 @@
 Intent: Define all API endpoints exposed by the feature.
 Scope: REST/GraphQL endpoints, request/response schemas, authentication, and error codes.
 Used by: AI agents to implement and consume the API correctly.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

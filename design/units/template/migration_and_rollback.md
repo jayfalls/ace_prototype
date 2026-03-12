@@ -4,6 +4,8 @@
 Intent: Define database schema changes and rollback procedures.
 Scope: All migrations needed, rollback strategies, and data migration scripts.
 Used by: AI agents to safely modify the database schema and recover from failures.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

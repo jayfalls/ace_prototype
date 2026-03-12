@@ -11,7 +11,9 @@ Guidelines:
 - Include verification step for EACH task
 - Include final integration verification
 - Order tasks logically (dependencies first)
-- NOTE: This file should overwrite any existing implementation.md in the unit
+- This file should overwrite any existing implementation.md in the unit
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Implementation Phases

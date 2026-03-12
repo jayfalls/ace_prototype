@@ -4,6 +4,8 @@
 Intent: Define the business case, scope, and success criteria for a feature.
 Scope: Captures what the feature will and will not do, the problem solved, value delivered, and how to measure success.
 Used by: AI agents to understand the "why" and "what" before diving into implementation details.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Feature Name

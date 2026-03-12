@@ -4,6 +4,8 @@
 Intent: Define the technical implementation details, data models, algorithms, and technical requirements.
 Scope: Complete technical blueprint including interfaces, data structures, logic flows, and edge cases.
 Used by: AI agents to understand exactly "how" to implement the feature.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

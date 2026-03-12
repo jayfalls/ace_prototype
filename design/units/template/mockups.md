@@ -4,6 +4,8 @@
 Intent: Define the visual design and UX for the feature.
 Scope: UI mockups, wireframes, visual specifications, and design assets.
 Used by: AI agents to implement the UI exactly as designed.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## Overview

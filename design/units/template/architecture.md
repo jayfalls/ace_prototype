@@ -4,6 +4,8 @@
 Intent: Define how the feature fits into the overall system architecture.
 Scope: Component diagrams, data flows, integration points, and dependencies on existing systems.
 Used by: AI agents to understand where this feature fits and how it interacts with other parts of the system.
+
+NOTE: Remove this comment block in the final document
 -->
 
 ## High-Level Overview
