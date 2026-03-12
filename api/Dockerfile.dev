@@ -21,8 +21,8 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates and Go for hot reload rebuilds
+RUN apk --no-cache add ca-certificates go
 
 # Copy binary from builder
 COPY --from=builder /ace-api .
