@@ -35,9 +35,11 @@ cd backend
 
 # Install Go dependencies
 go mod tidy
+go install github.com/air-verse/air@latest
+air init
 
 # Start the backend server
-DATABASE_URL="postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" go run cmd/server/main.go
+DATABASE_URL="postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" air
 # Backend runs on http://localhost:8080
 ```
 
