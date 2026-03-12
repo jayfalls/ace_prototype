@@ -15,7 +15,7 @@ services:
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     volumes:
       - ./api:/app
-    command: air
+    command: air -c air.toml
     depends_on:
       - ace_db
       - ace_broker
@@ -51,7 +51,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-ace}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - ace_network
 

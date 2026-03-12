@@ -20,8 +20,8 @@ FROM node:25-alpine
 
 WORKDIR /app
 
-# Create non-root user with a different UID
-RUN adduser -D -u 1001 appuser
+# Create non-root user
+RUN adduser -D -u 1000 appuser
 
 # Copy built application from builder
 COPY --from=builder /app/build ./build
