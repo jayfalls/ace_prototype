@@ -45,6 +45,7 @@ ace_broker - NATS messaging (port 4222)
 
 ### Container Orchestration
 - CONTAINER_ORCHESTRATOR env var for docker/podman selection
+- **Validation**: Must be either "docker" or "podman" (validate in Makefile)
 - Makefile wraps compose commands
 - Consistent command interface regardless of runtime
 
@@ -64,7 +65,7 @@ ace_broker - NATS messaging (port 4222)
 
 ### Messaging
 - NATS official image
-- No persistence in dev (in-memory)
+- Persistence enabled in dev (mimics prod)
 
 ## Future-Ready Scaffolding
 
