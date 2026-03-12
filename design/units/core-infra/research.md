@@ -9,6 +9,8 @@ Containerized development environment setup for Go backend and SvelteKit fronten
 - SvelteKit/Vite has built-in HMR (Hot Module Replacement)
 - Official PostgreSQL and NATS Docker images are widely used
 
+**IMPORTANT**: This research was conducted via web searches to verify current industry standards and latest versions as of March 2026.
+
 ## Alternative Approaches Evaluated
 
 ### Container Runtime: Docker vs Podman
@@ -85,14 +87,15 @@ Containerized development environment setup for Go backend and SvelteKit fronten
 | Configurability | ★★★★★ | ★★★★★ | ★★★★★ | ★★★☆☆ | ★★★★★ |
 
 ## Recommended Approach
-- **Container Runtime**: Docker (with Podman compatibility noted)
+- **Container Runtime**: Docker with CONTAINER_ORCHESTRATOR env var for docker/podman selection
 - **Go Hot Reload**: air
 - **Frontend Hot Reload**: Vite built-in HMR (no additional setup needed)
-- **Database**: PostgreSQL official Docker image
-- **Messaging**: NATS official Docker image
+- **Database**: PostgreSQL official Docker image (latest stable)
+- **Messaging**: NATS official Docker image (latest stable)
 - **Orchestration**: Docker & Podman Compose
-- **Docker Images**: Single Dockerfile with build flags (`--build-arg DEV=true`)
-- **Security**: Rootless by default - all containers run as non-root appuser from the start
+- **Docker Images**: Single Dockerfile (use build args for dev-specific features)
+- **Service Naming**: ace_ prefix (ace_api, ace_fe, ace_db, ace_broker)
+- **Dev=Prod**: Same base images for dev and production
 
 ## Rationale
 1. Docker is the industry standard with the largest ecosystem and community support

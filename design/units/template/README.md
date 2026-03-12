@@ -17,28 +17,30 @@ To create a new unit:
 
 ## Template Documents
 
-- [bsd.md](bsd.md)
-- [user_stories.md](user_stories.md)
-- [research.md](research.md)
-- [fsd.md](fsd.md)
-- [architecture.md](architecture.md)
-- [implementation.md](implementation.md)
-- [security.md](security.md)
-- [design.md](design.md)
-- [mockups.md](mockups.md)
-- [migration_and_rollback.md](migration_and_rollback.md)
-- [testing.md](testing.md)
-- [api.md](api.md)
-- [monitoring.md](monitoring.md)
-- [dependencies.md](dependencies.md)
+- [problem_space.md](problem_space.md) - Problem space exploration through questions (MUST complete before BSD)
+- [bsd.md](bsd.md) - Business Specification Document
+- [user_stories.md](user_stories.md) - User stories and acceptance criteria
+- [research.md](research.md) - Research and evaluate different approaches
+- [fsd.md](fsd.md) - Functional Specification Document
+- [architecture.md](architecture.md) - Technical architecture decisions
+- [implementation.md](implementation.md) - Implementation plan and details
+- [security.md](security.md) - Security considerations
+- [design.md](design.md) - Visual/UX design specifications
+- [mockups.md](mockups.md) - Wireframes and mockups
+- [migration_and_rollback.md](migration_and_rollback.md) - Database migration and rollback plans
+- [testing.md](testing.md) - Testing strategy and test cases
+- [api.md](api.md) - API specifications
+- [monitoring.md](monitoring.md) - Observability requirements
+- [dependencies.md](dependencies.md) - External dependencies
 
 ## Recommended Workflow
 
-1. Start with **bsd.md** to define the business case
-2. Create **user_stories.md** to capture user requirements
-3. Conduct **research.md** to evaluate different approaches and make informed design decisions
-4. Write **fsd.md** for technical details
-5. Design **architecture.md** for system integration
-6. Plan **implementation.md** for execution
-7. Document **security.md** considerations
-8. Complete remaining documents as needed
+1. Start with **problem_space.md** to explore the problem through questions (REQUIRED)
+2. Create **bsd.md** to define the business case
+3. Create **user_stories.md** to capture user requirements
+4. Conduct **research.md** to evaluate different approaches and make informed design decisions
+5. Write **fsd.md** for technical details
+6. Design **architecture.md** for system integration
+7. Plan **implementation.md** for execution
+8. Document **security.md** considerations
+9. Complete remaining documents as needed

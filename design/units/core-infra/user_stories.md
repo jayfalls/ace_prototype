@@ -39,10 +39,10 @@
 **So that** I can start implementing data models
 
 **Acceptance Criteria:**
-- [ ] PostgreSQL container is running and accessible
+- [ ] ace_db (PostgreSQL) container is running and accessible
 - [ ] Backend can establish connection using environment variables
 - [ ] Connection string is documented
-- [ ] Database is initialized with schema if needed
+- [ ] Database is initialized with schema if needed (auto migrations)
 
 ## User Story 5: Backend Connects to NATS
 **As a** backend developer  
@@ -50,7 +50,7 @@
 **So that** I can implement event-driven architecture
 
 **Acceptance Criteria:**
-- [ ] NATS container is running and accessible
+- [ ] ace_broker (NATS) container is running and accessible
 - [ ] Backend can establish connection using environment variables
 - [ ] Connection string is documented
 - [ ] Test message can be published and subscribed
@@ -76,3 +76,44 @@
 - [ ] Run `docker compose up`
 - [ ] All services start without errors
 - [ ] Complete process takes less than 10 minutes
+
+## User Story 8: Data Persists Between Restarts
+**As a** developer  
+**I want my data to persist between container restarts  
+**So that** I don't lose work when restarting services
+
+**Acceptance Criteria:**
+- [ ] PostgreSQL data persists via named volumes
+- [ ] Data survives `make down` and `make up`
+- [ ] Data survives container recreation
+
+## User Story 9: Choose Between Docker and Podman
+**As a** developer  
+**I want to** choose my container runtime  
+**So that** I can use my preferred tool
+
+**Acceptance Criteria:**
+- [ ] Set CONTAINER_ORCHESTRATOR env var to "docker" or "podman"
+- [ ] Make commands use the specified orchestrator
+- [ ] Works on Linux, macOS, Windows
+
+## User Story 10: AI Agent Can Run Tasks
+**As an** AI agent  
+**I want to** execute specific tasks easily  
+**So that** I can contribute to development
+
+**Acceptance Criteria:**
+- [ ] Make targets have clear, machine-readable names
+- [ ] Logs are readable and informative
+- [ ] Can run individual services for testing
+- [ ] Code structure is agent-friendly (clear files, documentation)
+
+## User Story 11: Dev Environment Mirrors Production
+**As a** developer  
+**I want** dev to use the same base images as production  
+**So that** what I develop works the same in production
+
+**Acceptance Criteria:**
+- [ ] Same base Docker images in dev and prod
+- [ ] Same environment variable structure
+- [ ] Same service names and ports
