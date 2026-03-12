@@ -181,6 +181,10 @@ When suggesting technologies, libraries, or frameworks:
 - Always respond to comments you've addressed, explaining the fix or reasoning
 - **PR Descriptions**: Include clear description of changes, test results, and any relevant context
 - **Post-Merge Changelog**: After a PR is merged, immediately update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes
+- **Documentation Requirement**: After creating a PR AND after addressing any PR comments, always update the documentation:
+  - Add or update relevant documentation files in `documentation/` if needed
+  - Update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the changes made
+  - This applies to both initial PR creation and follow-up commits addressing comments
 
 ### Post-Merge Workflow
 After any PR is merged (whether documentation or code):
