@@ -1,13 +1,8 @@
 <script lang="ts">
-	import { api, type Agent, type Provider } from '$lib/api';
+	import { api, type Provider } from '$lib/api';
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 
-	let agents: Agent[] = [];
-	let selectedAgentId = '';
-	let agent: Agent | null = null;
-	let settings: { key: string; value: string }[] = [];
 	let providers: Provider[] = [];
 	let loading = false;
 	let error = '';
@@ -22,7 +17,6 @@
 	let testStatus: 'idle' | 'testing' | 'passed' | 'failed' = 'idle';
 	let testError = '';
 
-	$: hasRunningAgent = agents.some((a) => a.status === 'running');
 	$: canCreateProvider = newProvider.name && newProvider.api_key && testStatus === 'passed';
 
 	onMount(async () => {
@@ -32,7 +26,6 @@
 			return;
 		}
 		
-		selectedAgentId = $page.url.searchParams.get('agent') || '';
 		await loadData();
 	});
 
@@ -41,31 +34,6 @@
 		error = '';
 		try {
 			providers = await api.getProviders();
-			agents = await api.getAgents();
-			
-			// Only fetch settings if an agent is selected
-			if (selectedAgentId) {
-				const found = agents.find((a) => a.id === selectedAgentId);
-				if (found) {
-					agent = found;
-					settings = await api.getAgentSettings(selectedAgentId);
-				} else {
-					error = 'Agent not found';
-				}
-			}
-		} catch (e: any) {
-			error = e.message;
-		} finally {
-			loading = false;
-		}
-	}
-
-	async function updateSettings() {
-		if (!selectedAgentId) return;
-		loading = true;
-		try {
-			await api.updateAgentSettings(selectedAgentId, settings);
-			alert('Settings saved!');
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -136,11 +104,6 @@
 			error = e.message;
 		}
 	}
-
-	function getSettingValue(key: string, defaultValue: string): string {
-		const found = settings.find((s) => s.key === key);
-		return found ? found.value : defaultValue;
-	}
 </script>
 
 <div class="page">
@@ -156,47 +119,10 @@
 		<div class="loading">Loading...</div>
 	{:else}
 		<div class="settings-grid">
-			{#if agent}
-				<div class="card">
-					<h2>Agent Configuration</h2>
-					<div class="form-group">
-						<label>Agent Name</label>
-						<input type="text" bind:value={agent.name} disabled />
-					</div>
-					<div class="form-group">
-						<label>Description</label>
-						<textarea bind:value={agent.description} rows="3"></textarea>
-					</div>
-					<div class="form-group">
-						<label>Status</label>
-						<input type="text" value={agent.status} disabled />
-					</div>
-				</div>
-			{/if}
-
-			{#if settings.length > 0}
-				<div class="card">
-					<h2>Agent Settings</h2>
-					{#each settings as setting}
-						<div class="form-group">
-							<label>{setting.key}</label>
-							<input type="text" bind:value={setting.value} />
-						</div>
-					{/each}
-					<button on:click={updateSettings} disabled={loading}>
-						{loading ? 'Saving...' : 'Save Settings'}
-					</button>
-				</div>
-			{/if}
-
 			<div class="card providers">
 				<div class="card-header">
 					<h2>LLM Providers</h2>
-					{#if hasRunningAgent}
-						<span class="warning-text">Stop all agents to modify providers</span>
-					{:else}
-						<button class="add" on:click={() => { showProviderModal = true; testStatus = 'idle'; testError = ''; }}>+ Add Provider</button>
-					{/if}
+					<button class="add" on:click={() => { showProviderModal = true; testStatus = 'idle'; testError = ''; }}>+ Add Provider</button>
 				</div>
 
 				{#if providers.length === 0}
