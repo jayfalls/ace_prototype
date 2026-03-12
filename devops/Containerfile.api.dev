@@ -32,7 +32,7 @@ ENV GOTOOLCHAIN=local
 # Copy binary from builder
 COPY --from=builder /ace-api .
 COPY --from=builder /go/bin/air /usr/local/bin/air
-COPY --from=builder /app/api/air.toml .
+COPY --from=builder /app/air.toml .
 
 # Create tmp directory for air and change ownership
 RUN mkdir -p /app/tmp
