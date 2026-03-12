@@ -70,7 +70,7 @@ This document outlines the technical implementation for the Core Infrastructure 
 ### Frontend Implementation
 
 **Dockerfile.dev:**
-- Based on node:20 (latest stable)
+- Based on node:25 (latest stable)
 - Install dependencies with npm install
 - Run with npm run dev
 - Expose port 5173 (Vite default)
