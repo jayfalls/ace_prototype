@@ -219,9 +219,10 @@
 				<select bind:value={newProvider.provider_type}>
 					<option value="openai">OpenAI</option>
 					<option value="anthropic">Anthropic</option>
-					<option value="google">Google</option>
-					<option value="azure">Azure OpenAI</option>
 					<option value="openrouter">OpenRouter</option>
+					<option value="ollama">Ollama</option>
+					<option value="deepseek">DeepSeek</option>
+					<option value="mistral">Mistral</option>
 				</select>
 			</div>
 			<div class="form-group">
