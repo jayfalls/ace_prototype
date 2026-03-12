@@ -18,8 +18,11 @@
 		base_url: '',
 		model: ''
 	};
+	let testStatus: 'idle' | 'testing' | 'passed' | 'failed' = 'idle';
+	let testError = '';
 
 	$: hasRunningAgent = agents.some((a) => a.status === 'running');
+	$: canCreateProvider = newProvider.name && newProvider.api_key && testStatus === 'passed';
 
 	onMount(async () => {
 		selectedAgentId = $page.url.searchParams.get('agent') || '';
@@ -58,9 +61,10 @@
 		}
 	}
 
-	async function createProvider() {
+	async function testProvider() {
 		if (!newProvider.name || !newProvider.api_key) return;
-		loading = true;
+		testStatus = 'testing';
+		testError = '';
 		try {
 			const testRes = await fetch('/api/v1/providers/test', {
 				method: 'POST',
@@ -82,12 +86,24 @@
 			}
 
 			const testData = await testRes.json();
+			testStatus = 'passed';
 			alert(`✅ Connection successful: ${testData.data.message}`);
+		} catch (e: any) {
+			testStatus = 'failed';
+			testError = e.message;
+		}
+	}
 
+	async function createProvider() {
+		if (!newProvider.name || !newProvider.api_key || testStatus !== 'passed') return;
+		loading = true;
+		try {
 			const provider = await api.createProvider(newProvider);
 			providers = [...providers, provider];
 			showProviderModal = false;
 			newProvider = { name: '', provider_type: 'openai', api_key: '', base_url: '', model: '' };
+			testStatus = 'idle';
+			testError = '';
 		} catch (e: any) {
 			error = e.message;
 		} finally {
@@ -163,7 +179,7 @@
 					{#if hasRunningAgent}
 						<span class="warning-text">Stop all agents to modify providers</span>
 					{:else}
-						<button class="add" on:click={() => (showProviderModal = true)}>+ Add Provider</button>
+						<button class="add" on:click={() => { showProviderModal = true; testStatus = 'idle'; testError = ''; }}>+ Add Provider</button>
 					{/if}
 				</div>
 
@@ -220,10 +236,20 @@
 				<label>Model (optional)</label>
 				<input type="text" bind:value={newProvider.model} placeholder="gpt-4" />
 			</div>
+			{#if testError}
+				<div class="test-error">{testError}</div>
+			{/if}
 			<div class="modal-actions">
 				<button
+					class="test"
+					on:click={testProvider}
+					disabled={!newProvider.name || !newProvider.api_key || testStatus === 'testing'}
+				>
+					{testStatus === 'testing' ? 'Testing...' : testStatus === 'passed' ? '✅ Test Passed' : testStatus === 'failed' ? '🔄 Retry Test' : 'Test Connection'}
+				</button>
+				<button
 					on:click={createProvider}
-					disabled={loading || !newProvider.name || !newProvider.api_key}
+					disabled={loading || !canCreateProvider}
 				>
 					{loading ? 'Creating...' : 'Create Provider'}
 				</button>
@@ -365,6 +391,14 @@
 		background: #059669;
 	}
 
+	button.test {
+		background: #8b5cf6;
+	}
+
+	button.test:hover:not(:disabled) {
+		background: #7c3aed;
+	}
+
 	button.danger {
 		background: #ef4444;
 		padding: 0.5rem 1rem;
@@ -448,6 +482,15 @@
 		font-weight: 600;
 		margin-bottom: 1.5rem;
 		color: #1f2937;
+	}
+
+	.test-error {
+		background: #fee2e2;
+		color: #dc2626;
+		padding: 0.75rem;
+		border-radius: 6px;
+		font-size: 0.875rem;
+		margin-bottom: 1rem;
 	}
 
 	.modal-actions {
