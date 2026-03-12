@@ -80,15 +80,19 @@
 				})
 			});
 
+			const testData = await testRes.json();
+			console.log('Test response:', testData);
+
 			if (!testRes.ok) {
-				const err = await testRes.json();
-				throw new Error(err.error?.message || 'Connection test failed');
+				const err = testData;
+				console.log('Test error:', err);
+				throw new Error(err.error?.message || err.message || 'Connection test failed');
 			}
 
-			const testData = await testRes.json();
 			testStatus = 'passed';
 			alert(`✅ Connection successful: ${testData.data.message}`);
 		} catch (e: any) {
+			console.error('Test exception:', e);
 			testStatus = 'failed';
 			testError = e.message;
 		}
