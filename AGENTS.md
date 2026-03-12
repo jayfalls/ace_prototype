@@ -148,3 +148,24 @@ After any code change is merged:
 - If a user is asking a question in a comment, answer the question before making changes
 - Always respond to comments you've addressed, explaining the fix or reasoning
 - **PR Descriptions**: Include clear description of changes, test results, and any relevant context
+- **Post-Merge Changelog**: After a PR is merged, immediately update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes
+
+### Post-Merge Workflow
+After any PR is merged (whether documentation or code):
+1. Immediately update the relevant changelog file in `documentation/changelogs/<YYYY-MM-DD>.md`
+2. Include the PR title, number, and a brief summary of changes
+3. If it's a design document approval, mark that document as approved in the unit's README
+
+### Unit Completion Workflow
+When all design documents for a unit have been approved and merged:
+1. file_editor the unit's implementation document (implementation.md) to understand the work breakdown
+2. Create detailed GitHub issues that break the implementation into micro-PRs (the smallest divisible units of work)
+3. Each issue should:
+   - Have a clear, focused title describing one specific task
+   - Detail that the agent must read `design/README.md` and `design/units/<unit-name>/` before starting
+   - Reference the relevant unit name and document
+   - Include acceptance criteria from the user stories or implementation plan
+   - Be small enough to be implemented in a single PR
+4. Create one GitHub issue per micro-PR
+5. After creating all issues, update the changelog with a summary of the issues created
+6. Link these issues in the unit's README for tracking
