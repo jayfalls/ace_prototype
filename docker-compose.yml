@@ -15,6 +15,7 @@ services:
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     volumes:
       - ./api:/app
+    command: air
     depends_on:
       - ace_db
       - ace_broker
