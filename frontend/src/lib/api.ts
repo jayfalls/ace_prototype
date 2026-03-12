@@ -191,7 +191,7 @@ class ApiClient {
     return this.request<User>('/auth/me');
   }
 
-  async refreshToken(): Promise<{ token: string; expires_in: number }> {
+  async refreshUserToken(): Promise<{ token: string; expires_in: number }> {
     const data = await this.request<{ token: string; expires_in: number }>('/auth/refresh', {
       method: 'POST',
     });

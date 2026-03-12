@@ -39,7 +39,7 @@ go install github.com/air-verse/air@latest
 air init
 
 # Start the backend server
-DATABASE_URL="postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" air
+air
 # Backend runs on http://localhost:8080
 ```
 
