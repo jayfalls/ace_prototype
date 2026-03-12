@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -44,12 +46,74 @@ type JWTClaims struct {
 
 // In-memory stores
 var (
-	users         = make(map[string]*User)
-	userByEmail   = make(map[string]*User)
-	refreshTokens = make(map[string]string) // userID -> refreshToken
-	jwtSecret     = "ace-mvp-secret-key-change-in-production"
-	tokenExpiry   = time.Hour
+	users           = make(map[string]*User)
+	userByEmail     = make(map[string]*User)
+	refreshTokens   = make(map[string]string) // userID -> refreshToken
+	jwtSecret       = "ace-mvp-secret-key-change-in-production"
+	tokenExpiry     = time.Hour
+	agentEngines    = make(map[string]*layers.Engine) // Per-agent engines
+	agentLLMConfigs = make(map[string]map[string]string) // agentID -> LLM config
+	enginesMu       sync.RWMutex
+	memoryStore     = make(map[string]interface{}) // session memory store (global memory)
 )
+
+// Helper function to create and start an agent engine
+func createAgentEngine(agentID string, providerType llm.ProviderType, apiKey, baseURL, model string) *layers.Engine {
+	id, _ := uuid.Parse(agentID)
+	engine := layers.NewEngine(id, nil)
+	
+	// If LLM config provided, wire the layers
+	if apiKey != "" {
+		llmConfig := llm.Config{
+			APIKey:     apiKey,
+			BaseURL:    baseURL,
+			Model:      model,
+			MaxRetries: 3,
+			Timeout:    30,
+		}
+		provider, err := llm.NewProvider(providerType, llmConfig)
+		if err == nil {
+			if p, ok := provider.(llm.Provider); ok {
+				layers.WireAllLayers(engine, p, model)
+				log.Printf("Wired LLM provider to agent %s", agentID)
+			}
+		} else {
+			log.Printf("Failed to create LLM provider for agent %s: %v", agentID, err)
+		}
+	}
+	
+	// Start the engine in background
+	go func() {
+		ctx := context.Background()
+		engine.Start(ctx)
+	}()
+	
+	return engine
+}
+
+// GetAgentEngine returns the engine for an agent
+func getAgentEngine(agentID string) *layers.Engine {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	return agentEngines[agentID]
+}
+
+// SetAgentEngine sets the engine for an agent
+func setAgentEngine(agentID string, engine *layers.Engine) {
+	enginesMu.Lock()
+	defer enginesMu.Unlock()
+	agentEngines[agentID] = engine
+}
+
+// RemoveAgentEngine removes the engine for an agent
+func removeAgentEngine(agentID string) {
+	enginesMu.Lock()
+	defer enginesMu.Unlock()
+	if engine, ok := agentEngines[agentID]; ok {
+		engine.Stop()
+		delete(agentEngines, agentID)
+	}
+}
 
 func main() {
 	// Load configuration
@@ -772,6 +836,34 @@ func main() {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "Agent not found"}})
 			return
 		}
+		
+		// Get LLM config for this agent (from provider settings)
+		enginesMu.RLock()
+		llmConfig, hasConfig := agentLLMConfigs[req.AgentID]
+		enginesMu.RUnlock()
+		
+		var providerType llm.ProviderType = llm.ProviderOpenAI
+		apiKey, baseURL, model := "", "", "gpt-4"
+		
+		if hasConfig {
+			if p, ok := llmConfig["provider_type"]; ok {
+				providerType = llm.ProviderType(p)
+			}
+			apiKey = llmConfig["api_key"]
+			baseURL = llmConfig["base_url"]
+			model = llmConfig["model"]
+		} else if cfg.LLM.APIKey != "" {
+			// Fall back to global config
+			apiKey = cfg.LLM.APIKey
+			baseURL = cfg.LLM.BaseURL
+			model = cfg.LLM.DefaultModel
+			providerType = llm.ProviderType(cfg.LLM.Provider)
+		}
+		
+		// Create and start the agent engine
+		engine := createAgentEngine(req.AgentID, providerType, apiKey, baseURL, model)
+		setAgentEngine(req.AgentID, engine)
+		
 		session := map[string]interface{}{
 			"id":         uuid.New().String(),
 			"agent_id":   req.AgentID,
@@ -801,7 +893,7 @@ func main() {
 				session["status"] = "ended"
 				session["ended_at"] = now
 				demoSessions[i] = session
-				// Update agent status
+				// Update agent status and stop engine
 				if agentID, ok := session["agent_id"].(string); ok {
 					for j, a := range demoAgents {
 						if a["id"] == agentID {
@@ -810,6 +902,8 @@ func main() {
 							break
 						}
 					}
+					// Stop the agent engine
+					removeAgentEngine(agentID)
 				}
 				c.JSON(http.StatusOK, gin.H{"data": session})
 				return
@@ -835,7 +929,7 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{"data": demoChats})
 	})
 
-	// Send chat message
+	// Send chat message - goes to global memory, Chat Loop generates response
 	protected.POST("/chats", func(c *gin.Context) {
 		var req struct {
 			SessionID string `json:"session_id"`
@@ -853,17 +947,104 @@ func main() {
 			"created_at": time.Now().UTC(),
 		}
 		demoChats = append(demoChats, userMsg)
-		
-		// Simulate agent response
+
+		// Store in global memory (simulated memory store)
+		sessionMemKey := fmt.Sprintf("memory:%s", req.SessionID)
+		if memoryStore[sessionMemKey] == nil {
+			memoryStore[sessionMemKey] = []map[string]interface{}{}
+		}
+		memoryStore[sessionMemKey] = append(memoryStore[sessionMemKey].([]map[string]interface{}), map[string]interface{}{
+			"type":    "chat_message",
+			"role":    "user",
+			"content": req.Message,
+			"time":    time.Now().UTC(),
+		})
+
+		// Find session and get agent
+		var agentID string
+		for _, s := range demoSessions {
+			if s["id"] == req.SessionID {
+				agentID, _ = s["agent_id"].(string)
+				break
+			}
+		}
+
+		var responseContent string
+
+		// Chat Loop generates fast response from global memory (NOT from layers)
+		if agentID != "" {
+			// Read chat history from memory
+			mem := memoryStore[sessionMemKey]
+			var chatHistory string
+			if mem != nil {
+				for _, m := range mem.([]map[string]interface{}) {
+					if m["type"] == "chat_message" {
+						chatHistory += fmt.Sprintf("%s: %s\n", m["role"], m["content"])
+					}
+				}
+			}
+
+			// Chat Loop response - fast path from global memory
+			if chatHistory != "" {
+				responseContent = fmt.Sprintf("Chat Loop: I received your message \"%s\". Reading from global memory shows our conversation context.", req.Message)
+			} else {
+				responseContent = fmt.Sprintf("Chat Loop: I received your message: %s", req.Message)
+			}
+
+			// Store assistant response in memory
+			memoryStore[sessionMemKey] = append(memoryStore[sessionMemKey].([]map[string]interface{}), map[string]interface{}{
+				"type":    "chat_message",
+				"role":    "assistant",
+				"content": responseContent,
+				"time":    time.Now().UTC(),
+			})
+
+			// TRIGGER LAYER PROCESSING (async) - layers read from memory and process
+			// This is separate from the fast chat response
+			go func() {
+				engine := getAgentEngine(agentID)
+				if engine != nil {
+					ctx := context.Background()
+					result, err := engine.ProcessCycle(ctx, req.Message)
+					if err == nil && result != nil && len(result.Thoughts) > 0 {
+						// Store layer thoughts in memory for visualization
+						thoughtsKey := fmt.Sprintf("thoughts:%s", req.SessionID)
+						if memoryStore[thoughtsKey] == nil {
+							memoryStore[thoughtsKey] = []map[string]interface{}{}
+						}
+						for _, thought := range result.Thoughts {
+							memoryStore[thoughtsKey] = append(memoryStore[thoughtsKey].([]map[string]interface{}), map[string]interface{}{
+								"layer":   thought.Layer.String(),
+								"content": thought.Content,
+								"time":    time.Now().UTC(),
+							})
+							// Also add to demoThoughts for API
+							demoThought := map[string]interface{}{
+								"id":         thought.ID,
+								"session_id": req.SessionID,
+								"layer":      thought.Layer.String(),
+								"content":    thought.Content,
+								"metadata":   json.RawMessage("{}"),
+								"created_at": time.Now().UTC(),
+							}
+							demoThoughts = append(demoThoughts, demoThought)
+						}
+					}
+				}
+			}()
+		} else {
+			responseContent = fmt.Sprintf("I received your message: %s. (No active session)", req.Message)
+		}
+
 		agentMsg := map[string]interface{}{
 			"id":         uuid.New().String(),
 			"session_id": req.SessionID,
 			"role":       "assistant",
-			"content":    "I received your message: " + req.Message + ". This is a demo response from the ACE agent.",
+			"content":    responseContent,
 			"created_at": time.Now().UTC(),
 		}
 		demoChats = append(demoChats, agentMsg)
-		
+
 		c.JSON(http.StatusOK, gin.H{"data": []map[string]interface{}{userMsg, agentMsg}})
 	})
 
@@ -893,13 +1074,15 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
-		// Generate demo thoughts
-		layers := []string{"perception", "reasoning", "action", "reflection"}
+		// Generate demo thoughts with proper layer names
+		layers := []string{"aspirational", "global_strategy", "agent_model", "executive_function", "cognitive_control", "task_prosecution"}
 		contents := []string{
-			"Processing user input: analyzing request",
-			"Evaluating available actions and tools",
-			"Determining optimal response strategy",
-			"Generating final output for user",
+			"Evaluating ethical implications: Ensure actions align with core values",
+			"Formulating strategy: High-level plan created",
+			"Updating self-model: Agent state updated",
+			"Managing tasks: Task list managed",
+			"Making decision: Decision made",
+			"Executing: Executed",
 		}
 		for i, layer := range layers {
 			thought := map[string]interface{}{
@@ -1215,24 +1398,56 @@ func main() {
 	// ============ AGENT SETTINGS ============
 	// Get agent settings
 	protected.GET("/agents/:id/settings", func(c *gin.Context) {
-		_ = c.Param("id")
+		agentID := c.Param("id")
+		
+		// Get provider config if available
+		enginesMu.RLock()
+		llmConfig, hasConfig := agentLLMConfigs[agentID]
+		enginesMu.RUnlock()
+		
 		settings := []map[string]interface{}{
 			{"key": "max_tokens", "value": "2048"},
 			{"key": "temperature", "value": "0.7"},
 			{"key": "top_p", "value": "0.9"},
 			{"key": "provider_id", "value": ""},
 		}
+		
+		if hasConfig {
+			settings = append(settings, map[string]interface{}{
+				"key": "llm_provider", "value": llmConfig["provider_type"],
+			})
+			settings = append(settings, map[string]interface{}{
+				"key": "llm_model", "value": llmConfig["model"],
+			})
+		}
+		
 		c.JSON(http.StatusOK, gin.H{"data": settings})
 	})
 
 	// Update agent settings
 	protected.PUT("/agents/:id/settings", func(c *gin.Context) {
-		_ = c.Param("id")
+		agentID := c.Param("id")
 		var req []map[string]interface{}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
+		
+		// Check for LLM settings and store them
+		for _, setting := range req {
+			key, _ := setting["key"].(string)
+			value, _ := setting["value"].(string)
+			
+			if key == "llm_provider" || key == "llm_model" || key == "llm_api_key" || key == "llm_base_url" {
+				enginesMu.Lock()
+				if agentLLMConfigs[agentID] == nil {
+					agentLLMConfigs[agentID] = make(map[string]string)
+				}
+				agentLLMConfigs[agentID][strings.Replace(key, "llm_", "", 1)] = value
+				enginesMu.Unlock()
+			}
+		}
+		
 		c.JSON(http.StatusOK, gin.H{"data": req, "message": "Settings updated"})
 	})
 
