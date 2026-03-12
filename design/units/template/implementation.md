@@ -4,6 +4,13 @@
 Intent: Define the step-by-step execution plan for building the feature.
 Scope: All implementation tasks, their order, dependencies, and checkpoints.
 Used by: AI agents to execute the feature implementation in a logical order.
+
+Guidelines:
+- Be highly verbose, break down into smallest possible tasks
+- Document WHAT needs to be created, not HOW (implementer figures that out)
+- Include verification step for EACH task
+- Include final integration verification
+- Order tasks logically (dependencies first)
 -->
 
 ## Implementation Phases
