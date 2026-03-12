@@ -4,7 +4,6 @@ This directory contains discrete pieces of work: features, components, refactors
 
 For creating new units, use the [unit template](template/README.md).
 
-## MVP
+## Foundation
 
 - [Architecture](architecture/README.md)
-- [Core Infrastructure](core-infra/README.md)
