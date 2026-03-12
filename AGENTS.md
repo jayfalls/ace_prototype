@@ -62,24 +62,29 @@ Each unit should have a complete set of documentation. The template includes 14 
 4. Only begin implementation after all design documents are approved
 5. One document type per PR (e.g., one PR for research, one for BSD)
 
-### Problem Space Discovery (Before BSD)
-**IMPORTANT**: Before starting any BSD, the agent must explore the problem space through a question loop with the user.
+### Problem Space Discovery (Before Each Document)
+**IMPORTANT**: Before starting any document in a unit, explore the topic with the user through questions.
 
-1. **Initial Discovery**: Ask clarifying questions to understand:
+1. **Question Loop Process**: For each document (BSD, user_stories, research, FSD, architecture, implementation, etc.):
+   - Ask clarifying questions about what's needed for that specific document
+   - Don't assume - ask until you understand
+   - Document the Q&A in the relevant section
+
+2. **Initial Discovery**: Ask clarifying questions to understand:
    - What problem are we trying to solve?
    - Who are the users?
    - What are the success criteria?
    - What constraints exist (budget, timeline, tech stack)?
 
-2. **Iterative Exploration**: Ask follow-up questions in a loop until the problem space is fully understood:
+3. **Iterative Exploration**: Ask follow-up questions in a loop until the problem space is fully understood:
    - Clarify ambiguous requirements
    - Explore edge cases
    - Identify dependencies and integrations
    - Understand non-functional requirements (performance, security, scalability)
 
-3. **Document Findings**: The answers form `problem_space.md` which becomes the foundation for the BSD
+4. **Document Findings**: The answers form the relevant document (problem_space.md, user_stories.md, etc.)
 
-4. **Do NOT proceed to BSD** until you have a clear understanding of the problem space. It is better to ask more questions than to assume.
+5. **Do NOT proceed to writing** until you have a clear understanding. It is better to ask more questions than to assume.
 
 ### Unit Documents
 - **BSD (Business Specification Document)**: Defines the "what" - business case, scope, success criteria. Not the "how" (that's FSD).
