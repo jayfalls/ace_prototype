@@ -3,7 +3,6 @@ package layers
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/ace/framework/backend/internal/llm"
