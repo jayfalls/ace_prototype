@@ -16,13 +16,13 @@
 	let agentThoughts: Thought[] = [];
 
 	onMount(async () => {
-		# Check authentication
-			if (!api.getToken()) {
-				goto('/login');
-				return;
-			}
-			
-			sessionId = $page.url.searchParams.get('session') || '';
+		// Check authentication
+		if (!api.getToken()) {
+			goto('/login');
+			return;
+		}
+		
+		sessionId = $page.url.searchParams.get('session') || '';
 		agentId = $page.url.searchParams.get('agent') || '';
 		
 		if (!sessionId) {

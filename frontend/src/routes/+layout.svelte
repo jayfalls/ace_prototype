@@ -7,27 +7,59 @@
 	import { browser } from '$app/environment';
 
 	let user: { name: string; email: string } | null = null;
+	let loading = true;
+
+	// Public routes that don't require auth
+	const publicRoutes = ['/login', '/register'];
 
 	onMount(async () => {
 		await checkAuth();
+		loading = false;
 	});
 
-	// Check auth whenever page changes
-	$: if (browser && $page.url.pathname) {
+	// Check auth whenever page changes (but not on initial load, handled in onMount)
+	$: if (browser && !loading && $page.url.pathname) {
 		checkAuth();
 	}
 
 	async function checkAuth() {
 		if (!browser) return; // Skip SSR
+		
+		const currentPath = $page.url.pathname;
+		const isPublicRoute = publicRoutes.includes(currentPath);
+		
+		// Already on a public route, don't redirect
+		if (isPublicRoute) {
+			// Still validate token if exists
+			const token = api.getToken();
+			if (token) {
+				try {
+					user = await api.getMe();
+					// If logged in on public route, redirect to home
+					goto('/');
+					return;
+				} catch {
+					user = null;
+				}
+			}
+			return;
+		}
+		
 		const token = api.getToken();
 		if (token) {
 			try {
 				user = await api.getMe();
 			} catch {
 				user = null;
+				// Token invalid, redirect to login
+				goto('/login');
+				return;
 			}
 		} else {
 			user = null;
+			// No token, redirect to login
+			goto('/login');
+			return;
 		}
 	}
 
@@ -39,8 +71,13 @@
 	}
 </script>
 
-<div class="app">
-	{#if user}
+{#if loading}
+	<div class="loading-screen">
+		<div class="spinner"></div>
+	</div>
+{:else}
+	<div class="app">
+		{#if user}
 		<nav class="sidebar">
 			<div class="logo">
 				<h1>ACE</h1>
@@ -92,7 +129,30 @@
 	</main>
 </div>
 
+{/if}
+
 <style>
+	.loading-screen {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 100vh;
+		background: #0f0f1a;
+	}
+
+	.spinner {
+		width: 40px;
+		height: 40px;
+		border: 3px solid #333;
+		border-top-color: #00d9ff;
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		to { transform: rotate(360deg); }
+	}
+
 	.app {
 		display: flex;
 		min-height: 100vh;
