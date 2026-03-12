@@ -86,7 +86,7 @@ func createAgentEngine(agentID string, providerType llm.ProviderType, apiKey, ba
 			log.Printf("Failed to create LLM provider for agent %s: %v", agentID, err)
 		}
 	} else {
-		log.Printf("No API key provided for agent %s, using mock responses", agentID)
+		log.Printf("No API key provided for agent %s, cannot start engine", agentID)
 	}
 	
 	// Start the engine in background
@@ -177,13 +177,13 @@ func main() {
 		}
 		provider, err := llm.NewProvider(providerType, llmConfig)
 		if err != nil {
-			logger.Warn().Err(err).Msgf("Failed to create %s provider, using mock", providerType)
+			logger.Warn().Err(err).Msgf("Failed to create %s provider", providerType)
 		} else {
 			llmProvider = provider.(llm.Provider)
 			logger.Info().Str("provider", string(providerType)).Str("model", cfg.LLM.DefaultModel).Msg("LLM provider configured")
 		}
 	} else {
-		logger.Warn().Msg("No LLM API key configured, using mock responses")
+		logger.Warn().Msg("No LLM API key configured")
 	}
 
 	// Initialize cognitive engine with LLM
@@ -195,7 +195,7 @@ func main() {
 		layers.WireAllLayers(engine, llmProvider, cfg.LLM.DefaultModel)
 		logger.Info().Msg("Cognitive engine ready with LLM provider")
 	} else {
-		logger.Warn().Msg("Running without LLM - using mock layer responses")
+		logger.Warn().Msg("Running without LLM - cognitive engine will not function")
 	}
 
 	// Initialize MCP server

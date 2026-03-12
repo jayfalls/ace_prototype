@@ -313,7 +313,7 @@ func createAgentEngine(agentID string, providerType llm.ProviderType, apiKey, ba
 			log.Printf("Failed to create LLM provider for agent %s: %v", agentID, err)
 		}
 	} else {
-		log.Printf("No API key provided for agent %s, using mock responses", agentID)
+		log.Printf("No API key provided for agent %s, cannot start engine", agentID)
 	}
 
 	// Start the engine in background
