@@ -162,54 +162,76 @@ This phase ensures all services work together correctly.
 | 6.1 | Verify docker-compose.yml has all services | 2.6, 3.8, 4.3, 5.3 |
 | 6.2 | Verify networking between services | 6.1 |
 | 6.3 | Test CONTAINER_ORCHESTRATOR in Makefile | 1.5 |
+| 6.4 | Split Dockerfiles into dev/prod variants | 2.2, 3.2 |
+| 6.5 | Split docker-compose into dev/prod | 6.1 |
+| 6.6 | Add ENVIRONMENT support to Makefile | 1.5 |
+| 6.7 | Fix container startup issues (permissions, volumes) | 6.1 |
 
 #### Deliverables
-- Complete docker-compose.yml
-- Verified service connectivity
-- Makefile with orchestrator support
+- docker-compose.dev.yml for development (hot reload, volume mounts)
+- docker-compose.prod.yml for production (no volumes, optimized images)
+- api/Dockerfile.dev (hot reload with air, root user for volume permissions)
+- api/Dockerfile.prod (pre-built binary, non-root user)
+- frontend/Dockerfile.dev (npm run dev)
+- frontend/Dockerfile.prod (production build, non-root user)
+- Makefile with ENVIRONMENT=dev|prod support
 
 #### Verification
-- [ ] All four services defined in docker-compose.yml
-- [ ] Services on same network
-- [ ] Makefile respects CONTAINER_ORCHESTRATOR
+- [x] All four services defined in docker-compose.dev.yml
+- [x] All four services defined in docker-compose.prod.yml
+- [x] Services on same network
+- [x] Makefile respects CONTAINER_ORCHESTRATOR
+- [x] Makefile respects ENVIRONMENT
+- [x] `make up` starts all services in dev mode
+- [x] `make up ENVIRONMENT=prod` starts all services in prod mode
+- [x] `make down` stops all services
 
 ---
 
 ## Implementation Checklist
 
 ### Foundation
-- [ ] docker-compose.yml created
-- [ ] .env.example created
-- [ ] .gitignore created
-- [ ] Makefile created
+- [x] docker-compose.dev.yml created
+- [x] docker-compose.prod.yml created
+- [x] .env.example created
+- [x] .gitignore created
+- [x] Makefile created
 
 ### API Service
-- [ ] api/Dockerfile created
-- [ ] api/go.mod created
-- [ ] api/main.go created
-- [ ] api/air.toml created
-- [ ] ace_api service in docker-compose.yml
+- [x] api/Dockerfile.dev created (hot reload)
+- [x] api/Dockerfile.prod created (production)
+- [x] api/go.mod created
+- [x] api/main.go created
+- [x] api/air.toml created
+- [x] ace_api service in docker-compose.dev.yml
+- [x] ace_api service in docker-compose.prod.yml
 
 ### Frontend Service
-- [ ] frontend/Dockerfile created
-- [ ] frontend/package.json created
-- [ ] frontend/svelte.config.js created
-- [ ] frontend/vite.config.ts created
-- [ ] frontend/src/ structure created
-- [ ] ace_fe service in docker-compose.yml
+- [x] frontend/Dockerfile.dev created (hot reload)
+- [x] frontend/Dockerfile.prod created (production)
+- [x] frontend/package.json created
+- [x] frontend/svelte.config.js created
+- [x] frontend/vite.config.ts created
+- [x] frontend/src/ structure created
+- [x] ace_fe service in docker-compose.dev.yml
+- [x] ace_fe service in docker-compose.prod.yml
 
 ### Database Service
-- [ ] ace_db service in docker-compose.yml
-- [ ] Named volume configured
+- [x] ace_db service in docker-compose.dev.yml
+- [x] ace_db service in docker-compose.prod.yml
+- [x] Named volume configured
 
 ### Messaging Service
-- [ ] ace_broker service in docker-compose.yml
-- [ ] Persistence configured
+- [x] ace_broker service in docker-compose.dev.yml
+- [x] ace_broker service in docker-compose.prod.yml
+- [x] Persistence configured
 
 ### Integration
-- [ ] All services present in docker-compose.yml
-- [ ] Services can communicate
-- [ ] Makefile commands work
+- [x] All services present in docker-compose.dev.yml
+- [x] All services present in docker-compose.prod.yml
+- [x] Services can communicate
+- [x] Makefile commands work
+- [x] ENVIRONMENT variable supported
 
 ## Verification Commands
 
@@ -217,35 +239,34 @@ Run these commands to verify the implementation:
 
 ```bash
 # Verify docker-compose configuration
-docker compose config
+docker compose -f docker-compose.dev.yml config
+docker compose -f docker-compose.prod.yml config
 
-# Build all images
-docker compose build
+# Development mode (default)
+make up              # Start all services in dev mode
+make down            # Stop all services
+make build           # Build dev images
+make logs            # View logs
 
-# Start all services
-make up
+# Production mode
+make up ENVIRONMENT=prod     # Start all services in prod mode
+make down ENVIRONMENT=prod   # Stop all services
+make build ENVIRONMENT=prod # Build prod images
 
 # Check service status
-docker compose ps
-
-# View logs
-make logs
-
-# Test individual service
-docker compose logs ace_api
-docker compose logs ace_fe
-docker compose logs ace_db
-docker compose logs ace_broker
+docker compose -f docker-compose.dev.yml ps
+docker compose -f docker-compose.prod.yml ps
 
 # Verify networking
 docker network ls
-docker network inspect ace_prototype_default
+docker network inspect ace_prototype_ace_network
 
 # Verify volumes
 docker volume ls
 
 # Clean up
 make clean
+make clean ENVIRONMENT=prod
 ```
 
 ## Rollback Plan
@@ -254,7 +275,8 @@ To rollback the implementation:
 
 1. Run `make clean` to remove all containers and volumes
 2. Remove created files:
-   - docker-compose.yml
+   - docker-compose.dev.yml
+   - docker-compose.prod.yml
    - Makefile
    - .env.example
    - api/ directory

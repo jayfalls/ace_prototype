@@ -1,6 +1,6 @@
 root = "."
 testdata_dir = "testdata"
-tmp_dir = "tmp"
+tmp_dir = "/tmp/ace-api"
 
 [build]
   args_bin = []
