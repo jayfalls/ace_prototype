@@ -1,14 +1,16 @@
 -- Create agents table
-CREATE TABLE agents (
+CREATE TABLE IF NOT EXISTS agents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    name VARCHAR(100) NOT NULL,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
     description TEXT,
     config JSONB DEFAULT '{}',
-    status VARCHAR(20) NOT NULL DEFAULT 'inactive',
+    model VARCHAR(255),
+    provider VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'inactive',
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_agents_owner_id ON agents(owner_id);
-CREATE INDEX idx_agents_status ON agents(status);
+CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id);
+CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
