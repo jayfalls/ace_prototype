@@ -72,6 +72,9 @@ class AgentWebSocket {
 
   private handleMessage(message: any): void {
     switch (message.type) {
+      case 'connected':
+        console.log('Agent connected:', message.data);
+        break;
       case 'thought':
         this.thoughtHandlers.forEach(handler => handler(message.data));
         break;

@@ -52,14 +52,19 @@
 
 	async function startAgent(agent: Agent) {
 		try {
+			console.log('Starting agent:', agent.id);
 			const session = await api.createSession(agent.id);
+			console.log('Session created:', session);
 			currentSession = session;
 			runningAgentId = agent.id;
 			// Update agent status in list
 			agents = agents.map(a => a.id === agent.id ? { ...a, status: 'running' } : a);
 			// Navigate to visualizations to see startup sequence
-			goto(`/visualizations?session=${session.id}&agent=${agent.id}`);
+			const url = `/visualizations?session=${session.id}&agent=${agent.id}`;
+			console.log('Navigating to:', url);
+			goto(url);
 		} catch (e: any) {
+			console.error('Failed to start agent:', e);
 			error = e.message;
 		}
 	}
