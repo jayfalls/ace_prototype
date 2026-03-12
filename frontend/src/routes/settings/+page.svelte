@@ -83,11 +83,12 @@
 		loading = true;
 		try {
 			const provider = await api.createProvider(newProvider);
-			providers = [...providers, provider];
 			showProviderModal = false;
 			newProvider = { name: '', provider_type: 'openai', api_key: '', base_url: '', model: '' };
 			testStatus = 'idle';
 			testError = '';
+			// Reload to get fresh data
+			await loadData();
 		} catch (e: any) {
 			error = e.message;
 		} finally {

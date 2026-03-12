@@ -700,6 +700,9 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get agents: " + err.Error()}})
 			return
 		}
+		if agents == nil {
+			agents = []db.Agent{}
+		}
 		c.JSON(http.StatusOK, gin.H{"data": agents})
 	})
 
@@ -1231,6 +1234,9 @@ func main() {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to get providers"}})
 			return
+		}
+		if providers == nil {
+			providers = []db.Provider{}
 		}
 		// Mask API keys in response
 		for i := range providers {

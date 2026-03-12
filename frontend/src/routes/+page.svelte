@@ -51,11 +51,12 @@
 			return;
 		}
 		try {
-			const agent = await api.createAgent(newAgentName, undefined, selectedProviderId);
-			agents = [...agents, agent];
+			await api.createAgent(newAgentName, undefined, selectedProviderId);
 			newAgentName = '';
 			selectedProviderId = '';
 			showCreateModal = false;
+			// Reload to get fresh data
+			await loadAgents();
 		} catch (e: any) {
 			error = e.message;
 		}
