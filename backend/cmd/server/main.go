@@ -62,6 +62,9 @@ func createAgentEngine(agentID string, providerType llm.ProviderType, apiKey, ba
 	id, _ := uuid.Parse(agentID)
 	engine := layers.NewEngine(id, nil)
 	
+	log.Printf("createAgentEngine: agentID=%s, providerType=%s, apiKey present=%v, baseURL=%s, model=%s", 
+		agentID, providerType, apiKey != "", baseURL, model)
+	
 	// If LLM config provided, wire the layers
 	if apiKey != "" {
 		llmConfig := llm.Config{
@@ -76,10 +79,14 @@ func createAgentEngine(agentID string, providerType llm.ProviderType, apiKey, ba
 			if p, ok := provider.(llm.Provider); ok {
 				layers.WireAllLayers(engine, p, model)
 				log.Printf("Wired LLM provider to agent %s", agentID)
+			} else {
+				log.Printf("Failed to cast provider for agent %s", agentID)
 			}
 		} else {
 			log.Printf("Failed to create LLM provider for agent %s: %v", agentID, err)
 		}
+	} else {
+		log.Printf("No API key provided for agent %s, using mock responses", agentID)
 	}
 	
 	// Start the engine in background
@@ -734,10 +741,18 @@ func main() {
 		var req struct {
 			Name        string `json:"name"`
 			Description string `json:"description"`
+			ProviderID  string `json:"provider_id"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
+		}
+		// Build config with provider_id if provided
+		config := json.RawMessage("{}")
+		if req.ProviderID != "" {
+			cfg := map[string]string{"provider_id": req.ProviderID}
+			configBytes, _ := json.Marshal(cfg)
+			config = json.RawMessage(configBytes)
 		}
 		agent := map[string]interface{}{
 			"id":          uuid.New().String(),
@@ -745,7 +760,7 @@ func main() {
 			"description": req.Description,
 			"status":      "inactive",
 			"owner_id":    "demo-user-id",
-			"config":      json.RawMessage("{}"),
+			"config":      config,
 			"created_at":  time.Now().UTC(),
 			"updated_at":  time.Now().UTC(),
 		}
@@ -837,23 +852,53 @@ func main() {
 			return
 		}
 		
-		// Get LLM config for this agent (from provider settings)
-		enginesMu.RLock()
-		llmConfig, hasConfig := agentLLMConfigs[req.AgentID]
-		enginesMu.RUnlock()
-		
+		// Try to get provider config from agent's provider_id
 		var providerType llm.ProviderType = llm.ProviderOpenAI
 		apiKey, baseURL, model := "", "", "gpt-4"
 		
-		if hasConfig {
-			if p, ok := llmConfig["provider_type"]; ok {
-				providerType = llm.ProviderType(p)
+		// Check agent config for provider_id
+		log.Printf("Session creation: agentID=%s", req.AgentID)
+		if cfg, ok := agent["config"].(json.RawMessage); ok {
+			var cfgMap map[string]interface{}
+			if err := json.Unmarshal(cfg, &cfgMap); err == nil {
+				log.Printf("Session creation: agent config=%v", cfgMap)
+				if providerID, ok := cfgMap["provider_id"].(string); ok && providerID != "" {
+					log.Printf("Session creation: providerID=%s", providerID)
+					// Look up the provider
+					for _, p := range demoProviders {
+						log.Printf("Session creation: checking provider %v", p["id"])
+						if p["id"] == providerID {
+							// Get API key from config - handle both map and json.RawMessage
+							if pcfg, ok := p["config"].(map[string]interface{}); ok {
+								if key, ok := pcfg["api_key"].(string); ok && key != "" {
+									apiKey = key
+								}
+							} else if pcfg, ok := p["config"].(json.RawMessage); ok {
+								var pcfgMap map[string]interface{}
+								if err := json.Unmarshal(pcfg, &pcfgMap); err == nil {
+									if key, ok := pcfgMap["api_key"].(string); ok && key != "" {
+										apiKey = key
+									}
+								}
+							}
+							if bu, ok := p["base_url"].(string); ok {
+								baseURL = bu
+							}
+							if m, ok := p["default_model"].(string); ok && m != "" {
+								model = m
+							}
+							if pt, ok := p["provider_type"].(string); ok {
+								providerType = llm.ProviderType(pt)
+							}
+							break
+						}
+					}
+				}
 			}
-			apiKey = llmConfig["api_key"]
-			baseURL = llmConfig["base_url"]
-			model = llmConfig["model"]
-		} else if cfg.LLM.APIKey != "" {
-			// Fall back to global config
+		}
+		
+		// Fall back to global config if no provider found
+		if apiKey == "" && cfg.LLM.APIKey != "" {
 			apiKey = cfg.LLM.APIKey
 			baseURL = cfg.LLM.BaseURL
 			model = cfg.LLM.DefaultModel
@@ -863,7 +908,7 @@ func main() {
 		// Create and start the agent engine
 		engine := createAgentEngine(req.AgentID, providerType, apiKey, baseURL, model)
 		setAgentEngine(req.AgentID, engine)
-		
+
 		session := map[string]interface{}{
 			"id":         uuid.New().String(),
 			"agent_id":   req.AgentID,
@@ -1002,10 +1047,20 @@ func main() {
 			// TRIGGER LAYER PROCESSING (async) - layers read from memory and process
 			// This is separate from the fast chat response
 			go func() {
+				defer func() {
+					if r := recover(); r != nil {
+						log.Printf("Chat handler: panic in goroutine: %v", r)
+					}
+				}()
 				engine := getAgentEngine(agentID)
+				log.Printf("Chat handler: engine for agent %s = %v", agentID, engine)
 				if engine != nil {
 					ctx := context.Background()
 					result, err := engine.ProcessCycle(ctx, req.Message)
+					log.Printf("Chat handler: ProcessCycle completed, result=%v, err=%v", result != nil, err)
+					if result != nil {
+						log.Printf("Chat handler: thoughts count = %d", len(result.Thoughts))
+					}
 					if err == nil && result != nil && len(result.Thoughts) > 0 {
 						// Store layer thoughts in memory for visualization
 						thoughtsKey := fmt.Sprintf("thoughts:%s", req.SessionID)
@@ -1282,17 +1337,23 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": gin.H{"code": "VALIDATION_ERROR", "message": err.Error()}})
 			return
 		}
+		// Store API key in config (not encrypted in demo mode)
+		cfg := map[string]string{
+			"api_key": req.APIKey,
+		}
+		cfgBytes, _ := json.Marshal(cfg)
+		
 		provider := map[string]interface{}{
-			"id":              uuid.New().String(),
-			"owner_id":        "demo-user-id",
-			"name":            req.Name,
-			"provider_type":   req.ProviderType,
+			"id":                uuid.New().String(),
+			"owner_id":          "demo-user-id",
+			"name":              req.Name,
+			"provider_type":     req.ProviderType,
 			"api_key_encrypted": "***",
-			"base_url":        req.BaseURL,
-			"model":           req.Model,
-			"config":          json.RawMessage("{}"),
-			"created_at":      time.Now().UTC(),
-			"updated_at":      time.Now().UTC(),
+			"base_url":          req.BaseURL,
+			"default_model":     req.Model,
+			"config":            json.RawMessage(cfgBytes),
+			"created_at":        time.Now().UTC(),
+			"updated_at":        time.Now().UTC(),
 		}
 		demoProviders = append(demoProviders, provider)
 		c.JSON(http.StatusCreated, gin.H{"data": provider})

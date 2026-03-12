@@ -1007,7 +1007,6 @@ func NewOpenRouterProvider(config Config) (*OpenRouterProvider, error) {
 }
 
 func (p *OpenRouterProvider) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	_ = ctx
 	baseURL := "https://openrouter.ai/api/v1"
 	if p.config.BaseURL != "" {
 		baseURL = p.config.BaseURL
@@ -1038,7 +1037,10 @@ func (p *OpenRouterProvider) Chat(ctx context.Context, req ChatRequest) (*ChatRe
 	}
 
 	jsonData, _ := json.Marshal(openAIRreq)
-	httpReq, _ := http.NewRequestWithContext(context.Background(), "POST", baseURL+"/chat/completions", strings.NewReader(string(jsonData)))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", baseURL+"/chat/completions", strings.NewReader(string(jsonData)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Authorization", "Bearer "+p.config.APIKey)
 	httpReq.Header.Set("HTTP-Referer", "https://ace-framework.dev")
