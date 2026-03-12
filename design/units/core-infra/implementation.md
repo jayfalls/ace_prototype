@@ -25,13 +25,13 @@ This phase creates the base configuration files and directory structure that oth
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 1.1 | Create root directory structure | None | 5 min |
-| 1.2 | Create docker-compose.yml with all services | None | 15 min |
-| 1.3 | Create .env.example template | None | 5 min |
-| 1.4 | Create .gitignore | None | 5 min |
-| 1.5 | Create Makefile with orchestrator support | None | 15 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 1.1 | Create root directory structure | None |
+| 1.2 | Create docker-compose.yml with all services | None |
+| 1.3 | Create .env.example template | None |
+| 1.4 | Create .gitignore | None |
+| 1.5 | Create Makefile with orchestrator support | None |
 
 #### Deliverables
 - docker-compose.yml defining all four services
@@ -52,14 +52,14 @@ This phase creates the Go backend service with hot reload capability.
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 2.1 | Create api/ directory | Phase 1 | 2 min |
-| 2.2 | Create api/Dockerfile | Phase 1 | 10 min |
-| 2.3 | Create api/go.mod | Phase 1 | 5 min |
-| 2.4 | Create api/main.go (minimal HTTP server) | 2.3 | 10 min |
-| 2.5 | Create api/air.toml for hot reload | 2.2 | 5 min |
-| 2.6 | Add api service to docker-compose.yml | 1.2, 2.2 | 5 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 2.1 | Create api/ directory | Phase 1 |
+| 2.2 | Create api/Dockerfile | Phase 1 |
+| 2.3 | Create api/go.mod | Phase 1 |
+| 2.4 | Create api/main.go (minimal HTTP server) | 2.3 |
+| 2.5 | Create api/air.toml for hot reload | 2.2 |
+| 2.6 | Add api service to docker-compose.yml | 1.2, 2.2 |
 
 #### Deliverables
 - api/Dockerfile - single Dockerfile for dev and prod
@@ -81,16 +81,16 @@ This phase creates the SvelteKit frontend service with hot reload capability.
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 3.1 | Create frontend/ directory | Phase 1 | 2 min |
-| 3.2 | Create frontend/Dockerfile | Phase 1 | 10 min |
-| 3.3 | Create frontend/package.json | Phase 1 | 5 min |
-| 3.4 | Create frontend/svelte.config.js | Phase 1 | 5 min |
-| 3.5 | Create frontend/vite.config.ts | Phase 1 | 5 min |
-| 3.6 | Create frontend/src/app.html (minimal SvelteKit) | 3.3 | 5 min |
-| 3.7 | Create frontend/src/routes/+page.svelte | 3.6 | 5 min |
-| 3.8 | Add frontend service to docker-compose.yml | 1.2, 3.2 | 5 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 3.1 | Create frontend/ directory | Phase 1 |
+| 3.2 | Create frontend/Dockerfile | Phase 1 |
+| 3.3 | Create frontend/package.json | Phase 1 |
+| 3.4 | Create frontend/svelte.config.js | Phase 1 |
+| 3.5 | Create frontend/vite.config.ts | Phase 1 |
+| 3.6 | Create frontend/src/app.html (minimal SvelteKit) | 3.3 |
+| 3.7 | Create frontend/src/routes/+page.svelte | 3.6 |
+| 3.8 | Add frontend service to docker-compose.yml | 1.2, 3.2 |
 
 #### Deliverables
 - frontend/Dockerfile - SvelteKit container
@@ -113,11 +113,11 @@ This phase configures the PostgreSQL database service.
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 4.1 | Add ace_db service to docker-compose.yml | 1.2 | 5 min |
-| 4.2 | Configure PostgreSQL volume for persistence | 4.1 | 2 min |
-| 4.3 | Configure environment variables for ace_db | 4.1 | 2 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 4.1 | Add ace_db service to docker-compose.yml | 1.2 |
+| 4.2 | Configure PostgreSQL volume for persistence | 4.1 |
+| 4.3 | Configure environment variables for ace_db | 4.1 |
 
 #### Deliverables
 - docker-compose.yml with ace_db PostgreSQL service
@@ -135,11 +135,11 @@ This phase configures the NATS messaging service.
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 5.1 | Add ace_broker service to docker-compose.yml | 1.2 | 5 min |
-| 5.2 | Configure NATS persistence (to mimic prod) | 5.1 | 2 min |
-| 5.3 | Configure environment variables for ace_broker | 5.1 | 2 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 5.1 | Add ace_broker service to docker-compose.yml | 1.2 |
+| 5.2 | Configure NATS persistence (to mimic prod) | 5.1 |
+| 5.3 | Configure environment variables for ace_broker | 5.1 |
 
 #### Deliverables
 - docker-compose.yml with ace_broker NATS service
@@ -157,11 +157,11 @@ This phase ensures all services work together correctly.
 
 #### Tasks
 
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 6.1 | Verify docker-compose.yml has all services | 2.6, 3.8, 4.3, 5.3 | 2 min |
-| 6.2 | Verify networking between services | 6.1 | 2 min |
-| 6.3 | Test CONTAINER_ORCHESTRATOR in Makefile | 1.5 | 5 min |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 6.1 | Verify docker-compose.yml has all services | 2.6, 3.8, 4.3, 5.3 |
+| 6.2 | Verify networking between services | 6.1 |
+| 6.3 | Test CONTAINER_ORCHESTRATOR in Makefile | 1.5 |
 
 #### Deliverables
 - Complete docker-compose.yml
@@ -260,11 +260,3 @@ To rollback the implementation:
    - api/ directory
    - frontend/ directory
 3. Restore from git if needed
-
-## Implementation Notes
-
-- All services use named volumes for persistence (dev=prod)
-- CONTAINER_ORCHESTRATOR must be validated in Makefile
-- Each service has specific port exposed to host
-- Services communicate via Docker DNS (service names)
-- Hot reload is configured but will be verified in integration testing

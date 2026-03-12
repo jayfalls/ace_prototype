@@ -11,6 +11,7 @@ Guidelines:
 - Include verification step for EACH task
 - Include final integration verification
 - Order tasks logically (dependencies first)
+- NOTE: This file should overwrite any existing implementation.md in the unit
 -->
 
 ## Implementation Phases
@@ -19,10 +20,10 @@ Guidelines:
 [Description of this phase]
 
 #### Tasks
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 1.1 | [Task description] | [None/Task 1.2] | [Time estimate] |
-| 1.2 | [Task description] | [Task 1.1] | [Time estimate] |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 1.1 | [Task description] | [None/Task 1.2] |
+| 1.2 | [Task description] | [Task 1.1] |
 
 #### Deliverables
 - [Deliverable 1]
@@ -32,10 +33,10 @@ Guidelines:
 [Description of this phase]
 
 #### Tasks
-| Task | Description | Dependencies | Estimate |
-|------|-------------|--------------|----------|
-| 2.1 | [Task description] | [None/Task 1.2] | [Time estimate] |
-| 2.2 | [Task description] | [Task 2.1] | [Time estimate] |
+| Task | Description | Dependencies |
+|------|-------------|--------------|
+| 2.1 | [Task description] | [None/Task 1.2] |
+| 2.2 | [Task description] | [Task 2.1] |
 
 #### Deliverables
 - [Deliverable 1]
