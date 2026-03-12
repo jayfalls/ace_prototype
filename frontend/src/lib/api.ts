@@ -87,17 +87,13 @@ class ApiClient {
   }
 
   getToken(): string | null {
-    if (!this.token) {
-      this.token = localStorage.getItem('access_token');
-    }
-    return this.token;
+    // Always check localStorage - don't cache since it may change
+    return localStorage.getItem('access_token');
   }
 
   getRefreshToken(): string | null {
-    if (!this.refreshToken) {
-      this.refreshToken = localStorage.getItem('refresh_token');
-    }
-    return this.refreshToken;
+    // Always check localStorage - don't cache since it may change
+    return localStorage.getItem('refresh_token');
   }
 
   async refreshAccessToken(): Promise<boolean> {
@@ -115,7 +111,7 @@ class ApiClient {
       
       if (response.ok) {
         const data = await response.json();
-        this.setToken(data.token || data.data?.token);
+        this.setToken(data.access_token || data.data?.access_token);
         return true;
       }
     } catch (e) {
@@ -204,7 +200,10 @@ class ApiClient {
   }
 
   logout() {
-    this.setToken(null);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    this.token = null;
+    this.refreshToken = null;
   }
 
   // ============ AGENTS ============

@@ -55,6 +55,7 @@ var (
 	agentLLMConfigs = make(map[string]map[string]string) // agentID -> LLM config
 	enginesMu       sync.RWMutex
 	memoryStore     = make(map[string]interface{}) // session memory store (global memory)
+	database        db.Database // PostgreSQL database
 )
 
 // Helper function to create and start an agent engine
@@ -135,7 +136,8 @@ func main() {
 
 	// Initialize database (PostgreSQL if configured, otherwise in-memory)
 	ctx := context.Background()
-	database, err := db.NewDatabase(ctx, &cfg.Database)
+	var err error
+	database, err = db.NewDatabase(ctx, &cfg.Database)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to initialize database")
 		os.Exit(1)
@@ -484,8 +486,9 @@ func main() {
 			return
 		}
 		
-		// Check if user exists
-		if _, exists := userByEmail[req.Email]; exists {
+		// Check if user exists in database
+		existingUser, err := database.GetUserByEmail(c.Request.Context(), req.Email)
+		if err == nil && existingUser != nil {
 			c.JSON(http.StatusConflict, gin.H{"error": gin.H{"code": "EMAIL_EXISTS", "message": "Email already registered"}})
 			return
 		}
@@ -497,18 +500,23 @@ func main() {
 			return
 		}
 		
-		user := &User{
-			ID:           uuid.New().String(),
-			Email:        req.Email,
-			Name:         req.Name,
-			PasswordHash: string(hash),
-			CreatedAt:    time.Now().UTC().Format(time.RFC3339),
+		now := time.Now().UTC()
+		user := &db.User{
+			ID:        uuid.New().String(),
+			Email:     req.Email,
+			Name:      req.Name,
+			Password:  string(hash),
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
-		users[user.ID] = user
-		userByEmail[user.Email] = user
+		
+		if err := database.CreateUser(c.Request.Context(), user); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "DB_ERROR", "message": "Failed to create user"}})
+			return
+		}
 		
 		// Generate token
-		token, err := generateToken(user)
+		token, err := generateTokenFromDB(user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
@@ -523,7 +531,7 @@ func main() {
 				"id":         user.ID,
 				"email":      user.Email,
 				"name":       user.Name,
-				"created_at": user.CreatedAt,
+				"created_at": user.CreatedAt.Format(time.RFC3339),
 			},
 			"access_token":  token,
 			"refresh_token": refreshToken,
@@ -542,18 +550,19 @@ func main() {
 			return
 		}
 		
-		user, exists := userByEmail[req.Email]
-		if !exists {
+		// Get user from database
+		user, err := database.GetUserByEmail(c.Request.Context(), req.Email)
+		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Invalid email or password"}})
 			return
 		}
 		
-		if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": gin.H{"code": "INVALID_CREDENTIALS", "message": "Invalid email or password"}})
 			return
 		}
 		
-		token, err := generateToken(user)
+		token, err := generateTokenFromDB(user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
@@ -573,8 +582,8 @@ func main() {
 	// Get current user
 	protected.GET("/auth/me", func(c *gin.Context) {
 		userID := c.GetString("userID")
-		user, exists := users[userID]
-		if !exists {
+		user, err := database.GetUserByID(c.Request.Context(), userID)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "User not found"}})
 			return
 		}
@@ -582,7 +591,7 @@ func main() {
 			"id":         user.ID,
 			"email":      user.Email,
 			"name":       user.Name,
-			"created_at": user.CreatedAt,
+			"created_at": user.CreatedAt.Format(time.RFC3339),
 		}})
 	})
 
@@ -608,13 +617,13 @@ func main() {
 			}
 		}
 
-		user, exists := users[userID]
-		if !exists {
+		user, err := database.GetUserByID(c.Request.Context(), userID)
+		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": gin.H{"code": "NOT_FOUND", "message": "User not found"}})
 			return
 		}
 
-		token, err := generateToken(user)
+		token, err := generateTokenFromDB(user)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": gin.H{"code": "TOKEN_ERROR", "message": "Failed to generate token"}})
 			return
@@ -1546,6 +1555,21 @@ func main() {
 }
 
 func generateToken(user *User) (string, error) {
+	claims := JWTClaims{
+		UserID: user.ID,
+		Email:  user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			NotBefore: jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(jwtSecret))
+}
+
+// generateTokenFromDB generates a JWT token from a db.User
+func generateTokenFromDB(user *db.User) (string, error) {
 	claims := JWTClaims{
 		UserID: user.ID,
 		Email:  user.Email,
