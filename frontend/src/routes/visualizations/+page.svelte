@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { api, type Thought, type Session } from '$lib/api';
 	import { agentWs, type Thought as WsThought } from '$lib/websocket';
+	import { sessionStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -22,8 +23,18 @@
 			return;
 		}
 		
+		// Get session from URL params first, then fall back to store
 		sessionId = $page.url.searchParams.get('session') || '';
 		agentId = $page.url.searchParams.get('agent') || '';
+		
+		// If not in URL, try to get from session store
+		if (!sessionId || !agentId) {
+			const storeState = $sessionStore;
+			if (storeState.sessionId && storeState.agentId) {
+				sessionId = storeState.sessionId;
+				agentId = storeState.agentId;
+			}
+		}
 		
 		if (!sessionId) {
 			error = 'No active session. Please start an agent first.';

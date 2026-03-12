@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, type Agent, type Memory } from '$lib/api';
+	import { sessionStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
@@ -27,10 +28,19 @@
 			return;
 		}
 		
+		// Get agent from URL params first, then fall back to store
 		agentId = $page.url.searchParams.get('agent') || '';
 		
+		// If not in URL, try to get from session store
 		if (!agentId) {
-			error = 'No agent selected. Please select an agent from the main page.';
+			const storeState = $sessionStore;
+			if (storeState.agentId) {
+				agentId = storeState.agentId;
+			}
+		}
+		
+		if (!agentId) {
+			error = 'No agent selected. Please start an agent first.';
 			return;
 		}
 

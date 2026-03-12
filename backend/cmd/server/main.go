@@ -29,6 +29,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// nowFunc provides a way to get current time for testability
+var nowFunc = time.Now
+
+// ServerConfig holds server configuration
+type ServerConfig struct {
+	*config.Config
+}
+
 type User struct {
 	ID           string `json:"id"`
 	Email        string `json:"email"`
@@ -53,7 +61,6 @@ var (
 	agentEngines    = make(map[string]*layers.Engine) // Per-agent engines
 	agentLLMConfigs = make(map[string]map[string]string) // agentID -> LLM config
 	enginesMu       sync.RWMutex
-	memoryStore     = make(map[string]interface{}) // session memory store (global memory)
 	database        db.Database // PostgreSQL database
 )
 
@@ -956,7 +963,7 @@ func main() {
 		}
 	})
 
-	// Send chat message - goes to global memory, Chat Loop generates response
+	// Send chat message - processes through cognitive layers
 	protected.POST("/chats", func(c *gin.Context) {
 		var req struct {
 			SessionID string `json:"session_id"`
@@ -987,83 +994,62 @@ func main() {
 			return
 		}
 
-		// Store in global memory (simulated memory store)
-		sessionMemKey := fmt.Sprintf("memory:%s", req.SessionID)
-		if memoryStore[sessionMemKey] == nil {
-			memoryStore[sessionMemKey] = []map[string]interface{}{}
-		}
-		memoryStore[sessionMemKey] = append(memoryStore[sessionMemKey].([]map[string]interface{}), map[string]interface{}{
-			"type":    "chat_message",
-			"role":    "user",
-			"content": req.Message,
-			"time":    time.Now().UTC(),
-		})
-
 		agentID := session.AgentID
 		var responseContent string
 
-		// Chat Loop generates fast response from global memory (NOT from layers)
+		// Process through cognitive engine
 		if agentID != "" {
-			// Read chat history from memory
-			mem := memoryStore[sessionMemKey]
-			var chatHistory string
-			if mem != nil {
-				for _, m := range mem.([]map[string]interface{}) {
-					if m["type"] == "chat_message" {
-						chatHistory += fmt.Sprintf("%s: %s\n", m["role"], m["content"])
-					}
-				}
-			}
-
-			// Chat Loop response - fast path from global memory
-			if chatHistory != "" {
-				responseContent = fmt.Sprintf("Chat Loop: I received your message \"%s\". Reading from global memory shows our conversation context.", req.Message)
-			} else {
-				responseContent = fmt.Sprintf("Chat Loop: I received your message: %s", req.Message)
-			}
-
-			// Store assistant response in memory
-			memoryStore[sessionMemKey] = append(memoryStore[sessionMemKey].([]map[string]interface{}), map[string]interface{}{
-				"type":    "chat_message",
-				"role":    "assistant",
-				"content": responseContent,
-				"time":    time.Now().UTC(),
-			})
-
-			// TRIGGER LAYER PROCESSING (async) - layers read from memory and process
-			// This is separate from the fast chat response
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Printf("Chat handler: panic in goroutine: %v", r)
-					}
-				}()
-				engine := getAgentEngine(agentID)
-				log.Printf("Chat handler: engine for agent %s = %v", agentID, engine)
-				if engine != nil {
-					ctx := context.Background()
-					result, err := engine.ProcessCycle(ctx, req.Message)
-					log.Printf("Chat handler: ProcessCycle completed, result=%v, err=%v", result != nil, err)
-					if result != nil {
-						log.Printf("Chat handler: thoughts count = %d", len(result.Thoughts))
-					}
-					if err == nil && result != nil && len(result.Thoughts) > 0 {
-						// Store layer thoughts in DB for visualization
-						for _, thought := range result.Thoughts {
-							thoughtRecord := &db.Thought{
-								ID:        thought.ID.String(),
-								SessionID: req.SessionID,
-								Layer:     thought.Layer.String(),
-								Content:   thought.Content,
-								CreatedAt: time.Now().UTC(),
+			engine := getAgentEngine(agentID)
+			log.Printf("Chat handler: engine for agent %s = %v", agentID, engine)
+			
+			if engine != nil {
+				// Process through layers synchronously to get response
+				ctx := context.Background()
+				result, err := engine.ProcessCycle(ctx, req.Message)
+				log.Printf("Chat handler: ProcessCycle completed, result=%v, err=%v", result != nil, err)
+				
+				if err != nil {
+					responseContent = fmt.Sprintf("Error processing message: %v", err)
+				} else if result != nil && len(result.Thoughts) > 0 {
+					// Extract response from layer outputs - use L1 (Aspirational) layer output as the response
+					if output, ok := result.LayerOutputs[layers.LayerAspirational]; ok {
+						if data, ok := output.Data.(map[string]interface{}); ok {
+							if guidance, ok := data["ethical_guidance"].(string); ok {
+								responseContent = fmt.Sprintf("Thought: %s", guidance)
 							}
-							database.CreateThought(c.Request.Context(), thoughtRecord)
 						}
 					}
+					// If no specific response, summarize the thoughts
+					if responseContent == "" {
+						var thoughtSummary string
+						for i, thought := range result.Thoughts {
+							if i > 0 {
+								thoughtSummary += "; "
+							}
+							thoughtSummary += thought.Content
+						}
+						responseContent = thoughtSummary
+					}
+					
+					// Store layer thoughts in DB for visualization
+					for _, thought := range result.Thoughts {
+						thoughtRecord := &db.Thought{
+							ID:        thought.ID.String(),
+							SessionID: req.SessionID,
+							Layer:     thought.Layer.String(),
+							Content:   thought.Content,
+							CreatedAt: time.Now().UTC(),
+						}
+						database.CreateThought(c.Request.Context(), thoughtRecord)
+					}
+				} else {
+					responseContent = "No cognitive response generated. Ensure provider is configured."
 				}
-			}()
+			} else {
+				responseContent = "No active engine for this agent"
+			}
 		} else {
-			responseContent = fmt.Sprintf("I received your message: %s. (No active session)", req.Message)
+			responseContent = "No agent associated with this session"
 		}
 
 		// Save assistant response
@@ -1483,6 +1469,13 @@ func main() {
 	})
 
 	logger.Info().Str("port", cfg.Server.Port).Msg("Starting server")
+
+	// Register route modules
+	serverCfg := &ServerConfig{cfg}
+	RegisterAgentRoutes(router, protected, serverCfg)
+	RegisterProviderRoutes(protected)
+	RegisterSessionRoutes(protected, cfg)
+	RegisterChatRoutes(protected)
 
 	// Create server
 	srv := &http.Server{

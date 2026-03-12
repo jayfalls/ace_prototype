@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { api, type Agent, type Session, type Provider } from '$lib/api';
+	import { sessionStore } from '$lib/stores';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -71,6 +72,8 @@
 			runningAgentId = agent.id;
 			// Update agent status in list
 			agents = agents.map(a => a.id === agent.id ? { ...a, status: 'running' } : a);
+			// Store session in global store
+			sessionStore.setSession(session.id, agent.id);
 			// Navigate to visualizations to see startup sequence
 			const url = `/visualizations?session=${session.id}&agent=${agent.id}`;
 			console.log('Navigating to:', url);

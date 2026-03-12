@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { page } from '$app/stores';
 	import { api } from '$lib/api';
+	import { sessionStore } from '$lib/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
@@ -13,6 +14,8 @@
 	const publicRoutes = ['/login', '/register'];
 
 	onMount(async () => {
+		// Initialize session store from localStorage
+		sessionStore.init();
 		await checkAuth();
 		loading = false;
 	});
