@@ -56,61 +56,65 @@ npm run dev -- --host
 
 ---
 
-## 4. Testing the API
+## 5. Testing the API
 
-### Register and Create Agent
+### Using the Visualization Page (Recommended)
 
-```bash
-# Register a user
-TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"password123","name":"Test User"}' | \
-  jq -r '.data.access_token')
+1. **Start the frontend**:
+   ```bash
+   cd /workspace/project/ace_prototype/frontend
+   npm run dev -- --host
+   # Frontend runs on http://localhost:3000
+   ```
 
-# Create a provider (use your OpenRouter API key)
-PROVIDER_ID=$(curl -s -X POST "http://localhost:8080/api/v1/providers" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"name":"OpenRouter","provider_type":"openrouter","api_key":"YOUR_OPENROUTER_API_KEY","base_url":"https://openrouter.ai/api/v1","model":"openrouter/free"}' | \
-  jq -r '.data.id')
+2. **Create your agent** (from terminal):
+   ```bash
+   # Register and create agent (run all at once)
+   TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"test@test.com","password":"password123","name":"Test User"}' | \
+     jq -r '.data.access_token')
+   
+   PROVIDER_ID=$(curl -s -X POST "http://localhost:8080/api/v1/providers" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"name":"OpenRouter","provider_type":"openrouter","api_key":"YOUR_OPENROUTER_KEY","base_url":"https://openrouter.ai/api/v1","model":"openrouter/free"}' | \
+     jq -r '.data.id')
+   
+   AGENT_ID=$(curl -s -X POST "http://localhost:8080/api/v1/agents" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "{\"name\":\"Test Agent\",\"provider_id\":\"$PROVIDER_ID\"}" | \
+     jq -r '.data.id')
+   
+   SESSION_ID=$(curl -s -X POST "http://localhost:8080/api/v1/sessions" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "{\"agent_id\":\"$AGENT_ID\"}" | \
+     jq -r '.data.id')
+   
+   echo "SESSION_ID: $SESSION_ID"
+   echo "AGENT_ID: $AGENT_ID"
+   ```
 
-# Create an agent
-AGENT_ID=$(curl -s -X POST "http://localhost:8080/api/v1/agents" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"name\":\"Test Agent\",\"provider_id\":\"$PROVIDER_ID\"}" | \
-  jq -r '.data.id')
+3. **Open visualization page**:
+   ```
+   http://localhost:3000/visualizations?session=<SESSION_ID>&agent=<AGENT_ID>
+   ```
 
-# Create a session
-SESSION_ID=$(curl -s -X POST "http://localhost:8080/api/v1/sessions" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"agent_id\":\"$AGENT_ID\"}" | \
-  jq -r '.data.id')
+4. **Send a chat message** (from another terminal):
+   ```bash
+   curl -s -X POST "http://localhost:8080/api/v1/chats" \
+     -H "Authorization: Bearer $TOKEN" \
+     -H "Content-Type: application/json" \
+     -d "{\"session_id\":\"$SESSION_ID\",\"message\":\"What is Python?\"}"
+   ```
 
-echo "Session ID: $SESSION_ID"
-```
-
-### Send a Chat Message
-
-```bash
-# Send a chat message
-curl -s -X POST "http://localhost:8080/api/v1/chats" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"session_id\":\"$SESSION_ID\",\"message\":\"What is Python?\"}"
-
-# Wait for processing
-sleep 5
-
-# Get thoughts from all 6 cognitive layers
-curl -s "http://localhost:8080/api/v1/thoughts?session_id=$SESSION_ID" \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
+5. **Watch** the 6 cognitive layers process your message in real-time!
 
 ---
 
-## 5. Verify LLM Integration
+## 6. Verify LLM Integration
 
 Check the thoughts - you should see real LLM responses from OpenRouter:
 
