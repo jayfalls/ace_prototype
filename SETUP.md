@@ -14,7 +14,7 @@
 cd /workspace/project/ace_prototype
 
 # Start PostgreSQL and NATS
-docker compose up -d
+docker compose up -d postgres nats
 
 # Verify services are running
 docker compose ps
@@ -26,16 +26,18 @@ docker compose ps
 ## 2. Set Up Backend
 
 ```bash
-cd /workspace/project/ace_prototype/backend
+# Run database migrations
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+export PATH=$PATH:$(go env GOPATH)/bin
+migrate -path backend/db/migrations -database "postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" up
+
+cd backend
 
 # Install Go dependencies
 go mod tidy
 
-# Run database migrations
-go run cmd/migrate/main.go
-
 # Start the backend server
-DATABASE_URL="postgres://ace:ace123@localhost:5432/ace_framework?sslmode=disable" go run cmd/server/main.go
+DATABASE_URL="postgres://ace:ace@localhost:5432/ace_framework?sslmode=disable" go run cmd/server/main.go
 # Backend runs on http://localhost:8080
 ```
 
@@ -44,7 +46,7 @@ DATABASE_URL="postgres://ace:ace123@localhost:5432/ace_framework?sslmode=disable
 ## 3. Set Up Frontend (Optional - for UI)
 
 ```bash
-cd /workspace/project/ace_prototype/frontend
+cd frontend
 
 # Install dependencies
 npm install
