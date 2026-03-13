@@ -2,10 +2,20 @@ FROM golang:1.26-alpine
 
 WORKDIR /app
 
-COPY backend/services/api/go.mod backend/services/api/go.sum ./
+# Copy workspace files
+COPY backend/go.work ./
+COPY backend/services/api/go.mod backend/services/api/go.sum ./services/api/
+COPY backend/shared/go.mod ./shared/
+
+# Download dependencies
 RUN go mod download
-RUN go install github.com/air-verse/air@latest
+
+# Copy source code
+COPY backend/services/api/ ./services/api/
+COPY backend/shared/ ./shared/
+
+RUN go build -o /tmp/ace-api ./services/api/cmd/main.go
 
 EXPOSE 8080
 
-CMD ["air", "-c", "air.toml"]
+CMD ["/tmp/ace-api"]
