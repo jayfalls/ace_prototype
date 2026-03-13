@@ -29,7 +29,7 @@ func main() {
 	log.Printf("Connecting to database: %s@%s:%d/%s", cfg.Database.User, cfg.Database.Host, cfg.Database.Port, cfg.Database.DB)
 
 	// Wait for database to be available (with retry)
-	err = repository.WaitForConnection(cfg.Database, 10, 2*time.Second)
+	err = repository.WaitForConnection(&cfg.Database, 10, 2*time.Second)
 	if err != nil {
 		log.Printf("Warning: Could not connect to database: %v", err)
 		log.Printf("Starting server without database connection...")
@@ -38,7 +38,8 @@ func main() {
 	}
 
 	// Create database connection pool
-	db, err := repository.NewDB(&cfg.Database)
+	var db *repository.DB
+	db, err = repository.NewDB(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to create database connection: %v", err)
 	}
