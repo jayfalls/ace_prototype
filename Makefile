@@ -60,7 +60,7 @@ up: ## Start all services in development mode
 	@echo "  - NATS:     localhost:4222"
 
 down: ## Stop all services
-	$(COMPOSE) down
+	$(COMPOSE) down --remove-orphans
 
 logs: ## View aggregated logs for all services
 	$(COMPOSE) logs -f
