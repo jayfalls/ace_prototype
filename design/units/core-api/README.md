@@ -23,8 +23,8 @@ Establish API & DB patterns, structure, tools, and libraries.
 - [x] BSD - Merged
 - [x] User Stories - Merged
 - [x] Research - Merged
-- [x] FSD - In Progress
-- [ ] Architecture - Not Started
+- [x] FSD - Merged
+- [x] Architecture - In Progress
 - [ ] Implementation - Not Started
 
 ## Notes
