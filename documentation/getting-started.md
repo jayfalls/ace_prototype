@@ -30,4 +30,38 @@ Copy `.env.example` to `.env` if you want to customize any settings.
 | `make clean` | Remove all containers and volumes |
 | `make build` | Build all images |
 | `make ps` | Show running containers |
+| `make test` | Run all tests (API + Frontend) |
 | `make help` | Show available commands |
+
+## Services
+
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| API | http://localhost:8080 |
+| PostgreSQL | localhost:5432 |
+| NATS | localhost:4222 |
+
+## Testing
+
+Run all tests in containers:
+```bash
+make test
+```
+
+Run tests individually:
+```bash
+# API tests
+docker exec ace_api go test -v ./...
+
+# Frontend tests
+docker exec ace_fe npm test
+```
+
+## Health Check
+
+Check API and database health:
+```bash
+curl http://localhost:8080/health
+# Returns: {"status":"OK","db":"healthy"}
+```
