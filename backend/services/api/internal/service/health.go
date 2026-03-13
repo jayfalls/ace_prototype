@@ -66,12 +66,22 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 	}
 
 	// Create new record if none exists
-	newHealth, err := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
+	newHealth, createErr := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
 		Status:  "healthy",
 		Message: pgtype.Text{String: "System is operational", Valid: true},
 	})
-	if err != nil {
-		return nil, err
+	if createErr != nil {
+		// Record may already exist (race condition with migration)
+		// Try to fetch again
+		latestHealth, fetchErr := s.queries.GetLatestHealthCheck(ctx)
+		if fetchErr != nil {
+			return nil, createErr
+		}
+		return &HealthStatus{
+			Status:    latestHealth.Status,
+			Message:   latestHealth.Message.String,
+			CheckedAt: latestHealth.CheckedAt.Time,
+		}, nil
 	}
 
 	return &HealthStatus{
