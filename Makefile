@@ -52,7 +52,7 @@ help: ## Show this help message
 
 up: ## Start all services in development mode
 	@echo "$(BLUE)Starting development services with $(ORCHESTRATOR)...$(NC)"
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --force-recreate
 	@echo "$(GREEN)Services started. Access:$(NC)"
 	@echo "  - Frontend: http://localhost:5173"
 	@echo "  - API:      http://localhost:8080"
