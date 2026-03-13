@@ -20,8 +20,8 @@ Establish API & DB patterns, structure, tools, and libraries.
 ## Status
 
 - [x] Problem Space - Merged
-- [x] BSD - In Progress
-- [ ] User Stories - Not Started
+- [x] BSD - Merged
+- [x] User Stories - In Progress
 - [ ] Research - Not Started
 - [ ] FSD - Not Started
 - [ ] Architecture - Not Started
