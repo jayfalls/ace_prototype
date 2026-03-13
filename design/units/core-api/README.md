@@ -21,8 +21,8 @@ Establish API & DB patterns, structure, tools, and libraries.
 
 - [x] Problem Space - Merged
 - [x] BSD - Merged
-- [x] User Stories - In Progress
-- [ ] Research - Not Started
+- [x] User Stories - Merged
+- [x] Research - In Progress
 - [ ] FSD - Not Started
 - [ ] Architecture - Not Started
 - [ ] Implementation - Not Started
