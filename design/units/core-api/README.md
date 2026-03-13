@@ -24,8 +24,8 @@ Establish API & DB patterns, structure, tools, and libraries.
 - [x] User Stories - Merged
 - [x] Research - Merged
 - [x] FSD - Merged
-- [x] Architecture - In Progress
-- [ ] Implementation - Not Started
+- [x] Architecture - Merged
+- [x] Implementation - In Progress
 
 ## Notes
 
