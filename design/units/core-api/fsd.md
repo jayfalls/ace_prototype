@@ -18,7 +18,7 @@ This document outlines the technical implementation for the Core API patterns, s
 
 ### Directory Layout
 ```
-api/
+backend/
 ├── cmd/
 │   └── api/
 │       └── main.go              # Entry point
@@ -44,9 +44,16 @@ api/
 │       └── response.go
 ├── migrations/                   # Database migrations
 │   └── 001_create_example.sql
+├── shared/                      # Shared library module (workspace)
+│   ├── go.mod
+│   └── lib/
+│       └── ...
+├── api                          # Main API module
+│   ├── go.mod
+│   ├── go.work                  # Workspace file
+│   └── ...
 ├── sqlc.yaml                    # SQLC configuration
-├── go.mod
-├── go.sum
+├── goose
 └── .env                         # Local development (not committed)
 ```
 
@@ -79,14 +86,31 @@ api/
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "internal/repository/query"
+    queries: "api/internal/repository/query"
     schema: "migrations"
     gen:
       go:
         package: "db"
-        out: "internal/repository/db"
+        out: "api/internal/repository/db"
         sql_package: "pgx/v5"
 ```
+
+### Go Workspace Structure
+The backend uses a Go workspace monorepo structure:
+
+```
+backend/
+├── shared/           # Shared library - things that cut across service boundaries
+│   └── go.mod       # github.com/ace/shared
+├── api/             # Main API service
+│   ├── go.mod       # github.com/ace/api
+│   └── go.work      # Workspace file
+└── go.work          # Root workspace file
+```
+
+- `shared/` contains code reused across multiple services (e.g., common utilities, types)
+- `api/` is the main HTTP API service
+- `go.work` at root coordinates the workspace
 
 ### Migration Setup (migrations/)
 - SQL migration files with version prefixes: `001_`, `002_`, etc.
