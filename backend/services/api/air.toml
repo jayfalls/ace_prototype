@@ -1,4 +1,4 @@
-root = "/app/backend/services/api"
+root = "/app/services/api"
 testdata_dir = "testdata"
 tmp_dir = "tmp"
 
