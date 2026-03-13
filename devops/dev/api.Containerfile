@@ -4,18 +4,25 @@ WORKDIR /app
 
 # Copy workspace files
 COPY backend/go.work ./
+COPY backend/go.work.sum ./
+
+# Copy module files
 COPY backend/services/api/go.mod backend/services/api/go.sum ./services/api/
 COPY backend/shared/go.mod ./shared/
 
 # Download dependencies
-RUN go mod download
+RUN go work sync && go mod download
 
 # Copy source code
 COPY backend/services/api/ ./services/api/
 COPY backend/shared/ ./shared/
 
-RUN go build -o /tmp/ace-api ./services/api/cmd/main.go
+# Build the binary
+RUN go work sync && go build -o /tmp/ace-api ./services/api/cmd/main.go
+
+# Install air for hot reloading
+RUN go install github.com/air-verse/air@latest
 
 EXPOSE 8080
 
-CMD ["/tmp/ace-api"]
+CMD ["air", "-c", "air.toml"]
