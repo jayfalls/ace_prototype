@@ -40,14 +40,14 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		dbStatus = "unhealthy"
 	}
 
-	// Persist health check record
-	health, err := h.healthService.CreateHealthCheck(ctx)
+	// Persist health check record with current db status
+	health, err := h.healthService.CreateHealthCheckWithStatus(ctx, dbStatus)
 	if err != nil {
 		log.Printf("Failed to persist health check: %v", err)
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(HealthResponse{
-			Status: "OK",
+			Status: dbStatus,
 			DB:     dbStatus,
 		})
 		return
@@ -56,7 +56,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HealthResponse{
-		Status:    "OK",
+		Status:    health.Status,
 		DB:        dbStatus,
 		CheckedAt: health.CheckedAt.Format(time.RFC3339),
 	})

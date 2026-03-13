@@ -91,10 +91,15 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 	}, nil
 }
 
-// CreateHealthCheck creates a new health check record.
+// CreateHealthCheck creates a new health check record with default status.
 func (s *HealthService) CreateHealthCheck(ctx context.Context) (*HealthStatus, error) {
+	return s.CreateHealthCheckWithStatus(ctx, "healthy")
+}
+
+// CreateHealthCheckWithStatus creates a new health check record with the given status.
+func (s *HealthService) CreateHealthCheckWithStatus(ctx context.Context, status string) (*HealthStatus, error) {
 	newHealth, err := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
-		Status:  "healthy",
+		Status:  status,
 		Message: pgtype.Text{String: "System is operational", Valid: true},
 	})
 	if err != nil {
