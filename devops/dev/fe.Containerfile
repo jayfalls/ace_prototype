@@ -2,8 +2,12 @@ FROM node:25-alpine
 
 WORKDIR /app
 
-COPY frontend/package.json frontend/package-lock.json* ./
+# Copy package files (handles missing package-lock.json)
+COPY frontend/package.json ./
 RUN npm install
+
+# Copy source
+COPY frontend/ ./
 
 EXPOSE 5173
 
