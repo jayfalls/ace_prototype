@@ -35,6 +35,13 @@ type HealthResponse struct {
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	// Check database connectivity
+	dbStatus := "healthy"
+	if err := h.healthService.DBHealthCheck(ctx); err != nil {
+		log.Printf("Database health check failed: %v", err)
+		dbStatus = "unhealthy"
+	}
+
 	health, err := h.healthService.EnsureHealthRecord(ctx)
 	if err != nil {
 		log.Printf("Failed to get health status: %v", err)
@@ -42,7 +49,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(HealthResponse{
 			Status:  "OK",
-			DB:      "healthy",
+			DB:      dbStatus,
 			Health:  "degraded",
 			Message: "Unable to retrieve health status",
 		})
@@ -53,7 +60,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HealthResponse{
 		Status:    "OK",
-		DB:        "healthy",
+		DB:        dbStatus,
 		Health:    health.Status,
 		Message:   health.Message,
 		CheckedAt: health.CheckedAt.Format(time.RFC3339),
