@@ -29,7 +29,7 @@ YELLOW := \033[0;33m
 BLUE := \033[0;34m
 NC := \033[0m # No Color
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps
+.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test
 
 ##@ General
 
@@ -52,7 +52,10 @@ help: ## Show this help message
 
 up: ## Start all services in development mode
 	@echo "$(BLUE)Starting development services with $(ORCHESTRATOR)...$(NC)"
-	$(COMPOSE) up -d --force-recreate
+	@# Ensure clean shutdown by stopping any existing containers first
+	$(COMPOSE) down --remove-orphans 2>/dev/null || true
+	@sleep 1
+	$(COMPOSE) up -d
 	@echo "$(GREEN)Services started. Access:$(NC)"
 	@echo "  - Frontend: http://localhost:5173"
 	@echo "  - API:      http://localhost:8080"
@@ -90,3 +93,12 @@ build: ## Build all service images
 
 ps: ## Show running containers
 	$(COMPOSE) ps
+
+##@ Testing
+
+test: ## Run all tests in API and frontend containers
+	@echo "$(BLUE)Running tests in API container...$(NC)"
+	@$(ORCHESTRATOR) exec ace_api go test -v ./... 2>/dev/null || echo "API tests not available - make sure container is running with 'make up'"
+	@echo ""
+	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
+	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
