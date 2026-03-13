@@ -2,25 +2,23 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
 
-	"ace/api/internal/repository/generated"
+	"ace/api/internal/service"
 )
 
 // HealthHandler handles health check related requests.
 type HealthHandler struct {
-	queries *generated.Queries
+	healthService *service.HealthService
 }
 
-// NewHealthHandler creates a new health handler with the given queries.
-func NewHealthHandler(queries *generated.Queries) *HealthHandler {
+// NewHealthHandler creates a new health handler with the given service.
+func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 	return &HealthHandler{
-		queries: queries,
+		healthService: healthService,
 	}
 }
 
@@ -33,75 +31,51 @@ type HealthResponse struct {
 	CheckedAt string `json:"checked_at,omitempty"`
 }
 
-// Health handles GET /health requests using SQLC queries.
+// Health handles GET /health requests.
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	// First, try to get the latest health check from the database
-	var healthResponse HealthResponse
-
-	latestHealth, err := h.queries.GetLatestHealthCheck(ctx)
+	health, err := h.healthService.EnsureHealthRecord(ctx)
 	if err != nil {
-		log.Printf("Failed to get latest health check: %v", err)
-		// If no records, create one
-		newHealth, createErr := h.queries.CreateHealthCheck(ctx, generated.CreateHealthCheckParams{
-			Status:  "healthy",
-			Message: "System is operational",
+		log.Printf("Failed to get health status: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(HealthResponse{
+			Status:  "OK",
+			DB:      "healthy",
+			Health:  "degraded",
+			Message: "Unable to retrieve health status",
 		})
-		if createErr != nil {
-			log.Printf("Failed to create health check: %v", createErr)
-			healthResponse = HealthResponse{
-				Status:  "OK",
-				DB:      "healthy",
-				Health:  "degraded",
-				Message: fmt.Sprintf("Database query failed: %v", err),
-			}
-		} else {
-			healthResponse = HealthResponse{
-				Status:    "OK",
-				DB:        "healthy",
-				Health:    newHealth.Status,
-				Message:   newHealth.Message,
-				CheckedAt: newHealth.CheckedAt.Format(time.RFC3339),
-			}
-		}
-	} else {
-		healthResponse = HealthResponse{
-			Status:    "OK",
-			DB:        "healthy",
-			Health:    latestHealth.Status,
-			Message:   latestHealth.Message,
-			CheckedAt: latestHealth.CheckedAt.Format(time.RFC3339),
-		}
+		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(healthResponse); err != nil {
-		log.Printf("Failed to encode health response: %v", err)
-	}
+	json.NewEncoder(w).Encode(HealthResponse{
+		Status:    "OK",
+		DB:        "healthy",
+		Health:    health.Status,
+		Message:   health.Message,
+		CheckedAt: health.CheckedAt.Format(time.RFC3339),
+	})
 }
 
 // ListHealthChecks handles GET /health/history requests.
 func (h *HealthHandler) ListHealthChecks(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	ctx := r.Context()
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-	defer cancel()
-
-	healthChecks, err := h.queries.ListHealthChecks(ctx, 10)
+	healthChecks, err := h.healthService.ListHealthChecks(ctx, 10)
 	if err != nil {
+		log.Printf("Failed to list health checks: %v", err)
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{
-			"error": fmt.Sprintf("Failed to list health checks: %v", err),
+			"error": "Failed to retrieve health history",
 		})
 		return
 	}
 
 	type healthCheckResponse struct {
-		ID        int32  `json:"id"`
 		Status    string `json:"status"`
 		Message   string `json:"message"`
 		CheckedAt string `json:"checked_at"`
@@ -110,13 +84,13 @@ func (h *HealthHandler) ListHealthChecks(w http.ResponseWriter, r *http.Request)
 	response := make([]healthCheckResponse, len(healthChecks))
 	for i, hc := range healthChecks {
 		response[i] = healthCheckResponse{
-			ID:        hc.ID,
 			Status:    hc.Status,
 			Message:   hc.Message,
 			CheckedAt: hc.CheckedAt.Format(time.RFC3339),
 		}
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }

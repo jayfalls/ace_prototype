@@ -105,6 +105,12 @@ Each unit should have a complete set of documentation. The template includes 14 
 - **Database**: Use SQLC for type-safe database access (no raw SQL queries)
 - **Context**: Use context.Context for request-scoped values and cancellation
 - **Testing**: Write unit tests alongside code using Go's testing package
+- **SQLC**: Always run `sqlc generate` after modifying SQL query files before committing
+- **Layered Architecture**: Always use Handler → Service → Repository pattern:
+  - Handler: HTTP request/response only, no business logic
+  - Service: Business logic, orchestrates repositories
+  - Repository: Database queries only (via SQLC)
+- **No else chains**: Avoid else statements - use early returns instead
 
 #### TypeScript/SvelteKit Frontend
 - **Types**: Strict typing - never use `any`

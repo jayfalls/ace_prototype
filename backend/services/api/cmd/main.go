@@ -17,6 +17,7 @@ import (
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
 	"ace/api/internal/repository/generated"
+	"ace/api/internal/service"
 	"ace/shared"
 	"github.com/go-chi/chi/v5"
 	"github.com/pressly/goose/v3"
@@ -59,8 +60,11 @@ func main() {
 	// Create SQLC queries instance
 	queries := generated.New(db.Pool)
 
+	// Initialize service layer
+	healthService := service.NewHealthService(queries)
+
 	// Initialize handlers
-	healthHandler := handler.NewHealthHandler(queries)
+	healthHandler := handler.NewHealthHandler(healthService)
 
 	r := chi.NewRouter()
 
