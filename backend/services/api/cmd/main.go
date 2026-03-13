@@ -85,9 +85,8 @@ func main() {
 	r.Use(middleware.Recovery)
 	r.Use(middleware.CORS(cfg.API.CORSAllowedOrigins))
 
-	// Health check endpoint using SQLC-generated queries
+	// Health check endpoint - persists check on each request
 	r.Get("/health", healthHandler.Health)
-	r.Post("/health/check", healthHandler.HealthCheck)
 	r.Get("/health/history", healthHandler.ListHealthChecks)
 
 	// Root endpoint

@@ -28,7 +28,7 @@ type HealthResponse struct {
 	DB     string `json:"db"`
 }
 
-// Health handles GET /health requests.
+// Health handles GET /health requests - checks and persists health status.
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -39,32 +39,18 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		dbStatus = "unhealthy"
 	}
 
+	// Persist health check record
+	_, err := h.healthService.CreateHealthCheck(ctx)
+	if err != nil {
+		log.Printf("Failed to persist health check: %v", err)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HealthResponse{
 		Status: "OK",
 		DB:     dbStatus,
 	})
-}
-
-// HealthCheck handles POST /health/check requests - creates a new health check record.
-func (h *HealthHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	health, err := h.healthService.CreateHealthCheck(ctx)
-	if err != nil {
-		log.Printf("Failed to create health check: %v", err)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
-			"error": "Failed to create health check",
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(health)
 }
 
 // ListHealthChecks handles GET /health/history requests.
