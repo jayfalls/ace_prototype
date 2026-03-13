@@ -61,6 +61,7 @@ up: ## Start all services in development mode
 
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans
+	@docker rm -f ace_api ace_fe ace_db ace_broker 2>/dev/null || true
 
 logs: ## View aggregated logs for all services
 	$(COMPOSE) logs -f
