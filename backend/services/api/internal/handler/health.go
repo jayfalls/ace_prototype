@@ -24,8 +24,10 @@ func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 
 // HealthResponse represents the health check response.
 type HealthResponse struct {
-	Status string `json:"status"`
-	DB     string `json:"db"`
+	Status    string `json:"status"`
+	DB        string `json:"db"`
+	Message   string `json:"message,omitempty"`
+	CheckedAt string `json:"checked_at,omitempty"`
 }
 
 // Health handles GET /health requests - checks and persists health status.
@@ -40,16 +42,26 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Persist health check record
-	_, err := h.healthService.CreateHealthCheck(ctx)
+	health, err := h.healthService.CreateHealthCheck(ctx)
 	if err != nil {
 		log.Printf("Failed to persist health check: %v", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(HealthResponse{
+			Status:  "OK",
+			DB:      dbStatus,
+			Message: "Failed to persist health check",
+		})
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HealthResponse{
-		Status: "OK",
-		DB:     dbStatus,
+		Status:    "OK",
+		DB:        dbStatus,
+		Message:   health.Message,
+		CheckedAt: health.CheckedAt.Format(time.RFC3339),
 	})
 }
 
