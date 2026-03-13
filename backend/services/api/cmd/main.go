@@ -22,6 +22,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+
+	// Import migrations to register them with goose
+	_ "ace/api/migrations"
 )
 
 func main() {
@@ -53,11 +56,14 @@ func main() {
 	// Run migrations
 	log.Println("Running database migrations...")
 	goose.SetTableName("schema_migrations")
+
+	// Open sql.DB for goose migrations (it needs *sql.DB, not *pgxpool.Pool)
 	sqlDB, err := sql.Open("pgx", cfg.Database.DSN())
 	if err != nil {
 		log.Fatalf("Failed to open database for migrations: %v", err)
 	}
 	defer sqlDB.Close()
+
 	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
