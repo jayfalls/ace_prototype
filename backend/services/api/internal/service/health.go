@@ -5,18 +5,23 @@ import (
 	"context"
 	"time"
 
-	"ace/api/internal/repository/generated"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	queries "ace/api/internal/repository/generated"
 )
 
 // HealthService handles health check business logic.
 type HealthService struct {
-	queries *generated.Queries
+	queries *queries.Queries
+	pool    *pgxpool.Pool
 }
 
 // NewHealthService creates a new health service.
-func NewHealthService(queries *generated.Queries) *HealthService {
+func NewHealthService(queries *queries.Queries, pool *pgxpool.Pool) *HealthService {
 	return &HealthService{
 		queries: queries,
+		pool:    pool,
 	}
 }
 
@@ -25,6 +30,14 @@ type HealthStatus struct {
 	Status    string
 	Message   string
 	CheckedAt time.Time
+}
+
+// DBHealthCheck verifies database connectivity.
+func (s *HealthService) DBHealthCheck(ctx context.Context) error {
+	if s.pool == nil {
+		return nil // No pool, skip check
+	}
+	return s.pool.Ping(ctx)
 }
 
 // GetHealth returns the current health status.
@@ -36,8 +49,8 @@ func (s *HealthService) GetHealth(ctx context.Context) (*HealthStatus, error) {
 
 	return &HealthStatus{
 		Status:    latestHealth.Status,
-		Message:   latestHealth.Message,
-		CheckedAt: latestHealth.CheckedAt,
+		Message:   latestHealth.Message.String,
+		CheckedAt: latestHealth.CheckedAt.Time,
 	}, nil
 }
 
@@ -47,15 +60,15 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 	if err == nil {
 		return &HealthStatus{
 			Status:    latestHealth.Status,
-			Message:   latestHealth.Message,
-			CheckedAt: latestHealth.CheckedAt,
+			Message:   latestHealth.Message.String,
+			CheckedAt: latestHealth.CheckedAt.Time,
 		}, nil
 	}
 
 	// Create new record if none exists
-	newHealth, err := s.queries.CreateHealthCheck(ctx, generated.CreateHealthCheckParams{
+	newHealth, err := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
 		Status:  "healthy",
-		Message: "System is operational",
+		Message: pgtype.Text{String: "System is operational", Valid: true},
 	})
 	if err != nil {
 		return nil, err
@@ -63,8 +76,8 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 
 	return &HealthStatus{
 		Status:    newHealth.Status,
-		Message:   newHealth.Message,
-		CheckedAt: newHealth.CheckedAt,
+		Message:   newHealth.Message.String,
+		CheckedAt: newHealth.CheckedAt.Time,
 	}, nil
 }
 
@@ -79,8 +92,8 @@ func (s *HealthService) ListHealthChecks(ctx context.Context, limit int32) ([]He
 	for i, hc := range healthChecks {
 		result[i] = HealthStatus{
 			Status:    hc.Status,
-			Message:   hc.Message,
-			CheckedAt: hc.CheckedAt,
+			Message:   hc.Message.String,
+			CheckedAt: hc.CheckedAt.Time,
 		}
 	}
 

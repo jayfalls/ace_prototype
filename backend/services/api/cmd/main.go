@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -16,10 +16,11 @@ import (
 	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
-	"ace/api/internal/repository/generated"
+	queries "ace/api/internal/repository/generated"
 	"ace/api/internal/service"
 	"ace/shared"
 	"github.com/go-chi/chi/v5"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 )
 
@@ -52,16 +53,21 @@ func main() {
 	// Run migrations
 	log.Println("Running database migrations...")
 	goose.SetTableName("schema_migrations")
-	if err := goose.Up(db.Pool, "migrations"); err != nil {
+	sqlDB, err := sql.Open("pgx", cfg.Database.DSN())
+	if err != nil {
+		log.Fatalf("Failed to open database for migrations: %v", err)
+	}
+	defer sqlDB.Close()
+	if err := goose.Up(sqlDB, "migrations"); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 	log.Println("Migrations completed successfully")
 
 	// Create SQLC queries instance
-	queries := generated.New(db.Pool)
+	queries := queries.New(db.Pool)
 
 	// Initialize service layer
-	healthService := service.NewHealthService(queries)
+	healthService := service.NewHealthService(queries, db.Pool)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler(healthService)
