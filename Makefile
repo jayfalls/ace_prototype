@@ -29,7 +29,7 @@ YELLOW := \033[0;33m
 BLUE := \033[0;34m
 NC := \033[0m # No Color
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps
+.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test test-api test-db-health
 
 ##@ General
 
@@ -90,3 +90,20 @@ build: ## Build all service images
 
 ps: ## Show running containers
 	$(COMPOSE) ps
+
+##@ Testing
+
+test: ## Run all unit tests (requires Go installed locally)
+	@echo "$(BLUE)Running unit tests...$(NC)"
+	cd backend/services/api && go test -v ./...
+
+test-api: ## Run tests inside the API container
+	@echo "$(BLUE)Running tests in API container...$(NC)"
+	$(ORCHESTRATOR) exec ace_api go test -v ./internal/...
+
+test-db-health: ## Test database connection from API container
+	@echo "$(BLUE)Testing database connection...$(NC)"
+	@echo "To test manually, run: $(ORCHESTRATOR) exec ace_api go run ./cmd/main.go"
+	@echo ""
+	@echo "Or use psql to verify database is accessible:"
+	@echo "  $(ORCHESTRATOR) exec ace_db psql -U postgres -d ace -c 'SELECT 1;'"
