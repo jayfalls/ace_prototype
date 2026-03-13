@@ -42,22 +42,6 @@ Copy `.env.example` to `.env` if you want to customize any settings.
 | PostgreSQL | localhost:5432 |
 | NATS | localhost:4222 |
 
-## Testing
-
-Run all tests in containers:
-```bash
-make test
-```
-
-Run tests individually:
-```bash
-# API tests
-docker exec ace_api go test -v ./...
-
-# Frontend tests
-docker exec ace_fe npm test
-```
-
 ## Health Check
 
 Check API and database health:
