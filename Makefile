@@ -98,7 +98,7 @@ ps: ## Show running containers
 
 test: ## Run all tests in API and frontend containers
 	@echo "$(BLUE)Running tests in API container...$(NC)"
-	@$(ORCHESTRATOR) exec ace_api go test -v ./... 2>/dev/null || echo "API tests not available - make sure container is running with 'make up'"
+	@$(ORCHESTRATOR) exec ace_api go test ./... 2>/dev/null || echo "API tests not available - make sure container is running with 'make up'"
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
