@@ -1,7 +1,7 @@
 services:
   ace_api:
     build:
-      context: ..
+      context: .
       dockerfile: api.Containerfile
     container_name: ace_api
     ports:
@@ -21,7 +21,7 @@ services:
 
   ace_fe:
     build:
-      context: ..
+      context: .
       dockerfile: fe.Containerfile
     container_name: ace_fe
     ports:

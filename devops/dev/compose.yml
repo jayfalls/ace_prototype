@@ -1,7 +1,7 @@
 services:
   ace_api:
     build:
-      context: ..
+      context: .
       dockerfile: api.Containerfile
     container_name: ace_api
     user: root
@@ -15,7 +15,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-ace}
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     volumes:
-      - ../backend/services/api:/app:Z
+      - ../../backend/services/api:/app:Z
     command: air -c air.toml
     depends_on:
       - ace_db
@@ -25,7 +25,7 @@ services:
 
   ace_fe:
     build:
-      context: ..
+      context: .
       dockerfile: fe.Containerfile
     container_name: ace_fe
     user: root
@@ -35,7 +35,7 @@ services:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
       - NODE_ENV=development
     volumes:
-      - ../frontend:/app:Z
+      - ../../frontend:/app:Z
       - /app/node_modules
     command: npm run dev
     depends_on:
