@@ -1,11 +1,11 @@
-root = "/app"
-testdata_dir = "/app/services/api/testdata"
-tmp_dir = "/app/services/api/tmp"
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "/app/services/api/tmp/main"
-  cmd = "cd /app && go work sync && go build -o /app/services/api/tmp/main ./services/api/cmd"
+  bin = "./tmp/main"
+  cmd = "go work sync && go build -o ./tmp/main ./cmd"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata"]
   exclude_file = []
