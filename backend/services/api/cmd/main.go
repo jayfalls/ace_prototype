@@ -13,10 +13,13 @@ import (
 	"time"
 
 	"ace/api/internal/config"
+	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
+	"ace/api/internal/repository/generated"
 	"ace/shared"
 	"github.com/go-chi/chi/v5"
+	"github.com/pressly/goose/v3"
 )
 
 func main() {
@@ -45,6 +48,20 @@ func main() {
 	}
 	defer db.Close()
 
+	// Run migrations
+	log.Println("Running database migrations...")
+	goose.SetTableName("schema_migrations")
+	if err := goose.Up(db.Pool, "migrations"); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	log.Println("Migrations completed successfully")
+
+	// Create SQLC queries instance
+	queries := generated.New(db.Pool)
+
+	// Initialize handlers
+	healthHandler := handler.NewHealthHandler(queries)
+
 	r := chi.NewRouter()
 
 	// Middleware stack
@@ -52,27 +69,9 @@ func main() {
 	r.Use(middleware.Recovery)
 	r.Use(middleware.CORS(cfg.API.CORSAllowedOrigins))
 
-	// Health check endpoint with database verification
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		// Check database connection
-		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
-		defer cancel()
-
-		dbStatus := "healthy"
-		if err := db.HealthCheck(ctx); err != nil {
-			dbStatus = fmt.Sprintf("unhealthy: %v", err)
-		}
-
-		response := map[string]string{
-			"status": "OK",
-			"db":     dbStatus,
-		}
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
-	})
+	// Health check endpoint using SQLC-generated queries
+	r.Get("/health", healthHandler.Health)
+	r.Get("/health/history", healthHandler.ListHealthChecks)
 
 	// Root endpoint
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
