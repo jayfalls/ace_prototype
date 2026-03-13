@@ -3,15 +3,15 @@ FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
-# Copy go mod files first for better caching
-COPY api/go.mod api/go.sum ./
+# Copy go.mod and go.sum first for better caching
+COPY backend/services/api/go.mod backend/services/api/go.sum ./
 RUN go mod download
 
-# Copy source code
-COPY api/ .
+# Copy source code from new location
+COPY backend/services/api/ .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o /ace-api .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /ace-api ./cmd
 
 # Production stage
 FROM alpine:3.19

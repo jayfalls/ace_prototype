@@ -21,7 +21,7 @@ ifeq ($(filter $(ENVIRONMENT),$(VALID_ENVIRONMENTS)),)
 $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
-COMPOSE := $(ORCHESTRATOR) compose -f devops/compose.$(ENVIRONMENT).yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
 
 # Colors
 GREEN := \033[0;32m

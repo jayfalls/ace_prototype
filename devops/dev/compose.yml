@@ -2,7 +2,7 @@ services:
   ace_api:
     build:
       context: ..
-      dockerfile: devops/Containerfile.api.dev
+      dockerfile: dev/dev/api.Containerfile
     container_name: ace_api
     user: root
     ports:
@@ -15,7 +15,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB:-ace}
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     volumes:
-      - ../api:/app:Z
+      - ../backend/services/api:/app:Z
     command: air -c air.toml
     depends_on:
       - ace_db
@@ -26,7 +26,7 @@ services:
   ace_fe:
     build:
       context: ..
-      dockerfile: devops/Containerfile.fe.dev
+      dockerfile: dev/dev/fe.Containerfile
     container_name: ace_fe
     user: root
     ports:
