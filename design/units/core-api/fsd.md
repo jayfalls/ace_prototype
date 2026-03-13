@@ -19,43 +19,44 @@ This document outlines the technical implementation for the Core API patterns, s
 ### Directory Layout
 ```
 backend/
-├── cmd/
-│   └── api/
-│       └── main.go              # Entry point
-├── internal/
-│   ├── config/
-│   │   └── config.go            # Configuration loading
-│   ├── handler/                 # HTTP handlers (controller layer)
-│   │   └── example/
-│   │       └── handler.go
-│   ├── service/                 # Business logic (service layer)
-│   │   └── example/
-│   │       └── service.go
-│   ├── repository/              # Data access (repository layer)
-│   │   ├── db.go               # Database connection
-│   │   └── example/
-│   │       └── repo.go
-│   ├── model/                   # Domain models
-│   │   └── example/
-│   │       └── model.go
-│   ├── middleware/              # HTTP middleware
-│   │   └── logger.go
-│   └── response/                # Response helpers
-│       └── response.go
-├── migrations/                   # Database migrations
-│   └── 001_create_example.sql
-├── shared/                      # Shared library module (workspace)
-│   ├── go.mod
-│   └── lib/
-│       └── ...
-├── api                          # Main API module
-│   ├── go.mod
-│   ├── go.work                  # Workspace file
-│   └── ...
-├── sqlc.yaml                    # SQLC configuration
-├── goose
-└── .env                         # Local development (not committed)
+├── go.work                      # Workspace file at root
+
+├── shared/                      # Shared library (for future units)
+│   ├── go.mod                   # github.com/ace/shared
+│   ├── auth/
+│   │   └── auth.go              # Auth utilities (future)
+│   ├── telemetry/
+│   │   └── telemetry.go         # Telemetry utilities (future)
+│   └── messaging/
+│       └── messaging.go          # Messaging utilities (future)
+
+└── services/
+    └── api/                     # Main API service module
+        ├── go.mod               # github.com/ace/api
+        ├── cmd/
+        │   └── main.go          # Entry point
+        ├── internal/
+        │   ├── config/
+        │   │   └── config.go    # Configuration loading
+        │   ├── middleware/
+        │   │   ├── auth.go      # Auth middleware (future)
+        │   │   ├── logger.go    # Logging middleware
+        │   │   └── recovery.go  # Panic recovery
+        │   ├── handler/
+        │   │   └── health.go    # HTTP handlers
+        │   ├── service/         # Business logic (future)
+        │   ├── repository/
+        │   │   ├── db.go        # Database connection
+        │   │   ├── queries/     # SQLC query files
+        │   │   └── generated/   # SQLC generated code
+        │   └── response/
+        │       └── response.go  # Response helpers
+        ├── migrations/          # Database migrations
+        ├── sqlc.yaml            # SQLC configuration
+        └── .env                 # Local dev (not committed)
 ```
+
+> **Note**: The `shared/` directory and its submodules (auth, telemetry, messaging) are placeholders for future units (e.g., core-auth, core-observability). The API service will use placeholder stubs until those units are implemented.
 
 ### Layer Responsibilities
 
@@ -64,20 +65,18 @@ backend/
 - Validates input
 - Calls service layer
 - Returns HTTP responses
+- Example: `health.go`
 
 **Service Layer (internal/service/)**
-- Contains business logic
+- Contains business logic (future - placeholder for now)
 - Coordinates between handlers and repositories
 - Transaction management
 
 **Repository Layer (internal/repository/)**
 - Database operations
-- Uses SQLC-generated code
+- Uses SQLC-generated code in `generated/`
+- SQLC query files in `queries/`
 - Repository interfaces for testability
-
-**Model Layer (internal/model/)**
-- Domain models
-- Request/response DTOs
 
 ## Database Setup
 
@@ -86,12 +85,12 @@ backend/
 version: "2"
 sql:
   - engine: "postgresql"
-    queries: "api/internal/repository/query"
+    queries: "internal/repository/queries"
     schema: "migrations"
     gen:
       go:
         package: "db"
-        out: "api/internal/repository/db"
+        out: "internal/repository/generated"
         sql_package: "pgx/v5"
 ```
 
@@ -100,22 +99,22 @@ The backend uses a Go workspace monorepo structure:
 
 ```
 backend/
-├── shared/           # Shared library - things that cut across service boundaries
-│   └── go.mod       # github.com/ace/shared
-├── api/             # Main API service
-│   ├── go.mod       # github.com/ace/api
-│   └── go.work      # Workspace file
-└── go.work          # Root workspace file
+├── go.work                 # Workspace file at root
+├── shared/                 # Shared library (for future units)
+│   └── go.mod             # github.com/ace/shared
+└── services/
+    └── api/               # Main API service
+        └── go.mod         # github.com/ace/api
 ```
 
-- `shared/` contains code reused across multiple services (e.g., common utilities, types)
-- `api/` is the main HTTP API service
-- `go.work` at root coordinates the workspace
+- `backend/go.work` at root coordinates the workspace
+- `shared/` contains code reused across services (auth, telemetry, messaging for future)
+- `services/api/` is the main HTTP API service module
 
 ### Migration Setup (migrations/)
 - SQL migration files with version prefixes: `001_`, `002_`, etc.
 - Goose for running migrations
-- Migration command: `goose postgres ${DATABASE_URL} up`
+- Migrations are specific to the API service (not workspace-level)
 
 ### Connection Pool
 - Use `pgx/v5` for database connections
