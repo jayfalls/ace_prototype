@@ -26,7 +26,6 @@ func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 type HealthResponse struct {
 	Status    string `json:"status"`
 	DB        string `json:"db"`
-	Message   string `json:"message,omitempty"`
 	CheckedAt string `json:"checked_at,omitempty"`
 }
 
@@ -48,9 +47,8 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(HealthResponse{
-			Status:  "OK",
-			DB:      dbStatus,
-			Message: "Failed to persist health check",
+			Status: "OK",
+			DB:     dbStatus,
 		})
 		return
 	}
@@ -60,7 +58,6 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(HealthResponse{
 		Status:    "OK",
 		DB:        dbStatus,
-		Message:   health.Message,
 		CheckedAt: health.CheckedAt.Format(time.RFC3339),
 	})
 }
@@ -80,17 +77,11 @@ func (h *HealthHandler) ListHealthChecks(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	type healthCheckResponse struct {
-		Status    string `json:"status"`
-		Message   string `json:"message"`
-		CheckedAt string `json:"checked_at"`
-	}
-
-	response := make([]healthCheckResponse, len(healthChecks))
+	response := make([]HealthResponse, len(healthChecks))
 	for i, hc := range healthChecks {
-		response[i] = healthCheckResponse{
+		response[i] = HealthResponse{
 			Status:    hc.Status,
-			Message:   hc.Message,
+			DB:        "healthy", // Historical checks can't indicate DB status retroactively
 			CheckedAt: hc.CheckedAt.Format(time.RFC3339),
 		}
 	}
