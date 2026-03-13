@@ -52,6 +52,9 @@ func TestDBHealthCheckNilPool(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for nil pool, got nil")
 	}
+	if err != nil && err.Error() != "database pool is nil" {
+		t.Errorf("Expected 'database pool is nil', got '%s'", err.Error())
+	}
 }
 
 func TestDBClose(t *testing.T) {

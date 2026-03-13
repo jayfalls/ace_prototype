@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net"
 	"os"
 	"os/signal"
 	"sync"
@@ -180,33 +179,12 @@ func (db *DB) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("failed to get pool stats")
 	}
 
-	// Check for network issues
+	// Verify we can acquire a connection (confirms pool is working)
 	conn, err := db.Pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire connection: %w", err)
 	}
 	defer conn.Release()
-
-	// Check underlying connection
-	if conn.Conn() == nil {
-		return fmt.Errorf("connection is nil")
-	}
-
-	// Check if connection is alive
-	if !conn.Conn().IsAlive() {
-		return fmt.Errorf("connection is not alive")
-	}
-
-	// Check for network reachability
-	netConn, err := conn.Conn().Conn().NetConn()
-	if err != nil {
-		return fmt.Errorf("failed to get network connection: %w", err)
-	}
-
-	// Check if connection is not closed
-	if _, ok := netConn.(*net.TCPConn); !ok {
-		return fmt.Errorf("unexpected connection type")
-	}
 
 	return nil
 }
