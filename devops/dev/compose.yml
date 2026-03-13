@@ -16,8 +16,8 @@ services:
       - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     volumes:
       - ../../backend:/app:Z
-    working_dir: /app/services/api
-    command: air -c air.toml
+    working_dir: /app
+    command: cd /app/backend/services/api && air -c air.toml
     depends_on:
       - ace_db
       - ace_broker
