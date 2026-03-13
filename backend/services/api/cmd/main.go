@@ -13,10 +13,10 @@ import (
 	"time"
 
 	"ace/api/internal/config"
+	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
 	"ace/shared"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -47,9 +47,10 @@ func main() {
 
 	r := chi.NewRouter()
 
-	// Middleware
+	// Middleware stack
 	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
+	r.Use(middleware.Recovery)
+	r.Use(middleware.CORS(cfg.API.CORSAllowedOrigins))
 
 	// Health check endpoint with database verification
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

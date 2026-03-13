@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Config holds all configuration for the API service.
@@ -29,8 +30,9 @@ type DatabaseConfig struct {
 
 // APIConfig holds API server configuration.
 type APIConfig struct {
-	Port     string
-	LogLevel string
+	Port              string
+	LogLevel          string
+	CORSAllowedOrigins []string
 }
 
 // Load loads configuration from environment variables.
@@ -48,8 +50,9 @@ func Load() (*Config, error) {
 			MaxConnIdleTime: getEnvAsInt("POSTGRES_MAX_CONN_IDLE_TIME", 1800),
 		},
 		API: APIConfig{
-			Port:     getEnv("API_PORT", "8080"),
-			LogLevel: getEnv("LOG_LEVEL", "info"),
+			Port:              getEnv("API_PORT", "8080"),
+			LogLevel:          getEnv("LOG_LEVEL", "info"),
+			CORSAllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
 		},
 	}
 
@@ -105,6 +108,24 @@ func getEnvAsInt32(key string, defaultValue int32) int32 {
 	if value, exists := os.LookupEnv(key); exists {
 		if intValue, err := strconv.Atoi(value); err == nil {
 			return int32(intValue)
+		}
+	}
+	return defaultValue
+}
+
+// getEnvAsSlice retrieves an environment variable as a slice of strings or returns a default value.
+func getEnvAsSlice(key string, defaultValue []string) []string {
+	if value, exists := os.LookupEnv(key); exists && value != "" {
+		// Split by comma and trim whitespace
+		var result []string
+		for _, item := range strings.Split(value, ",") {
+			trimmed := strings.TrimSpace(item)
+			if trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		if len(result) > 0 {
+			return result
 		}
 	}
 	return defaultValue

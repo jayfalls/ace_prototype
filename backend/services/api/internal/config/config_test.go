@@ -162,3 +162,56 @@ func TestLoadWithCustomPoolSettings(t *testing.T) {
 		t.Errorf("Expected MinConns 10, got %d", cfg.Database.MinConns)
 	}
 }
+
+func TestLoadWithCORSOrigins(t *testing.T) {
+	os.Setenv("POSTGRES_HOST", "localhost")
+	os.Setenv("POSTGRES_PORT", "5432")
+	os.Setenv("POSTGRES_USER", "testuser")
+	os.Setenv("POSTGRES_PASSWORD", "testpass")
+	os.Setenv("POSTGRES_DB", "testdb")
+	os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173, https://example.com")
+	defer os.Unsetenv("POSTGRES_HOST")
+	defer os.Unsetenv("POSTGRES_PORT")
+	defer os.Unsetenv("POSTGRES_USER")
+	defer os.Unsetenv("POSTGRES_PASSWORD")
+	defer os.Unsetenv("POSTGRES_DB")
+	defer os.Unsetenv("CORS_ALLOWED_ORIGINS")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if len(cfg.API.CORSAllowedOrigins) != 2 {
+		t.Errorf("Expected 2 CORS origins, got %d", len(cfg.API.CORSAllowedOrigins))
+	}
+	if cfg.API.CORSAllowedOrigins[0] != "http://localhost:5173" {
+		t.Errorf("Expected first origin 'http://localhost:5173', got '%s'", cfg.API.CORSAllowedOrigins[0])
+	}
+	if cfg.API.CORSAllowedOrigins[1] != "https://example.com" {
+		t.Errorf("Expected second origin 'https://example.com', got '%s'", cfg.API.CORSAllowedOrigins[1])
+	}
+}
+
+func TestLoadWithDefaultCORSOrigins(t *testing.T) {
+	os.Setenv("POSTGRES_HOST", "localhost")
+	os.Setenv("POSTGRES_PORT", "5432")
+	os.Setenv("POSTGRES_USER", "testuser")
+	os.Setenv("POSTGRES_PASSWORD", "testpass")
+	os.Setenv("POSTGRES_DB", "testdb")
+	defer os.Unsetenv("POSTGRES_HOST")
+	defer os.Unsetenv("POSTGRES_PORT")
+	defer os.Unsetenv("POSTGRES_USER")
+	defer os.Unsetenv("POSTGRES_PASSWORD")
+	defer os.Unsetenv("POSTGRES_DB")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	// Default should be ["*"]
+	if len(cfg.API.CORSAllowedOrigins) != 1 || cfg.API.CORSAllowedOrigins[0] != "*" {
+		t.Errorf("Expected default CORS origins ['*'], got %v", cfg.API.CORSAllowedOrigins)
+	}
+}
