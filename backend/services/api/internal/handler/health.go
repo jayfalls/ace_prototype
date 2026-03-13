@@ -24,9 +24,9 @@ func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 
 // HealthResponse represents the health check response.
 type HealthResponse struct {
-	Status    string `json:"status"`
-	DB        string `json:"db"`
-	CheckedAt string `json:"checked_at,omitempty"`
+	DB      string `json:"db"`
+	Err     string `json:"err,omitempty"`
+	Created string `json:"created,omitempty"`
 }
 
 // Health handles GET /health requests - checks and persists health status.
@@ -35,20 +35,21 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	// Check database connectivity
 	dbStatus := "healthy"
+	var errMsg *string
 	if err := h.healthService.DBHealthCheck(ctx); err != nil {
-		log.Printf("Database health check failed: %v", err)
 		dbStatus = "unhealthy"
+		errStr := err.Error()
+		errMsg = &errStr
 	}
 
-	// Persist health check record with current db status
-	health, err := h.healthService.CreateHealthCheckWithStatus(ctx, dbStatus)
+	// Persist health check record
+	health, err := h.healthService.CreateHealthCheck(ctx, dbStatus, errMsg)
 	if err != nil {
 		log.Printf("Failed to persist health check: %v", err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(HealthResponse{
-			Status: dbStatus,
-			DB:     dbStatus,
+			DB: dbStatus,
 		})
 		return
 	}
@@ -56,9 +57,9 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(HealthResponse{
-		Status:    health.Status,
-		DB:        dbStatus,
-		CheckedAt: health.CheckedAt.Format(time.RFC3339),
+		DB:      health.DB,
+		Err:     health.Err,
+		Created: health.Created.Format(time.RFC3339),
 	})
 }
 
@@ -80,9 +81,9 @@ func (h *HealthHandler) ListHealthChecks(w http.ResponseWriter, r *http.Request)
 	response := make([]HealthResponse, len(healthChecks))
 	for i, hc := range healthChecks {
 		response[i] = HealthResponse{
-			Status:    hc.Status,
-			DB:        "healthy", // Historical checks can't indicate DB status retroactively
-			CheckedAt: hc.CheckedAt.Format(time.RFC3339),
+			DB:      hc.DB,
+			Err:     hc.Err,
+			Created: hc.Created.Format(time.RFC3339),
 		}
 	}
 

@@ -12,39 +12,33 @@ import (
 )
 
 const createHealthCheck = `-- name: CreateHealthCheck :one
-INSERT INTO health_check (status, message, checked_at)
+INSERT INTO health_check (db, err, created)
 VALUES ($1, $2, NOW())
-RETURNING id, status, message, checked_at, created_at
+RETURNING id, db, err, created
 `
 
 type CreateHealthCheckParams struct {
-	Status  string      `json:"status"`
-	Message pgtype.Text `json:"message"`
+	Db  string      `json:"db"`
+	Err pgtype.Text `json:"err"`
 }
 
 // Insert a new health check record
 func (q *Queries) CreateHealthCheck(ctx context.Context, arg CreateHealthCheckParams) (*HealthCheck, error) {
-	row := q.db.QueryRow(ctx, createHealthCheck, arg.Status, arg.Message)
+	row := q.db.QueryRow(ctx, createHealthCheck, arg.Db, arg.Err)
 	var i HealthCheck
 	err := row.Scan(
 		&i.ID,
-		&i.Status,
-		&i.Message,
-		&i.CheckedAt,
-		&i.CreatedAt,
+		&i.Db,
+		&i.Err,
+		&i.Created,
 	)
 	return &i, err
 }
 
 const getLatestHealthCheck = `-- name: GetLatestHealthCheck :one
-SELECT
-    id,
-    status,
-    message,
-    checked_at,
-    created_at
+SELECT id, db, err, created
 FROM health_check
-ORDER BY checked_at DESC
+ORDER BY created DESC
 LIMIT 1
 `
 
@@ -54,23 +48,17 @@ func (q *Queries) GetLatestHealthCheck(ctx context.Context) (*HealthCheck, error
 	var i HealthCheck
 	err := row.Scan(
 		&i.ID,
-		&i.Status,
-		&i.Message,
-		&i.CheckedAt,
-		&i.CreatedAt,
+		&i.Db,
+		&i.Err,
+		&i.Created,
 	)
 	return &i, err
 }
 
 const listHealthChecks = `-- name: ListHealthChecks :many
-SELECT
-    id,
-    status,
-    message,
-    checked_at,
-    created_at
+SELECT id, db, err, created
 FROM health_check
-ORDER BY checked_at DESC
+ORDER BY created DESC
 LIMIT $1
 `
 
@@ -86,10 +74,9 @@ func (q *Queries) ListHealthChecks(ctx context.Context, limit int32) ([]*HealthC
 		var i HealthCheck
 		if err := rows.Scan(
 			&i.ID,
-			&i.Status,
-			&i.Message,
-			&i.CheckedAt,
-			&i.CreatedAt,
+			&i.Db,
+			&i.Err,
+			&i.Created,
 		); err != nil {
 			return nil, err
 		}

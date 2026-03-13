@@ -9,9 +9,8 @@ import (
 )
 
 type HealthCheck struct {
-	ID        int32              `json:"id"`
-	Status    string             `json:"status"`
-	Message   pgtype.Text        `json:"message"`
-	CheckedAt pgtype.Timestamptz `json:"checked_at"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID      int32              `json:"id"`
+	Db      string             `json:"db"`
+	Err     pgtype.Text        `json:"err"`
+	Created pgtype.Timestamptz `json:"created"`
 }

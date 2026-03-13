@@ -27,9 +27,9 @@ func NewHealthService(queries *queries.Queries, pool *pgxpool.Pool) *HealthServi
 
 // HealthStatus represents the current health status.
 type HealthStatus struct {
-	Status    string
-	Message   string
-	CheckedAt time.Time
+	DB      string
+	Err     string
+	Created time.Time
 }
 
 // DBHealthCheck verifies database connectivity.
@@ -48,9 +48,9 @@ func (s *HealthService) GetHealth(ctx context.Context) (*HealthStatus, error) {
 	}
 
 	return &HealthStatus{
-		Status:    latestHealth.Status,
-		Message:   latestHealth.Message.String,
-		CheckedAt: latestHealth.CheckedAt.Time,
+		DB:      latestHealth.Db,
+		Err:     latestHealth.Err.String,
+		Created: latestHealth.Created.Time,
 	}, nil
 }
 
@@ -59,16 +59,16 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 	latestHealth, err := s.queries.GetLatestHealthCheck(ctx)
 	if err == nil {
 		return &HealthStatus{
-			Status:    latestHealth.Status,
-			Message:   latestHealth.Message.String,
-			CheckedAt: latestHealth.CheckedAt.Time,
+			DB:      latestHealth.Db,
+			Err:     latestHealth.Err.String,
+			Created: latestHealth.Created.Time,
 		}, nil
 	}
 
 	// Create new record if none exists
 	newHealth, createErr := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
-		Status:  "healthy",
-		Message: pgtype.Text{String: "System is operational", Valid: true},
+		Db:  "healthy",
+		Err: pgtype.Text{Valid: false},
 	})
 	if createErr != nil {
 		// Record may already exist (race condition with migration)
@@ -78,38 +78,40 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 			return nil, createErr
 		}
 		return &HealthStatus{
-			Status:    latestHealth.Status,
-			Message:   latestHealth.Message.String,
-			CheckedAt: latestHealth.CheckedAt.Time,
+			DB:      latestHealth.Db,
+			Err:     latestHealth.Err.String,
+			Created: latestHealth.Created.Time,
 		}, nil
 	}
 
 	return &HealthStatus{
-		Status:    newHealth.Status,
-		Message:   newHealth.Message.String,
-		CheckedAt: newHealth.CheckedAt.Time,
+		DB:      newHealth.Db,
+		Err:     newHealth.Err.String,
+		Created: newHealth.Created.Time,
 	}, nil
 }
 
-// CreateHealthCheck creates a new health check record with default status.
-func (s *HealthService) CreateHealthCheck(ctx context.Context) (*HealthStatus, error) {
-	return s.CreateHealthCheckWithStatus(ctx, "healthy")
-}
+// CreateHealthCheck creates a new health check record with the given status.
+func (s *HealthService) CreateHealthCheck(ctx context.Context, dbStatus string, errMsg *string) (*HealthStatus, error) {
+	var errPgType pgtype.Text
+	if errMsg != nil {
+		errPgType = pgtype.Text{String: *errMsg, Valid: true}
+	} else {
+		errPgType = pgtype.Text{Valid: false}
+	}
 
-// CreateHealthCheckWithStatus creates a new health check record with the given status.
-func (s *HealthService) CreateHealthCheckWithStatus(ctx context.Context, status string) (*HealthStatus, error) {
 	newHealth, err := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
-		Status:  status,
-		Message: pgtype.Text{String: "System is operational", Valid: true},
+		Db:  dbStatus,
+		Err: errPgType,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &HealthStatus{
-		Status:    newHealth.Status,
-		Message:   newHealth.Message.String,
-		CheckedAt: newHealth.CheckedAt.Time,
+		DB:      newHealth.Db,
+		Err:     newHealth.Err.String,
+		Created: newHealth.Created.Time,
 	}, nil
 }
 
@@ -123,9 +125,9 @@ func (s *HealthService) ListHealthChecks(ctx context.Context, limit int32) ([]He
 	result := make([]HealthStatus, len(healthChecks))
 	for i, hc := range healthChecks {
 		result[i] = HealthStatus{
-			Status:    hc.Status,
-			Message:   hc.Message.String,
-			CheckedAt: hc.CheckedAt.Time,
+			DB:      hc.Db,
+			Err:     hc.Err.String,
+			Created: hc.Created.Time,
 		}
 	}
 

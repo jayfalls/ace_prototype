@@ -16,10 +16,9 @@ func upAddHealthCheck(ctx context.Context, tx *sql.Tx) error {
 	_, err := tx.ExecContext(ctx, `
 		CREATE TABLE health_check (
 			id SERIAL PRIMARY KEY,
-			status VARCHAR(50) NOT NULL DEFAULT 'healthy',
-			message TEXT,
-			checked_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-			created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+			db VARCHAR(50) NOT NULL DEFAULT 'healthy',
+			err TEXT,
+			created TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 		)
 	`)
 	if err != nil {
@@ -27,15 +26,7 @@ func upAddHealthCheck(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO health_check (status, message, checked_at)
-		VALUES ('healthy', 'System is operational', NOW())
-	`)
-	if err != nil {
-		return fmt.Errorf("insert initial health check: %w", err)
-	}
-
-	_, err = tx.ExecContext(ctx, `
-		CREATE INDEX idx_health_check_checked_at ON health_check(checked_at DESC)
+		CREATE INDEX idx_health_check_created ON health_check(created DESC)
 	`)
 	if err != nil {
 		return fmt.Errorf("create index: %w", err)
