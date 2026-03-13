@@ -2,7 +2,7 @@ services:
   ace_api:
     build:
       context: ..
-      dockerfile: ./devops/prod/api.Containerfile
+      dockerfile: devops/prod/api.Containerfile
     container_name: ace_api
     ports:
       - "8080:8080"
@@ -22,7 +22,7 @@ services:
   ace_fe:
     build:
       context: ..
-      dockerfile: ./devops/prod/fe.Containerfile
+      dockerfile: devops/prod/fe.Containerfile
     container_name: ace_fe
     ports:
       - "5173:5173"
