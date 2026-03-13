@@ -21,7 +21,7 @@ ifeq ($(filter $(ENVIRONMENT),$(VALID_ENVIRONMENTS)),)
 $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
-COMPOSE := $(ORCHESTRATOR) compose -f devops/compose.$(ENVIRONMENT).yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
 
 # Colors
 GREEN := \033[0;32m
@@ -52,7 +52,7 @@ help: ## Show this help message
 
 up: ## Start all services in development mode
 	@echo "$(BLUE)Starting development services with $(ORCHESTRATOR)...$(NC)"
-	$(COMPOSE) up -d
+	$(COMPOSE) up -d --force-recreate
 	@echo "$(GREEN)Services started. Access:$(NC)"
 	@echo "  - Frontend: http://localhost:5173"
 	@echo "  - API:      http://localhost:8080"
@@ -60,7 +60,8 @@ up: ## Start all services in development mode
 	@echo "  - NATS:     localhost:4222"
 
 down: ## Stop all services
-	$(COMPOSE) down
+	$(COMPOSE) down --remove-orphans
+	@docker rm -f ace_api ace_fe ace_db ace_broker 2>/dev/null || true
 
 logs: ## View aggregated logs for all services
 	$(COMPOSE) logs -f
