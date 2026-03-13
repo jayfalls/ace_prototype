@@ -5,12 +5,12 @@ Establish API & DB patterns, structure, tools, and libraries.
 ## Documents
 
 - [Problem Space](problem_space.md) ✅ - Problem exploration
-- BSD - Business Specification (TBD)
-- User Stories - User requirements (TBD)
-- Research - Technical approach evaluation (TBD)
-- FSD - Functional specification (TBD)
-- Architecture - Technical architecture (TBD)
-- Implementation - Implementation plan (TBD)
+- [BSD](bsd.md) ✅ - Business Specification
+- [User Stories](user_stories.md) ✅ - User requirements
+- [Research](research.md) ✅ - Technical approach evaluation
+- [FSD](fsd.md) ✅ - Functional specification
+- [Architecture](architecture.md) ✅ - Technical architecture
+- [Implementation](implementation.md) ✅ - Implementation plan
 - Security - Security considerations (TBD)
 - API - API specifications (TBD)
 - Migration - Database migrations (TBD)
@@ -25,7 +25,7 @@ Establish API & DB patterns, structure, tools, and libraries.
 - [x] Research - Merged
 - [x] FSD - Merged
 - [x] Architecture - Merged
-- [x] Implementation - In Progress
+- [x] Implementation - Merged
 
 ## Notes
 
