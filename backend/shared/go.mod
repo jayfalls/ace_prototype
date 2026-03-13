@@ -1,3 +1,3 @@
-module github.com/ace/shared
+module ace/shared
 
 go 1.26

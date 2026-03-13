@@ -1,7 +1,7 @@
 services:
   ace_api:
     build:
-      context: ..
+      context: ../..
       dockerfile: devops/dev/api.Containerfile
     container_name: ace_api
     user: root
@@ -25,7 +25,7 @@ services:
 
   ace_fe:
     build:
-      context: ..
+      context: ../..
       dockerfile: devops/dev/fe.Containerfile
     container_name: ace_fe
     user: root
