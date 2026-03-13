@@ -35,6 +35,9 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
       - NODE_ENV=development
+    volumes:
+      - ../../frontend:/app:Z
+      - /app/node_modules
     command: npm run dev
     depends_on:
       - ace_api
