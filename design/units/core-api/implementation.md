@@ -26,14 +26,15 @@ Before starting implementation, ensure you have read:
 
 #### PR 2: Database Connection
 **Goal**: Establish PostgreSQL connection using pgx
+**Status**: ✅ Merged - [PR #92](https://github.com/jayfalls/ace_prototype/pull/92)
 **Files**:
 - `backend/services/api/internal/repository/db.go`
 - `backend/services/api/internal/config/config.go`
 
 **Acceptance Criteria**:
-- [ ] Can connect to PostgreSQL using environment variables
-- [ ] Connection pool is configured
-- [ ] Graceful shutdown works
+- [x] Can connect to PostgreSQL using environment variables
+- [x] Connection pool is configured
+- [x] Graceful shutdown works
 
 ### Phase 2: HTTP Server
 
