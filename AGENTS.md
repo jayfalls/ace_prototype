@@ -134,6 +134,57 @@ All code changes must include appropriate tests:
   - Backend: `go test ./...`
   - Frontend: `npm test` or `vitest run`
 
+### Verifying Code Before Pushing
+
+**CRITICAL**: Always test and verify code changes before pushing to remote.
+
+1. **Install Dependencies**: The agent has sudo access and can install missing dependencies:
+   ```bash
+   # For Go projects
+   sudo apt-get update && sudo apt-get install -y golang-go
+   
+   # For Node.js projects
+   sudo apt-get update && sudo apt-get install -y nodejs npm
+   ```
+
+2. **Build Verification**: Always verify the code compiles before pushing:
+   ```bash
+   # For Go
+   go build ./...
+   
+   # For frontend
+   npm run build
+   ```
+
+3. **Run Tests**: Execute tests to verify functionality:
+   ```bash
+   # For Go
+   go test -v ./...
+   
+   # For Node.js
+   npm test
+   ```
+
+4. **Verify in Container**: For Docker-based projects, verify in the container:
+   ```bash
+   # Build and run containers
+   make up
+   
+   # Run tests in container
+   make test
+   
+   # Check health endpoint
+   curl http://localhost:8080/health
+   ```
+
+5. **Check for Common Issues**:
+   - Unused imports
+   - Variable scope issues
+   - Type mismatches
+   - API compatibility (check library documentation for correct usage)
+
+6. **If Tests Fail**: Fix the issues locally before pushing. Do not push broken code.
+
 ## Documentation Updates
 
 After any code change is merged:
