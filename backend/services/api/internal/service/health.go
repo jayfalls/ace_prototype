@@ -91,6 +91,23 @@ func (s *HealthService) EnsureHealthRecord(ctx context.Context) (*HealthStatus, 
 	}, nil
 }
 
+// CreateHealthCheck creates a new health check record.
+func (s *HealthService) CreateHealthCheck(ctx context.Context) (*HealthStatus, error) {
+	newHealth, err := s.queries.CreateHealthCheck(ctx, queries.CreateHealthCheckParams{
+		Status:  "healthy",
+		Message: pgtype.Text{String: "System is operational", Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &HealthStatus{
+		Status:    newHealth.Status,
+		Message:   newHealth.Message.String,
+		CheckedAt: newHealth.CheckedAt.Time,
+	}, nil
+}
+
 // ListHealthChecks returns the health check history.
 func (s *HealthService) ListHealthChecks(ctx context.Context, limit int32) ([]HealthStatus, error) {
 	healthChecks, err := s.queries.ListHealthChecks(ctx, limit)

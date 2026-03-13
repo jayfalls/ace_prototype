@@ -87,6 +87,7 @@ func main() {
 
 	// Health check endpoint using SQLC-generated queries
 	r.Get("/health", healthHandler.Health)
+	r.Post("/health/check", healthHandler.HealthCheck)
 	r.Get("/health/history", healthHandler.ListHealthChecks)
 
 	// Root endpoint

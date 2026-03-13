@@ -24,11 +24,8 @@ func NewHealthHandler(healthService *service.HealthService) *HealthHandler {
 
 // HealthResponse represents the health check response.
 type HealthResponse struct {
-	Status    string `json:"status"`
-	DB        string `json:"db"`
-	Health    string `json:"health,omitempty"`
-	Message   string `json:"message,omitempty"`
-	CheckedAt string `json:"checked_at,omitempty"`
+	Status string `json:"status"`
+	DB     string `json:"db"`
 }
 
 // Health handles GET /health requests.
@@ -42,29 +39,32 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 		dbStatus = "unhealthy"
 	}
 
-	health, err := h.healthService.EnsureHealthRecord(ctx)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(HealthResponse{
+		Status: "OK",
+		DB:     dbStatus,
+	})
+}
+
+// HealthCheck handles POST /health/check requests - creates a new health check record.
+func (h *HealthHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	health, err := h.healthService.CreateHealthCheck(ctx)
 	if err != nil {
-		log.Printf("Failed to get health status: %v", err)
+		log.Printf("Failed to create health check: %v", err)
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(HealthResponse{
-			Status:  "OK",
-			DB:      dbStatus,
-			Health:  "degraded",
-			Message: "Unable to retrieve health status",
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Failed to create health check",
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(HealthResponse{
-		Status:    "OK",
-		DB:        dbStatus,
-		Health:    health.Status,
-		Message:   health.Message,
-		CheckedAt: health.CheckedAt.Format(time.RFC3339),
-	})
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(health)
 }
 
 // ListHealthChecks handles GET /health/history requests.
