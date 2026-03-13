@@ -17,7 +17,7 @@ services:
     volumes:
       - ../../backend:/app:Z
     working_dir: /app
-    command: /bin/sh -c "cd /app/services/api && air -c air.toml"
+    command: /bin/sh -c "sleep 2 && cd /app/services/api && air -c air.toml"
     depends_on:
       - ace_db
       - ace_broker
