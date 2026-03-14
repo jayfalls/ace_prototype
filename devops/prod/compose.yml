@@ -17,19 +17,6 @@ services:
       start_period: 30s
     ports:
       - "8080:8080"
-    environment:
-      - POSTGRES_HOST=${POSTGRES_HOST}
-      - POSTGRES_PORT=${POSTGRES_PORT}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_SSLMODE=${POSTGRES_SSLMODE}
-      - API_PORT=${API_PORT}
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
-      - NATS_URL=${NATS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS}
-      - LOG_LEVEL=${LOG_LEVEL}
     networks:
       - ace_network
 
@@ -44,7 +31,6 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
       - NODE_ENV=production
     networks:
       - ace_network
