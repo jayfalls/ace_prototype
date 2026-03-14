@@ -14,6 +14,10 @@ triggers:
   - plan
   - agent
   - flow
+  - issue
+  - pr
+  - pull
+  - implement
 ---
 
 # ACE Framework Agent Specialisation
