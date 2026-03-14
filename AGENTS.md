@@ -1,7 +1,7 @@
 **CRITICAL** paths are non-negotiable steps, if you don't adhere to any of the **CRITICAL** steps, your work will be invalidated and thrown out.
 
 # Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run the `.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc) and git hooks.
+- **CRITICAL**: On initialisation before responding to any messages from the user, run the `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc) and git hooks.
 - MAKE SURE TO RUN THIS SCRIPT BEFORE DOING ANY WORK, THIS MUST ALWAYS BE THE FIRST THING YOU DO!!!
 
 # Design Documentation (Always Read First!)
