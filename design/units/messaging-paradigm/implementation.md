@@ -6,36 +6,33 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ## Implementation Strategy
 
-1. Start with foundational pieces (envelope, subjects) that other pieces depend on
-2. Build the client wrapper next as it provides the infrastructure
-3. Add patterns on top of the client
-4. Configure streams last as they're the highest-level abstraction
-5. Testing throughout
+1. Start with foundational types (errors, subjects) that have no dependencies
+2. Build the envelope (depends on errors for error types)
+3. Implement the client (interface + mock + implementation together)
+4. Add patterns on top of the client
+5. Configure streams last as they're the highest-level abstraction
+6. Add integration tests with embedded NATS
 
 ## Micro-PRs
 
-### PR-1: Message Envelope
+### PR-1: Error Types
 
-**Files to create/modify:**
+**Files to create:**
 - `shared/messaging/go.mod` - New module
-- `shared/messaging/envelope.go` - Envelope struct and helpers
+- `shared/messaging/errors.go` - Error types and handling
 
 **Implementation:**
-- Define `Envelope` struct with all required fields
-- Add header mapping functions
-- Add `NewEnvelope` constructor
-- Add `GenerateMessageID` function
+- Define error types from FSD
+- Add error wrapping helpers
 
 **Acceptance Criteria:**
-- Envelope struct has all fields from FSD
-- Header mapping works bidirectionally
-- Unit tests for envelope creation and header mapping
+- All error types from FSD are defined
 
 ---
 
 ### PR-2: Subject Constants
 
-**Files to create/modify:**
+**Files to create:**
 - `shared/messaging/subjects.go` - Subject type and constants
 
 **Implementation:**
@@ -51,28 +48,33 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ---
 
-### PR-3: NATS Client Interface
+### PR-3: Message Envelope
 
-**Files to create/modify:**
-- `shared/messaging/client.go` - Client interface
+**Files to create:**
+- `shared/messaging/envelope.go` - Envelope struct and helpers
+
+**Implementation:**
+- Define `Envelope` struct with all required fields
+- Add header mapping functions
+- Add `NewEnvelope` constructor
+- Add `GenerateMessageID` function
+
+**Acceptance Criteria:**
+- Envelope struct has all fields from FSD
+- Header mapping works bidirectionally
+- Unit tests for envelope creation and header mapping
+
+---
+
+### PR-4: NATS Client (Interface + Implementation)
+
+**Files to create:**
+- `shared/messaging/client.go` - Client interface and implementation
 
 **Implementation:**
 - Define `Client` interface with all methods from FSD
 - Add `Config` struct
 - Add mock client for testing
-
-**Acceptance Criteria:**
-- Interface covers all communication patterns
-- Mock client implements interface for testing
-
----
-
-### PR-4: NATS Client Implementation
-
-**Files to create/modify:**
-- `shared/messaging/client.go` - Client implementation
-
-**Implementation:**
 - Implement `natsClient` struct
 - Implement `NewClient` function
 - Implement all Client interface methods
@@ -80,6 +82,8 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 - Add health check
 
 **Acceptance Criteria:**
+- Interface covers all communication patterns
+- Mock client implements interface for testing
 - Connects to NATS server
 - Reconnects on disconnect
 - Health check verifies connection and JetStream
@@ -89,7 +93,7 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ### PR-5: Communication Patterns
 
-**Files to create/modify:**
+**Files to create:**
 - `shared/messaging/patterns.go` - Publish, Request, Subscribe helpers
 
 **Implementation:**
@@ -106,7 +110,7 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ### PR-6: JetStream Configuration
 
-**Files to create/modify:**
+**Files to create:**
 - `shared/messaging/stream.go` - Stream configuration
 
 **Implementation:**
@@ -122,62 +126,75 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ---
 
-### PR-7: Error Types
+### PR-7: Integration Tests
 
-**Files to create/modify:**
-- `shared/messaging/errors.go` - Error types and handling
-
-**Implementation:**
-- Define error types from FSD
-- Add error wrapping helpers
-
-**Acceptance Criteria:**
-- All error types from FSD are defined
-
----
-
-### PR-8: Integration Tests
-
-**Files to create/modify:**
+**Files to create:**
 - `shared/messaging/*_test.go` - Integration tests
 
 **Implementation:**
-- Add tests using embedded NATS if available
-- Test all communication patterns
-- Test stream creation
+- Use embedded NATS server via `github.com/nats-io/nats-server/v2/server`
+- Create `TestMain` to spin up embedded server
+- Run all integration tests against the embedded server
+- Tear down server after tests
+
+**Testing Strategy:**
+```go
+import (
+    "testing"
+    "github.com/nats-io/nats-server/v2/server"
+    "github.com/nats-io/nats.go"
+)
+
+var srv *server.Server
+
+func TestMain(m *testing.M) {
+    opts := &server.Options{
+        Port:     -1, // random port
+        JetStream: true,
+    }
+    var err error
+    srv, err = server.NewServer(opts)
+    if err != nil {
+        panic(err)
+    }
+    go srv.Start()
+    if !srv.ReadyForConnections(5 * time.Second) {
+        panic("NATS server not ready")
+    }
+    code := m.Run()
+    srv.Shutdown()
+    os.Exit(code)
+}
+
+func TestPublish(t *testing.T) {
+    nc, err := nats.Connect(srv.ClientURL())
+    // test publish
+}
+```
 
 **Acceptance Criteria:**
-- Tests pass against real NATS
+- Tests pass against embedded NATS
 - Error cases are covered
+- DLQ stream can be created
 
 ---
 
 ## Dependencies Between PRs
 
+The dependency chain is linear:
+
 ```
-PR-1 (Envelope)
-    │
-    ▼
-PR-2 (Subjects) ◄────────┐
-    │                    │
-    ▼                    │
-PR-3 (Client Interface)  │
-    │                    │
-    ▼                    │
-PR-4 (Client Impl)      │
-    │                    │
-    ▼                    │
-PR-5 (Patterns) ─────────┤
-    │                    │
-    ▼                    │
-PR-6 (Streams) ──────────┤
-    │                    │
-    ▼                    │
-PR-7 (Errors) ───────────┤
-    │                    │
-    ▼                    │
-PR-8 (Tests) ───────────┘
+PR-1 (Errors) ──► PR-2 (Subjects) ──► PR-3 (Envelope) ──► PR-4 (Client) ──► PR-5 (Patterns) ──► PR-6 (Streams) ──► PR-7 (Tests)
 ```
+
+- Errors have no dependencies (foundational types)
+- Subjects have no dependencies (string constants)
+- Envelope uses error types for validation
+- Client uses subjects and envelope
+- Patterns use client
+- Streams use client
+- Tests verify everything
+
 
 ## Repository Structure After Implementation
 
@@ -200,6 +217,7 @@ shared/
 ## Notes
 
 - Each PR should include corresponding tests
-- Update `shared/go.mod` to include messaging module as dependency
+- Add `shared/messaging` to `backend/go.work` for workspace resolution
+- Services that depend on messaging add it to their go.mod require
 - Document usage in package comments
 - Ensure backward compatibility for schema version
