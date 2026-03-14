@@ -19,4 +19,5 @@ Establish communication contracts between all services using NATS.
 - [x] User Stories - Merged
 - [x] Research - Merged
 - [x] FSD - Merged
-- [x] Architecture - In Review
+- [x] Architecture - Merged
+- [x] Implementation - In Review
