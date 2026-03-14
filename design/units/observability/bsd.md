@@ -24,7 +24,8 @@ The solution includes:
 - Usage event type definition and NATS subject constant
 - OpenTelemetry SDK initialization and configuration
 - Trace context propagation across HTTP and NATS
-- Structured logger bootstrap function with mandatory fields
+- Structured logger bootstrap function with mandatory fields (stdout/stderr only, no files)
+- OTel Collector configuration for stdout/stderr ingestion
 - Prometheus metrics bootstrap with standard instrumentations
 - Frontend telemetry module design (implementation deferred to frontend unit)
 - Database schema for usage events in PostgreSQL

@@ -131,9 +131,43 @@ How to handle agentId in Prometheus labels without killing performance at scale?
 ## 4. Loki Log Format Requirements
 
 ### Question
-What format does Loki expect? JSON with specific fields? OTel Collector vs direct export?
+What format does Loki expect? JSON with specific fields? OTel Collector vs direct export? How to ingest stdout/stderr from containers without log files?
 
 ### Research Findings
+
+#### Key Requirement: No Log Files
+- All services must log to stdout/stderr only
+- OTel Collector must ingest from container stdout/stderr
+- No file-based logging
+
+#### OTel Collector Log Sources
+
+**Option A: Stdio Receiver (Recommended for Containers)**
+- OTel Collector reads directly from container stdout/stderr
+- Works with Docker logging driver or container runtime
+- No application code changes needed for logging
+- Collector handles formatting and forwarding to Loki
+
+**Option B: Filelog Receiver**
+- Reads log files from disk
+- **NOT RECOMMENDED** - violates the "no log files" requirement
+
+**Option C: OTLP from Application**
+- Application sends logs via OTLP protocol
+- Requires structured logging in application code
+- More control over log content
+
+#### Recommendation: Stdio Receiver
+For this project, the architecture should be:
+1. Services log to stdout/stderr (JSON format)
+2. Docker/container runtime captures stdout/stderr
+3. OTel Collector uses stdio receiver to ingest logs
+4. OTel Collector forwards to Loki
+
+This achieves:
+- ✅ No log files
+- ✅ Container-native logging
+- ✅ OTel Collector benefits (batching, retry, fan-out)
 
 #### OTel Collector vs Direct Export
 
@@ -144,16 +178,16 @@ What format does Loki expect? JSON with specific fields? OTel Collector vs direc
   - Fan-out: Can send to multiple backends simultaneously (Loki + any other)
   - Format translation: Handles conversion from OTLP to Loki's format automatically
   - Pipeline: Can process, filter, and transform logs before export
+  - Stdio receiver: Ingests directly from container stdout/stderr
 - **Cons:**
   - Additional container/process to operate
   - Additional configuration in compose/K8s
   - More resources (CPU/memory) required
 
-**Option B: Direct Export (Alternative)**
-- Use Loki OTLP HTTP endpoint directly without Collector
-- **Pros:** Simpler infrastructure, fewer components
-- **Cons:** No batching, no retry, no fan-out, no pipeline processing
-- This is a valid alternative for simpler deployments
+**Option B: Direct Export (NOT RECOMMENDED)**
+- Cannot easily ingest stdout/stderr without additional tooling
+- Would require sidecar or log driver configuration
+- **Does not meet "no log files" requirement cleanly**
 
 #### Recommended Fields for JSON Logs
 ```json
