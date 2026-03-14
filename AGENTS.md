@@ -1,6 +1,31 @@
 # AGENTS.md
 
+> **Important**: This file references the `agency-agents` specialist agents from the cloned repository at `agency-agents/`. Run `.openhands/setup.sh` first to ensure the agent definitions are available.
+
 ## Getting Started
+
+### First Time Setup
+Run the setup script to ensure the environment is correct:
+```bash
+./.openhands/setup.sh
+```
+This script (idempotent):
+- Installs Go, Node.js, npm, and Docker if missing
+- Clones the `agency-agents` repository to `agency-agents/`
+- Installs Go workspace dependencies for all modules in `backend/`
+- Installs frontend Node dependencies
+- Installs global tooling (sqlc, goose, air)
+
+### Pre-Commit Quality Gates
+Before every commit, run:
+```bash
+./.openhands/pre-commit.sh
+```
+This script enforces:
+- Go build verification across all modules
+- SQLC generate validation (generated files must be up to date)
+- Go test suite execution
+- Frontend lint (svelte-check)
 
 ### Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work on the codebase
@@ -61,6 +86,45 @@ Each unit should have a complete set of documentation. The template includes 14 
 3. Create a PR for the BSD first, then user_stories, then research
 4. Only begin implementation after all design documents are approved
 5. One document type per PR (e.g., one PR for research, one for BSD)
+
+### Agency Specialist Activation
+
+**CRITICAL**: Always activate the appropriate specialist agent for each workflow stage. Agents should NOT have to infer which specialist applies - it must be stated directly.
+
+The `agency-agents/` directory contains specialized AI agents that map to different stages of the ACE Framework unit workflow. Below is the explicit mapping:
+
+| Workflow Stage | Agency Specialist | Activation Instruction |
+|---------------|-------------------|------------------------|
+| **Problem Space Discovery** | Product Sprint Prioritizer | "Activate the **Sprint Prioritizer** (from `agency-agents/product/product-sprint-prioritizer.md`)" |
+| **BSD (Business Spec)** | Product Sprint Prioritizer | "Activate the **Sprint Prioritizer** (from `agency-agents/product/product-sprint-prioritizer.md`)" |
+| **User Stories** | Product Feedback Synthesizer | "Activate the **Feedback Synthesizer** (from `agency-agents/product/product-feedback-synthesizer.md`)" |
+| **Research** | Product Trend Researcher + Testing Tool Evaluator | "Activate the **Trend Researcher** (from `agency-agents/product/product-trend-researcher.md`) for market analysis AND **Tool Evaluator** (from `agency-agents/testing/testing-tool-evaluator.md`)" |
+| **Backend Implementation** | Backend Architect | "Activate the **Backend Architect** (from `agency-agents/engineering/engineering-backend-architect.md`). Also read `design/README.md` for ACE-specific patterns." |
+| **Frontend Implementation** | Frontend Developer | "Activate the **Frontend Developer** (from `agency-agents/engineering/engineering-frontend-developer.md`)" |
+| **DevOps/Infrastructure** | DevOps Automator | "Activate the **DevOps Automator** (from `agency-agents/engineering/engineering-devops-automator.md`)" |
+| **Security Review** | Security Engineer | "Activate the **Security Engineer** (from `agency-agents/engineering/engineering-security-engineer.md`)" |
+| **Testing - Evidence** | Testing Evidence Collector | "Activate the **Evidence Collector** (from `agency-agents/testing/testing-evidence-collector.md`)" |
+| **Testing - Quality Gate** | Testing Reality Checker | "Activate the **Reality Checker** (from `agency-agents/testing/testing-reality-checker.md`)" |
+| **Testing - API** | Testing API Tester | "Activate the **API Tester** (from `agency-agents/testing/testing-api-tester.md`)" |
+| **Testing - Performance** | Testing Performance Benchmarker | "Activate the **Performance Benchmarker** (from `agency-agents/testing/testing-performance-benchmarker.md`)" |
+| **Code Review** | Senior Developer + Reality Checker | "Activate the **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`) AND **Reality Checker** (from `agency-agents/testing/testing-reality-checker.md`)" |
+| **UX Design** | UI Designer + UX Researcher | "Activate the **UI Designer** (from `agency-agents/design/design-ui-designer.md`) AND **UX Researcher** (from `agency-agents/design/design-ux-researcher.md`)" |
+
+#### Using Agency Specialists
+
+To activate a specialist agent, include their full path in your prompt. For example:
+
+```
+Use the Backend Architect agent from agency-agents/engineering/engineering-backend-architect.md 
+to design the API architecture. Also read design/README.md for ACE-specific patterns.
+```
+
+**Note**: For backend cognitive engine work, read `design/README.md` for ACE-specific knowledge including:
+- ACE cognitive layer hierarchy (6 layers)
+- NATS subject naming convention
+- Go workspace monorepo structure
+- Handler → Service → Repository pattern specifics
+- Cross-cutting constraints (agentId threading, usage tracking)
 
 ### Problem Space Discovery (Before Each Document)
 **IMPORTANT**: Before starting any document in a unit, explore the topic with the user through questions.
@@ -136,60 +200,22 @@ All code changes must include appropriate tests:
 - **Integration Tests**: Required for API and database operations
 - **Frontend Tests**: Use Vitest for unit tests
 - **E2E Tests**: Required for critical user flows
-- **Running Tests**:
-  - Backend: `go test ./...`
-  - Frontend: `npm test` or `vitest run`
 
 ### Verifying Code Before Pushing
 
-**CRITICAL**: Always test and verify code changes before pushing to remote.
+**CRITICAL**: Always run the pre-commit quality gates before pushing:
 
-1. **Install Dependencies**: The agent has sudo access and can install missing dependencies:
-   ```bash
-   # For Go projects
-   sudo apt-get update && sudo apt-get install -y golang-go
-   
-   # For Node.js projects
-   sudo apt-get update && sudo apt-get install -y nodejs npm
-   ```
+```bash
+./.openhands/pre-commit.sh
+```
 
-2. **Build Verification**: Always verify the code compiles before pushing:
-   ```bash
-   # For Go
-   go build ./...
-   
-   # For frontend
-   npm run build
-   ```
+This ensures:
+- Go build verification
+- SQLC generate validation
+- Go test suite execution  
+- Frontend lint
 
-3. **Run Tests**: Execute tests to verify functionality:
-   ```bash
-   # For Go
-   go test -v ./...
-   
-   # For Node.js
-   npm test
-   ```
-
-4. **Verify in Container**: For Docker-based projects, verify in the container:
-   ```bash
-   # Build and run containers
-   make up
-   
-   # Run tests in container
-   make test
-   
-   # Check health endpoint
-   curl http://localhost:8080/health
-   ```
-
-5. **Check for Common Issues**:
-   - Unused imports
-   - Variable scope issues
-   - Type mismatches
-   - API compatibility (check library documentation for correct usage)
-
-6. **If Tests Fail**: Fix the issues locally before pushing. Do not push broken code.
+See `.openhands/pre-commit.sh` for full details.
 
 ## Documentation Updates
 
