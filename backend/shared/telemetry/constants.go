@@ -6,3 +6,8 @@ const (
 	TraceStateHeader  = "tracestate"
 	BaggageHeader     = "baggage"
 )
+
+// NATS subject constants
+const (
+	SubjectUsageEvent = "ace.usage.event"
+)
