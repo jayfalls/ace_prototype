@@ -14,15 +14,15 @@ type NATSCarrier struct {
 
 // Set sets a header value in the NATS message
 func (c NATSCarrier) Set(key, value string) {
-	if c.msg.Header == nil {
-		c.msg.Header = nats.Header{}
+	if c.msg == nil || c.msg.Header == nil {
+		return
 	}
 	c.msg.Header.Set(key, value)
 }
 
 // Get gets a header value from the NATS message
 func (c NATSCarrier) Get(key string) string {
-	if c.msg.Header == nil {
+	if c.msg == nil || c.msg.Header == nil {
 		return ""
 	}
 	return c.msg.Header.Get(key)
@@ -30,7 +30,7 @@ func (c NATSCarrier) Get(key string) string {
 
 // Keys returns all header keys from the NATS message
 func (c NATSCarrier) Keys() []string {
-	if c.msg.Header == nil {
+	if c.msg == nil || c.msg.Header == nil {
 		return nil
 	}
 	keys := make([]string, 0, len(c.msg.Header))

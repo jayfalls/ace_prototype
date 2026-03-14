@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,4 +148,70 @@ func TestSpanAttributesJSON(t *testing.T) {
 	assert.Contains(t, string(jsonBytes), "agent_id")
 	assert.Contains(t, string(jsonBytes), "cycle_id")
 	assert.Contains(t, string(jsonBytes), "service_name")
+}
+
+func TestNATSCarrier_Set_NilMsg(t *testing.T) {
+	carrier := NATSCarrier{msg: nil}
+	// Should not panic
+	carrier.Set("key", "value")
+}
+
+func TestNATSCarrier_Set_NilHeader(t *testing.T) {
+	msg := &nats.Msg{
+		Subject: "test",
+		Data:    []byte("body"),
+		Header:  nil,
+	}
+	carrier := NATSCarrier{msg: msg}
+	// Should not panic
+	carrier.Set("key", "value")
+}
+
+func TestNATSCarrier_Get_NilMsg(t *testing.T) {
+	carrier := NATSCarrier{msg: nil}
+	result := carrier.Get("key")
+	assert.Equal(t, "", result)
+}
+
+func TestNATSCarrier_Get_NilHeader(t *testing.T) {
+	msg := &nats.Msg{
+		Subject: "test",
+		Data:    []byte("body"),
+		Header:  nil,
+	}
+	carrier := NATSCarrier{msg: msg}
+	result := carrier.Get("key")
+	assert.Equal(t, "", result)
+}
+
+func TestNATSCarrier_Keys_NilMsg(t *testing.T) {
+	carrier := NATSCarrier{msg: nil}
+	result := carrier.Keys()
+	assert.Nil(t, result)
+}
+
+func TestNATSCarrier_Keys_NilHeader(t *testing.T) {
+	msg := &nats.Msg{
+		Subject: "test",
+		Data:    []byte("body"),
+		Header:  nil,
+	}
+	carrier := NATSCarrier{msg: msg}
+	result := carrier.Keys()
+	assert.Nil(t, result)
+}
+
+func TestNATSCarrier_WithHeader(t *testing.T) {
+	msg := &nats.Msg{
+		Subject: "test",
+		Data:    []byte("body"),
+		Header:  nats.Header{"traceparent": []string{"00-abc-123"}},
+	}
+	carrier := NATSCarrier{msg: msg}
+	
+	assert.Equal(t, "00-abc-123", carrier.Get("traceparent"))
+	assert.Contains(t, carrier.Keys(), "traceparent")
+	
+	carrier.Set("tracestate", "vendor=custom")
+	assert.Equal(t, "vendor=custom", carrier.Get("tracestate"))
 }
