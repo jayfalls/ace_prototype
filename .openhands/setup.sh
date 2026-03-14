@@ -11,7 +11,9 @@
 set -euo pipefail
 
 # Get the directory where this script is located (repo root)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve symlinks to handle git hook symlink case
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration
@@ -205,7 +207,40 @@ else
 fi
 
 # ============================================
-# 5. Set environment variables
+# 5. Set up Git Pre-commit Hook
+# ============================================
+log_info "Setting up Git pre-commit hook..."
+
+HOOKS_DIR="$REPO_ROOT/.git/hooks"
+PRECOMMIT_HOOK="$HOOKS_DIR/pre-commit"
+SCRIPT_HOOK="$REPO_ROOT/.openhands/pre-commit.sh"
+
+# Ensure hooks directory exists
+mkdir -p "$HOOKS_DIR"
+
+# Create the pre-commit hook if it doesn't exist or points to a different script
+if [ -L "$PRECOMMIT_HOOK" ]; then
+    CURRENT_TARGET=$(readlink -f "$PRECOMMIT_HOOK" 2>/dev/null || echo "")
+    if [ "$CURRENT_TARGET" = "$SCRIPT_HOOK" ]; then
+        log_success "Pre-commit hook already configured"
+    else
+        log_info "Updating pre-commit hook..."
+        rm "$PRECOMMIT_HOOK"
+        ln -s "$SCRIPT_HOOK" "$PRECOMMIT_HOOK"
+        log_success "Pre-commit hook updated"
+    fi
+elif [ -f "$PRECOMMIT_HOOK" ]; then
+    log_warn "Pre-commit hook already exists (not a symlink). Backing up and replacing..."
+    mv "$PRECOMMIT_HOOK" "${PRECOMMIT_HOOK}.backup"
+    ln -s "$SCRIPT_HOOK" "$PRECOMMIT_HOOK"
+    log_success "Pre-commit hook installed (backup at ${PRECOMMIT_HOOK}.backup)"
+else
+    ln -s "$SCRIPT_HOOK" "$PRECOMMIT_HOOK"
+    log_success "Pre-commit hook installed"
+fi
+
+# ============================================
+# 6. Set environment variables
 # ============================================
 log_info "Setting up environment variables..."
 
