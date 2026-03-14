@@ -356,7 +356,7 @@ func TestIntegration_ReplyTo(t *testing.T) {
 	sub, err := nc.Subscribe("test.request", func(msg *nats.Msg) {
 		// Use ReplyTo to respond
 		err := ReplyTo(client, msg, []byte("reply payload"))
-		require.NoError(nil, err)
+		require.NoError(t, err)
 	})
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
