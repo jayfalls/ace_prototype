@@ -35,6 +35,9 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ### PR-2: Subject Constants
 
+**Status:** Merged
+**PR:** [#119](https://github.com/jayfalls/ace_prototype/pull/119)
+
 **Files to create:**
 - `shared/messaging/subjects.go` - Subject type and constants
 
@@ -45,9 +48,9 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 - Add `Validate` method
 
 **Acceptance Criteria:**
-- All subjects from FSD are defined
-- Format method works with variadic args
-- Validation test passes
+- [x] All subjects from FSD are defined
+- [x] Format method works with variadic args
+- [x] Validation test passes
 
 ---
 

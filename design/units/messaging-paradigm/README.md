@@ -22,3 +22,4 @@ Establish communication contracts between all services using NATS.
 - [x] Architecture - Merged
 - [x] Implementation - Merged
 - [x] PR-1: Error Types - Merged
+- [x] PR-2: Subject Constants - [PR #119](https://github.com/jayfalls/ace_prototype/pull/119)
