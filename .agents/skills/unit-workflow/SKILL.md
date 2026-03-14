@@ -35,11 +35,17 @@ Refer to the `unit-templates/` folder to see them all.
 
 Follow these steps when working on a unit:
 
-### 1. Create the Unit Folder
+### 1. Skeleton
 
+1. Create the unit folder
 ```bash
 mkdir -p design/units/<unit-name>
 ```
+
+2. Create the readme in the unit folder based off the `unit-templates/README.md`
+
+3. Link the readme in the units readme
+
 
 ### 2. Problem Space Discovery (Before Each Document)
 
