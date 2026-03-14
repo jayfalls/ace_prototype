@@ -14,244 +14,171 @@ The ACE Framework is a conceptual cognitive architecture for building ethical au
 ### High-Level Overview
 
 The ACE Framework consists of:
-- **Telemetry (Senses)** - Input handling (chat, sensors, metrics, webhooks)
-- **Cognitive Engine** - 6 ACE layers with NATS for northbound/southbound communication
-- **Actuators (Outputs)** - Output handling (chat, tools, signals, export)
-- **Memory** - Per-layer + global memory modules
+- **Frontend** - SvelteKit web UI
+- **Core API** - Go HTTP API with Chi
+- **Message Broker (NATS)** - Inter-service communication
+- **Database (PostgreSQL)** - Persistence with SQLC
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                              ACE Framework                               │
 │                                                                          │
 │  ┌──────────────┐      ┌──────────────┐      ┌──────────────────────┐  │
-│  │   Frontend   │      │    API       │      │   Cognitive Engine  │  │
-│  │  SvelteKit   │◄────►│     Go       │◄────►│        Go           │  │
-│  │   (Web UI)   │      │    (Gin)     │      │   (6 ACE Layers)   │  │
+│  │   Frontend   │◄────►│    Core      │      │   Cognitive Engine  │  │
+│  │  SvelteKit   │      │  API (Go)    │◄────►│        (Future)     │  │
+│  │              │      │    Chi       │      │                      │  │
 │  └──────┬───────┘      └──────┬───────┘      └──────────┬───────────┘  │
-│         │                      │                         │              │
-│         │              ┌───────┴───────┐                 │              │
-│         │              │   Auth (JWT)  │                 │              │
-│         │              │  WebSocket    │                 │              │
-│         └──────────────┼───────────────┼─────────────────┘              │
-│                        │               │                                  │
-│         ┌──────────────┼───────────────┼───────────────────────────┐    │
-│         │         Telemetry/Senses                            │    │
-│         │  Inputs: Chat | Sensors | Metrics | Webhooks       │    │
-│         └──────────────┬───────────────┬───────────────────────────┘    │
-│                        │               │                                  │
-│                        ▼               ▼                                  │
+│         │                     │                         │              │
+│         │              ┌──────┴──────┐                  │              │
+│         │              │             │                  │              │
+│         └──────────────┼─────────────┼──────────────────┘              │
+│                        ▼             ▼                                  │
 │                 ┌───────────┐   ┌───────────┐                          │
 │                 │PostgreSQL │   │   NATS    │                          │
-│                 │  + SQLC   │   │(Pub/Sub)  │                          │
+│                 │  + SQLC   │   │(Broker)   │                          │
 │                 └───────────┘   └───────────┘                          │
-│                        │               │                                  │
-│                        ▼               ▼                                  │
-│                 ┌─────────────────────────────────────────────────────┐   │
-│                 │              Actuators (Outputs)                    │   │
-│                 │  Chat | Tools | Signals | Export                   │   │
-│                 └─────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Components
 
-| Component | Responsibility |
-|-----------|---------------|
-| **Frontend** | User interface, real-time updates (SvelteKit) |
-| **API (Gin)** | HTTP routes, auth, websocket, orchestration |
-| **Cognitive Engine** | 6 ACE layers with NATS inter-layer communication |
-| **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks |
-| **Actuators (Outputs)** | Output handling: chat, tools, signals, export |
-| **Memory** | Per-layer + global modules (long/medium/short term) |
-| **Message Broker (NATS)** | Inter-layer communication (northbound/southbound) |
-| **Persistence** | PostgreSQL + SQLC |
+| Component | Responsibility | Status |
+|-----------|---------------|--------|
+| **Frontend** | User interface (SvelteKit) | Future |
+| **Core API** | HTTP API, orchestration (Go/Chi) | In Progress |
+| **Message Broker (NATS)** | Inter-service communication | Future |
+| **Persistence** | PostgreSQL + SQLC + Goose | In Progress |
+| **Cognitive Engine** | 6 ACE layers | Future |
+| **Memory Service** | Per-layer + global memory | Future |
 
-### Layer Communication
+### Development Environment
 
-- **NATS** for inter-layer (northbound/southbound buses)
-- Each message includes: `timestamp`, `cycle_id`, `layer_id`
-- Multiple messages per cycle aggregated at cycle boundary
-- Variable layer speeds handled via async NATS messaging
+**Docker Compose** (local development):
+- `frontend` - SvelteKit dev server (:5173)
+- `api` - Go API server (:8080)
+- `postgres` - Database (:5432)
+- `nats` - Message broker (:4222)
 
-### Loops
+### Project Structure
 
-**Within Layers:**
-- Configurable loops (task prosecution: infinite, planning: finite)
-- Max loops, max cycles, max time per loop defined in config
-- Pull-based status updates, output on completion
-
-**Global Loops (HRM):**
-- Chat Interface (fast) - human interaction
-- Safety Monitor (fast) - threat detection
-- Swarm Coordinator (medium) - multi-agent
-- Memory Manager (slow) - consolidation
-- Learning Loop (medium) - feedback integration
-
-### Memory Architecture
-
-Each layer has its own memory module + global module:
-- **Long-term**: Tree structure with tags, query via tree traversal + tag search
-- **Medium-term**: Always injected
-- **Short-term**: Always injected
-- **Isolation**: Layer only accesses own module + global module
-
-### Container Architecture
-
-**Single Agent Mode:**
-- frontend (:5173), api (:8080), telemetry (:8081), nats (:4222), postgres (:5432)
-
-**Kubernetes (Multi-Agent):**
-- Frontend, API, Telemetry (Deployments)
-- NATS (StatefulSet)
-- PostgreSQL (Managed)
-- Cognitive Engine pods
-
-See [units/architecture/architecture.md](units/architecture/architecture.md) for detailed diagrams and specifications.
+```
+backend/
+├── go.work                      # Go workspace
+├── shared/                      # Shared code (future units)
+└── services/
+    └── api/                    # Core API service
+        ├── cmd/                # Entry points
+        ├── internal/           # Private code
+        │   ├── config/         # Configuration
+        │   ├── handler/        # HTTP handlers
+        │   ├── middleware/    # HTTP middleware
+        │   ├── repository/    # Database layer
+        │   └── response/      # Response helpers
+        ├── migrations/        # DB migrations
+        └── sqlc.yaml          # SQLC config
+```
 
 ## 2. Technologies
 
 ### Backend
-- **Go** - Primary language for API and Cognitive Engine
-- **Gin** - HTTP web framework
-- **SQLC** - Type-safe SQL access to PostgreSQL
-- **NATS** - Message broker for inter-layer communication
+- **Go 1.26** - Primary language
+- **Chi v5** - HTTP router
+- **pgx/v5** - PostgreSQL driver
+- **SQLC** - Type-safe SQL
+- **Goose** - Database migrations
+- **go-playground/validator** - Input validation
+- **NATS** - Message broker
 
-### Frontend
+### Frontend (Future)
 - **SvelteKit** - Full-stack web framework
-- **TypeScript** - Type-safe frontend code
+- **TypeScript** - Type-safe code
 
 ### Database
 - **PostgreSQL** - Primary data store
 - **SQLC** - Compile-time SQL type checking
-
-### Authentication
-- **JWT** - Token-based authentication
-- **oauth2-proxy** - OAuth integration (future)
+- **Goose** - SQL migrations
 
 ### Infrastructure
-- **Docker** - Containerization
-- **Kubernetes** - Orchestration for multi-agent deployments
-- **WebSocket** - Real-time communication
+- **Docker Compose** - Local development
+- **WebSocket** - Real-time communication (future)
 
-## 3. Data Model
+## 3. API
 
-The data model is defined in the Core Infrastructure unit.
+### Core API Patterns
 
-### Core Entities
-- **Agent**: Autonomous cognitive entity (id, name, description, config, status)
-- **Memory**: Long-term memory with tree structure (id, parent_id, content, tags, memory_type, importance)
-- **Session**: User-agent interaction sessions (id, agent_id, user_id, status, context)
-- **Thought**: Individual thought records for debugging/traceability (id, session_id, layer, cycle, content)
-- **User**: User accounts (id, email, name, password_hash)
-- **LLMProvider**: LLM configurations (id, name, api_key, base_url, default_model)
-- **LLMAttachment**: LLM to layer/component mapping (id, agent_id, provider_id, target_type, target_id, model)
-- **AgentSetting**: Agent-specific settings (id, agent_id, key, value)
-- **SystemSetting**: Global system settings (id, key, value, is_secret)
-- **AgentToolWhitelist**: Per-agent tool whitelist (id, agent_id, tool_source, tool_name, enabled)
+The Core API establishes patterns for all future services:
 
-### Relationships
-- Agent 1:N Memories
-- Agent 1:N Sessions
-- Session 1:N Thoughts
-- Agent N:N LLMProvider (via LLMAttachment)
-- Agent N:N Tools (via AgentToolWhitelist)
+- **Layered Architecture**: Handler → Service → Repository → Database
+- **Repository Pattern**: Interfaces in service layer, implementations in repository
+- **SQLC**: Type-safe queries generated from SQL
+- **Migrations**: Goose for versioned schema changes
+- **Validation**: Struct tags with go-playground/validator
+- **Response Format**: Consistent JSON success/error responses
 
-## 4. API
+### REST Endpoints
 
-The API structure is defined in the Core Infrastructure unit.
+Base: `/api/v1`
 
-### REST API
-- **Agents**: CRUD + lifecycle (start/stop)
-- **Memories**: CRUD + search
-- **Sessions**: CRUD + thought traces
-- **LLM Providers**: CRUD
-- **Settings**: Agent + system level
-- **Tools**: Whitelist management
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Health check |
 
-### WebSocket
-- Real-time thought streaming
-- Agent status updates
+Additional endpoints will be defined in future units.
 
-## 5. Frontend
+## 4. Database
 
-### Tech Stack
-- **SvelteKit**: Full-stack framework
-- **TypeScript**: Type-safe code
+### Schema Management
 
-### Features
-- User authentication UI (login/register)
-- Agent management (create, configure, start, stop, delete)
-- Real-time chat interface
-- Live thought trace visualization
-- Memory browser and search
-- Settings management
+- **SQLC**: Write SQL queries → Generate type-safe Go code
+- **Goose**: Versioned migrations in `migrations/` directory
+- **pgx/v5**: Connection pooling and prepared statements
 
-## 6. Deployment
+### Key Patterns
 
-### Containerization
-- **Docker**: All services containerized
-- **Multi-stage builds**: Minimal production images
+- Generated types live in `repository/generated/`
+- Query files in `repository/queries/`
+- Migrations numbered: `001_`, `002_`, etc.
 
-### Environments
-- **Development**: Local Docker Compose
-- **Production (Single ACE)**: Docker Compose (end users)
-- **Production (ACE Swarm)**: Kubernetes (enterprise)
+## 5. Configuration
 
-### CI/CD
-- **GitHub Actions**: Automated testing and build
-- **Image registry**: Container registry for releases
-- **Rolling deployments**: Zero-downtime updates
+All configuration via environment variables:
+- `DATABASE_URL` - PostgreSQL connection
+- `NATS_URL` - NATS broker URL
+- `PORT` - HTTP server port
+- `LOG_LEVEL` - Logging level
 
-## 7. Security
+No hardcoded values. `.env.example` documents required variables.
 
-Security is defined in the Core Infrastructure unit.
+## 6. Security
 
-### Authentication
+### Authentication (Future)
 - JWT-based stateless authentication
 - Token includes: `user_id`, `exp`, `roles`
-- Token refresh before expiration
 
 ### Protected Routes
-All routes require authentication except:
-- `POST /api/auth/register` - Registration
-- `POST /api/auth/login` - Login
-- `GET /api/tools/sources` - List available tool sources
+All routes require auth except:
+- `GET /health` - Health check
 
-### Data Protection
-- SQL injection prevention via SQLC (parameterized queries)
-- XSS prevention on user inputs
-- API keys encrypted in database
+### Input Validation
+- All input validated with go-playground/validator
+- SQL injection prevented via SQLC (parameterized queries)
 
-## 8. Testing
+## 7. Testing
 
 ### Test Types
-- **Unit tests**: Core business logic
-- **Integration tests**: API endpoints, database operations
+- **Unit tests**: Handlers and services
+- **Integration tests**: Repository and database
 - **E2E tests**: Critical user flows
-
-### Coverage Targets
-- **Unit**: 80% coverage target
-- **Integration**: Key pathways covered
-- **E2E**: Happy path + error handling
 
 ### Tools
 - **Go**: Built-in testing framework
-- **SvelteKit**: Vitest for frontend
-- **Playwright**: E2E testing
+- **Vitest** - Frontend (future)
 
-## 9. Monitoring
+## 8. Monitoring
 
 ### Logging
-- **Structured JSON logs**: Machine-parseable
-- **Log levels**: Debug, Info, Warn, Error
-- **Correlation IDs**: Request tracing
+- Structured JSON logs
+- Request ID middleware for tracing
 
-### Metrics
-- **Prometheus metrics**: Request latency, error rates
-- **Custom metrics**: Agent lifecycle, memory usage
-- **Dashboards**: Grafana for visualization
-
-### Alerting
-- **Error alerts**: PagerDuty or similar
-- **Performance thresholds**: Latency SLAs
-- **Health checks**: Kubernetes probes
+### Health Checks
+- `GET /health` - Basic liveness check
