@@ -12,10 +12,6 @@ import (
 type Config struct {
 	// Database configuration
 	DatabaseURL         string
-	DatabaseMaxConns    int32
-	DatabaseMinConns    int32
-	DatabaseMaxConnLifetime int
-	DatabaseMaxConnIdleTime int
 
 	// API configuration
 	APIHost            string
@@ -39,11 +35,6 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("database configuration: %w", err)
 	}
-
-	maxConns := getEnvInt("DATABASE_MAX_CONNS", 25)
-	minConns := getEnvInt("DATABASE_MIN_CONNS", 5)
-	maxConnLifetime := getEnvInt("DATABASE_MAX_CONN_LIFETIME", 3600) // 1 hour
-	maxConnIdleTime := getEnvInt("DATABASE_MAX_CONN_IDLE_TIME", 1800) // 30 minutes
 
 	// API configuration
 	apiHost := getEnvString("API_HOST", "0.0.0.0")
@@ -77,13 +68,9 @@ func Load() (*Config, error) {
 
 	return &Config{
 		DatabaseURL:            dbURL,
-		DatabaseMaxConns:       maxConns,
-		DatabaseMinConns:       minConns,
-		DatabaseMaxConnLifetime: maxConnLifetime,
-		DatabaseMaxConnIdleTime: maxConnIdleTime,
 		APIHost:                apiHost,
 		APIPort:                apiPort,
-		CORSAllowedOrigins:     origins,
+		CORSAllowedOrigins:    origins,
 		LogLevel:               logLevel,
 		JWTSecret:              jwtSecret,
 		JWTExpirationHours:    jwtExpirationHours,

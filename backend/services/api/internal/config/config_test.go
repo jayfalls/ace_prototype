@@ -12,8 +12,6 @@ func clearEnv(t *testing.T) {
 		"POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "POSTGRES_SSLMODE",
 		"API_HOST", "API_PORT", "CORS_ALLOWED_ORIGINS",
 		"LOG_LEVEL", "JWT_SECRET", "JWT_EXPIRATION_HOURS",
-		"DATABASE_MAX_CONNS", "DATABASE_MIN_CONNS",
-		"DATABASE_MAX_CONN_LIFETIME", "DATABASE_MAX_CONN_IDLE_TIME",
 	} {
 		os.Unsetenv(key)
 	}
@@ -237,12 +235,6 @@ func TestLoadDefaultValues(t *testing.T) {
 	}
 	if cfg.JWTExpirationHours != 24 {
 		t.Errorf("Expected JWTExpirationHours 24, got %d", cfg.JWTExpirationHours)
-	}
-	if cfg.DatabaseMaxConns != 25 {
-		t.Errorf("Expected DatabaseMaxConns 25, got %d", cfg.DatabaseMaxConns)
-	}
-	if cfg.DatabaseMinConns != 5 {
-		t.Errorf("Expected DatabaseMinConns 5, got %d", cfg.DatabaseMinConns)
 	}
 }
 
