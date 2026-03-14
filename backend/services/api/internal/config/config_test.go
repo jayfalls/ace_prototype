@@ -12,6 +12,7 @@ func clearEnv(t *testing.T) {
 		"POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_DB", "POSTGRES_SSLMODE",
 		"API_HOST", "API_PORT", "CORS_ALLOWED_ORIGINS",
 		"LOG_LEVEL", "JWT_SECRET", "JWT_EXPIRATION_HOURS",
+		"ENVIRONMENT", "OTLP_ENDPOINT",
 	} {
 		os.Unsetenv(key)
 	}
@@ -27,6 +28,8 @@ func setPostgresVars(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 }
 
 func setRequiredEnvVars(t *testing.T) {
@@ -35,6 +38,8 @@ func setRequiredEnvVars(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 }
 
 func TestLoadWithPostgresVars(t *testing.T) {
@@ -57,6 +62,12 @@ func TestLoadWithPostgresVars(t *testing.T) {
 	if cfg.JWTSecret != "this-is-a-very-long-secret-key-32chars" {
 		t.Errorf("Expected JWTSecret to be set")
 	}
+	if cfg.Environment != "development" {
+		t.Errorf("Expected Environment 'development', got '%s'", cfg.Environment)
+	}
+	if cfg.OTLPEndpoint != "localhost:4317" {
+		t.Errorf("Expected OTLPEndpoint 'localhost:4317', got '%s'", cfg.OTLPEndpoint)
+	}
 }
 
 func TestLoadWithDatabaseURL(t *testing.T) {
@@ -67,6 +78,8 @@ func TestLoadWithDatabaseURL(t *testing.T) {
 	os.Setenv("API_PORT", "9090")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	cfg, err := Load()
 	if err != nil {
@@ -85,6 +98,8 @@ func TestLoadMissingDatabase(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -100,6 +115,8 @@ func TestLoadMissingPartialPostgresVars(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -114,6 +131,8 @@ func TestLoadMissingAPIPort(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://u:p@host:5432/db")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -128,6 +147,8 @@ func TestLoadMissingCORS(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://u:p@host:5432/db")
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -143,6 +164,8 @@ func TestLoadWithCORSOrigins(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173, https://example.com")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	cfg, err := Load()
 	if err != nil {
@@ -167,6 +190,8 @@ func TestLoadMissingJWTSecret(t *testing.T) {
 	os.Setenv("DATABASE_URL", "postgres://u:p@host:5432/db")
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -182,6 +207,8 @@ func TestLoadJWTSecretTooShort(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "short")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -198,6 +225,8 @@ func TestLoadWithJWTSecret(t *testing.T) {
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("JWT_EXPIRATION_HOURS", "48")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	cfg, err := Load()
 	if err != nil {
@@ -220,6 +249,8 @@ func TestLoadDefaultValues(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	cfg, err := Load()
 	if err != nil {
@@ -247,6 +278,8 @@ func TestLoadInvalidLogLevel(t *testing.T) {
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("LOG_LEVEL", "invalid")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	_, err := Load()
 	if err == nil {
@@ -267,6 +300,8 @@ func TestLoadValidLogLevels(t *testing.T) {
 		os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 		os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 		os.Setenv("LOG_LEVEL", level)
+		os.Setenv("ENVIRONMENT", "development")
+		os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 		cfg, err := Load()
 		if err != nil {
@@ -291,6 +326,8 @@ func TestLoadWithPostgresSSLMode(t *testing.T) {
 	os.Setenv("API_PORT", "8080")
 	os.Setenv("CORS_ALLOWED_ORIGINS", "*")
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
+	os.Setenv("ENVIRONMENT", "development")
+	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
 
 	cfg, err := Load()
 	if err != nil {

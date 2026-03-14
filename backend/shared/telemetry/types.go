@@ -15,12 +15,7 @@ var globalTraceProvider *sdktrace.TracerProvider
 
 // SetGlobalTraceProvider sets the global trace provider for health checking
 func SetGlobalTraceProvider(tp *sdktrace.TracerProvider) {
-	globalTraceProvider = providerForHealthCheck(tp)
-}
-
-// providerForHealthCheck wraps the tracer provider to provide health check functionality
-func providerForHealthCheck(tp *sdktrace.TracerProvider) *sdktrace.TracerProvider {
-	return tp
+	globalTraceProvider = tp
 }
 
 // ErrTracerNotInitialized is returned when the tracer has not been initialized

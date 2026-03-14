@@ -80,8 +80,14 @@ func Load() (*Config, error) {
 	}
 
 	// Telemetry configuration
-	environment := getEnvString("ENVIRONMENT", "development")
-	otlpEndpoint := getEnvString("OTLP_ENDPOINT", "localhost:4317")
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		return nil, fmt.Errorf("ENVIRONMENT is required")
+	}
+	otlpEndpoint := os.Getenv("OTLP_ENDPOINT")
+	if otlpEndpoint == "" {
+		return nil, fmt.Errorf("OTLP_ENDPOINT is required")
+	}
 
 	return &Config{
 		DatabaseURL:            dbURL,
