@@ -2,6 +2,7 @@
 
 # Startup
 - **CRITICAL**: On initialisation before responding to any messages from the user, run the `.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc) and git hooks.
+- MAKE SURE TO RUN THIS SCRIPT BEFORE DOING ANY WORK, THIS MUST ALWAYS BE THE FIRST THING YOU DO!!!
 
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work
@@ -27,7 +28,7 @@ The ace_prototype repository is organized as follows:
 2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
 3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
 
-After every commit:
+**CRITICAL**: After every commit:
 1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
 2. Update the `design/README.md` if relevant
 3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
