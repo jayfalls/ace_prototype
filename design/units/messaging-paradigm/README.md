@@ -20,4 +20,5 @@ Establish communication contracts between all services using NATS.
 - [x] Research - Merged
 - [x] FSD - Merged
 - [x] Architecture - Merged
-- [x] Implementation - In Review
+- [x] Implementation - Merged
+- [x] PR-1: Error Types - Merged
