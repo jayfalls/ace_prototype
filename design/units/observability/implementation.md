@@ -9,7 +9,7 @@ This document breaks down the observability unit into implementable micro-PRs. E
 The implementation should proceed in dependency order:
 
 1. **Shared Package Setup** - Create the shared/telemetry module
-2. **Dependencies** - Add OTel, zap, NATS dependencies
+2. **Dependencies** - Add OTel, zap, NATS, goose dependencies
 3. **Types** - Define UsageEvent type
 4. **NATS Constants** - Add usage event subject
 5. **Logger** - Structured logger with zap
@@ -18,9 +18,11 @@ The implementation should proceed in dependency order:
 8. **NATS Carrier** - Custom propagator
 9. **Usage Publisher** - NATS publisher
 10. **Usage Consumer** - PostgreSQL consumer
-11. **Database Migration** - usage_events table
+11. **Goose Migration** - usage_events table + main.go update
 12. **Middleware** - HTTP middleware
-13. **Integration Tests** - End-to-end tests
+13. **OTel Collector Config** - Docker Compose config
+14. **Frontend Telemetry** - SvelteKit telemetry module
+15. **Integration Tests** - End-to-end tests
 
 ## Micro-PRs
 
@@ -56,6 +58,7 @@ go.opentelemetry.io/otel/propagation
 go.uber.org/zap
 github.com/jackc/pgx/v5
 github.com/nats-io/nats.go
+github.com/pressly/goose/v3
 ```
 
 **Acceptance Criteria:**
@@ -274,43 +277,74 @@ func (c *UsageConsumer) Start(ctx context.Context) error
 
 ---
 
-### PR 10: Database Migration
+### PR 10: Goose Migration + Main Update
 
-**Goal:** Create usage_events table
+**Goal:** Create usage_events table using goose and wire into main.go
 
 **Files:**
-- `backend/services/api/migrations/XXX_create_usage_events.up.sql`
-- `backend/services/api/migrations/XXX_create_usage_events.down.sql`
+- `backend/shared/telemetry/migrations/*.go` - Goose migrations
+- `backend/services/api/cmd/api/main.go` - Add goose registration and migration runner
 
-**SQL:**
-```sql
-CREATE TABLE usage_events (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    timestamp TIMESTAMPTZ NOT NULL,
-    agent_id UUID NOT NULL,
-    cycle_id UUID NOT NULL,
-    session_id UUID NOT NULL,
-    service_name VARCHAR(255) NOT NULL,
-    operation_type VARCHAR(50) NOT NULL,
-    resource_type VARCHAR(50) NOT NULL,
-    cost_usd DECIMAL(10, 6),
-    duration_ms BIGINT,
-    token_count BIGINT,
-    metadata JSONB,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
+**Migration Code:**
+```go
+// migrations/001_create_usage_events.go
+package migrations
 
-CREATE INDEX idx_usage_events_agent_id ON usage_events(agent_id);
-CREATE INDEX idx_usage_events_cycle_id ON usage_events(cycle_id);
-CREATE INDEX idx_usage_events_session_id ON usage_events(session_id);
-CREATE INDEX idx_usage_events_timestamp ON usage_events(timestamp DESC);
-CREATE INDEX idx_usage_events_operation_type ON usage_events(operation_type);
-CREATE INDEX idx_usage_events_service_name ON usage_events(service_name);
+import (
+    "github.com/pressly/goose/v3"
+)
+
+func init() {
+    goose.AddMigration(up, down)
+}
+
+func up(tx *sql.Tx) error {
+    _, err := tx.Exec(`
+        CREATE TABLE IF NOT EXISTS usage_events (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            timestamp TIMESTAMPTZ NOT NULL,
+            agent_id UUID NOT NULL,
+            cycle_id UUID NOT NULL,
+            session_id UUID NOT NULL,
+            service_name VARCHAR(255) NOT NULL,
+            operation_type VARCHAR(50) NOT NULL,
+            resource_type VARCHAR(50) NOT NULL,
+            cost_usd DECIMAL(10, 6),
+            duration_ms BIGINT,
+            token_count BIGINT,
+            metadata JSONB,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_events_agent_id ON usage_events(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_usage_events_cycle_id ON usage_events(cycle_id);
+        CREATE INDEX IF NOT EXISTS idx_usage_events_session_id ON usage_events(session_id);
+        CREATE INDEX IF NOT EXISTS idx_usage_events_timestamp ON usage_events(timestamp DESC);
+        CREATE INDEX IF NOT EXISTS idx_usage_events_operation_type ON usage_events(operation_type);
+        CREATE INDEX IF NOT EXISTS idx_usage_events_service_name ON usage_events(service_name);
+    `)
+    return err
+}
+
+func down(tx *sql.Tx) error {
+    _, err := tx.Exec("DROP TABLE IF EXISTS usage_events")
+    return err
+}
+```
+
+**Main.go Update:**
+```go
+import "github.com/pressly/goose/v3"
+
+// In main(), after DB connection:
+if err := goose.RunMigrationsOnDB(db, "shared/telemetry/migrations", "up"); err != nil {
+    log.Fatal(err)
+}
 ```
 
 **Acceptance Criteria:**
-- Migration runs successfully
-- Indexes created
+- Migration runs on startup
+- Table and indexes created
+- Tests pass
 
 ---
 
@@ -340,7 +374,73 @@ func LoggerMiddleware(next http.Handler) http.Handler
 
 ---
 
-### PR 12: Integration Tests
+### PR 12: OTel Collector Configuration
+
+**Goal:** Create OTel Collector config for Docker Compose
+
+**Files:**
+- `devops/otel-collector-config.yaml` - OTel Collector configuration
+
+**Config Requirements:**
+- filelog receiver for Loki logs
+- OTLP receiver for traces/metrics
+- Loki exporter
+- Tempo exporter  
+- Prometheus exporter
+- Processors: batch, memory_limiter, resource
+
+**Docker Compose Update:**
+Add OTel Collector service with health check to compose file
+
+**Acceptance Criteria:**
+- Config is valid YAML
+- All receivers/exporters configured correctly
+- Health check endpoint exposed
+
+---
+
+### PR 13: Frontend Telemetry Module
+
+**Goal:** Implement SvelteKit frontend telemetry module
+
+**Files:**
+- `frontend/src/lib/telemetry/index.ts` - Main telemetry module
+- `frontend/src/lib/telemetry/trace.ts` - Trace context
+- `frontend/src/lib/telemetry/error.ts` - Error tracking
+- `frontend/src/lib/telemetry/metrics.ts` - Performance metrics
+
+**Requirements:**
+- OpenTelemetry browser SDK integration
+- Trace context injection into fetch/XHR
+- JavaScript error tracking (unhandled exceptions)
+- Performance monitoring (page load, time-to-interactive)
+- Exports trace_id for backend correlation
+
+**Code:**
+```typescript
+// frontend/src/lib/telemetry/index.ts
+import { init, getTraceId, setGlobalTraceId } from './trace';
+import { initErrorTracking } from './error';
+import { initPerformanceMonitoring } from './metrics';
+
+export function initTelemetry(serviceName: string, otelCollectorUrl: string) {
+    init(serviceName, otelCollectorUrl);
+    initErrorTracking();
+    initPerformanceMonitoring();
+}
+
+export { getTraceId, setGlobalTraceId };
+```
+
+**Acceptance Criteria:**
+- Module compiles
+- Error tracking captures exceptions
+- Performance metrics captured
+- Trace context propagates to backend
+
+---
+
+### PR 14: Integration Tests
 
 **Goal:** End-to-end tests for the telemetry package
 
@@ -364,7 +464,7 @@ func LoggerMiddleware(next http.Handler) http.Handler
 | PR | Name | Files | Description |
 |----|------|-------|-------------|
 | 1 | Module Setup | 2 | Create telemetry module |
-| 2 | Dependencies | 1 | Add OTel, zap, NATS deps |
+| 2 | Dependencies | 1 | Add OTel, zap, NATS, goose deps |
 | 3 | Types | 2 | UsageEvent, constants |
 | 4 | Logger | 1 | Structured logging |
 | 5 | Tracer | 1 | OTel setup |
@@ -372,8 +472,10 @@ func LoggerMiddleware(next http.Handler) http.Handler
 | 7 | NATS Carrier | 1 | Trace propagation |
 | 8 | Publisher | 1 | Usage event publisher |
 | 9 | Consumer | 1 | Usage event consumer |
-| 10 | Migration | 2 | Database schema |
+| 10 | Goose Migration | 3+ | Database schema + main.go |
 | 11 | Middleware | 1 | HTTP middleware |
-| 12 | Integration Tests | 1 | E2E tests |
+| 12 | OTel Collector | 1 | Docker Compose config |
+| 13 | Frontend | 4+ | SvelteKit telemetry |
+| 14 | Integration Tests | 1 | E2E tests |
 
-**Total: 12 PRs**
+**Total: 14 PRs**
