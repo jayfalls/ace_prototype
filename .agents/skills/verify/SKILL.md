@@ -1,6 +1,9 @@
 ---
 name: verify
 description: This skill should be used when the user sends a message starting with "/verify" to request confirmation that the agent has completed all required startup and setup steps before beginning any work. Use this skill to verify the agent is properly configured.
+triggers:
+  - /verify
+  - verify
 ---
 
 # Verify Skill
