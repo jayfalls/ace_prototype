@@ -8,3 +8,4 @@ This directory contains discrete pieces of work: features, components, refactors
 - [Core Infrastructure](core-infra/README.md)
 - [Core API](core-api/README.md)
 - [Messaging Paradigm](messaging-paradigm/README.md)
+- [Observability](observability/README.md)
