@@ -11,17 +11,17 @@ import (
 // Config holds all configuration for the API service.
 type Config struct {
 	// Database configuration
-	DatabaseURL         string
+	DatabaseURL string
 
 	// API configuration
-	APIHost            string
-	APIPort            string
+	APIHost string
+	APIPort string
 
 	// CORS configuration
 	CORSAllowedOrigins []string
 
 	// Logging configuration
-	LogLevel           string
+	LogLevel string
 
 	// JWT configuration
 	JWTSecret          string
@@ -29,6 +29,10 @@ type Config struct {
 
 	// NATS configuration
 	NATSURL string
+
+	// Telemetry configuration
+	Environment   string
+	OTLPEndpoint string
 }
 
 // Load loads configuration from environment variables.
@@ -75,6 +79,10 @@ func Load() (*Config, error) {
 		natsURL = "nats://localhost:4222"
 	}
 
+	// Telemetry configuration
+	environment := getEnvString("ENVIRONMENT", "development")
+	otlpEndpoint := getEnvString("OTLP_ENDPOINT", "localhost:4317")
+
 	return &Config{
 		DatabaseURL:            dbURL,
 		APIHost:                apiHost,
@@ -84,6 +92,8 @@ func Load() (*Config, error) {
 		JWTSecret:              jwtSecret,
 		JWTExpirationHours:    jwtExpirationHours,
 		NATSURL:                natsURL,
+		Environment:            environment,
+		OTLPEndpoint:          otlpEndpoint,
 	}, nil
 }
 
