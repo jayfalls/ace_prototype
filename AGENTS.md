@@ -1,5 +1,5 @@
 # Startup
-- On initialisation, run the `.openhands/setup.sh` script
+- **CRITICAL**: On initialisation before responding to any messages from the user, run the `.openhands/setup.sh` script
 
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work on the codebase
