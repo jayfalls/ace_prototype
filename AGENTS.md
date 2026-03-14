@@ -1,5 +1,5 @@
 # Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run the `.openhands/setup.sh` script
+- **CRITICAL**: On initialisation before responding to any messages from the user, run the `.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc)
 
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work on the codebase
