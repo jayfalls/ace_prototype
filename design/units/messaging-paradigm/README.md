@@ -14,4 +14,5 @@ Establish communication contracts between all services using NATS.
 
 ## Status
 
-- [x] Problem Space - In Review
+- [x] Problem Space - Merged
+- [x] BSD - In Review
