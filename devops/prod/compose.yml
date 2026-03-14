@@ -4,6 +4,8 @@ services:
       context: ..
       dockerfile: devops/prod/api.Containerfile
     container_name: ace_api
+    env_file:
+      - ../.env
     depends_on:
       ace_db:
         condition: service_healthy
@@ -25,6 +27,8 @@ services:
       context: ..
       dockerfile: devops/prod/fe.Containerfile
     container_name: ace_fe
+    env_file:
+      - ../.env
     depends_on:
       ace_api:
         condition: service_healthy
@@ -38,12 +42,10 @@ services:
   ace_db:
     image: postgres:18
     container_name: ace_db
+    env_file:
+      - ../.env
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-ace}
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
