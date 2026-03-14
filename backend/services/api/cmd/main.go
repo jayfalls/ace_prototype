@@ -23,6 +23,7 @@ import (
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
 	"ace/shared/messaging"
+	"ace/shared/telemetry"
 
 	// _ "ace/api/migrations"
 	"ace/shared"
@@ -43,14 +44,14 @@ import (
 // 	log.Println("Migrations completed successfully")
 // }
 
-func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client) *chi.Mux {
+func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, tel *telemetry.Telemetry) *chi.Mux {
 	// Create SQLC queries instance
 	// queries := queries.New(pool)
 
 	// Service layers
 
 	// Handlers
-	healthHandler := handler.NewHealthHandler(pool, nats)
+	healthHandler := handler.NewHealthHandler(pool, nats, tel)
 	exampleHandler := handler.NewExampleHandler()
 
 	r := chi.NewRouter()
@@ -66,6 +67,7 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client) *c
 
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
+	r.Get("/health/exporters", healthHandler.Exporters)
 
 	// Example routes demonstrating validation
 	r.Route("/examples", func(r chi.Router) {
@@ -109,6 +111,8 @@ func serve(host, port string, handler http.Handler) {
 }
 
 func main() {
+	ctx := context.Background()
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
@@ -133,10 +137,27 @@ func main() {
 	}
 	defer natsClient.Close()
 
+	// Initialize telemetry
+	tel, err := telemetry.Init(ctx, telemetry.Config{
+		ServiceName:  "api",
+		Environment:  cfg.Environment,
+		OTLPEndpoint: cfg.OTLPEndpoint,
+	})
+	if err != nil {
+		log.Printf("Warning: Failed to initialize telemetry: %v", err)
+		// Continue without telemetry - it's optional
+		tel = nil
+	}
+	defer func() {
+		if tel != nil {
+			tel.Shutdown(ctx)
+		}
+	}()
+
 	// migrate(cfg.DatabaseURL)
 
 	shared.Hello()
 
-	router := newRouter(cfg, db.Pool, natsClient)
+	router := newRouter(cfg, db.Pool, natsClient, tel)
 	serve(cfg.APIHost, cfg.APIPort, router)
 }
