@@ -24,9 +24,9 @@ The ACE Framework consists of:
 │                              ACE Framework                               │
 │                                                                          │
 │  ┌──────────────┐      ┌──────────────┐      ┌──────────────────────┐  │
-│  │   Frontend   │      │    API       │      │   Cognitive Engine  │  │
-│  │  SvelteKit   │◄────►│     Go       │◄────►│        Go           │  │
-│  │   (Web UI)   │      │    (Gin)     │      │   (6 ACE Layers)   │  │
+│  │   Frontend   │      │    Core      │      │   Cognitive Engine  │  │
+│  │  SvelteKit   │◄────►│  API (Go)    │◄────►│        (Future)     │  │
+│  │              │      │    Chi        │      │                      │  │
 │  └──────┬───────┘      └──────┬───────┘      └──────────┬───────────┘  │
 │         │                      │                         │              │
 │         │              ┌───────┴───────┐                 │              │
@@ -55,16 +55,16 @@ The ACE Framework consists of:
 
 ### Core Components
 
-| Component | Responsibility |
-|-----------|---------------|
-| **Frontend** | User interface, real-time updates (SvelteKit) |
-| **API (Gin)** | HTTP routes, auth, websocket, orchestration |
-| **Cognitive Engine** | 6 ACE layers with NATS inter-layer communication |
-| **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks |
-| **Actuators (Outputs)** | Output handling: chat, tools, signals, export |
-| **Memory** | Per-layer + global modules (long/medium/short term) |
-| **Message Broker (NATS)** | Inter-layer communication (northbound/southbound) |
-| **Persistence** | PostgreSQL + SQLC |
+| Component | Responsibility | Status |
+|-----------|---------------|--------|
+| **Frontend** | User interface, real-time updates (SvelteKit) | Future |
+| **Core API** | HTTP routes, auth, websocket, orchestration | In Progress |
+| **Cognitive Engine** | 6 ACE layers with NATS inter-layer communication | Future |
+| **Telemetry (Senses)** | Input handling: chat, sensors, metrics, webhooks | Future |
+| **Actuators (Outputs)** | Output handling: chat, tools, signals, export | Future |
+| **Memory** | Per-layer + global modules (long/medium/short term) | Future |
+| **Message Broker (NATS)** | Inter-layer communication (northbound/southbound) | Future |
+| **Persistence** | PostgreSQL + SQLC + Goose | In Progress |
 
 ### Layer Communication
 
@@ -106,32 +106,35 @@ Each layer has its own memory module + global module:
 - PostgreSQL (Managed)
 - Cognitive Engine pods
 
+### Development Environment
+- **Docker Compose**: Local development with all services
+- Services: frontend, api, postgres, nats
+
 See [units/architecture/architecture.md](units/architecture/architecture.md) for detailed diagrams and specifications.
 
 ## 2. Technologies
 
 ### Backend
-- **Go** - Primary language for API and Cognitive Engine
-- **Gin** - HTTP web framework
-- **SQLC** - Type-safe SQL access to PostgreSQL
-- **NATS** - Message broker for inter-layer communication
+- **Go 1.26** - Primary language
+- **Chi v5** - HTTP router
+- **pgx/v5** - PostgreSQL driver
+- **SQLC** - Type-safe SQL
+- **Goose** - Database migrations
+- **NATS** - Message broker (future)
 
-### Frontend
+### Frontend (Future)
 - **SvelteKit** - Full-stack web framework
 - **TypeScript** - Type-safe frontend code
 
 ### Database
 - **PostgreSQL** - Primary data store
 - **SQLC** - Compile-time SQL type checking
-
-### Authentication
-- **JWT** - Token-based authentication
-- **oauth2-proxy** - OAuth integration (future)
+- **Goose** - SQL migrations
 
 ### Infrastructure
-- **Docker** - Containerization
-- **Kubernetes** - Orchestration for multi-agent deployments
-- **WebSocket** - Real-time communication
+- **Docker Compose** - Local development
+- **Kubernetes** - Orchestration for multi-agent deployments (future)
+- **WebSocket** - Real-time communication (future)
 
 ## 3. Data Model
 
