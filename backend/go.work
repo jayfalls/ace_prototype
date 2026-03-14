@@ -4,4 +4,5 @@ use (
 	./services/api
 	./shared
 	./shared/messaging
+	./shared/telemetry
 )

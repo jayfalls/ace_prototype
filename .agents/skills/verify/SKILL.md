@@ -4,6 +4,37 @@ description: This skill should be used when the user sends a message starting wi
 triggers:
   - /verify
   - verify
+  - merged
+  - next
+  - commit
+  - push
+  - address
+  - comment
+  - start
+  - begin
+  - work
+  - unit
+  - design
+  - plan
+  - agent
+  - flow
+  - issue
+  - pr
+  - pull
+  - implement
+  - units
+  - BSD
+  - bsd
+  - user_stories
+  - research
+  - FSD
+  - fsd
+  - implementation
+  - architecture
+  - problem
+  - planning
+  - design document
+  - design documents
 ---
 
 # Verify Skill
