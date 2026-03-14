@@ -26,6 +26,9 @@ type Config struct {
 	// JWT configuration
 	JWTSecret          string
 	JWTExpirationHours int
+
+	// NATS configuration
+	NATSURL string
 }
 
 // Load loads configuration from environment variables.
@@ -66,6 +69,12 @@ func Load() (*Config, error) {
 	}
 	jwtExpirationHours := getEnvInt("JWT_EXPIRATION_HOURS", 24)
 
+	// NATS configuration
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://localhost:4222"
+	}
+
 	return &Config{
 		DatabaseURL:            dbURL,
 		APIHost:                apiHost,
@@ -74,6 +83,7 @@ func Load() (*Config, error) {
 		LogLevel:               logLevel,
 		JWTSecret:              jwtSecret,
 		JWTExpirationHours:    jwtExpirationHours,
+		NATSURL:                natsURL,
 	}, nil
 }
 
