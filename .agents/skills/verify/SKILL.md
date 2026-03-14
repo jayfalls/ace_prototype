@@ -7,34 +7,35 @@ description: This skill should be used when the user sends a message starting wi
 
 This skill confirms that all required setup steps have been completed before starting any work.
 
-## Activation
+## CRITICAL: This skill MUST be activated on EVERY request
 
-When the user sends a message starting with `/verify`, activate this skill and respond with the verification checklist.
+**BEFORE responding to any user request, you MUST:**
+1. Run the setup script (if not already run this session)
+2. file_editor the design documentation
+3. Activate the appropriate agency specialist
+4. **Explicitly state the activation** using the format below
 
-## Verification Steps
+## Activation Steps (IN ORDER)
 
-Before responding to any user request, verify all of the following:
+### Step 1: Setup Script
+Run: `cd /workspace/project/ace_prototype && ./.openhands/setup.sh`
+- Only run once per session
+- Verify: Go, Node.js, Docker, agency-agents exist
 
-1. **Setup Script Executed**: Confirm that `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` has been run
-   - Check if Go, Node.js, Docker are installed
-   - Verify agency-agents directory exists
+### Step 2: Design Documentation
+file_editor: 
+- `design/README.md` 
+- `design/units/README.md`
+- Relevant unit documentation
 
-2. **Design Documentation file_editor**: Confirm that `design/README.md` and relevant unit documentation has been read
-   - For unit-specific work, read `design/units/<unit-name>/` files
+### Step 3: Agency Specialisation
+**READ the agency specialisation skill file:**
+- Read: `.agents/skills/agency-specialisation/SKILL.md` (this file tells you which specialist to use)
+- file_editor the relevant specialist's file from `agency-agents/` directory
+- Activate by stating their name with the full path
 
-3. **Instructions Digested**: Confirm all AGENTS.md instructions are understood:
-   - CRITICAL startup steps
-   - Documentation update requirements
-   - GitHub workflow rules
-   - Coding best practices
-
-4. **Agency Specialisation Activated**: Confirm the relevant specialist agent is loaded
-   - Reference `.agents/skills/agency-specialisation/SKILL.md` for current workflow stage
-   - Map the task to the appropriate specialist
-
-## Response Format
-
-Respond with the following format:
+### Step 4: State Activation (MANDATORY)
+**You MUST respond with this exact format:**
 
 ```
 ✅ Setup Verified
@@ -44,44 +45,28 @@ Respond with the following format:
 - ✅ AGENTS.md instructions digested
 - ✅ Agency specialisation activated
 
-<AgentName> activated
+<S SpecialistName > activated
 ```
 
-Replace `<AgentName>` with the appropriate specialist agent name based on the current workflow stage.
+Replace `<SpecialistName>` with the actual specialist name from Step 3.
 
 ## Examples
 
-**Example 1 - Initial verification:**
+**Correct:**
 ```
 User: /verify
 
 Agent: ✅ Setup Verified
 
 - ✅ Setup script executed
-- ✅ Design documentation read
+- ✅ Design documentation read  
 - ✅ AGENTS.md instructions digested
 - ✅ Agency specialisation activated
 
-Sprint Prioritizer activated
+Trend Researcher + Tool Evaluator activated
 ```
 
-**Example 2 - During unit work:**
-```
-User: /verify
-
-Agent: ✅ Setup Verified
-
-- ✅ Setup script executed
-- ✅ Design documentation read
-- ✅ Observability unit documentation read
-- ✅ AGENTS.md instructions digested
-- ✅ Agency specialisation activated
-
-Trend Researcher activated
-```
-
-## Notes
-
-- This skill should trigger on any message starting with `/verify`
-- The response should be brief and formatted consistently
-- Include the relevant specialist agent name based on the current task context
+**Incorrect (do NOT do this):**
+- Just proceeding without verification
+- Not stating the specialist name
+- Skipping any step

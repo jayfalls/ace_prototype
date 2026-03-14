@@ -89,6 +89,8 @@ Scenario: Service logs with structured format
   Given a service that has called telemetry.Init()
   When the service logs a message
   Then the log output is JSON format
+  And the log is written to stdout/stderr
+  And the log contains no file paths
   And the log contains field: service_name
   And the log contains field: timestamp
   And the log contains field: level (debug/info/warn/error)
