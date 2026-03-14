@@ -1,3 +1,6 @@
+# Startup
+- On initialisation, run the `.openhands/setup.sh` script
+
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work on the codebase
 - Reference `design/units/README.md` for individual unit documentation
