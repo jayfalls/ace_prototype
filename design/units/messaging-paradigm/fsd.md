@@ -97,10 +97,13 @@ const (
     // Senses subjects
     SubjectSensesEvent Subject = "ace.senses.%s.%s.event"
     
-    // LLM subjects
+    // LLM subjects (request/response)
     SubjectLLMRequest  Subject = "ace.llm.%s.request"
     SubjectLLMResponse Subject = "ace.llm.%s.response"
-    SubjectLLMUsage   Subject = "ace.llm.%s.usage"
+    
+    // Usage subjects
+    SubjectUsageToken Subject = "ace.usage.%s.token"
+    SubjectUsageCost  Subject = "ace.usage.%s.cost"
     
     // System subjects
     SubjectSystemAgentsSpawn   Subject = "ace.system.agents.spawn"
@@ -126,8 +129,9 @@ func (s Subject) Validate() error
 | Engine | `ace.engine.{agentId}.{subsystem}.{action}` | `ace.engine.agent-1.layer.2.input` |
 | Memory | `ace.memory.{agentId}.{action}` | `ace.memory.agent-1.store` |
 | Tools | `ace.tools.{agentId}.{toolName}.{action}` | `ace.tools.agent-1.browse.invoke` |
-| Senses | `ace.senses.{agentId}.{senseType}.event` | `ace.agent-1.chat.event` |
+| Senses | `ace.senses.{agentId}.{senseType}.event` | `ace.senses.agent-1.chat.event` |
 | LLM | `ace.llm.{agentId}.{action}` | `ace.llm.agent-1.request` |
+| Usage | `ace.usage.{agentId}.{action}` | `ace.usage.agent-1.token` |
 | System | `ace.system.{subsystem}.{action}` | `ace.system.agents.spawn` |
 
 ### Wildcard Patterns
@@ -225,9 +229,11 @@ func (c *natsClient) HealthCheck() error {
 ### Fire-and-Forget (Publish)
 
 ```go
-func Publish(client Client, subject Subject, agentID, cycleID, sourceService string, payload []byte) error {
+// Publish sends a message without waiting for response.
+// subject should already be formatted with any required arguments.
+func Publish(client Client, subject, correlationID, agentID, cycleID, sourceService string, payload []byte) error {
     env := NewEnvelope(
-        uuid.New().String(),
+        correlationID, // preserve correlation chain
         agentID,
         cycleID,
         sourceService,
@@ -236,16 +242,19 @@ func Publish(client Client, subject Subject, agentID, cycleID, sourceService str
     headers := make(nats.Header)
     SetHeadersFromEnvelope(headers, env)
     
-    return client.Publish(subject.Format(agentID), payload, headers)
+    return client.Publish(subject, payload, headers)
 }
 ```
 
 ### Request-Reply
 
 ```go
-func RequestReply(client Client, subject Subject, agentID, cycleID, sourceService string, payload []byte, timeout time.Duration) ([]byte, error) {
+// RequestReply sends a message and waits for response.
+// subject should already be formatted with any required arguments.
+// correlationID should be propagated from the incoming message to maintain the chain.
+func RequestReply(client Client, subject, correlationID, agentID, cycleID, sourceService string, payload []byte, timeout time.Duration) ([]byte, error) {
     env := NewEnvelope(
-        uuid.New().String(),
+        correlationID, // preserve correlation chain
         agentID,
         cycleID,
         sourceService,
@@ -254,13 +263,25 @@ func RequestReply(client Client, subject Subject, agentID, cycleID, sourceServic
     headers := make(nats.Header)
     SetHeadersFromEnvelope(headers, env)
     
-    reply, err := client.Request(subject.Format(agentID), payload, timeout)
+    reply, err := client.Request(subject, payload, timeout)
     if err != nil {
         return nil, err
     }
     
     return reply.Data, nil
 }
+```
+
+### Variadic Subject Formatting
+
+For subjects with multiple format arguments:
+
+```go
+// Example: SubjectToolsInvoke.Format(agentID, toolName)
+subject := SubjectToolsInvoke.Format("agent-1", "browse") // -> "ace.tools.agent-1.browse.invoke"
+
+// Or use Subject directly with formatted string:
+subject := fmt.Sprintf(SubjectToolsInvoke, "agent-1", "browse")
 ```
 
 ### Streaming (JetStream Push Consumer)
@@ -299,9 +320,10 @@ var Streams = []StreamConfig{
             "ace.memory.>",
             "ace.tools.>",
             "ace.senses.>",
-            "ace.llm.>",
+            "ace.llm.request",
+            "ace.llm.response",
         },
-        Retention:  nats.KeyValuePolicy, // Retain by key
+        Retention:  nats.LimitsPolicy, // Retain by size/age limits
         MaxBytes:   1 * 1024 * 1024 * 1024, // 1GB
         MaxAge:     24 * time.Hour,
         Storage:    nats.FileStorage,
@@ -311,7 +333,7 @@ var Streams = []StreamConfig{
         Name:       "USAGE",
         Description: "LLM usage events",
         Subjects:   []string{
-            "ace.llm.usage",
+            "ace.usage.>",
         },
         Retention:  nats.LimitsPolicy,
         MaxBytes:   100 * 1024 * 1024, // 100MB
@@ -338,8 +360,8 @@ var Streams = []StreamConfig{
 ```go
 func EnsureStreams(ctx context.Context, js nats.JetStream) error {
     for _, cfg := range Streams {
-        _, err := js.CreateStream(ctx, cfg)
-        if err != nil && !errors.Is(err, nats.ErrStreamNameConflict) {
+        _, err := js.CreateOrUpdateStream(ctx, cfg)
+        if err != nil {
             return err
         }
     }
@@ -352,14 +374,15 @@ func EnsureStreams(ctx context.Context, js nats.JetStream) error {
 For horizontal scaling, use durable consumers with queue groups:
 
 ```go
-func CreateConsumer(ctx context.Context, js nats.JetStream, stream, consumer, durable string) error {
+func CreateConsumer(ctx context.Context, js nats.JetStream, stream, consumer, durable, filterSubject string) error {
     _, err := js.CreateConsumer(ctx, stream, nats.ConsumerConfig{
         Durable:        durable,
+        DeliverSubject: consumer, // delivery subject for push consumer
         DeliverPolicy: nats.DeliverNewPolicy,
         AckPolicy:     nats.AckExplicitPolicy,
         AckWait:       30 * time.Second,
         MaxDeliver:    3,
-        FilterSubject: stream + ".>",
+        FilterSubject: filterSubject, // e.g., "ace.engine.agent-1.layer.>"
     })
     return err
 }
@@ -380,26 +403,38 @@ var (
 
 ### Dead Letter Configuration
 
+Dead letters are configured via a separate stream and DeliverSubject on the consumer:
+
 ```go
-type DeadLetterConfig struct {
-    StreamName      string
-    MaxDeliverAttempts int
-    Backoff          time.Duration
+func EnsureDLQStream(ctx context.Context, js nats.JetStream) error {
+    _, err := js.CreateOrUpdateStream(ctx, nats.StreamConfig{
+        Name:     "DLQ",
+        Subjects: []string{"dlq.>"},
+        Storage:  nats.FileStorage,
+    })
+    return err
 }
 
-func ConfigureDeadLetters(js nats.JetStream, consumerCfg *nats.ConsumerConfig) error {
-    consumerCfg.DeadLetterSubject = "DLQ." + consumerCfg.FilterSubject
-    consumerCfg.MaxDeliver = 3
+func CreateConsumerWithDLQ(ctx context.Context, js nats.JetStream, stream, consumer, filterSubject string) error {
+    dlqSubject := "dlq." + filterSubject
     
-    // Create DLQ stream if needed
-    dlqStream := "DLQ"
-    _, err := js.CreateStream(context.Background(), nats.StreamConfig{
-        Name:    dlqStream,
-        Subjects: []string{"DLQ.>"},
+    _, err := js.CreateConsumer(ctx, stream, nats.ConsumerConfig{
+        Durable:        consumer,
+        DeliverSubject: consumer, // push delivery subject
+        FilterSubject: filterSubject,
+        DeliverPolicy: nats.DeliverNewPolicy,
+        AckPolicy:     nats.AckExplicitPolicy,
+        AckWait:       30 * time.Second,
+        MaxDeliver:    3,
+        // On exhaustion (MaxDeliver reached), nacked messages go to DLQ via OnNAck or 
+        // use DeliverPolicy: nats.DeliverByStartSequencePolicy with a dead letter consumer
     })
     return err
 }
 ```
+
+For proper dead letter handling, consumers can be configured with a dead letter consumer that
+receives messages after MaxDeliver attempts:
 
 ### Retry Policy
 
