@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	// "database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,117 +12,83 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
+
+	// "github.com/pressly/goose/v3"
+
 	"ace/api/internal/config"
 	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
-	queries "ace/api/internal/repository/generated"
-	"ace/api/internal/service"
-	"ace/shared"
-	"github.com/go-chi/chi/v5"
-	_ "github.com/jackc/pgx/v5/stdlib"
-	"github.com/pressly/goose/v3"
 
-	// Import migrations to register them with goose
-	_ "ace/api/migrations"
+	// _ "ace/api/migrations"
+	"ace/shared"
 )
 
-func main() {
-	// Load configuration
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
-	}
+// NOTE: Commented out code to be enabled once needed
 
-	log.Printf("Connecting to database: %s@%s:%d/%s", cfg.Database.User, cfg.Database.Host, cfg.Database.Port, cfg.Database.DB)
+// func migrate(databaseURL string) {
+// 	goose.SetTableName("schema_migrations")
+// 	sqlDB, err := sql.Open("pgx", databaseURL)
+// 	if err != nil {
+// 		log.Fatalf("Failed to open database for migrations: %v", err)
+// 	}
+// 	defer sqlDB.Close()
+// 	if err := goose.Up(sqlDB, "migrations"); err != nil {
+// 		log.Fatalf("Failed to run migrations: %v", err)
+// 	}
+// 	log.Println("Migrations completed successfully")
+// }
 
-	// Wait for database to be available (with retry)
-	err = repository.WaitForConnection(&cfg.Database, 10, 2*time.Second)
-	if err != nil {
-		log.Printf("Warning: Could not connect to database: %v", err)
-		log.Printf("Starting server without database connection...")
-	} else {
-		log.Println("Database connection established")
-	}
-
-	// Create database connection pool
-	var db *repository.DB
-	db, err = repository.NewDB(&cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to create database connection: %v", err)
-	}
-	defer db.Close()
-
-	// Run migrations
-	log.Println("Running database migrations...")
-	goose.SetTableName("schema_migrations")
-
-	// Open sql.DB for goose migrations (it needs *sql.DB, not *pgxpool.Pool)
-	sqlDB, err := sql.Open("pgx", cfg.Database.DSN())
-	if err != nil {
-		log.Fatalf("Failed to open database for migrations: %v", err)
-	}
-	defer sqlDB.Close()
-
-	if err := goose.Up(sqlDB, "migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
-	}
-	log.Println("Migrations completed successfully")
-
+func newRouter(cfg *config.Config, pool *pgxpool.Pool) *chi.Mux {
 	// Create SQLC queries instance
-	queries := queries.New(db.Pool)
+	// queries := queries.New(pool)
 
-	// Initialize service layer
-	healthService := service.NewHealthService(queries, db.Pool)
+	// Service layers
 
-	// Initialize handlers
-	healthHandler := handler.NewHealthHandler(healthService)
+	// Handlers
+	healthHandler := handler.NewHealthHandler(pool)
 
 	r := chi.NewRouter()
-
-	// Middleware stack
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recovery)
-	r.Use(middleware.CORS(cfg.API.CORSAllowedOrigins))
+	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
-	// Health check endpoint - persists check on each request
-	r.Get("/health", healthHandler.Health)
-	r.Get("/health/history", healthHandler.ListHealthChecks)
-
-	// Root endpoint
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, `{"message": "ACE API Server"}`)
 	})
 
-	shared.Hello()
+	r.Get("/health/live", healthHandler.Live)
+	r.Get("/health/ready", healthHandler.Ready)
 
-	// Create server
-	addr := ":" + cfg.API.Port
+	return r
+}
+
+func serve(port string, handler http.Handler) {
 	server := &http.Server{
-		Addr:         addr,
-		Handler:      r,
+		Addr:         ":" + port,
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 	}
 
-	// Start server in goroutine
 	go func() {
-		log.Printf("Starting ACE API server on port %s...", cfg.API.Port)
+		log.Printf("Starting ACE API server on port %s...", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal for graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	log.Println("Shutting down server...")
 
-	// Wait for active connections
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -131,4 +97,24 @@ func main() {
 	}
 
 	log.Println("Server exited")
+}
+
+func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	db, err := repository.NewDB(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("Failed to create database connection: %v", err)
+	}
+	defer db.Close()
+
+	// migrate(cfg.DatabaseURL)
+
+	shared.Hello()
+
+	router := newRouter(cfg, db.Pool)
+	serve(cfg.APIPort, router)
 }

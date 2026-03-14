@@ -1,9 +1,5 @@
 # Local
-.logs/
-.original/
-.storage/
-.user_deployment.yaml
-.history
+tmp/
 
 # Mac
 .DS_Store
@@ -63,3 +59,4 @@ pnpm-debug.log*
 
 # Logs
 logs/
+.log

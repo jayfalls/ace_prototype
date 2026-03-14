@@ -4,129 +4,54 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
 // Config holds all configuration for the API service.
 type Config struct {
-	Database DatabaseConfig
-	API      APIConfig
-}
-
-// DatabaseConfig holds PostgreSQL connection configuration.
-type DatabaseConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
-	DB       string
-	// Connection pool settings
-	MaxConns           int32
-	MinConns           int32
-	MaxConnLifetime    int // in seconds
-	MaxConnIdleTime    int // in seconds
-}
-
-// APIConfig holds API server configuration.
-type APIConfig struct {
-	Port              string
-	LogLevel          string
+	DatabaseURL        string
+	APIPort            string
 	CORSAllowedOrigins []string
 }
 
 // Load loads configuration from environment variables.
 func Load() (*Config, error) {
-	cfg := &Config{
-		Database: DatabaseConfig{
-			Host:            getEnv("POSTGRES_HOST", "localhost"),
-			Port:            getEnvAsInt("POSTGRES_PORT", 5432),
-			User:            getEnv("POSTGRES_USER", "postgres"),
-			Password:        getEnv("POSTGRES_PASSWORD", ""),
-			DB:              getEnv("POSTGRES_DB", "ace"),
-			MaxConns:        getEnvAsInt32("POSTGRES_MAX_CONNS", 25),
-			MinConns:        getEnvAsInt32("POSTGRES_MIN_CONNS", 5),
-			MaxConnLifetime: getEnvAsInt("POSTGRES_MAX_CONN_LIFETIME", 3600),
-			MaxConnIdleTime: getEnvAsInt("POSTGRES_MAX_CONN_IDLE_TIME", 1800),
-		},
-		API: APIConfig{
-			Port:              getEnv("API_PORT", "8080"),
-			LogLevel:          getEnv("LOG_LEVEL", "info"),
-			CORSAllowedOrigins: getEnvAsSlice("CORS_ALLOWED_ORIGINS", []string{"*"}),
-		},
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		host := os.Getenv("POSTGRES_HOST")
+		port := os.Getenv("POSTGRES_PORT")
+		user := os.Getenv("POSTGRES_USER")
+		pass := os.Getenv("POSTGRES_PASSWORD")
+		db := os.Getenv("POSTGRES_DB")
+
+		if host == "" || port == "" || user == "" || pass == "" || db == "" {
+			return nil, fmt.Errorf("DATABASE_URL or all POSTGRES_* variables (HOST, PORT, USER, PASSWORD, DB) are required")
+		}
+
+		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", user, pass, host, port, db)
 	}
 
-	// Validate required fields
-	if cfg.Database.Host == "" {
-		return nil, fmt.Errorf("POSTGRES_HOST is required")
-	}
-	if cfg.Database.User == "" {
-		return nil, fmt.Errorf("POSTGRES_USER is required")
-	}
-	if cfg.Database.Password == "" {
-		return nil, fmt.Errorf("POSTGRES_PASSWORD is required")
-	}
-	if cfg.Database.DB == "" {
-		return nil, fmt.Errorf("POSTGRES_DB is required")
+	apiPort := os.Getenv("API_PORT")
+	if apiPort == "" {
+		return nil, fmt.Errorf("API_PORT is required")
 	}
 
-	return cfg, nil
-}
-
-// DSN returns the PostgreSQL connection string.
-func (d *DatabaseConfig) DSN() string {
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		d.User,
-		d.Password,
-		d.Host,
-		d.Port,
-		d.DB,
-	)
-}
-
-// getEnv retrieves an environment variable or returns a default value.
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
-		return value
+	cors := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if cors == "" {
+		return nil, fmt.Errorf("CORS_ALLOWED_ORIGINS is required")
 	}
-	return defaultValue
-}
 
-// getEnvAsInt retrieves an environment variable as an integer or returns a default value.
-func getEnvAsInt(key string, defaultValue int) int {
-	if value, exists := os.LookupEnv(key); exists {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+	var origins []string
+	for _, item := range strings.Split(cors, ",") {
+		trimmed := strings.TrimSpace(item)
+		if trimmed != "" {
+			origins = append(origins, trimmed)
 		}
 	}
-	return defaultValue
-}
 
-// getEnvAsInt32 retrieves an environment variable as an int32 or returns a default value.
-func getEnvAsInt32(key string, defaultValue int32) int32 {
-	if value, exists := os.LookupEnv(key); exists {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return int32(intValue)
-		}
-	}
-	return defaultValue
-}
-
-// getEnvAsSlice retrieves an environment variable as a slice of strings or returns a default value.
-func getEnvAsSlice(key string, defaultValue []string) []string {
-	if value, exists := os.LookupEnv(key); exists && value != "" {
-		// Split by comma and trim whitespace
-		var result []string
-		for _, item := range strings.Split(value, ",") {
-			trimmed := strings.TrimSpace(item)
-			if trimmed != "" {
-				result = append(result, trimmed)
-			}
-		}
-		if len(result) > 0 {
-			return result
-		}
-	}
-	return defaultValue
+	return &Config{
+		DatabaseURL:        dbURL,
+		APIPort:            apiPort,
+		CORSAllowedOrigins: origins,
+	}, nil
 }
