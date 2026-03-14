@@ -1,7 +1,7 @@
 **CRITICAL** paths are non-negotiable steps, if you don't adhere to any of the **CRITICAL** steps, your work will be invalidated and thrown out.
 
 # Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run the `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc) and git hooks.
+- **CRITICAL**: On initialisation before responding to any messages from the user, run the `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc), git hooks & installs the agency_agents files for the agent specialisation tool.
 - MAKE SURE TO RUN THIS SCRIPT BEFORE DOING ANY WORK, THIS MUST ALWAYS BE THE FIRST THING YOU DO!!!
 
 # Design Documentation (Always Read First!)
@@ -9,8 +9,8 @@
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Agency Specialist Activation
-- **CRITICAL**: BEFORE EVERY STEP, MAKE SURE TO USE THE Agency Specialist SKILL AND DO YOU Agency Specialist Activation
+# Agency Specialisation
+- **CRITICAL**: BEFORE EVERY ACTION(Starting a unit, Planning&Creating a document, Creating Issues, Starting a Phase, Writing/Reviewing/Testing code, Responding to the user), MAKE SURE TO USE THE Agency Specialisation SKILL AND DO YOUR Agency Specialisation Activation
 
 # Project Structure
 The ace_prototype repository is organized as follows:

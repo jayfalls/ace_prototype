@@ -20,6 +20,10 @@ triggers:
 
 This skill provides guidance for dynamically loading agent context based on the workflow.
 
+## Dependencies
+
+If you need agency-agents, run `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` first
+
 ## Agency Specialist Activation
 
 - **CRITICAL**: Always activate the appropriate specialist agent for each workflow stage. Agents should NOT have to infer which specialist applies - it must be stated directly. To activate a specialist agent, include their full path in your prompt. For example:
