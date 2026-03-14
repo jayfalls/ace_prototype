@@ -3,10 +3,16 @@ triggers:
   - unit
   - units
   - BSD
+  - bsd
   - user_stories
   - research
   - FSD
+  - fsd
   - implementation
+  - architecture
+  - problem
+  - plan
+  - planning
   - design document
   - design documents
 ---
