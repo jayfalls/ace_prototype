@@ -91,7 +91,10 @@ func getDatabaseURL() (string, error) {
 	user := os.Getenv("POSTGRES_USER")
 	password := os.Getenv("POSTGRES_PASSWORD")
 	db := os.Getenv("POSTGRES_DB")
-	sslmode := os.Getenv("POSTGRES_SSLMODE", "disable")
+	sslmode := os.Getenv("POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
 
 	missing := []string{}
 	if host == "" {
