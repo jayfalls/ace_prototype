@@ -453,19 +453,19 @@ service:
 
 ## Dependencies
 
-**Note:** Versions must be verified at implementation time. Run `go list -m -versions go.opentelemetry.io/otel` to get current stable versions.
+**Note:** Do not pin specific versions - the implementing agent should run `go get -u` to resolve the latest stable versions at implementation time. Verify versions work before committing.
 
 ```go
 // go.mod additions
 require (
-    go.opentelemetry.io/otel v1.40.0
-    go.opentelemetry.io/otel/sdk v1.40.0
-    go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0
-    go.opentelemetry.io/otel/exporters/prometheus v1.40.0
-    go.opentelemetry.io/otel/propagation v1.40.0
-    go.uber.org/zap v1.27.0
-    github.com/jackc/pgx/v5 v5.7.0
-    github.com/nats-io/nats.go v1.36.0
+    go.opentelemetry.io/otel
+    go.opentelemetry.io/otel/sdk
+    go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
+    go.opentelemetry.io/otel/exporters/prometheus
+    go.opentelemetry.io/otel/propagation
+    go.uber.org/zap
+    github.com/jackc/pgx/v5
+    github.com/nats-io/nats.go
 )
 ```
 
