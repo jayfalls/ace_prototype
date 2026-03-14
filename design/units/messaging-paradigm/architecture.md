@@ -94,7 +94,7 @@ Senses services will:
 │  Frontend │───►│ Core API│───►│   NATS   │───►│ Cognitive    │
 │          │    │         │    │         │    │ Engine       │
 │ POST     │    │ Publish │    │ Subject:│    │ Subscribe    │
-│ /agents  │    │         │    │ ace.spawn│    │              │
+│ /agents  │    │         │    │ ace.system.agents.spawn│    │              │
 └──────────┘    └─────────┘    └──────────┘    └──────────────┘
 ```
 
@@ -180,9 +180,9 @@ if err != nil {
 }
 defer client.Close()
 
-// 2. Ensure streams exist
+// 2. Ensure streams exist (EnsureStreams uses Client interface directly)
 ctx := context.Background()
-if err := messaging.EnsureStreams(ctx, client.JetStream()); err != nil {
+if err := messaging.EnsureStreams(ctx, client); err != nil {
     return err
 }
 
@@ -226,12 +226,18 @@ NATS connections are multiplexed - a single connection can handle thousands of c
 
 ### Consumer Groups
 
-| Service | Consumer Group | Purpose |
-|---------|---------------|---------|
-| Cognitive Engine | `engine-{agentId}` | Per-agent layer processing |
-| Layer Inspector | `inspector` | Debug/replay |
-| Usage Tracker | `usage` | Aggregate usage metrics |
-| Safety Monitor | `safety` | Security monitoring |
+Consumer groups are per-service-type, not per-agent. Agent routing is handled by subject filtering:
+
+| Service | Consumer Group | Filter Subject | Purpose |
+|---------|---------------|----------------|---------|
+| Cognitive Engine | `cognitive-engine` | `ace.engine.>` | All layer activity |
+| Memory | `memory` | `ace.memory.>` | All memory operations |
+| Tools | `tools` | `ace.tools.>` | All tool invocations |
+| Layer Inspector | `inspector` | `ace.engine.{agentId}.layer.>` | Debug/replay |
+| Usage Tracker | `usage` | `ace.usage.>` | Aggregate usage metrics |
+| Safety Monitor | `safety` | `ace.*.*.*.>` | Security monitoring |
+
+This approach avoids unbounded consumer accumulation � consumers are created per service type, not per agent.
 
 ## Observability
 
@@ -245,12 +251,13 @@ Each message includes:
 
 ### Metrics
 
-Recommended metrics:
-- `nats.messages.published` (counter by subject)
-- `nats.messages.consumed` (counter by subject)
-- `nats.request.latency` (histogram by subject)
-- `nats.connection.status` (gauge)
-- `jetstream.consumer.lag` (gauge by consumer)
+> **Note**: Metric instrumentation follows patterns defined in the observability unit. The specific metric names and labels will be defined there to ensure consistency across all services.
+
+High-level categories for metrics:
+- Message throughput (published/consumed)
+- Request latency
+- Connection health
+- Consumer lag
 
 ### Logging
 
@@ -289,10 +296,15 @@ Log at key points:
 # docker-compose.yaml
 services:
   nats:
-    image: nats:latest
+    image: nats:2.12
     ports:
       - "4222:4222"
     command: ["--js"]
+    volumes:
+      - nats-data:/data
+
+volumes:
+  nats-data:
 ```
 
 ### Production
@@ -312,7 +324,7 @@ streams:
     storage: file
   system:
     retention: 7d
-    storage: memory
+    storage: file  # NOT memory - persist system events across restarts
 ```
 
 ## Failure Modes
@@ -320,6 +332,6 @@ streams:
 | Scenario | Impact | Recovery |
 |----------|--------|----------|
 | NATS down | Services cannot communicate | Queue messages, retry on reconnect |
-| JetStream down | No persistence | Fall back to core NATS |
+| JetStream down | No persistence - messages would be lost | **Fail loudly** - surface error, halt affected operations, alert via health check |
 | Consumer crash | Messages unacknowledged | Redelivery after timeout |
 | Producer flood | Backpressure | Flow control, circuit breaker |
