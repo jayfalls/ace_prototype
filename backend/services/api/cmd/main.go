@@ -75,16 +75,17 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool) *chi.Mux {
 	return r
 }
 
-func serve(port string, handler http.Handler) {
+func serve(host, port string, handler http.Handler) {
+	addr := host + ":" + port
 	server := &http.Server{
-		Addr:         ":" + port,
+		Addr:         addr,
 		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 	}
 
 	go func() {
-		log.Printf("Starting ACE API server on port %s...", port)
+		log.Printf("Starting ACE API server on %s...", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Failed to start server: %v", err)
 		}
@@ -123,5 +124,5 @@ func main() {
 	shared.Hello()
 
 	router := newRouter(cfg, db.Pool)
-	serve(cfg.APIPort, router)
+	serve(cfg.APIHost, cfg.APIPort, router)
 }
