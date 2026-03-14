@@ -9,9 +9,9 @@ export default defineConfig({
 		strictPort: false,
 		watch: {
 			ignored: ['**/node_modules/**']
+		},
+		hmr: {
+			host: '0.0.0.0'
 		}
-	},
-	hmr: {
-		host: '0.0.0.0'
 	}
 });

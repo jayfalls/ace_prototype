@@ -22,6 +22,7 @@ import (
 	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
+	"ace/shared/messaging"
 
 	// _ "ace/api/migrations"
 	"ace/shared"
@@ -42,14 +43,14 @@ import (
 // 	log.Println("Migrations completed successfully")
 // }
 
-func newRouter(cfg *config.Config, pool *pgxpool.Pool) *chi.Mux {
+func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client) *chi.Mux {
 	// Create SQLC queries instance
 	// queries := queries.New(pool)
 
 	// Service layers
 
 	// Handlers
-	healthHandler := handler.NewHealthHandler(pool)
+	healthHandler := handler.NewHealthHandler(pool, nats)
 	exampleHandler := handler.NewExampleHandler()
 
 	r := chi.NewRouter()
@@ -119,10 +120,23 @@ func main() {
 	}
 	defer db.Close()
 
+	// Create NATS client
+	natsClient, err := messaging.NewClient(messaging.Config{
+		URLs:          cfg.NATSURL,
+		Name:          "ace-api",
+		Timeout:       10 * time.Second,
+		MaxReconnect:  5,
+		ReconnectWait: 2 * time.Second,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create NATS client: %v", err)
+	}
+	defer natsClient.Close()
+
 	// migrate(cfg.DatabaseURL)
 
 	shared.Hello()
 
-	router := newRouter(cfg, db.Pool)
+	router := newRouter(cfg, db.Pool, natsClient)
 	serve(cfg.APIHost, cfg.APIPort, router)
 }

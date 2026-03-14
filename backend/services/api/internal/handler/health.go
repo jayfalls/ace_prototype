@@ -2,48 +2,59 @@
 package handler
 
 import (
-    "net/http"
+	"net/http"
 
-    "github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-    "ace/api/internal/response"
+	"ace/api/internal/response"
+	"ace/shared/messaging"
 )
 
-
 type HealthHandler struct {
-    pool *pgxpool.Pool
+	pool  *pgxpool.Pool
+	nats  messaging.Client
 }
 
-
-func NewHealthHandler(pool *pgxpool.Pool) *HealthHandler {
-    return &HealthHandler{pool: pool}
+func NewHealthHandler(pool *pgxpool.Pool, nats messaging.Client) *HealthHandler {
+	return &HealthHandler{pool: pool, nats: nats}
 }
 
 func (h *HealthHandler) Live(w http.ResponseWriter, r *http.Request) {
-    response.JSON(w, http.StatusOK, map[string]string{
-        "status": "ok",
-    })
+	response.JSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+	})
 }
 
 func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
-    type checkResult struct {
-        Status string `json:"status"`
-        Reason string `json:"reason,omitempty"`
-    }
+	type checkResult struct {
+		Status string `json:"status"`
+		Reason string `json:"reason,omitempty"`
+	}
 
-    checks := map[string]checkResult{}
-    overallStatus := "ok"
-    httpStatus := http.StatusOK
+	checks := map[string]checkResult{}
+	overallStatus := "ok"
+	httpStatus := http.StatusOK
+
+	// Database check
 	checks["database"] = checkResult{Status: "ok"}
-
-    if err := h.pool.Ping(r.Context()); err != nil {
+	if err := h.pool.Ping(r.Context()); err != nil {
 		overallStatus = "degraded"
-        checks["database"] = checkResult{Status: "fail", Reason: "ping failed"}
-        httpStatus = http.StatusServiceUnavailable
-    }
+		checks["database"] = checkResult{Status: "fail", Reason: "ping failed"}
+		httpStatus = http.StatusServiceUnavailable
+	}
 
-    response.JSON(w, httpStatus, map[string]any{
-        "status": overallStatus,
-        "checks": checks,
-    })
+	// NATS check
+	checks["nats"] = checkResult{Status: "ok"}
+	if h.nats != nil {
+		if err := h.nats.HealthCheck(); err != nil {
+			overallStatus = "degraded"
+			checks["nats"] = checkResult{Status: "fail", Reason: err.Error()}
+			httpStatus = http.StatusServiceUnavailable
+		}
+	}
+
+	response.JSON(w, httpStatus, map[string]any{
+		"status": overallStatus,
+		"checks": checks,
+	})
 }

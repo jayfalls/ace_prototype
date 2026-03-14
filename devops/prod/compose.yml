@@ -4,6 +4,8 @@ services:
       context: ..
       dockerfile: devops/prod/api.Containerfile
     container_name: ace_api
+    env_file:
+      - ../.env
     depends_on:
       ace_db:
         condition: service_healthy
@@ -17,15 +19,6 @@ services:
       start_period: 30s
     ports:
       - "8080:8080"
-    environment:
-      - POSTGRES_HOST=${POSTGRES_HOST:-ace_db}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-ace}
-      - API_PORT=${API_PORT:-8080}
-      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-*}
-      - NATS_URL=${NATS_URL:-nats://ace_broker:4222}
     networks:
       - ace_network
 
@@ -34,13 +27,14 @@ services:
       context: ..
       dockerfile: devops/prod/fe.Containerfile
     container_name: ace_fe
+    env_file:
+      - ../.env
     depends_on:
       ace_api:
         condition: service_healthy
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=${VITE_API_URL:-http://localhost:8080}
       - NODE_ENV=production
     networks:
       - ace_network
@@ -48,18 +42,16 @@ services:
   ace_db:
     image: postgres:18
     container_name: ace_db
+    env_file:
+      - ../.env
     ports:
       - "5432:5432"
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=${POSTGRES_DB:-ace}
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
       - ace_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5

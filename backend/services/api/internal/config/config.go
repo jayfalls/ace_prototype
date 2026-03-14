@@ -26,6 +26,9 @@ type Config struct {
 	// JWT configuration
 	JWTSecret          string
 	JWTExpirationHours int
+
+	// NATS configuration
+	NATSURL string
 }
 
 // Load loads configuration from environment variables.
@@ -66,6 +69,12 @@ func Load() (*Config, error) {
 	}
 	jwtExpirationHours := getEnvInt("JWT_EXPIRATION_HOURS", 24)
 
+	// NATS configuration
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://localhost:4222"
+	}
+
 	return &Config{
 		DatabaseURL:            dbURL,
 		APIHost:                apiHost,
@@ -74,6 +83,7 @@ func Load() (*Config, error) {
 		LogLevel:               logLevel,
 		JWTSecret:              jwtSecret,
 		JWTExpirationHours:    jwtExpirationHours,
+		NATSURL:                natsURL,
 	}, nil
 }
 
@@ -91,7 +101,10 @@ func getDatabaseURL() (string, error) {
 	user := os.Getenv("POSTGRES_USER")
 	password := os.Getenv("POSTGRES_PASSWORD")
 	db := os.Getenv("POSTGRES_DB")
-	sslmode := os.Getenv("POSTGRES_SSLMODE", "disable")
+	sslmode := os.Getenv("POSTGRES_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
 
 	missing := []string{}
 	if host == "" {

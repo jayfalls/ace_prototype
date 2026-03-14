@@ -52,6 +52,11 @@ help: ## Show this help message
 
 up: ## Start all services in development mode
 	@echo "$(BLUE)Starting development services with $(ORCHESTRATOR)...$(NC)"
+	@# Ensure .env exists from .env.example if not present
+	@if [ ! -f .env ]; then \
+		echo "Creating .env from .env.example..."; \
+		cp devops/.env.example .env; \
+	fi
 	@# Ensure clean shutdown by stopping any existing containers first
 	$(COMPOSE) down --remove-orphans 2>/dev/null || true
 	@sleep 1
