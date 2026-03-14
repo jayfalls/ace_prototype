@@ -142,32 +142,31 @@ What format does Loki expect? JSON with specific fields? OTel Collector vs direc
 
 #### OTel Collector Log Sources
 
-**Option A: Stdio Receiver (Recommended for Containers)**
-- OTel Collector reads directly from container stdout/stderr
-- Works with Docker logging driver or container runtime
-- No application code changes needed for logging
-- Collector handles formatting and forwarding to Loki
+**Option A: Filelog Receiver (Correct approach for stdout/stderr)**
+- OTel Collector's filelog receiver reads from Docker's container log files
+- Docker transparently captures container stdout/stderr to files (e.g., `/var/lib/docker/containers/<id>/<id>-json.log`)
+- Application writes to stdout/stderr only - no file writing in application code
+- Works with Docker and Kubernetes (reads from `/var/log/containers/` in K8s)
+- **This is the CORRECT approach for our requirement**
 
-**Option B: Filelog Receiver**
-- Reads log files from disk
-- **NOT RECOMMENDED** - violates the "no log files" requirement
-
-**Option C: OTLP from Application**
-- Application sends logs via OTLP protocol
+**Option B: OTLP from Application**
+- Application sends logs via OTLP protocol directly
 - Requires structured logging in application code
 - More control over log content
+- Bypasses Docker's log driver entirely
 
-#### Recommendation: Stdio Receiver
+#### Recommendation: Filelog Receiver
 For this project, the architecture should be:
 1. Services log to stdout/stderr (JSON format)
-2. Docker/container runtime captures stdout/stderr
-3. OTel Collector uses stdio receiver to ingest logs
+2. Docker captures stdout/stderr to log files transparently
+3. OTel Collector's filelog receiver ingests from those log files
 4. OTel Collector forwards to Loki
 
 This achieves:
-- ✅ No log files
-- ✅ Container-native logging
+- ✅ Application writes to stdout/stderr only (no application log files)
+- ✅ Docker manages log files transparently
 - ✅ OTel Collector benefits (batching, retry, fan-out)
+- ✅ Works in both Docker and Kubernetes
 
 #### OTel Collector vs Direct Export
 
@@ -178,16 +177,17 @@ This achieves:
   - Fan-out: Can send to multiple backends simultaneously (Loki + any other)
   - Format translation: Handles conversion from OTLP to Loki's format automatically
   - Pipeline: Can process, filter, and transform logs before export
-  - Stdio receiver: Ingests directly from container stdout/stderr
+  - Filelog receiver: Reads from Docker/K8s container log files transparently
 - **Cons:**
   - Additional container/process to operate
   - Additional configuration in compose/K8s
   - More resources (CPU/memory) required
 
-**Option B: Direct Export (NOT RECOMMENDED)**
-- Cannot easily ingest stdout/stderr without additional tooling
-- Would require sidecar or log driver configuration
-- **Does not meet "no log files" requirement cleanly**
+**Option B: Direct Export (Alternative)**
+- Application sends logs directly via OTLP/Loki HTTP without Collector
+- **Pros:** Simpler infrastructure, fewer components
+- **Cons:** No batching, no retry, no fan-out, no pipeline processing
+- This is a valid alternative for simpler deployments but loses Collector benefits
 
 #### Recommended Fields for JSON Logs
 ```json
@@ -246,8 +246,59 @@ Three architectural options:
 ### Note
 This is an architectural decision that affects implementation. The FSD should specify which approach is used.
 
+---
+
+## 5. Grafana Stack Versions
+
+### Question
+Validate current stable versions of Grafana, Loki, Tempo, and Prometheus.
+
+### Research Findings
+
+The architecture unit decided on Grafana, Loki, Tempo, and Prometheus. Install latest stable versions of all four:
+
+- **Grafana**: Latest stable - Visit grafana.com for current version
+- **Loki**: Latest stable - Part of Grafana Labs
+- **Tempo**: Latest stable - Part of Grafana Labs  
+- **Prometheus**: Latest stable - Visit prometheus.io for current version
+
 ### Recommendation
 **Install latest stable versions** - Use the latest stable releases for all four components. Pin versions in Docker Compose and Kubernetes manifests at deployment time.
+
+---
+
+## 6. Usage Event NATS to PostgreSQL
+
+### Question
+How do usage events get from NATS into PostgreSQL? What component consumes the NATS subject and writes rows?
+
+### Research Findings
+
+Three architectural options:
+
+**Option A: Dedicated Consumer in API Service**
+- A goroutine in the API service subscribes to the usage event NATS subject
+- Writes directly to PostgreSQL using existing repository pattern
+- **Pros:** No new services, uses existing DB connection pool
+- **Cons:** Couples usage event processing to API service lifecycle
+
+**Option B: Standalone Consumer Process**
+- Separate Go service that subscribes to NATS and writes to PostgreSQL
+- Independent scaling and lifecycle
+- **Pros:** Independent deployment, can scale horizontally
+- **Cons:** New service to deploy, maintain, monitor
+
+**Option C: OTel Collector NATS Receiver**
+- Use OTel Collector's NATS receiver to consume events
+- Write to PostgreSQL using OTel Collector's database exporter
+- **Pros:** OTel-native, handles batching and retries
+- **Cons:** OTel Collector's DB exporter support is limited, less flexibility
+
+### Recommendation
+**Option A: Dedicated Consumer in API service** - For MVP, the simplest approach is a goroutine in the API service that subscribes to `ace.usage.event` and writes to PostgreSQL. This avoids introducing a new service. At scale, this can be refactored to Option B (standalone consumer) without changing the NATS contract.
+
+### Note
+This is an architectural decision that affects implementation. The FSD should specify which approach is used.
 
 ---
 
@@ -258,7 +309,7 @@ This is an architectural decision that affects implementation. The FSD should sp
 | Frontend Telemetry | OTel Browser SDK | Must Have |
 | NATS Integration | Custom TextMapPropagator carrier | Must Have |
 | Prometheus Labels | No agentId in labels | Must Have |
-| Log Format | OTel Collector → Loki | Must Have |
+| Log Format | OTel Collector with filelog receiver → Loki | Must Have |
 | OTel Go SDK | Latest stable | Must Have |
 | Grafana Stack | Latest stable | Must Have |
 | Usage Events | Dedicated consumer in API service | Must Have |
