@@ -9,3 +9,4 @@ This unit establishes the shared observability primitives in `shared/telemetry` 
 - [User Stories](user_stories.md)
 - [Research](research.md)
 - [Functional Specification](fsd.md)
+- [Architecture](architecture.md)
