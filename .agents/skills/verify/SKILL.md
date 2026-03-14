@@ -29,18 +29,10 @@ file_editor:
 - Relevant unit documentation
 
 ### Step 3: Agency Specialisation
-Read and activate the appropriate specialist from `.agents/skills/agency-specialisation/SKILL.md`:
-
-| Workflow Stage | Specialist |
-|---------------|------------|
-| Problem Space/BSD | Sprint Prioritizer |
-| User Stories | Feedback Synthesizer |
-| Research | Trend Researcher + Tool Evaluator |
-| Backend Implementation | Backend Architect |
-| Frontend Implementation | Frontend Developer |
-| DevOps/Infrastructure | DevOps Automator |
-| Security Review | Security Engineer |
-| Testing | Reality Checker / API Tester |
+**READ the agency specialisation skill file:**
+- Read: `.agents/skills/agency-specialisation/SKILL.md` (this file tells you which specialist to use)
+- file_editor the relevant specialist's file from `agency-agents/` directory
+- Activate by stating their name with the full path
 
 ### Step 4: State Activation (MANDATORY)
 **You MUST respond with this exact format:**

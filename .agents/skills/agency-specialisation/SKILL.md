@@ -26,11 +26,13 @@ If you need agency-agents, run `cd /workspace/project/ace_prototype && ./.openha
 
 ## Agency Specialist Activation
 
-- **CRITICAL**: Always activate the appropriate specialist agent for each workflow stage. Agents should NOT have to infer which specialist applies - it must be stated directly. To activate a specialist agent, include their full path in your prompt. For example:
-```
-Use the Backend Architect agent from agency-agents/engineering/engineering-backend-architect.md 
-to design the API architecture.
-```
+- **CRITICAL**: You MUST read the specialist agent file before activating. Do NOT guess or infer which specialist to use.
+
+- **Step 1**: Read the specialist file from `agency-agents/` directory
+  - Example: Read `agency-agents/product/product-trend-researcher.md` to activate the Trend Researcher
+  
+- **Step 2**: Include the full path in your response to activate
+  - Example: "Activate the **Trend Researcher** (from `agency-agents/product/product-trend-researcher.md`)"
 
 - The `agency-agents/` directory contains specialized AI agents that map to different stages of the ACE Framework unit workflow.
 
