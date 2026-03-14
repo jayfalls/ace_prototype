@@ -39,13 +39,15 @@ The canonical type for tracking resource consumption across all services.
 type UsageEvent struct {
     Timestamp     time.Time `json:"timestamp"`
     AgentID       string    `json:"agent_id"`
+    CycleID       string    `json:"cycle_id"`
+    SessionID     string    `json:"session_id"`
     ServiceName   string    `json:"service_name"`
     OperationType string    `json:"operation_type"`  // llm_call, memory_read, tool_execute, db_query, nats_publish
     ResourceType  string    `json:"resource_type"`  // api, memory, tool, database, messaging
     CostUSD       float64   `json:"cost_usd,omitempty"`
     DurationMs    int64     `json:"duration_ms,omitempty"`
     TokenCount    int64     `json:"token_count,omitempty"`
-    Metadata      map[string]interface{} `json:"metadata,omitempty"`
+    Metadata      map[string]string `json:"metadata,omitempty"`
 }
 ```
 
@@ -69,10 +71,9 @@ All services initialize telemetry at startup with a single config struct.
 
 ```go
 type Config struct {
-    ServiceName string
-    Environment string  // "development", "staging", "production"
-    OTLPEndpoint string // OTel Collector endpoint for traces/metrics
-    LokiEndpoint string // Loki endpoint for logs (optional, uses OTel Collector)
+    ServiceName   string
+    Environment   string  // "development", "staging", "production"
+    OTLPEndpoint  string // OTel Collector endpoint for traces/metrics
 }
 ```
 
@@ -84,8 +85,8 @@ func Init(ctx context.Context, config Config) (*Telemetry, error)
 **Returned Telemetry Object**
 ```go
 type Telemetry struct {
-    Tracer    *tracing.Tracer
-    Meter     *metrics.Meter
+    Tracer    *tracesdk.Tracer
+    Meter     *metric.Meter
     Logger    *zap.Logger
     Usage     *UsagePublisher
     Shutdown  func(context.Context) error
@@ -200,8 +201,9 @@ func NewLogger(serviceName, environment string) (*zap.Logger, error)
   "trace_id": "abc123",
   "span_id": "def456",
   "agent_id": "agent-001",
-  "correlation_id": "corr-789",
-  "cycle_id": "cycle-001"
+  "cycle_id": "cycle-001",
+  "session_id": "session-001",
+  "correlation_id": "corr-789"
 }
 ```
 
@@ -223,10 +225,10 @@ func NewUsagePublisher(nc *nats.Conn) *UsagePublisher
 // Publishes to SubjectUsageEvent ("ace.usage.event")
 func (p *UsagePublisher) Publish(ctx context.Context, event UsageEvent) error
 
-// Convenience methods for common operations
-func (p *UsagePublisher) LLMCall(ctx context.Context, agentID, service string, tokens int64, costUSD float64, durationMs int64)
-func (p *UsagePublisher) MemoryRead(ctx context.Context, agentID, service string, durationMs int64)
-func (p *UsagePublisher) ToolExecute(ctx context.Context, agentID, service, toolName string, durationMs int64)
+// Convenience methods for common operations - return error for publish failures
+func (p *UsagePublisher) LLMCall(ctx context.Context, agentID, cycleID, sessionID, service string, tokens int64, costUSD float64, durationMs int64) error
+func (p *UsagePublisher) MemoryRead(ctx context.Context, agentID, cycleID, sessionID, service string, durationMs int64) error
+func (p *UsagePublisher) ToolExecute(ctx context.Context, agentID, cycleID, sessionID, service, toolName string, durationMs int64) error
 ```
 
 ### 8. Usage Event Consumer (in API Service)
@@ -234,10 +236,10 @@ func (p *UsagePublisher) ToolExecute(ctx context.Context, agentID, service, tool
 ```go
 type UsageConsumer struct {
     sub *nats.Subscription
-    db  *sql.DB
+    pool *pgxpool.Pool
 }
 
-func NewUsageConsumer(nc *nats.Conn, db *sql.DB) *UsageConsumer
+func NewUsageConsumer(nc *nats.Conn, pool *pgxpool.Pool) *UsageConsumer
 
 func (c *UsageConsumer) Start(ctx context.Context) error
 ```
@@ -247,7 +249,9 @@ func (c *UsageConsumer) Start(ctx context.Context) error
 CREATE TABLE usage_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     timestamp TIMESTAMPTZ NOT NULL,
-    agent_id UUID REFERENCES agents(id),
+    agent_id UUID NOT NULL,
+    cycle_id UUID NOT NULL,
+    session_id UUID NOT NULL,
     service_name VARCHAR(255) NOT NULL,
     operation_type VARCHAR(50) NOT NULL,
     resource_type VARCHAR(50) NOT NULL,
@@ -260,6 +264,8 @@ CREATE TABLE usage_events (
 
 -- Indexes for common query patterns
 CREATE INDEX idx_usage_events_agent_id ON usage_events(agent_id);
+CREATE INDEX idx_usage_events_cycle_id ON usage_events(cycle_id);
+CREATE INDEX idx_usage_events_session_id ON usage_events(session_id);
 CREATE INDEX idx_usage_events_timestamp ON usage_events(timestamp DESC);
 CREATE INDEX idx_usage_events_operation_type ON usage_events(operation_type);
 CREATE INDEX idx_usage_events_service_name ON usage_events(service_name);
@@ -321,8 +327,11 @@ func (s *Service) CallLLM(ctx context.Context, prompt string) (string, error) {
         return "", err
     }
     
-    // Emit usage event
-    s.telemetry.Usage.LLMCall(ctx, agentID, "api", response.Tokens, calculateCost(response), durationMs)
+    // Emit usage event - return error must be handled
+    err = s.telemetry.Usage.LLMCall(ctx, agentID, cycleID, sessionID, "api", response.Tokens, calculateCost(response), durationMs)
+    if err != nil {
+        s.telemetry.Logger.Error("failed to emit usage event", zap.Error(err))
+    }
     
     span.SetAttributes(
         attribute.Int64("llm.tokens", response.Tokens),
@@ -413,6 +422,12 @@ exporters:
     labels:
       attributes:
         service.name: "service_name"
+  
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: otel
+    histogram:
+      send_aggregation_temporality: true
 
 service:
   pipelines:
@@ -438,16 +453,19 @@ service:
 
 ## Dependencies
 
+**Note:** Versions must be verified at implementation time. Run `go list -m -versions go.opentelemetry.io/otel` to get current stable versions.
+
 ```go
 // go.mod additions
 require (
-    go.opentelemetry.io/otel v1.21.0
-    go.opentelemetry.io/otel/sdk v1.21.0
-    go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0
-    go.opentelemetry.io/otel/exporters/prometheus v0.44.0
-    go.opentelemetry.io/otel/propagation v1.21.0
-    go.uber.org/zap v1.26.0
-    github.com/nats-io/nats.go v1.31.0
+    go.opentelemetry.io/otel v1.40.0
+    go.opentelemetry.io/otel/sdk v1.40.0
+    go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.40.0
+    go.opentelemetry.io/otel/exporters/prometheus v1.40.0
+    go.opentelemetry.io/otel/propagation v1.40.0
+    go.uber.org/zap v1.27.0
+    github.com/jackc/pgx/v5 v5.7.0
+    github.com/nats-io/nats.go v1.36.0
 )
 ```
 
