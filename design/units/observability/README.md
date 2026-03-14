@@ -5,3 +5,7 @@ This unit establishes the shared observability primitives in `shared/telemetry` 
 ## Documents
 
 - [Problem Space](problem_space.md)
+- [Business Specification](bsd.md)
+- [User Stories](user_stories.md)
+- [Research](research.md)
+- [Functional Specification](fsd.md)
