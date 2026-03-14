@@ -50,6 +50,7 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool) *chi.Mux {
 
 	// Handlers
 	healthHandler := handler.NewHealthHandler(pool)
+	exampleHandler := handler.NewExampleHandler()
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -64,6 +65,12 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool) *chi.Mux {
 
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
+
+	// Example routes demonstrating validation
+	r.Route("/examples", func(r chi.Router) {
+		r.Post("/", exampleHandler.Create)
+		r.Get("/{id}", exampleHandler.Get)
+	})
 
 	return r
 }
