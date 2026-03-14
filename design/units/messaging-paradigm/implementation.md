@@ -56,6 +56,9 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ### PR-3: Message Envelope
 
+**Status:** Merged
+**PR:** [#120](https://github.com/jayfalls/ace_prototype/pull/120)
+
 **Files to create:**
 - `shared/messaging/envelope.go` - Envelope struct and helpers
 
@@ -66,9 +69,9 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 - Add `GenerateMessageID` function
 
 **Acceptance Criteria:**
-- Envelope struct has all fields from FSD
-- Header mapping works bidirectionally
-- Unit tests for envelope creation and header mapping
+- [x] Envelope struct has all fields from FSD
+- [x] Header mapping works bidirectionally
+- [x] Unit tests for envelope creation and header mapping
 
 ---
 
