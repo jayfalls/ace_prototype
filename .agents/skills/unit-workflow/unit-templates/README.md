@@ -10,13 +10,6 @@ NOTE: Remove this comment block in the final document
 
 This template provides a complete structure for documenting a unit from conception to implementation.
 
-## Usage
-
-To create a new unit:
-1. Copy the `template/` directory to a new folder under `units/`
-2. Rename the folder to your unit name (e.g., `units/my-new-unit/`)
-3. Fill in each document as separate PRs (one document per PR)
-
 ## Template Documents
 
 - [problem_space.md](problem_space.md) - Problem space exploration through questions (MUST complete before BSD)
@@ -34,15 +27,3 @@ To create a new unit:
 - [api.md](api.md) - API specifications
 - [monitoring.md](monitoring.md) - Observability requirements
 - [dependencies.md](dependencies.md) - External dependencies
-
-## Recommended Workflow
-
-1. Start with **problem_space.md** to explore the problem through questions (REQUIRED)
-2. Create **bsd.md** to define the business case
-3. Create **user_stories.md** to capture user requirements
-4. Conduct **research.md** to evaluate different approaches and make informed design decisions
-5. Write **fsd.md** for technical details
-6. Design **architecture.md** for system integration
-7. Plan **implementation.md** for execution
-8. Document **security.md** considerations
-9. Complete remaining documents as needed
