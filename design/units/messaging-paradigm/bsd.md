@@ -59,7 +59,11 @@ Single source of truth in `shared/messaging/` — fix once, all services benefit
 - Multi-tenancy (enterprise organization isolation) — not in MVP scope
 - Message signing — TLS sufficient for internal communication
 - Protobuf payloads — JSON acceptable for MVP
-- Specific retention policies — defined later by feature needs
+- Specific retention durations — tuned by individual units based on their needs
+
+### In Scope (Refined)
+- JetStream stream retention strategy — categories for cognitive messages, usage events, system events
+- FSD defines retention strategy; individual units tune exact durations
 
 ## Open Questions for FSD
 
