@@ -74,11 +74,10 @@ type Client interface {
 
 // natsClient implements the Client interface using NATS.
 type natsClient struct {
-	nc   *nats.Conn
-	js   nats.JetStreamContext
-	cfg  Config
-	mu   sync.RWMutex
-	done chan struct{}
+	nc  *nats.Conn
+	js  nats.JetStreamContext
+	cfg Config
+	mu  sync.RWMutex
 }
 
 // NewClient creates a new NATS client.
@@ -119,10 +118,9 @@ func NewClient(cfg Config) (Client, error) {
 	}
 
 	client := &natsClient{
-		nc:   nc,
-		js:   js,
-		cfg:  cfg,
-		done: make(chan struct{}),
+		nc:  nc,
+		js:  js,
+		cfg: cfg,
 	}
 
 	return client, nil
@@ -185,7 +183,11 @@ func (c *natsClient) SubscribeToStream(ctx context.Context, stream, consumer, su
 		return JetStreamError(fmt.Errorf("jetstream not available"))
 	}
 
-	_, err := c.js.ConsumerInfo(stream, consumer)
+	// Use context for JetStream operations
+	jsCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	_, err := c.js.ConsumerInfo(stream, consumer, nats.Context(jsCtx))
 	if err != nil {
 		if err != nats.ErrConsumerNotFound {
 			return JetStreamError(err)
@@ -193,14 +195,13 @@ func (c *natsClient) SubscribeToStream(ctx context.Context, stream, consumer, su
 
 		// Create consumer if it doesn't exist
 		_, err = c.js.AddConsumer(stream, &nats.ConsumerConfig{
-			Durable:        consumer,
-			DeliverSubject: consumer,
-			DeliverPolicy:  nats.DeliverNewPolicy,
-			AckPolicy:      nats.AckExplicitPolicy,
-			AckWait:        30 * time.Second,
-			MaxDeliver:     3,
-			FilterSubject:   subject,
-		})
+			Durable:       consumer,
+			DeliverPolicy: nats.DeliverNewPolicy,
+			AckPolicy:     nats.AckExplicitPolicy,
+			AckWait:       30 * time.Second,
+			MaxDeliver:    3,
+			FilterSubject: subject,
+		}, nats.Context(jsCtx))
 		if err != nil {
 			return JetStreamError(err)
 		}
@@ -262,16 +263,21 @@ func (c *natsClient) Drain() error {
 		return err
 	}
 
-	// Wait for drain to complete
-	for {
-		if c.nc.IsDraining() && !c.nc.IsClosed() {
-			time.Sleep(100 * time.Millisecond)
-			continue
-		}
-		break
-	}
+	// Wait for drain to complete with timeout
+	timeout := time.After(30 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 
-	return nil
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("drain timeout")
+		case <-ticker.C:
+			if !c.nc.IsDraining() {
+				return nil
+			}
+		}
+	}
 }
 
 // Close closes the connection.
@@ -284,20 +290,19 @@ func (c *natsClient) Close() {
 		c.nc = nil
 	}
 	c.js = nil
-
-	close(c.done)
 }
 
 // MockClient is a mock implementation of Client for testing.
 type MockClient struct {
-	mu              sync.RWMutex
-	PublishedMsgs   []*MockMsg
-	Subscriptions  []*MockSubscription
-	RequestResp    *nats.Msg
-	RequestErr     error
-	HealthCheckErr error
-	DrainErr       error
-	CloseCalled    bool
+	mu               sync.RWMutex
+	PublishedMsgs    []*MockMsg
+	Subscriptions    []*MockSubscription
+	StreamSubs       []*MockStreamSubscription
+	RequestResp      *nats.Msg
+	RequestErr       error
+	HealthCheckErr   error
+	DrainErr         error
+	CloseCalled      bool
 }
 
 // MockMsg represents a mock message.
@@ -311,6 +316,14 @@ type MockMsg struct {
 type MockSubscription struct {
 	Subject string
 	Handler MsgHandler
+}
+
+// MockStreamSubscription represents a mock JetStream subscription.
+type MockStreamSubscription struct {
+	Stream   string
+	Consumer string
+	Subject  string
+	Handler  MsgHandler
 }
 
 // Publish records a published message.
@@ -361,10 +374,19 @@ func (m *MockClient) Subscribe(subject string, handler MsgHandler) (Subscription
 	return sub, nil
 }
 
-// SubscribeToStream is a no-op for mock client.
+// SubscribeToStream records a JetStream subscription.
 func (m *MockClient) SubscribeToStream(ctx context.Context, stream, consumer, subject string, handler MsgHandler) error {
-	_, err := m.Subscribe(subject, handler)
-	return err
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.StreamSubs = append(m.StreamSubs, &MockStreamSubscription{
+		Stream:   stream,
+		Consumer: consumer,
+		Subject:  subject,
+		Handler:  handler,
+	})
+
+	return nil
 }
 
 // HealthCheck returns the configured error.
@@ -408,6 +430,16 @@ func (m *MockClient) GetSubscriptions() []*MockSubscription {
 
 	result := make([]*MockSubscription, len(m.Subscriptions))
 	copy(result, m.Subscriptions)
+	return result
+}
+
+// GetStreamSubscriptions returns the JetStream subscriptions.
+func (m *MockClient) GetStreamSubscriptions() []*MockStreamSubscription {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]*MockStreamSubscription, len(m.StreamSubs))
+	copy(result, m.StreamSubs)
 	return result
 }
 

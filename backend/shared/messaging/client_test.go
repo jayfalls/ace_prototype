@@ -165,6 +165,24 @@ func TestMockClient_SubscribeToStream(t *testing.T) {
 	err := mock.SubscribeToStream(nil, "STREAM", "CONSUMER", "subject", handler)
 
 	require.NoError(t, err)
-	assert.Len(t, mock.Subscriptions, 1)
-	assert.Equal(t, "subject", mock.Subscriptions[0].Subject)
+	assert.Len(t, mock.StreamSubs, 1)
+	assert.Equal(t, "STREAM", mock.StreamSubs[0].Stream)
+	assert.Equal(t, "CONSUMER", mock.StreamSubs[0].Consumer)
+	assert.Equal(t, "subject", mock.StreamSubs[0].Subject)
+}
+
+func TestMockClient_GetStreamSubscriptions(t *testing.T) {
+	mock := &MockClient{}
+
+	// Add some stream subscriptions
+	mock.SubscribeToStream(nil, "STREAM1", "CONSUMER1", "subject1", func(msg *nats.Msg) {})
+	mock.SubscribeToStream(nil, "STREAM2", "CONSUMER2", "subject2", func(msg *nats.Msg) {})
+
+	subscriptions := mock.GetStreamSubscriptions()
+
+	assert.Len(t, subscriptions, 2)
+	assert.Equal(t, "STREAM1", subscriptions[0].Stream)
+	assert.Equal(t, "CONSUMER1", subscriptions[0].Consumer)
+	assert.Equal(t, "STREAM2", subscriptions[1].Stream)
+	assert.Equal(t, "CONSUMER2", subscriptions[1].Consumer)
 }
