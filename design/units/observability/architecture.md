@@ -4,6 +4,8 @@
 
 This document describes how the observability primitives integrate with the ACE Framework architecture, the data flow for traces/metrics/logs, and how usage events propagate through the system.
 
+**Note:** The actual implementation of the frontend telemetry module is deferred to a future unit (Frontend). The frontend will use OpenTelemetry browser SDK for trace context propagation, JavaScript error tracking, and performance monitoring.
+
 ## System Integration
 
 ### High-Level Observability Flow
@@ -83,6 +85,7 @@ The `shared/telemetry` package provides observability primitives consumed by all
 │  │    Init()   │  │   Start()   │  │   Histogram    │   │
 │  │   Config    │  │  Extract()  │  │    Counter     │   │
 │  │   Shutdown  │  │  Inject()   │  │     Gauge      │   │
+│  │ HealthCheck │  │             │  │  NewMeter()    │   │
 │  └──────┬──────┘  └──────┬──────┘  └────────┬────────┘   │
 │         │                │                   │              │
 │         └────────────────┼───────────────────┘              │
@@ -95,6 +98,8 @@ The `shared/telemetry` package provides observability primitives consumed by all
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**HealthCheck()** - Returns error if OTel exporter connection is down. Called by the readiness handler to verify observability pipeline connectivity.
 
 ### Trace Context Propagation
 
@@ -260,14 +265,140 @@ Logs flow from services through OTel Collector to Loki:
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
+### Metrics Flow (Prometheus Pull Model)
+
+Services expose a `/metrics` endpoint using the Prometheus client. The OTel Collector scrapes these endpoints and pushes to Prometheus:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      Metrics Flow (Prometheus Pull)                         │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Service                                                                     │
+│     │                                                                        │
+│     │ Register standard metrics (via shared/telemetry)                     │
+│     │ - http_request_duration_seconds (histogram)                         │
+│     │ - http_requests_total (counter)                                     │
+│     │ - http_active_requests (gauge)                                      │
+│     │                                                                        │
+│     │ Expose /metrics endpoint                                             │
+│     ▼                                                                        │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │ # HELP http_request_duration_seconds HTTP request duration          │   │
+│  │ # TYPE http_request_duration_seconds histogram                     │   │
+│  │ http_request_duration_seconds_bucket{le="0.1"} 123              │   │
+│  │ http_request_duration_seconds_bucket{le="0.5"} 456              │   │
+│  │ ...                                                                  │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│     │                                                                        │
+│     │ Prometheus scrape (pull)                                            │
+│     ▼                                                                        │
+│  OTel Collector (prometheus receiver)                                        │
+│     │                                                                        │
+│     │ - Scrapes /metrics from each service                               │
+│     │ - Converts to OTLP internal format                                  │
+│     │                                                                        │
+│     ▼                                                                        │
+│  OTel Collector (processors)                                                │
+│     │                                                                        │
+│     │ - batch: aggregates before sending                                   │
+│     │ - memory_limiter: prevents OIM                                     │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Prometheus                                                                 │
+│     │                                                                        │
+│     │ - Stores time series data                                           │
+│     │ - service_name, method, path, status as labels                     │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Grafana (visualization)                                                    │
+│     │                                                                        │
+│     │ - PromQL queries                                                   │
+│     │ - Dashboards for latency, error rates, utilization                  │
+│     │                                                                        │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Frontend Observability Flows (Deferred)
+
+The frontend telemetry module is deferred to the Frontend unit. These flows are documented here for completeness:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    Frontend Observability Flows                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    Trace Context Creation                            │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│     │                                                                        │
+│     │ User triggers action (click, form submit)                           │
+│     ▼                                                                        │
+│  Frontend Telemetry Module (OTel browser SDK)                              │
+│     │                                                                        │
+│     │ - Creates root span with new trace_id                              │
+│     │ - Injects traceparent header into fetch/XHR requests               │
+│     │                                                                        │
+│     ▼                                                                        │
+│  HTTP Request with traceparent header                                       │
+│     │                                                                        │
+│     │ ──► traceparent: 00-abc123-def456-01-abc1234567890ab              │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Backend (continues existing trace)                                        │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                    JavaScript Error Tracking                        │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│     │                                                                        │
+│     │ Uncaught exception in browser                                      │
+│     ▼                                                                        │
+│  Frontend Error Handler                                                    │
+│     │                                                                        │
+│     │ - Captures: message, stack trace, URL, user agent                  │
+│     │ - Attaches current trace_id (if available)                         │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Error Tracking Service (deferred - Sentry or OTel backend)              │
+│     │                                                                        │
+│     │ - Stores error with trace correlation                              │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Grafana (correlated with backend traces)                                  │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                 Performance Monitoring                                │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│     │                                                                        │
+│     │ Page load, user interactions                                       │
+│     ▼                                                                        │
+│  Performance APIs (Navigation Timing, Resource Timing)                    │
+│     │                                                                        │
+│     │ - page_load_time, time_to_interactive                            │
+│     │ - api_request_duration, websocket_latency                         │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Frontend Metrics Store                                                    │
+│     │                                                                        │
+│     │ - Aggregated and exposed via /metrics endpoint                    │
+│     │                                                                        │
+│     ▼                                                                        │
+│  Prometheus (scraped by OTel Collector)                                   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ## Data Flow Summary
 
 | Data Type | Source | Transport | Storage | Visualization |
 |-----------|--------|-----------|---------|---------------|
-| Traces | All services | OTLP (HTTP/gRPC) | Tempo | Grafana |
-| Metrics | All services | OTLP (HTTP/gRPC) | Prometheus | Grafana |
+| Traces | All services | OTLP (HTTP/gRPC) push | Tempo | Grafana |
+| Metrics | All services | Prometheus scrape (pull) | Prometheus | Grafana |
 | Logs | All services | stdout → filelog | Loki | Grafana |
 | Usage Events | All services | NATS | PostgreSQL | Grafana (custom) |
+| Frontend Traces | Browser | HTTP header injection | Tempo | Grafana (deferred) |
+| Frontend Errors | Browser | HTTP POST | Custom (deferred) | Grafana (deferred) |
+| Frontend Metrics | Browser | Prometheus scrape | Prometheus | Grafana (deferred) |
 
 ## Scaling Considerations
 
