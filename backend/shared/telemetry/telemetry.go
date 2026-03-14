@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -25,6 +26,23 @@ type Config struct {
 	ServiceName   string // Service name (e.g., "api", "agent")
 	Environment   string // Environment: "development", "staging", "production"
 	OTLPEndpoint  string // OTel Collector endpoint for traces/metrics
+}
+
+// LoadConfig loads telemetry configuration from environment variables
+func LoadConfig() Config {
+	return Config{
+		ServiceName:  getEnvString("TELEMETRY_SERVICE_NAME", ""),
+		Environment:  getEnvString("TELEMETRY_ENVIRONMENT", "development"),
+		OTLPEndpoint: getEnvString("OTLP_ENDPOINT", "localhost:4317"),
+	}
+}
+
+// getEnvString returns the environment variable or default value.
+func getEnvString(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // Telemetry holds all observability components

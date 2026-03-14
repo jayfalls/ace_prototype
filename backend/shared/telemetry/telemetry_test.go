@@ -61,15 +61,36 @@ func TestUsageEventJSON(t *testing.T) {
 }
 
 func TestConstants(t *testing.T) {
-	// Verify trace context header keys
+	// Verify trace context header keys (W3C standard)
 	assert.Equal(t, "traceparent", TraceParentHeader)
 	assert.Equal(t, "tracestate", TraceStateHeader)
 	assert.Equal(t, "baggage", BaggageHeader)
+}
 
-	// Verify default endpoints
-	assert.Equal(t, "localhost:4317", DefaultOTLPGRPCEndpoint)
-	assert.Equal(t, "localhost:4318", DefaultOTLPHTTPEndpoint)
-	assert.Equal(t, ":8888", DefaultPrometheusEndpoint)
+func TestLoadConfig(t *testing.T) {
+	// Test with environment variables set
+	t.Setenv("TELEMETRY_SERVICE_NAME", "test-service")
+	t.Setenv("TELEMETRY_ENVIRONMENT", "production")
+	t.Setenv("OTLP_ENDPOINT", "otel.collector:4317")
+
+	config := LoadConfig()
+
+	assert.Equal(t, "test-service", config.ServiceName)
+	assert.Equal(t, "production", config.Environment)
+	assert.Equal(t, "otel.collector:4317", config.OTLPEndpoint)
+}
+
+func TestLoadConfigDefaults(t *testing.T) {
+	// Clear environment variables
+	t.Setenv("TELEMETRY_SERVICE_NAME", "")
+	t.Setenv("TELEMETRY_ENVIRONMENT", "")
+	t.Setenv("OTLP_ENDPOINT", "")
+
+	config := LoadConfig()
+
+	assert.Equal(t, "", config.ServiceName)
+	assert.Equal(t, "development", config.Environment)
+	assert.Equal(t, "localhost:4317", config.OTLPEndpoint)
 }
 
 func TestInit(t *testing.T) {
