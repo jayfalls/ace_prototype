@@ -5,110 +5,33 @@
 
 # Project Structure
 The ace_prototype repository is organized as follows:
+- `agency-agents` - Bespoke workflow instructions
 - `design/` - All design documentation for the system
   - `design/README.md` - Overall system architecture and design
   - `design/units/` - Individual unit specifications (features, components, refactors)
   - `design/units/template/` - Template documents for creating new units
+- `devops` - Deployment files
 - `documentation/` - Project documentation and changelogs
   - `documentation/changelogs/` - Daily changelog files
 - `backend/` - Go backend source code (when implemented)
 - `frontend/` - SvelteKit/TypeScript frontend source code (when implemented)
 
-# Working on the Code
+# Documentation Updates
 
-## Design Documentation
-- Reference design/README.md for the overall system design
-- Reference design/units/README.md for each individual piece of the system and leg of work
-- When creating a unit of work, fully complete the documentation before beginning with code
+**IMPORTANT**: Before making any changelog or documentation updates:
+1. **Check the current date** - Use `date` command to get today's date
+2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
+3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
 
-## Units
+After every commit:
+1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
+2. Update the `design/README.md` if relevant
+3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
+4. Ensure BSD/FSD documents match the actual implementation
+5. Update API documentation if endpoints changed
+6. Update the user wiki documentation/ folder with relevant changes
 
-**What are Units?**
-Units are discrete pieces of work in the ACE Framework. Each unit represents a feature, component, or refactoring that can be independently designed, implemented, and documented. Examples include:
-- Adding a new API endpoint
-- Creating a new UI component
-- Implementing a database migration
-- Refactoring existing code
-
-**Unit Template Structure**
-Each unit should have a complete set of documentation. The template includes 14 documents:
-1. `BSD.md` - Business Specification Document (what we're building and why)
-2. `user_stories.md` - User stories and acceptance criteria
-3. `research.md` - Research and evaluate different approaches before design decisions
-4. `FSD.md` - Functional Specification Document (how we'll build it)
-5. `architecture.md` - Technical architecture decisions
-6. `implementation.md` - Implementation plan and details
-7. `security.md` - Security considerations
-8. `design.md` - Visual/UX design specifications
-9. `mockups.md` - Wireframes and mockups
-10. `migration_and_rollback.md` - Database migration and rollback plans
-11. `testing.md` - Testing strategy and test cases
-12. `api.md` - API specifications
-13. `monitoring.md` - Observability requirements
-14. `dependencies.md` - External dependencies
-
-**Unit Workflow**
-1. Create a new unit by copying the template directory: `cp -r design/units/template design/units/<unit-name>`
-2. Complete ALL planning documents (research through dependencies) BEFORE writing any code
-3. Create a PR for the BSD first, then user_stories, then research
-4. Only begin implementation after all design documents are approved
-5. One document type per PR (e.g., one PR for research, one for BSD)
-
-### Problem Space Discovery (Before Each Document)
-**IMPORTANT**: Before starting any document in a unit, explore the topic with the user through questions.
-
-1. **Question Loop Process**: For each document (BSD, user_stories, research, FSD, architecture, implementation, etc.):
-   - Ask clarifying questions about what's needed for that specific document
-   - Don't assume - ask until you understand
-   - Document the Q&A in the relevant section
-
-2. **Initial Discovery**: Ask clarifying questions to understand:
-   - What problem are we trying to solve?
-   - Who are the users?
-   - What are the success criteria?
-   - What constraints exist (budget, timeline, tech stack)?
-
-3. **Iterative Exploration**: Ask follow-up questions in a loop until the problem space is fully understood:
-   - Clarify ambiguous requirements
-   - Explore edge cases
-   - Identify dependencies and integrations
-   - Understand non-functional requirements (performance, security, scalability)
-
-4. **Document Findings**: The answers form the relevant document (problem_space.md, user_stories.md, etc.)
-
-5. **Do NOT proceed to writing** until you have a clear understanding. It is better to ask more questions than to assume.
-
-### Unit Documents
-- **BSD (Business Specification Document)**: Defines the "what" - business case, scope, success criteria. Not the "how" (that's FSD).
-- **User Stories**: Captures user requirements and acceptance criteria.
-- **Research Document**: Research and evaluate different approaches before making design decisions. Includes industry standards, pros/cons analysis, and recommendations. **Always perform web searches to determine current industry standards, latest versions, and actively maintained technologies.**
-- **FSD (Functional Specification Document)**: Defines the "how" - technical implementation details.
-- BSD comes first, then user_stories, then research, then FSD. Each in separate PRs.
-
-### Technology Recommendations
-When suggesting technologies, libraries, or frameworks:
-1. **Always perform web searches** to find current options
-2. **Provide multiple alternatives** - never recommend just one
-3. **Verify active maintenance** - check GitHub activity, last release date, issue response time
-4. **Recommend latest stable versions** - check for the most recent releases
-5. **Consider community adoption** - look at stars, downloads, and real-world usage
-
-### Unit Completion Workflow
-When all design documents for a unit have been approved and merged:
-1. file_editor the unit's implementation document (implementation.md) to understand the work breakdown
-2. Create detailed GitHub issues that break the implementation into micro-PRs (the smallest divisible units of work)
-3. Each issue should:
-   - Have a clear, focused title describing one specific task
-   - Detail that the agent must read `design/README.md` and `design/units/<unit-name>/` before starting
-   - Reference the relevant unit name and document
-   - Include acceptance criteria from the user stories or implementation plan
-   - **IMPORTANT**: Include instruction that the agent MUST respond to the issue with the PR link once created
-   - Be small enough to be implemented in a single PR
-4. Create one GitHub issue per micro-PR
-5. After creating all issues, update the changelog with a summary of the issues created
-6. Link these issues in the unit's README for tracking
-
-## Agency Specialist Activation
+# Agency Specialist Activation
 - **CRITICAL**: Always activate the appropriate specialist agent for each workflow stage. Agents should NOT have to infer which specialist applies - it must be stated directly. To activate a specialist agent, include their full path in your prompt. For example:
 ```
 Use the Backend Architect agent from agency-agents/engineering/engineering-backend-architect.md 
@@ -132,6 +55,8 @@ to design the API architecture.
 | **Testing - Performance** | Testing Performance Benchmarker | "Activate the **Performance Benchmarker** (from `agency-agents/testing/testing-performance-benchmarker.md`)" |
 | **Code Review** | Senior Developer + Reality Checker | "Activate the **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`) AND **Reality Checker** (from `agency-agents/testing/testing-reality-checker.md`)" |
 | **UX Design** | UI Designer + UX Researcher | "Activate the **UI Designer** (from `agency-agents/design/design-ui-designer.md`) AND **UX Researcher** (from `agency-agents/design/design-ux-researcher.md`)" |
+
+# Working on the Code
 
 ## Coding Best Practices
 - **Types**: Use explicit types, avoid `any` wherever possible
@@ -167,20 +92,6 @@ All code changes must include appropriate tests:
 - **Integration Tests**: Required for API and database operations
 - **Frontend Tests**: Use Vitest for unit tests
 - **E2E Tests**: Required for critical user flows
-
-## Documentation Updates
-
-**IMPORTANT**: Before making any changelog or documentation updates:
-1. **Check the current date** - Use `date` command to get today's date
-2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
-3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
-
-After any code change is commited:
-1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
-2. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
-3. Ensure BSD/FSD documents match the actual implementation
-4. Update API documentation if endpoints changed
-5. Update the user wiki documentation/ folder with relevant changes
 
 ## GitHub Workflow
 
