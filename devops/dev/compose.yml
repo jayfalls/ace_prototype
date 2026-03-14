@@ -59,7 +59,7 @@ services:
     image: postgres:18
     container_name: ace_db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ace"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -67,9 +67,9 @@ services:
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=ace
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-ace}
     volumes:
       - postgres_data:/var/lib/postgresql
     networks:
