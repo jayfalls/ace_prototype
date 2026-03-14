@@ -4,8 +4,6 @@
 
 This document describes how the observability primitives integrate with the ACE Framework architecture, the data flow for traces/metrics/logs, and how usage events propagate through the system.
 
-**Note:** The actual implementation of the frontend telemetry module is deferred to a future unit (Frontend). The frontend will use OpenTelemetry browser SDK for trace context propagation, JavaScript error tracking, and performance monitoring.
-
 ## System Integration
 
 ### High-Level Observability Flow
@@ -319,9 +317,9 @@ Services expose a `/metrics` endpoint using the Prometheus client. The OTel Coll
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Frontend Observability Flows (Deferred)
+### Frontend Observability Flows
 
-The frontend telemetry module is deferred to the Frontend unit. These flows are documented here for completeness:
+The SvelteKit frontend uses OpenTelemetry browser SDK for trace context propagation, JavaScript error tracking, and performance monitoring:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -396,9 +394,9 @@ The frontend telemetry module is deferred to the Frontend unit. These flows are 
 | Metrics | All services | Prometheus scrape (pull) | Prometheus | Grafana |
 | Logs | All services | stdout → filelog | Loki | Grafana |
 | Usage Events | All services | NATS | PostgreSQL | Grafana (custom) |
-| Frontend Traces | Browser | HTTP header injection | Tempo | Grafana (deferred) |
-| Frontend Errors | Browser | HTTP POST | Custom (deferred) | Grafana (deferred) |
-| Frontend Metrics | Browser | Prometheus scrape | Prometheus | Grafana (deferred) |
+| Frontend Traces | Browser | HTTP header injection | Tempo | Grafana |
+| Frontend Errors | Browser | HTTP POST | Custom | Grafana |
+| Frontend Metrics | Browser | Prometheus scrape | Prometheus | Grafana |
 
 ## Scaling Considerations
 
@@ -427,6 +425,19 @@ The frontend telemetry module is deferred to the Frontend unit. These flows are 
 
 ```yaml
 services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib
     volumes:
@@ -435,20 +446,61 @@ services:
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
       - "8889:8889"   # Prometheus metrics
+      - "8888:8888"   # OTel Collector health check
     depends_on:
-      - loki
-      - tempo
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   loki:
     image: grafana/loki
     ports:
       - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   tempo:
     image: grafana/tempo
     ports:
       - "4316:4316"   # OTLP gRPC
       - "4315:4315"   # OTLP HTTP
+      - "4314:4314"   # Tempo health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4314/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 ```
 
 ### Production (Kubernetes)
