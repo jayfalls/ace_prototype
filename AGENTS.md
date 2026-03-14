@@ -9,6 +9,9 @@
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
+# Agency Specialist Activation
+- **CRITICAL**: BEFORE EVERY STEP, MAKE SURE TO USE THE Agency Specialist SKILL AND DO YOU Agency Specialist Activation
+
 # Project Structure
 The ace_prototype repository is organized as follows:
 - `agency-agents` - Bespoke workflow instructions
