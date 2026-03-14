@@ -158,6 +158,31 @@ Existing readiness handler checks database pool via `Ping`. When messaging unit 
 
 ---
 
+## Open Questions for FSD
+
+### Subject Structure Variability
+
+The defined pattern is `ace.<domain>.<agentId>.<subsystem>.<action>` but some concrete examples don't fit cleanly:
+- `ace.memory.{agentId}.store` - no subsystem segment
+- `ace.engine.{agentId}.layer.{layerId}.input` - more than five segments
+
+The FSD needs to either tighten the pattern or explicitly acknowledge variable depth subjects.
+
+### Stream Ownership
+
+When a new service starts up, who creates the JetStream streams it needs?
+- Option A: Service creates its own streams on startup
+- Option B: Central provisioning step
+- Option C: Migration-style setup script
+
+This matters because if two cognitive engine pods start simultaneously they'll both try to create the same streams. Need idempotent stream creation or central management.
+
+### Session Context
+
+The data model has sessions - a user-agent interaction context above the cycle level. Should `session_id` belong on the envelope or purely in the payload? This affects Layer Inspector's ability to reconstruct a full session's thought trace, not just a single cycle's.
+
+---
+
 ## Success Criteria
 
 1. Every service uses shared NATS wrapper from `shared/messaging/`
