@@ -17,6 +17,9 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 
 ### PR-1: Error Types
 
+**Status:** Merged
+**PR:** [#118](https://github.com/jayfalls/ace_prototype/pull/118)
+
 **Files to create:**
 - `shared/messaging/go.mod` - New module
 - `shared/messaging/errors.go` - Error types and handling
@@ -26,7 +29,7 @@ This document breaks the Messaging Paradigm unit into implementable micro-PRs. E
 - Add error wrapping helpers
 
 **Acceptance Criteria:**
-- All error types from FSD are defined
+- [x] All error types from FSD are defined
 
 ---
 
