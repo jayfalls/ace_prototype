@@ -125,6 +125,9 @@ func initTracer(ctx context.Context, config Config) (trace.Tracer, func(context.
 		sdktrace.WithResource(res),
 	)
 
+	// Store global reference for health checking
+	SetGlobalTraceProvider(tp)
+
 	// Set global trace provider with W3C propagator
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
