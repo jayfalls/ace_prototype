@@ -17,4 +17,5 @@ Establish communication contracts between all services using NATS.
 - [x] Problem Space - Merged
 - [x] BSD - Merged
 - [x] User Stories - Merged
-- [x] Research - In Review
+- [x] Research - Merged
+- [x] FSD - In Review
