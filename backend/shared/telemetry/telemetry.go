@@ -18,7 +18,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 // Config holds the telemetry configuration
@@ -153,52 +152,6 @@ func initMeter(config Config) (metric.Meter, func(context.Context) error, error)
 	otel.SetMeterProvider(provider)
 
 	return provider.Meter(config.ServiceName), provider.Shutdown, nil
-}
-
-// NewLogger creates a structured JSON logger
-func NewLogger(serviceName, environment string) (*zap.Logger, error) {
-	// Determine log level based on environment
-	level := zapcore.InfoLevel
-	if environment == "development" {
-		level = zapcore.DebugLevel
-	}
-
-	// Create encoder config for JSON output
-	encoderConfig := zapcore.EncoderConfig{
-		TimeKey:        "timestamp",
-		LevelKey:       "level",
-		NameKey:        "logger",
-		CallerKey:      "",
-		MessageKey:     "message",
-		StacktraceKey:  "",
-		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder,
-		EncodeTime:     zapcore.ISO8601TimeEncoder,
-		EncodeDuration: zapcore.SecondsDurationEncoder,
-		EncodeName:     zapcore.FullNameEncoder,
-	}
-
-	// Build logger with JSON encoder
-	config := zap.Config{
-		Level:            zap.NewAtomicLevelAt(level),
-		Encoding:        "json",
-		EncoderConfig:   encoderConfig,
-		OutputPaths:     []string{"stdout"},
-		ErrorOutputPaths: []string{"stderr"},
-	}
-
-	logger, err := config.Build()
-	if err != nil {
-		return nil, err
-	}
-
-	// Add service name and environment as global fields
-	logger = logger.With(
-		zap.String("service_name", serviceName),
-		zap.String("environment", environment),
-	)
-
-	return logger, nil
 }
 
 // UsagePublisher publishes usage events to NATS

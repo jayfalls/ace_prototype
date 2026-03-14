@@ -21,18 +21,6 @@ func TestConfig(t *testing.T) {
 	assert.Equal(t, "localhost:4317", config.OTLPEndpoint)
 }
 
-func TestNewLogger(t *testing.T) {
-	logger, err := NewLogger("test-service", "development")
-	require.NoError(t, err)
-	assert.NotNil(t, logger)
-}
-
-func TestNewLoggerProduction(t *testing.T) {
-	logger, err := NewLogger("test-service", "production")
-	require.NoError(t, err)
-	assert.NotNil(t, logger)
-}
-
 func TestUsageEventJSON(t *testing.T) {
 	_ = UsageEvent{
 		AgentID:        "agent-123",
