@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestNewUsageConsumer(t *testing.T) {
@@ -15,16 +16,17 @@ func TestNewUsageConsumer(t *testing.T) {
 	assert.NotNil(t, consumer)
 	assert.Nil(t, consumer.sub)
 	assert.Nil(t, consumer.pool)
+	assert.Nil(t, consumer.logger)
+}
+
+func TestNewUsageConsumerWithLogger(t *testing.T) {
+	logger, _ := zap.NewDevelopment()
+	consumer := NewUsageConsumerWithLogger(nil, nil, logger)
+	assert.NotNil(t, consumer)
+	assert.NotNil(t, consumer.logger)
 }
 
 func TestUsageConsumerStartWithNilNATS(t *testing.T) {
-	consumer := NewUsageConsumer(nil, nil)
-	err := consumer.Start(context.Background())
-	assert.Equal(t, ErrNATSNotConnected, err)
-}
-
-func TestUsageConsumerStartWithNilPool(t *testing.T) {
-	// Create a mock NATS connection (we'll use nil for testing)
 	consumer := NewUsageConsumer(nil, nil)
 	err := consumer.Start(context.Background())
 	assert.Equal(t, ErrNATSNotConnected, err)
@@ -48,6 +50,7 @@ func TestInsertUsageEventWithNilPool(t *testing.T) {
 		ResourceType:  ResourceTypeAPI,
 	})
 	assert.Error(t, err) // Should fail because pool is nil
+	assert.Equal(t, ErrDatabaseNotConnected, err)
 }
 
 func TestUsageEventJSONParsing(t *testing.T) {

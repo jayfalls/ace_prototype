@@ -8,13 +8,15 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 // UsageConsumer consumes usage events from NATS and persists them to PostgreSQL
 type UsageConsumer struct {
-	sub  *nats.Subscription
-	pool *pgxpool.Pool
-	nc   *nats.Conn
+	sub    *nats.Subscription
+	pool   *pgxpool.Pool
+	nc     *nats.Conn
+	logger *zap.Logger
 }
 
 // NewUsageConsumer creates a new usage event consumer
@@ -22,6 +24,15 @@ func NewUsageConsumer(nc *nats.Conn, pool *pgxpool.Pool) *UsageConsumer {
 	return &UsageConsumer{
 		pool: pool,
 		nc:   nc,
+	}
+}
+
+// NewUsageConsumerWithLogger creates a new usage event consumer with a logger
+func NewUsageConsumerWithLogger(nc *nats.Conn, pool *pgxpool.Pool, logger *zap.Logger) *UsageConsumer {
+	return &UsageConsumer{
+		pool:   pool,
+		nc:     nc,
+		logger: logger,
 	}
 }
 
@@ -59,14 +70,22 @@ func (c *UsageConsumer) handleMessage(msg *nats.Msg) {
 	// Parse the usage event from JSON
 	var event UsageEvent
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		// Log error but don't crash - malformed messages shouldn't stop the consumer
-		// In production, this would go to a dead letter queue
+		if c.logger != nil {
+			c.logger.Debug("failed to parse usage event",
+				zap.Error(err),
+				zap.ByteString("data", msg.Data))
+		}
 		return
 	}
 
 	// Insert into database
 	if err := c.insertUsageEvent(ctx, event); err != nil {
-		// Log error - in production, implement retry logic or dead letter queue
+		if c.logger != nil {
+			c.logger.Debug("failed to insert usage event",
+				zap.Error(err),
+				zap.String("agent_id", event.AgentID),
+				zap.String("cycle_id", event.CycleID))
+		}
 		return
 	}
 
