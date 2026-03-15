@@ -39,7 +39,7 @@ services:
         condition: service_healthy
     user: root
     ports:
-      - "5173:5173"
+      - "${FE_PORT:-5173}:5173"
     environment:
       - NODE_ENV=development
     volumes:
@@ -54,6 +54,8 @@ services:
     container_name: ace_db
     env_file:
       - ../../.env
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -77,7 +79,7 @@ services:
       retries: 5
       start_period: 10s
     ports:
-      - "4222:4222"
+      - "${NATS_PORT:-4222}:4222"
     command: ["-js", "-m", "8222"]
     volumes:
       - nats_data:/data
