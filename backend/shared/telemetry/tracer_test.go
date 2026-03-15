@@ -26,7 +26,7 @@ func TestHealthCheckExporterDown(t *testing.T) {
 	// Initialize tracer with a non-existent endpoint to simulate exporter being down
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 
@@ -92,7 +92,7 @@ func TestSpanFromContextWithSpan(t *testing.T) {
 	// Initialize tracer to have a valid tracer provider
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 
@@ -119,7 +119,7 @@ func TestAddSpanAttributes(t *testing.T) {
 	// Initialize tracer
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 
@@ -148,7 +148,7 @@ func TestAddSpanAttributesPartial(t *testing.T) {
 	// Test with partial attributes
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 

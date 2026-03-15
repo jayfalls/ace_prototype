@@ -103,7 +103,7 @@ func TestNATSCarrier_KeysNilHeader(t *testing.T) {
 func TestInjectTraceContext(t *testing.T) {
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 
@@ -134,7 +134,7 @@ func TestInjectTraceContext(t *testing.T) {
 func TestExtractTraceContext(t *testing.T) {
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 
@@ -185,7 +185,7 @@ func TestExtractTraceContextEmptyHeaders(t *testing.T) {
 func TestInjectAndExtractRoundTrip(t *testing.T) {
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999",
 	}
 

@@ -20,7 +20,7 @@ import (
 // Config holds the telemetry configuration
 type Config struct {
 	ServiceName   string // Service name (e.g., "api", "agent")
-	Environment   string // Environment: "development", "staging", "production"
+	Environment   string // Environment: "dev" or "prod"
 	OTLPEndpoint  string // OTel Collector endpoint for traces/metrics
 }
 
@@ -28,7 +28,7 @@ type Config struct {
 func LoadConfig() Config {
 	return Config{
 		ServiceName:  getEnvString("TELEMETRY_SERVICE_NAME", ""),
-		Environment:  getEnvString("TELEMETRY_ENVIRONMENT", "development"),
+		Environment:  getEnvString("ENVIRONMENT", "dev"),
 		OTLPEndpoint: getEnvString("OTLP_ENDPOINT", "localhost:4317"),
 	}
 }
