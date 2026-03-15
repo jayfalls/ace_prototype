@@ -153,6 +153,14 @@ Traces automatically propagate across services using W3C Trace Context. To view 
 
 ### Available Metrics
 
+The observability stack supports two metrics collection methods:
+
+#### Method 1: OTLP Push (via OTel Collector)
+Services push metrics to OTel Collector using OTLP protocol, then OTel Collector forwards to Prometheus.
+
+#### Method 2: Prometheus Pull (Direct Scraping)
+Prometheus directly scrapes metrics from service `/metrics` endpoints.
+
 #### HTTP Metrics
 
 | Metric | Type | Description |
