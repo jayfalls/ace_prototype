@@ -80,7 +80,7 @@ dev: ## Full dev setup: clone agency-agents, setup distrobox, install deps
 		echo "Distrobox created."; \
 	fi; \
 	echo "Installing dependencies..."; \
-	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/setup.sh"
+	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/distrobox-setup.sh"
 	@echo ""
 	@# Step 3: Setup pre-commit hook
 	@echo "$(BLUE)Setting up pre-commit hook...$(NC)"

@@ -1,52 +1,68 @@
 ---
-description: Unit research - technology evaluation and FSD
+description: Research - technology evaluation and trade-offs
 mode: subagent
 ---
 
-# Unit Research Agent
+# Research Agent
 
-Activate the **Trend Researcher** (from `agency-agents/product/product-trend-researcher.md`)
+Evaluates technologies and documents trade-offs.
+
+## Reference Agent
+
+Activate **Trend Researcher** (from `agency-agents/product/product-trend-researcher.md`)
 Activate **Tool Evaluator** (from `agency-agents/testing/testing-tool-evaluator.md`)
 
 ## Your Task
 
-Complete the research phase for the unit specified by the user.
+Research technologies and create research documentation for a unit.
 
 ## Context
 
-- Read `design/units/{UNIT_NAME}/` existing documents first
+- Read `design/units/{UNIT_NAME}/fsd.md` first (functional requirements)
+- Read `design/units/{UNIT_NAME}/user_stories.md`
 - Read `design/README.md` for ACE Framework patterns
+- Unit directory: `design/units/{UNIT_NAME}/`
 
-## Workflow
+## Documents Created
 
-### 1. Technology Research
-Research and evaluate different approaches:
-- Compare technology options
-- Check active maintenance (GitHub activity, last release)
-- Provide multiple alternatives, never just one
-- Verify with web searches for current best practices
-
-### 2. Research Document
-Create `research.md`:
+### 1. Research (research.md)
 - Problem space summary
-- Technology options evaluated
-- Recommendations with rationale
-- Trade-offs considered
+- Technology options evaluated (NEVER recommend just one)
+- Comparison matrix with trade-offs
+- Recommendations with clear rationale
+- Web search for current best practices
 
-### 3. Functional Specification (FSD)
-Create `fsd.md`:
-- Functional requirements
-- API contracts
-- Data models
-- Edge cases
+### 2. Dependencies (dependencies.md)
+- External dependencies
+- Package manager requirements
+- Version constraints
+- Compatibility notes
 
 ## Templates
 
-Use templates from `.agents/skills/unit-workflow/unit-templates/`:
-- `research.md`
-- `fsd.md`
+Use unit-planning skill templates:
+```
+Skill: unit-planning
+```
+- `.agents/skills/unit-planning/unit-templates/research.md`
+- `.agents/skills/unit-planning/unit-templates/dependencies.md`
+
+## Prerequisites
+
+- `fsd.md` must exist (functional requirements)
+- `user_stories.md` must exist
+
+## Research Guidelines
+
+1. **Multiple Options**: Always provide at least 2-3 alternatives
+2. **Active Maintenance**: Check GitHub activity, last release date
+3. **Trade-offs**: Document pros/cons of each option
+4. **Current Best Practices**: Verify with web searches
 
 ## Output
 
-Create documents in `design/units/{UNIT_NAME}/`
-Return file paths created and technology recommendations.
+Create in `design/units/{UNIT_NAME}/`:
+- `research.md`
+- `dependencies.md`
+
+Return file paths and technology recommendations.

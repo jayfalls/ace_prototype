@@ -1,48 +1,7 @@
-**CRITICAL** paths are non-negotiable steps, if you don't adhere to any of the **CRITICAL** steps, your work will be invalidated and thrown out.
-
-# Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run `make setup` to ensure agency-agents is available and distrobox is set up. This will clone the repo if not present.
-
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
-
-# Unit Workflow
-- **CRITICAL**: When working on units, ALWAYS use the Task tool to invoke `@orchestrator`. The orchestrator handles delegation to planning, research, implementation, review, and testing phases.
-- Load `unit-planning` skill for template access when creating planning documents
-
-# OpenCode Agents
-
-| Agent | Purpose |
-|-------|---------|
-| `orchestrator` | Orchestrates the full unit workflow |
-| `planning` | Problem space, BSD, user stories |
-| `research` | Research, FSD |
-| `implementation` | Architecture, implementation plan |
-| `review` | Code review |
-| `tester` | Runs tests via docker/make |
-
-# Project Structure
-- `agency-agents` - Bespoke workflow instructions
-- `design/` - All design documentation for the system
-  - `design/README.md` - Overall system architecture and design
-  - `design/units/` - Individual unit specifications (features, components, refactors)
-- `devops` - Deployment files
-- `documentation/` - Project documentation and changelogs
-  - `documentation/changelogs/` - Daily changelog files
-- `backend/` - Go backend source code (when implemented)
-- `frontend/` - SvelteKit/TypeScript frontend source code (when implemented)
-
-# Testing (Local Machine)
-- **CRITICAL**: When testing on this local machine, ONLY use:
-  - `make` commands from Makefile
-  - `docker exec` commands to run tests inside containers
-  - `curl` to test HTTP endpoints
-- **NEVER** run arbitrary commands directly on the host
-- Use `make up` to start services, `make test` to run tests
-- Use `docker exec` to run Go tests inside the api container
-- Use `curl` to test API endpoints
 
 # Documentation Updates
 

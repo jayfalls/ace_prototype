@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "completed_units": {},
+  "preferences": {
+    "retry_count": 3,
+    "auto_approve_github_issues": false
+  },
+  "agent_performance": {},
+  "learned_patterns": [],
+  "last_sync": ""
+}

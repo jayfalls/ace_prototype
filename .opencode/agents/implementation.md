@@ -1,52 +1,77 @@
 ---
-description: Unit implementation - architecture and implementation planning
+description: Implementation planning - micro-PRs, security, and migrations
 mode: subagent
 ---
 
-# Unit Implementation Agent
+# Implementation Agent
 
-Activate the **Backend Architect** (from `agency-agents/engineering/engineering-backend-architect.md`)
-Also read `design/README.md` for ACE-specific patterns.
+Handles implementation planning, security, and database migrations.
+
+## Reference Agent
+
+Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
 
 ## Your Task
 
-Complete the implementation planning phase for the unit specified by the user.
+Create implementation plan with micro-PR breakdown for a unit.
 
 ## Context
 
-- Read ALL planning documents in `design/units/{UNIT_NAME}/` first
+- Read `design/units/{UNIT_NAME}/architecture.md` first
+- Read `design/units/{UNIT_NAME}/api.md`
+- Read `design/units/{UNIT_NAME}/fsd.md`
 - Read `design/README.md` for ACE Framework patterns
+- Unit directory: `design/units/{UNIT_NAME}/`
 
-## Workflow
+## Documents Created
 
-### 1. Architecture Design
-Create `architecture.md`:
-- System components
-- Data flow
-- Integration points
-
-### 2. Implementation Plan
-Create `implementation.md`:
+### 1. Implementation Plan (implementation.md)
 - Breakdown into micro-PRs
-- Each PR should be independently testable
-- Include acceptance criteria
+- Each PR independently testable
+- PR ordering and dependencies
+- Acceptance criteria per PR
+- Task breakdown
 
-### 3. Security
-Create `security.md`
+### 2. Security (security.md)
+- Security considerations
+- Authentication/authorization
+- Data protection
+- Vulnerability prevention
 
-### 4. Additional Documents as needed
-- `api.md` - API specifications
-- `migration_and_rollback.md` - Database migrations
-- `monitoring.md` - Observability requirements
+### 3. Migration and Rollback (migration_and_rollback.md)
+- Database migrations
+- Rollback procedures
+- Data migration scripts
+- Zero-downtime strategy
 
 ## Templates
 
-Use templates from `.agents/skills/unit-workflow/unit-templates/`:
-- `architecture.md`
-- `implementation.md`
-- `security.md`
+Use unit-planning skill templates:
+```
+Skill: unit-planning
+```
+- `.agents/skills/unit-planning/unit-templates/implementation.md`
+- `.agents/skills/unit-planning/unit-templates/security.md`
+- `.agents/skills/unit-planning/unit-templates/migration_and_rollback.md`
+
+## Prerequisites
+
+- `architecture.md` must exist
+- `api.md` must exist
+
+## Micro-PR Guidelines
+
+Each micro-PR should:
+- Be independently testable
+- Have clear acceptance criteria
+- Include necessary tests
+- Be reviewable in one sitting
 
 ## Output
 
-Create all documents in `design/units/{UNIT_NAME}/`
-Return the implementation breakdown with micro-PRs suggested.
+Create in `design/units/{UNIT_NAME}/`:
+- `implementation.md`
+- `security.md`
+- `migration_and_rollback.md`
+
+Return file paths and micro-PR breakdown.
