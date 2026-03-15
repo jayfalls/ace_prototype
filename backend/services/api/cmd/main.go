@@ -60,6 +60,13 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 	r.Use(middleware.Recovery)
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
+	// Add telemetry middleware if available
+	if tel != nil {
+		r.Use(telemetry.TraceMiddleware())
+		r.Use(telemetry.MetricsMiddleware("api"))
+		r.Use(telemetry.LoggerMiddleware("api"))
+	}
+
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
