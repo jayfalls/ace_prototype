@@ -22,14 +22,14 @@ receivers:
     operators:
       - type: json_parser
         timestamp:
-          parse_from: timestamp
-          layout: '2006-01-02T15:04:05Z07:00'
+          parse_from: body.time
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
       - type: move
-        from: level
+        from: body.level
         to: attributes.level
       - type: move
-        from: message
-        to: body.message
+        from: body.message
+        to: body
 
 processors:
   # Batch processor for efficient export
@@ -47,6 +47,7 @@ processors:
     attributes:
       - key: service.namespace
         value: ace-framework
+        action: upsert
 
 exporters:
   # Tempo exporter for traces
@@ -56,23 +57,18 @@ exporters:
     tls:
       insecure: true
   
-  # Loki exporter for logs
-  loki:
-    endpoint: http://loki:3100/loki/api/v1/push
-    labels:
-      attributes:
-        service.name: "service_name"
+  # Loki exporter for logs (via OTLP)
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
   
   # Prometheus exporter for metrics
   prometheus:
     endpoint: 0.0.0.0:8889
     namespace: otel
-    histogram:
-      send_aggregation_temporality: true
 
 extensions:
   health_check:
-    endpoint: 0.0.0.0:8888
+    endpoint: 0.0.0.0:13133
 
 service:
   extensions: [health_check]
@@ -84,7 +80,7 @@ service:
     logs:
       receivers: [filelog]
       processors: [batch, memory_limiter, resource]
-      exporters: [loki]
+      exporters: [otlphttp/loki]
     metrics:
       receivers: [otlp, prometheus]
       processors: [batch, memory_limiter, resource]
