@@ -1,7 +1,9 @@
 package telemetry
 
 import (
+	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -135,16 +137,36 @@ func LoggerMiddleware(serviceName string) func(http.Handler) http.Handler {
 	}
 }
 
+// loggerCache caches loggers by service name to avoid creating new loggers on every request
+var loggerCache = make(map[string]*zap.Logger)
+var loggerCacheMu sync.RWMutex
+
 // getLoggerFromContext attempts to get a logger from the context,
-// or returns a default logger if not available
-func getLoggerFromContext(ctx interface{}, serviceName string) *zap.Logger {
-	// Try to get logger from context if available
-	// For now, we'll create a basic logger - in production this should be
-	// passed through context or initialized globally
-	// This is a fallback - the logger should be initialized at startup
-	if logger, err := NewLogger(serviceName, "dev"); err == nil {
+// or returns a cached logger for the given service name
+func getLoggerFromContext(ctx context.Context, serviceName string) *zap.Logger {
+	// Try to get logger from context first (future enhancement)
+	// For now, use cached logger or create and cache one
+	loggerCacheMu.RLock()
+	if logger, ok := loggerCache[serviceName]; ok {
+		loggerCacheMu.RUnlock()
 		return logger
 	}
+	loggerCacheMu.RUnlock()
+
+	// Create and cache the logger
+	loggerCacheMu.Lock()
+	defer loggerCacheMu.Unlock()
+
+	// Double-check after acquiring write lock
+	if logger, ok := loggerCache[serviceName]; ok {
+		return logger
+	}
+
+	if logger, err := NewLogger(serviceName, "dev"); err == nil {
+		loggerCache[serviceName] = logger
+		return logger
+	}
+
 	// Return a no-op logger as last resort
 	return zap.NewNop()
 }
