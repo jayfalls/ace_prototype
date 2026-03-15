@@ -1,19 +1,29 @@
 **CRITICAL** paths are non-negotiable steps, if you don't adhere to any of the **CRITICAL** steps, your work will be invalidated and thrown out.
 
 # Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run the `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc), git hooks & installs the agency_agents files for the agent specialisation tool.
-- MAKE SURE TO RUN THIS SCRIPT BEFORE DOING ANY WORK, THIS MUST ALWAYS BE THE FIRST THING YOU DO!!!
+- **CRITICAL**: On initialisation before responding to any messages from the user, run `make setup` to ensure agency-agents is available and distrobox is set up. This will clone the repo if not present.
 
 # Design Documentation (Always Read First!)
 - **CRITICAL**: Always read `design/README.md` before starting any work
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Agency Specialisation
-- **CRITICAL**: BEFORE EVERY ACTION(Starting a unit, Planning&Creating a document, Creating Issues, Starting a Phase, Writing/Reviewing/Testing code, Responding to the user), MAKE SURE TO USE THE Agency Specialisation SKILL AND DO YOUR Agency Specialisation Activation
+# Unit Workflow
+- **CRITICAL**: When working on units, ALWAYS use the Task tool to invoke `@orchestrator`. The orchestrator handles delegation to planning, research, implementation, review, and testing phases.
+- Load `unit-planning` skill for template access when creating planning documents
+
+# OpenCode Agents
+
+| Agent | Purpose |
+|-------|---------|
+| `orchestrator` | Orchestrates the full unit workflow |
+| `planning` | Problem space, BSD, user stories |
+| `research` | Research, FSD |
+| `implementation` | Architecture, implementation plan |
+| `review` | Code review |
+| `tester` | Runs tests via docker/make |
 
 # Project Structure
-The ace_prototype repository is organized as follows:
 - `agency-agents` - Bespoke workflow instructions
 - `design/` - All design documentation for the system
   - `design/README.md` - Overall system architecture and design
@@ -23,6 +33,16 @@ The ace_prototype repository is organized as follows:
   - `documentation/changelogs/` - Daily changelog files
 - `backend/` - Go backend source code (when implemented)
 - `frontend/` - SvelteKit/TypeScript frontend source code (when implemented)
+
+# Testing (Local Machine)
+- **CRITICAL**: When testing on this local machine, ONLY use:
+  - `make` commands from Makefile
+  - `docker exec` commands to run tests inside containers
+  - `curl` to test HTTP endpoints
+- **NEVER** run arbitrary commands directly on the host
+- Use `make up` to start services, `make test` to run tests
+- Use `docker exec` to run Go tests inside the api container
+- Use `curl` to test API endpoints
 
 # Documentation Updates
 

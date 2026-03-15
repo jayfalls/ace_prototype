@@ -23,13 +23,18 @@ endif
 
 COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
 
-# Colors
-GREEN := \033[0;32m
-YELLOW := \033[0;33m
-BLUE := \033[0;34m
-NC := \033[0m # No Color
+# Distrobox config
+DISTROBOX_NAME := opencode
+DISTROBOX_IMAGE := fedora:latest
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test
+# Colors (use shell to properly interpret escape codes)
+GREEN := $(shell printf '\033[0;32m')
+YELLOW := $(shell printf '\033[0;33m')
+BLUE := $(shell printf '\033[0;34m')
+RED := $(shell printf '\033[0;31m')
+NC := $(shell printf '\033[0m')
+
+.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop
 
 ##@ General
 
@@ -47,6 +52,59 @@ help: ## Show this help message
 	@echo "  ENVIRONMENT           Environment to use (dev or prod) [default: dev]"
 	@echo "  CONTAINER_ORCHESTRATOR  Container runtime (docker or podman) [default: docker]"
 	@echo ""
+
+##@ Development Environment
+
+dev: ## Full dev setup: clone agency-agents, setup distrobox, install deps
+	@echo "$(BLUE)Setting up development environment...$(NC)"
+	@echo ""
+	@# Step 1: Clone/update agency-agents
+	@if [ -d "agency-agents" ]; then \
+		echo "Updating agency-agents..."; \
+		cd agency-agents && git pull; \
+	else \
+		echo "Cloning agency-agents..."; \
+		git clone https://github.com/msitarzewski/agency-agents.git; \
+	fi
+	@echo ""
+	@# Step 2: Check/create distrobox
+	@echo "$(BLUE)Checking distrobox...$(NC)"
+	@if ! command -v distrobox &> /dev/null; then \
+		echo "$(RED)Error: distrobox not installed. Install with: pipx install distrobox$(NC)"; \
+		exit 1; \
+	fi
+	@REPO_DIR="$(shell pwd)"; \
+	if ! distrobox list | grep -q "$(DISTROBOX_NAME)"; then \
+		echo "Creating distrobox '$(DISTROBOX_NAME)'..."; \
+		distrobox create --name $(DISTROBOX_NAME) --image $(DISTROBOX_IMAGE) --volume /var/run/docker.sock:/var/run/docker.sock; \
+		echo "Distrobox created."; \
+	fi; \
+	echo "Installing dependencies..."; \
+	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/setup.sh"
+	@echo ""
+	@# Step 3: Setup pre-commit hook
+	@echo "$(BLUE)Setting up pre-commit hook...$(NC)"
+	@ln -sf "$(shell pwd)/.dev/pre-commit.sh" "$(shell pwd)/.git/hooks/pre-commit" 2>/dev/null || echo "Note: Could not create pre-commit hook"
+	@echo ""
+	@echo "$(GREEN)Development environment ready!$(NC)"
+	@echo ""
+	@echo "To start OpenCode, run:"
+	@echo "  $(YELLOW)make agent$(NC)"
+
+agent: ## Enter distrobox and run OpenCode interactively
+	@echo "$(BLUE)Starting OpenCode in distrobox...$(NC)"
+	@if ! distrobox list | grep -q "$(DISTROBOX_NAME)"; then \
+		echo "$(RED)Distrobox '$(DISTROBOX_NAME)' does not exist. Run 'make dev' first.$(NC)"; \
+		exit 1; \
+	fi
+	@REPO_DIR="$(shell pwd)"; \
+	echo "Entering distrobox and starting OpenCode..."; \
+	echo "$(GREEN)Distrobox will open with OpenCode. Your host is protected!$(NC)"; \
+	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && export PATH=\"\$$HOME/.opencode/bin:\$$PATH\" && exec opencode web"
+
+agent-stop: ## Stop OpenCode in distrobox
+	@echo "$(BLUE)Stopping OpenCode...$(NC)"
+	@distrobox enter --name $(DISTROBOX_NAME) -- pkill -f "opencode" 2>/dev/null || echo "No opencode process found"
 
 ##@ Development (ENVIRONMENT=dev)
 
