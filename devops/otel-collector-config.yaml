@@ -1,0 +1,81 @@
+receivers:
+  # OTLP receiver for traces and metrics from services
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+  
+  # Filelog receiver for Loki - reads container log files
+  filelog:
+    include: ["/var/lib/docker/containers/*/*-json.log"]
+    operators:
+      - type: json_parser
+        timestamp:
+          parse_from: timestamp
+          layout: '2006-01-02T15:04:05Z07:00'
+      - type: move
+        from: level
+        to: attributes.level
+      - type: move
+        from: message
+        to: body.message
+
+processors:
+  # Batch processor for efficient export
+  batch:
+    timeout: 10s
+    send_batch_size: 1000
+  
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1000
+  
+  # Resource processor for adding attributes
+  resource:
+    attributes:
+      - key: service.namespace
+        value: ace-framework
+
+exporters:
+  # Tempo exporter for traces
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+  
+  # Loki exporter for logs
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+    labels:
+      attributes:
+        service.name: "service_name"
+  
+  # Prometheus exporter for metrics
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    namespace: otel
+    histogram:
+      send_aggregation_temporality: true
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:8888
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, memory_limiter, resource]
+      exporters: [otlp/tempo]
+    logs:
+      receivers: [filelog]
+      processors: [batch, memory_limiter, resource]
+      exporters: [loki]
+    metrics:
+      receivers: [otlp]
+      processors: [batch, memory_limiter, resource]
+      exporters: [prometheus]

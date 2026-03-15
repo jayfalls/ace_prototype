@@ -84,6 +84,113 @@ services:
     networks:
       - ace_network
 
+  ###############################
+  # Observability Stack
+  ###############################
+
+  prometheus:
+    image: prom/prometheus
+    container_name: ace_prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ace_network
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib
+    container_name: ace_otel_collector
+    volumes:
+      - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      - otel_collector_logs:/var/log/otel
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8889:8889"   # Prometheus metrics
+      - "8888:8888"   # OTel Collector health check
+    depends_on:
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4317
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8888/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ace_network
+
+  loki:
+    image: grafana/loki
+    container_name: ace_loki
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ace_network
+
+  tempo:
+    image: grafana/tempo
+    container_name: ace_tempo
+    volumes:
+      - tempo_data:/var/tempo
+    ports:
+      - "4316:4316"   # OTLP gRPC
+      - "4315:4315"   # OTLP HTTP
+      - "4314:4314"   # Tempo health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:4314/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ace_network
+
+  grafana:
+    image: grafana/grafana
+    container_name: ace_grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - ace_network
+
 networks:
   ace_network:
     driver: bridge
@@ -91,3 +198,12 @@ networks:
 volumes:
   postgres_data:
   nats_data:
+
+  # Observability volumes
+  prometheus_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
+
+  # OTel collector log path
+  otel_collector_logs:
