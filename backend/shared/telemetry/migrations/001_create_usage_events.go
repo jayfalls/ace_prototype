@@ -6,6 +6,10 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// Note: goose runs migrations within a transaction by default.
+// The up function creates the table and indexes in a single transaction,
+// which ensures atomicity - either all changes succeed or none do.
+
 func init() {
 	goose.AddMigration(up, down)
 }
