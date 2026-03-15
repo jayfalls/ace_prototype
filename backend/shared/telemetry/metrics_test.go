@@ -166,12 +166,82 @@ func TestGetPathLabel(t *testing.T) {
 		{"", "root"},
 		{"/", "root"},
 		{"/api/users", "/api/users"},
-		{"/api/users/123", "/api/users/123"},
-		{"/api/users/abc-123-def-456", "/api/users/abc-123-def-456"},
+		{"/api/users/123", "/api/users/:id"},
+		{"/api/users/abc123def456", "/api/users/:id"},
+		{"/api/agents/550e8400-e29b-41d4-a716-446655440000", "/api/agents/:id"},
+		{"/api/items/123456", "/api/items/:id"},
+		{"/api/posts/abc123def456", "/api/posts/:id"},
+		{"/api/static", "/api/static"},
+		{"/api/users/123/posts/456", "/api/users/:id/posts/:id"},
+		{"/api/some/path", "/api/some/path"}, // regular paths unchanged
 	}
 
 	for _, tt := range tests {
-		result := getPathLabel(tt.input)
+		t.Run(tt.input, func(t *testing.T) {
+			result := getPathLabel(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsUUID(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"550e8400-e29b-41d4-a716-446655440000", true},
+		{"550e8400-e29b-41d4-a716-446655440000", true},
+		{"not-a-uuid", false},
+		{"123", false},
+		{"abc123", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		result := isUUID(tt.input)
+		assert.Equal(t, tt.expected, result, "input: %s", tt.input)
+	}
+}
+
+func TestIsNumeric(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"123", true},
+		{"0", true},
+		{"123456789", true},
+		{"123.456", false},
+		{"abc", false},
+		{"123abc", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		result := isNumeric(tt.input)
+		assert.Equal(t, tt.expected, result, "input: %s", tt.input)
+	}
+}
+
+func TestIsAlphanumericID(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"abc123def456", true},
+		{"ABC123DEF456", true},
+		{"550e8400e29b41d4a716446655440000", true},
+		{"12345678", true},     // 8 chars - all digits
+		{"123abcde", true},     // 8 chars - mixed
+		{"abc12345", true},     // 8 chars - mixed
+		{"", false},
+		{"abc123", false},      // too short (6 chars)
+		{"abcdefgh", false},    // too short, no digits
+		{"abc-123", false},     // contains hyphen
+	}
+
+	for _, tt := range tests {
+		result := isAlphanumericID(tt.input)
 		assert.Equal(t, tt.expected, result, "input: %s", tt.input)
 	}
 }
