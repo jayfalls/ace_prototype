@@ -50,8 +50,9 @@ processors:
 
 exporters:
   # Tempo exporter for traces
+  # Note: Using internal Docker network port (4316), not host port
   otlp/tempo:
-    endpoint: tempo:4317
+    endpoint: tempo:4316
     tls:
       insecure: true
   
