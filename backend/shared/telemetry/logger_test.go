@@ -14,7 +14,7 @@ import (
 )
 
 func TestNewLogger(t *testing.T) {
-	logger, err := NewLogger("test-service", "development")
+	logger, err := NewLogger("test-service", "dev")
 	require.NoError(t, err)
 	assert.NotNil(t, logger)
 }

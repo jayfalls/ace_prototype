@@ -3,7 +3,7 @@ package main
 
 import (
 	"context"
-	// "database/sql"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,8 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
-
-	// "github.com/pressly/goose/v3"
+	"github.com/pressly/goose/v3"
 
 	"ace/api/internal/config"
 	"ace/api/internal/handler"
@@ -24,6 +23,7 @@ import (
 	"ace/api/internal/repository"
 	"ace/shared/messaging"
 	"ace/shared/telemetry"
+	_ "ace/shared/telemetry/migrations"
 
 	// _ "ace/api/migrations"
 	"ace/shared"
@@ -31,18 +31,19 @@ import (
 
 // NOTE: Commented out code to be enabled once needed
 
-// func migrate(databaseURL string) {
-// 	goose.SetTableName("schema_migrations")
-// 	sqlDB, err := sql.Open("pgx", databaseURL)
-// 	if err != nil {
-// 		log.Fatalf("Failed to open database for migrations: %v", err)
-// 	}
-// 	defer sqlDB.Close()
-// 	if err := goose.Up(sqlDB, "migrations"); err != nil {
-// 		log.Fatalf("Failed to run migrations: %v", err)
-// 	}
-// 	log.Println("Migrations completed successfully")
-// }
+func migrate(databaseURL string) {
+	goose.SetTableName("schema_migrations")
+	sqlDB, err := sql.Open("pgx", databaseURL)
+	if err != nil {
+		log.Fatalf("Failed to open database for migrations: %v", err)
+	}
+	defer sqlDB.Close()
+
+	if err := goose.Up(sqlDB, "migrations"); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
+	log.Println("Migrations completed successfully")
+}
 
 func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, tel *telemetry.Telemetry) *chi.Mux {
 	// Create SQLC queries instance
@@ -124,6 +125,9 @@ func main() {
 	}
 	defer db.Close()
 
+	// Run database migrations
+	migrate(cfg.DatabaseURL)
+
 	// Create NATS client
 	natsClient, err := messaging.NewClient(messaging.Config{
 		URLs:          cfg.NATSURL,
@@ -153,8 +157,6 @@ func main() {
 			tel.Shutdown(ctx)
 		}
 	}()
-
-	// migrate(cfg.DatabaseURL)
 
 	shared.Hello()
 

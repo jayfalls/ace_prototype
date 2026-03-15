@@ -12,12 +12,12 @@ import (
 func TestConfig(t *testing.T) {
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:4317",
 	}
 
 	assert.Equal(t, "test-service", config.ServiceName)
-	assert.Equal(t, "development", config.Environment)
+	assert.Equal(t, "dev", config.Environment)
 	assert.Equal(t, "localhost:4317", config.OTLPEndpoint)
 }
 
@@ -59,26 +59,26 @@ func TestConstants(t *testing.T) {
 func TestLoadConfig(t *testing.T) {
 	// Test with environment variables set
 	t.Setenv("TELEMETRY_SERVICE_NAME", "test-service")
-	t.Setenv("TELEMETRY_ENVIRONMENT", "production")
+	t.Setenv("ENVIRONMENT", "prod")
 	t.Setenv("OTLP_ENDPOINT", "otel.collector:4317")
 
 	config := LoadConfig()
 
 	assert.Equal(t, "test-service", config.ServiceName)
-	assert.Equal(t, "production", config.Environment)
+	assert.Equal(t, "prod", config.Environment)
 	assert.Equal(t, "otel.collector:4317", config.OTLPEndpoint)
 }
 
 func TestLoadConfigDefaults(t *testing.T) {
 	// Clear environment variables
 	t.Setenv("TELEMETRY_SERVICE_NAME", "")
-	t.Setenv("TELEMETRY_ENVIRONMENT", "")
+	t.Setenv("ENVIRONMENT", "")
 	t.Setenv("OTLP_ENDPOINT", "")
 
 	config := LoadConfig()
 
 	assert.Equal(t, "", config.ServiceName)
-	assert.Equal(t, "development", config.Environment)
+	assert.Equal(t, "dev", config.Environment)
 	assert.Equal(t, "localhost:4317", config.OTLPEndpoint)
 }
 
@@ -88,7 +88,7 @@ func TestInit(t *testing.T) {
 	// but the logger should still be created
 	config := Config{
 		ServiceName:  "test-service",
-		Environment:  "development",
+		Environment:  "dev",
 		OTLPEndpoint: "localhost:9999", // Non-existent endpoint
 	}
 
