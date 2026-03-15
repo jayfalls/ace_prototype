@@ -92,7 +92,7 @@ services:
     image: prom/prometheus
     container_name: ace_prometheus
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:Z
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"

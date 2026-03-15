@@ -7,6 +7,15 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
   
+  # Prometheus receiver for scraping metrics from services
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'ace_api'
+          static_configs:
+            - targets: ['ace_api:8080']
+          metrics_path: '/metrics'
+  
   # Filelog receiver for Loki - reads container log files
   filelog:
     include: ["/var/lib/docker/containers/*/*-json.log"]
@@ -76,6 +85,6 @@ service:
       processors: [batch, memory_limiter, resource]
       exporters: [loki]
     metrics:
-      receivers: [otlp]
+      receivers: [otlp, prometheus]
       processors: [batch, memory_limiter, resource]
       exporters: [prometheus]
