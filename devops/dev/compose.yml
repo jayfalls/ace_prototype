@@ -113,7 +113,7 @@ services:
     env_file:
       - ../../.env
     volumes:
-      - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml
+      - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:Z
       - otel_collector_logs:/var/log/otel
     ports:
       - "${OTEL_COLLECTOR_OTLP_GRPC_PORT}:4317"   # OTLP gRPC
@@ -162,7 +162,7 @@ services:
     env_file:
       - ../../.env
     volumes:
-      - ./tempo-config.yml:/etc/tempo-config.yml:ro
+      - ./tempo-config.yml:/etc/tempo-config.yml:ro,Z
       - tempo_data:/var/tempo
     command: [ "--config.file=/etc/tempo-config.yml" ]
     ports:
