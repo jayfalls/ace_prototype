@@ -167,7 +167,9 @@ volumes:
     env_file:
       - ../.env
     volumes:
+      - ./tempo-config.yml:/etc/tempo-config.yml:ro
       - tempo_data:/var/tempo
+    command: [ "--config.file=/etc/tempo-config.yml" ]
     ports:
       - "${TEMPO_OTLP_GRPC_PORT}:4316"   # OTLP gRPC
       - "${TEMPO_OTLP_HTTP_PORT}:4315"   # OTLP HTTP
