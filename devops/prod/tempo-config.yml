@@ -4,25 +4,13 @@ server:
 
 distributor:
   receivers:
-    jaeger:
-      protocols:
-        thrift_http:
-        grpc:
-        thrift_binary:
-        thrift_compact:
-    zipkin:
     otlp:
       protocols:
         http:
         grpc:
-    opencensus:
 
 ingester:
   max_block_duration: 5m
-
-compactor:
-  compaction:
-    block_retention: 1h
 
 storage:
   trace:
