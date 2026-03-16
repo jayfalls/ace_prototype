@@ -148,6 +148,15 @@ If a phase requires multiple documents:
 
 This ensures minimal, focused PRs.
 
+## Git Ignore for PRs
+
+**IMPORTANT**: For every PR created, there is a git hook that runs `git add .` before the pre-commit quality gates.
+
+When creating new files or directories that should NOT be committed:
+- Ensure they are added to `.gitignore`
+- Common patterns: `*.local`, `dist/`, `.env`, `node_modules/`, etc.
+- Always verify relevant files are gitignored before reporting completion
+
 ## Always Reuse Sub Agents - THIS IS CRITICAL
 
 **RULE: NEVER create a new task_id for the same agent type**
