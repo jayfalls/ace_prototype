@@ -63,11 +63,14 @@ The standard unit workflow sequence:
 2. If QA passes → Continue to next phase
 
 3. **If QA fails → ALWAYS fix the issues before proceeding**
-   - Request subagent to fix the specific issues
+   - Request subagent to fix the specific issues (use task_id to resume)
    - Run QA again to verify fix
    - Do NOT skip or ignore QA failures
 
-**Note**: planning-discovery does NOT require QA - it just confirms completion.
+**Note**: planning-discovery does NOT require QA - it's a manual conversation where:
+   - User responds to questions
+   - User tells orchestrator when discovery is complete
+   - Orchestrator checks full output, proceeds to document agent
 
 ## Creating New Agents
 
@@ -110,11 +113,36 @@ User: "Start the observability unit"
 1. Create short-term/observability.json
 2. Read design/units/observability/ to see existing docs
 3. For EACH new document to create:
-   a. Launch @planning-discovery FIRST (questions loop, NO QA)
-   b. Launch appropriate document agent (REQUIRES QA)
-4. Run @qa to evaluate
-5. Update memory
-6. Report to user
+   a. Launch @planning-discovery (questions loop)
+      - This is a MANUAL conversation
+      - Discovery asks questions, user responds
+      - User tells orchestrator "discovery is done"
+   b. Launch document agent (REQUIRES QA)
+      - Spawn subagent, WAIT for full completion
+      - Task tool returns complete output
+      - Run @qa to evaluate
+      - If QA fails, use task_id to resume and fix
+4. Update memory
+5. Report to user
+```
+
+## Subagent Spawning Pattern
+
+### For Discovery (Manual)
+```
+1. Spawn subagent with initial prompt
+2. Wait for user to respond
+3. User tells you "done" or "continue"
+4. Check full output, proceed
+```
+
+### For All Other Agents
+```
+1. Spawn subagent
+2. Task tool BLOCKS until subagent completes
+3. Full output returned automatically
+4. Run QA immediately
+5. If fails, resume with task_id
 ```
 
 ### Continue Existing Unit
