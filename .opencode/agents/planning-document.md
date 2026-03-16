@@ -41,6 +41,7 @@ Return file paths. **Requires QA after completion.**
 
 ## Important
 
-- DO NOT ask questions - use the discovery context provided
-- If you need clarification, ask follow-up questions but try to proceed
-- Complete the documents in full
+- **ONE DOCUMENT PER PR**: Create only ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn you again for each.
+- DO NOT ask questions - use the context provided
+- If you need clarification, note it but proceed with best effort
+- Complete the document in full

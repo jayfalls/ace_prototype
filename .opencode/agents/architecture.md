@@ -69,3 +69,10 @@ Create in `design/units/{UNIT_NAME}/`:
 - `monitoring.md`
 
 Return file paths and architecture summary.
+
+## Important
+
+- **ONE DOCUMENT PER PR**: Create only ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn you again for each.
+- DO NOT ask questions - use the context provided
+- If you need clarification, note it but proceed with best effort
+- Complete the document in full
