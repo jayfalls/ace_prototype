@@ -7,11 +7,11 @@ import (
 
 // LogFields holds optional logging fields for correlation
 type LogFields struct {
-	TraceID      string
-	SpanID       string
-	AgentID      string
-	CycleID      string
-	SessionID    string
+	TraceID       string
+	SpanID        string
+	AgentID       string
+	CycleID       string
+	SessionID     string
 	CorrelationID string
 }
 
@@ -64,9 +64,9 @@ func NewLogger(serviceName, environment string) (*zap.Logger, error) {
 	// Build logger with JSON encoder
 	config := zap.Config{
 		Level:            zap.NewAtomicLevelAt(level),
-		Encoding:        "json",
-		EncoderConfig:   encoderConfig,
-		OutputPaths:     []string{"stdout"},
+		Encoding:         "json",
+		EncoderConfig:    encoderConfig,
+		OutputPaths:      []string{"stdout"},
 		ErrorOutputPaths: []string{"stderr"},
 	}
 

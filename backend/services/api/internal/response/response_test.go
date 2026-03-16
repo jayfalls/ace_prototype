@@ -87,13 +87,13 @@ func TestValidationError(t *testing.T) {
 
 	// Create a test struct with validation errors
 	testStruct := TestStruct{
-		Name:  "A", // too short
+		Name:  "A",       // too short
 		Email: "invalid", // not an email
 	}
-	
+
 	validate := validator.New()
 	err := validate.Struct(testStruct)
-	
+
 	ValidationError(w, err)
 
 	if w.Code != http.StatusBadRequest {

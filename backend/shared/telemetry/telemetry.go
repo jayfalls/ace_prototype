@@ -9,19 +9,19 @@ import (
 	"go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // Config holds the telemetry configuration
 type Config struct {
-	ServiceName   string // Service name (e.g., "api", "agent")
-	Environment   string // Environment: "dev" or "prod"
-	OTLPEndpoint  string // OTel Collector endpoint for traces/metrics
+	ServiceName  string // Service name (e.g., "api", "agent")
+	Environment  string // Environment: "dev" or "prod"
+	OTLPEndpoint string // OTel Collector endpoint for traces/metrics
 }
 
 // LoadConfig loads telemetry configuration from environment variables

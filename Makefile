@@ -21,7 +21,8 @@ ifeq ($(filter $(ENVIRONMENT),$(VALID_ENVIRONMENTS)),)
 $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
-COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
+# Support both docker-compose and docker compose (fallback)
+COMPOSE := $(shell command -v podman &>/dev/null && echo "podman compose" || (command -v docker-compose &>/dev/null && echo "docker-compose" || echo "docker compose")) -f devops/$(ENVIRONMENT)/compose.yml
 
 # Distrobox config
 DISTROBOX_NAME := opencode

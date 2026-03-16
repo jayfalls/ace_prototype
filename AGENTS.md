@@ -18,6 +18,74 @@ After every commit:
 5. Update API documentation if endpoints changed
 6. Update the user wiki documentation/ folder with relevant changes
 
+# Memory System
+
+You have access to memory stores in `.agents/memory/`.
+
+**Keep it Lean**:
+- Only store essential state
+- Delete completed tasks promptly
+
+**How to update**:
+- Before delegation: Read the file to know current state
+- After delegation: Write updated file with progress
+
+**Episodic Memory**: Captured in the `episodes` array in short-term memory. Each episode records what happened in a phase.
+
+**Semantic Memory**: Stored in long-term memory's `learned_patterns` array.
+
+## Long-term Memory
+
+**Location**: `.agents/memory/long-term.json`
+
+**Purpose**: Persistent across all sessions.
+
+**Contains**:
+- `completed_units`: Historical completion data
+- `preferences`: User preferences
+- `learned_patterns`: Patterns from workflows
+
+## Short-term Memory - Per-Unit
+
+**Location**: `.agents/memory/short-term/{unit-name}.json`
+
+**Purpose**: Tracks work-in-progress for a specific unit. Each unit has its own file.
+
+**When to load**: Always try to find the relevant short term memory file for whatever unit you are working on.
+
+**Structure**:
+```json
+{
+  "unit": "observability",
+  "current_phase": "planning-discovery",
+  "status": "in_progress",
+  "pending_tasks": [],
+  "episodes": [
+    {
+      "phase": "planning-discovery",
+      "notes": [],
+      "timestamp": "2026-03-15T12:00:00Z"
+    }
+  ],
+  "last_updated": "2026-03-15T12:00:00Z"
+}
+```
+
+### When a trigger comes in:
+
+1. **Parse the trigger**:
+   - User request: Extract unit name from request
+   - GitHub event: Extract from branch name or PR title/description or Issue title/description
+
+2. **Find matching unit**:
+   - Check `.agents/memory/short-term/{unit}.json`
+   - If not found, check `.agents/memory/long-term.json`
+   - If still not found, ask user
+
+3. **Load memory**: Read the short-term memory file for that unit
+
+4. **Resume**: Continue from the current phase in memory
+
 # Working on the Code
 
 ## Coding Best Practices

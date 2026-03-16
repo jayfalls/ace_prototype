@@ -31,7 +31,7 @@ type Config struct {
 	NATSURL string
 
 	// Telemetry configuration
-	Environment   string
+	Environment  string
 	OTLPEndpoint string
 }
 
@@ -90,16 +90,16 @@ func Load() (*Config, error) {
 	}
 
 	return &Config{
-		DatabaseURL:            dbURL,
-		APIHost:                apiHost,
-		APIPort:                apiPort,
-		CORSAllowedOrigins:    origins,
-		LogLevel:               logLevel,
-		JWTSecret:              jwtSecret,
-		JWTExpirationHours:    jwtExpirationHours,
-		NATSURL:                natsURL,
-		Environment:            environment,
-		OTLPEndpoint:          otlpEndpoint,
+		DatabaseURL:        dbURL,
+		APIHost:            apiHost,
+		APIPort:            apiPort,
+		CORSAllowedOrigins: origins,
+		LogLevel:           logLevel,
+		JWTSecret:          jwtSecret,
+		JWTExpirationHours: jwtExpirationHours,
+		NATSURL:            natsURL,
+		Environment:        environment,
+		OTLPEndpoint:       otlpEndpoint,
 	}, nil
 }
 

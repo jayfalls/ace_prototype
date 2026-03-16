@@ -6,8 +6,12 @@
 
 set +euo pipefail
 
+# Add Go 1.26 to PATH if installed
+if [ -d "/usr/local/go/bin" ]; then
+    export PATH="/usr/local/go/bin:$PATH"
+fi
+
 # Get the directory where this script is located
-# Resolve symlinks to get the actual script location (handles git hook symlink case)
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -17,13 +21,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-# Track if we're in a git repository
-IS_GIT_REPO=false
-if [ -d "$REPO_ROOT/.git" ]; then
-    IS_GIT_REPO=true
-fi
+NC='\033[0m'
 
 log_info() {
     echo -e "${BLUE}[PRE-COMMIT]${NC} $1"
@@ -65,95 +63,56 @@ echo ""
 # ============================================
 # 1. Go Build Verification
 # ============================================
-log_info "1/4: Go Build Verification..."
+log_info "1/8: Go Build..."
 
 cd "$REPO_ROOT/backend"
 
-# Check if go.work exists
 if [ ! -f "go.work" ]; then
-    log_skip "No Go workspace found, skipping build verification"
+    log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    # Build all modules in the workspace individually
-    BUILD_SUCCESS=true
-    BUILD_WARNINGS=false
     for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Building $module..."
-            BUILD_OUTPUT=$(cd "$module" && go build ./... 2>&1)
-            if [ $? -ne 0 ]; then
-                # Check if this is a pre-existing issue (not introduced by recent changes)
-                log_warn "Build issue in $module (may be pre-existing):"
-                echo "$BUILD_OUTPUT" | head -5
-                BUILD_WARNINGS=true
+            if ! (cd "$module" && go build ./...) 2>&1; then
+                log_error "Build failed in $module"
+                FAILED=1
             fi
         fi
     done
-    
-    if [ "$BUILD_WARNINGS" = true ]; then
-        log_warn "Build verification had warnings (pre-existing issues detected)"
-    fi
-    log_success "Go build verification complete"
+    [ $FAILED -eq 0 ] && log_success "Go build passed"
 fi
 
 echo ""
 
 # ============================================
-# 2. SQLC Generate Validation
+# 2. Go Lint (auto-fix + check)
 # ============================================
-log_info "2/4: SQLC Generate Validation..."
+log_info "2/8: Go Lint..."
 
 cd "$REPO_ROOT/backend"
 
-# Track if any sqlc.yaml files exist
-SQLC_EXISTS=false
-SQLC_FAILED=false
-
-# Check each module in the workspace
-for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
-    if [ -d "$module" ] && [ -f "$module/sqlc.yaml" ]; then
-        SQLC_EXISTS=true
-        log_info "Running sqlc generate for $module..."
-        
-        # Save current generated files for comparison
-        if [ -d "$module/sqlc" ]; then
-            TEMP_DIR=$(mktemp -d)
-            cp -r "$module/sqlc" "$TEMP_DIR/sqlc_backup"
-            
-            # Generate new files
-            if (cd "$module" && sqlc generate 2>&1); then
-                # Compare to see if anything changed
-                if diff -rq "$TEMP_DIR/sqlc_backup" "$module/sqlc" > /dev/null 2>&1; then
-                    log_success "sqlc generate for $module - no changes needed"
-                else
-                    log_warn "sqlc generate for $module - generated files are out of date"
-                    log_info "Run 'sqlc generate' in $module to update generated files"
-                fi
-                
-                # Clean up
-                rm -rf "$TEMP_DIR"
-            else
-                log_warn "sqlc generate for $module had issues (may be pre-existing)"
-            fi
-        else
-            # No existing generated files, just run generate
-            if (cd "$module" && sqlc generate 2>&1); then
-                log_success "sqlc generate for $module - generated successfully"
-            else
-                log_warn "sqlc generate for $module had issues (may be pre-existing)"
-            fi
-        fi
-    fi
-done
-
-if [ "$SQLC_EXISTS" = false ]; then
-    log_skip "No sqlc.yaml files found, skipping SQLC validation"
-    ((SKIPPED++))
-elif ! command -v sqlc &> /dev/null; then
-    log_skip "sqlc not installed, skipping SQLC validation"
+if [ ! -f "go.work" ]; then
+    log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    log_success "SQLC validation complete"
+    for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
+        if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
+            log_info "Formatting $module..."
+            (cd "$module" && go fmt ./...) 2>&1 || true
+            
+            log_info "Vetting $module..."
+            if ! (cd "$module" && go vet ./...) 2>&1; then
+                log_error "Go vet failed in $module"
+                FAILED=1
+            fi
+        fi
+    done
+    
+# Stage auto-fixed Go files (go fmt changes)
+git -C "$REPO_ROOT" add . 2>/dev/null || true
+    
+    [ $FAILED -eq 0 ] && log_success "Go lint passed"
 fi
 
 echo ""
@@ -161,69 +120,172 @@ echo ""
 # ============================================
 # 3. Go Test Suite
 # ============================================
-log_info "3/4: Go Test Suite..."
+log_info "3/8: Go Test..."
 
 cd "$REPO_ROOT/backend"
 
-# Check if go.work exists
 if [ ! -f "go.work" ]; then
-    log_skip "No Go workspace found, skipping test suite"
+    log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    # Test all modules in the workspace individually
-    TEST_SUCCESS=true
     for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
-            if find "$module" -name "*_test.go" -type f 2>/dev/null | grep -q .; then
-                log_info "Testing $module..."
-                if ! (cd "$module" && go test -v ./...) 2>&1; then
-                    log_warn "Tests failed or had issues in $module"
-                fi
+            log_info "Testing $module..."
+            # Run only unit tests (skip integration tests)
+            if ! (cd "$module" && go test -v -short ./...) 2>&1; then
+                log_error "Tests failed in $module"
+                FAILED=1
             fi
         fi
     done
-    
-    log_success "Go test suite complete"
+    [ $FAILED -eq 0 ] && log_success "Go tests passed (unit only)"
 fi
 
 echo ""
 
 # ============================================
-# 4. Frontend Lint (svelte-check)
+# 4. SQLC Generate Validation
 # ============================================
-log_info "4/4: Frontend Lint..."
+log_info "4/8: SQLC Generate..."
+
+cd "$REPO_ROOT/backend"
+
+SQLC_EXISTS=false
+
+for module in $(go work edit -json 2>/dev/null | jq -r '.Use[] | .DiskPath' 2>/dev/null || echo ""); do
+    if [ -d "$module" ] && [ -f "$module/sqlc.yaml" ]; then
+        # Check if queries directory exists and has files
+        QUERY_DIR=$(cd "$module" && grep -A5 "queries:" sqlc.yaml 2>/dev/null | grep "path:" | head -1 | awk '{print $2}')
+        if [ -z "$QUERY_DIR" ] || [ ! -d "$module/$QUERY_DIR" ]; then
+            log_warn "No queries directory found in $module, skipping sqlc"
+            continue
+        fi
+        SQLC_EXISTS=true
+        log_info "Running sqlc generate for $module..."
+        if (cd "$module" && sqlc generate 2>&1); then
+            log_success "sqlc generate passed"
+        else
+            log_error "sqlc generate failed"
+            FAILED=1
+        fi
+    fi
+done
+
+[ "$SQLC_EXISTS" = false ] && log_skip "No sqlc.yaml found, skipping"
+
+echo ""
+
+# ============================================
+# 5. Frontend Lint (svelte-check + eslint)
+# ============================================
+log_info "5/8: Frontend Lint..."
 
 cd "$REPO_ROOT/frontend"
 
-if [ -f "package.json" ]; then
-    # Check if svelte-kit is set up (need .svelte-kit directory)
-    if [ -d ".svelte-kit" ]; then
-        # Run svelte-check for TypeScript and Svelte validation
-        if npx svelte-check --threshold warning 2>&1; then
-            log_success "Frontend lint passed"
+if [ ! -f "package.json" ]; then
+    log_skip "No frontend package.json found, skipping"
+    ((SKIPPED++))
+elif [ ! -d "node_modules" ] || [ ! -r "node_modules" ]; then
+    log_skip "Frontend node_modules not accessible (run make dev)"
+    ((SKIPPED++))
+else
+    # Run eslint --fix first
+    if [ -f ".eslintrc.cjs" ] || [ -f ".eslintrc.js" ] || [ -f "eslint.config.js" ]; then
+        log_info "Running eslint --fix..."
+        npx eslint --fix . 2>&1 || true
+        
+        # Stage auto-fixed files
+        git -C "$REPO_ROOT" add frontend/ 2>/dev/null || true
+    fi
+    
+    # Run svelte-check
+    if npx svelte-check 2>&1; then
+        log_success "Frontend lint passed"
+    else
+        log_error "Frontend lint failed"
+        FAILED=1
+    fi
+fi
+
+echo ""
+
+# ============================================
+# 6. Frontend Test
+# ============================================
+log_info "6/8: Frontend Test..."
+
+cd "$REPO_ROOT/frontend"
+
+if [ ! -f "package.json" ]; then
+    log_skip "No frontend package.json found, skipping"
+    ((SKIPPED++))
+elif [ ! -d "node_modules" ]; then
+    log_skip "Frontend node_modules not accessible, skipping"
+    ((SKIPPED++))
+else
+    # Run tests if they exist
+    if [ -f "vitest.config.ts" ] || [ -f "vitest.config.js" ]; then
+        log_info "Running frontend tests..."
+        if npx vitest run 2>&1; then
+            log_success "Frontend tests passed"
         else
-            log_warn "Frontend lint had warnings"
-        fi
-    elif [ -d "node_modules" ]; then
-        log_info "SvelteKit not initialized, running svelte-kit sync..."
-        if npx svelte-kit sync 2>&1; then
-            log_success "SvelteKit sync complete"
-            if npx svelte-check --threshold warning 2>&1; then
-                log_success "Frontend lint passed"
-            else
-                log_warn "Frontend lint had warnings"
-            fi
-        else
-            log_skip "SvelteKit setup incomplete, skipping frontend lint"
-            ((SKIPPED++))
+            log_error "Frontend tests failed"
+            FAILED=1
         fi
     else
-        log_skip "No node_modules found, skipping frontend lint"
+        log_skip "No frontend tests found, skipping"
         ((SKIPPED++))
     fi
+fi
+
+echo ""
+
+# ============================================
+# 7. Docker Compose Validation
+# ============================================
+log_info "7/8: Docker Compose Validation..."
+
+COMPOSE_FAILED=false
+
+if command -v docker-compose &> /dev/null; then
+    for compose_file in devops/dev/compose.yml devops/prod/compose.yml; do
+        if [ -f "$REPO_ROOT/$compose_file" ]; then
+            log_info "Validating $compose_file..."
+            # Check if .env exists (required for prod)
+            COMPOSE_DIR=$(dirname "$REPO_ROOT/$compose_file")
+            if [ ! -f "$COMPOSE_DIR/.env" ] && [ "$compose_file" = "devops/prod/compose.yml" ]; then
+                log_warn "Prod compose - .env not found, skipping validation"
+                continue
+            fi
+            if ! docker-compose -f "$REPO_ROOT/$compose_file" config --quiet 2>&1; then
+                log_error "Compose file $compose_file is invalid"
+                FAILED=1
+            fi
+        fi
+    done
+    [ $FAILED -eq 0 ] && log_success "Docker Compose validation passed"
 else
-    log_skip "No frontend package.json found, skipping lint"
+    log_skip "Docker compose not available, skipping"
     ((SKIPPED++))
+fi
+
+echo ""
+
+# ============================================
+# 8. Makefile Validation
+# ============================================
+log_info "8/8: Makefile Validation..."
+
+if [ ! -f "$REPO_ROOT/Makefile" ]; then
+    log_skip "No Makefile found, skipping"
+    ((SKIPPED++))
+else
+    if make -n -f "$REPO_ROOT/Makefile" help >/dev/null 2>&1; then
+        log_success "Makefile validation passed"
+    else
+        log_error "Makefile has syntax errors"
+        FAILED=1
+    fi
 fi
 
 echo ""
@@ -236,29 +298,16 @@ echo "  Pre-Commit Quality Gates Summary"
 echo "=========================================="
 echo ""
 
-# Count warnings
-WARNINGS=0
-if [ -n "${BUILD_WARNINGS:-}" ] && [ "$BUILD_WARNINGS" = true ]; then
-    ((WARNINGS++))
-fi
-
 if [ $FAILED -gt 0 ]; then
     echo -e "${RED}$FAILED quality gate(s) FAILED${NC}"
     echo ""
     echo "Please fix the failing checks before committing."
     echo ""
     exit 1
-elif [ $WARNINGS -gt 0 ]; then
-    echo -e "${YELLOW}Quality gates completed with warnings${NC}"
-    echo ""
-    echo "Warnings indicate pre-existing issues or configuration problems."
-    echo "Review the output above for details."
-    echo ""
-    exit 0
 elif [ $SKIPPED -gt 0 ]; then
     echo -e "${GREEN}All quality gates passed (or skipped)${NC}"
     echo ""
-    echo "Passed: $((4 - SKIPPED - FAILED))"
+    echo "Passed: $((8 - SKIPPED - FAILED))"
     echo "Skipped: $SKIPPED"
     echo "Failed: $FAILED"
     echo ""

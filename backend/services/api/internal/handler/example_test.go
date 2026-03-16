@@ -68,7 +68,7 @@ func TestCreate_ValidationErrors(t *testing.T) {
 
 	// Invalid request - missing name, invalid email
 	body := map[string]string{
-		"name":  "",  // required but empty
+		"name":  "", // required but empty
 		"email": "not-an-email",
 	}
 	bodyBytes, _ := json.Marshal(body)

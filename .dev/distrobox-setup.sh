@@ -22,6 +22,10 @@ log_success() {
     echo -e "${GREEN}[OK]${NC} $1"
 }
 
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
 # Check if we're in distrobox
 if [ ! -f /run/.toolboxenv ]; then
     echo "This script must be run inside the distrobox"
@@ -32,32 +36,15 @@ fi
 # Ensure opencode PATH is available
 export PATH="$HOME/.opencode/bin:$PATH"
 
-# Check if already set up (idempotency)
-log_info "Checking existing installation..."
-SKIP_SETUP=true
+# Ensure Go is in PATH
+export PATH="/usr/local/go/bin:$HOME/.opencode/bin:$PATH"
 
-for cmd in git make go node npm docker opencode; do
-    if ! command -v $cmd >/dev/null 2>&1; then
-        SKIP_SETUP=false
-        break
-    fi
-done || true
-
-if [ "$SKIP_SETUP" = true ]; then
-    log_success "All dependencies already installed!"
-    exit 0
-fi
-
-log_info "Installing development dependencies..."
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Helper to run dnf with or without sudo
 run_dnf() {
     sudo dnf "$@" || dnf "$@"
 }
-
-# Update package manager
-log_info "Updating package manager..."
-run_dnf update -y
 
 # Install core tools
 log_info "Installing core tools..."
@@ -66,50 +53,83 @@ run_dnf install -y \
     make \
     curl \
     wget \
-    golang \
     nodejs \
     npm \
     python3 \
     python3-pip \
-    docker \
     which \
     findutils \
-    jq
+    jq \
+    docker \
+    podman \
+    docker-compose
 
-# Install pipx (needed for distrobox)
-log_info "Installing pipx..."
-pip3 install --user pipx
-pipx ensurepath
+# Install/update system packages
+log_info "Updating package manager..."
+run_dnf update -y
 
-# Run go mod tidy for backend dependencies
+# Install Go 1.26+ (required by go.work)
+log_info "Installing Go 1.26..."
+GO_VERSION="1.26.0"
+GO_INSTALL_DIR="/usr/local"
+if [ ! -d "$GO_INSTALL_DIR/go" ] || ! "$GO_INSTALL_DIR/go/bin/go" version 2>/dev/null | grep -q "go1.2[6-9]"; then
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tar.gz
+    sudo rm -rf $GO_INSTALL_DIR/go
+    sudo tar -C $GO_INSTALL_DIR -xzf /tmp/go.tar.gz
+    rm /tmp/go.tar.gz
+fi
+export PATH="/usr/local/go/bin:$PATH"
+log_success "Go installed"
+
+# Install docker-compose (fedora uses docker-compose, not docker compose)
+log_info "Installing docker-compose..."
+if ! command -v docker-compose &> /dev/null; then
+    run_dnf install -y docker-compose
+fi
+
+# Verify docker-compose works
+if command -v docker-compose &> /dev/null; then
+    log_success "Docker compose ready"
+else
+    log_error "Docker compose not available"
+fi
+
+# Run go mod tidy for backend (always)
 log_info "Running go mod tidy..."
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ -d "$REPO_DIR/backend" ]; then
     cd "$REPO_DIR/backend"
     for module in $(go work edit -json 2>/dev/null | jq -r '.Use[] | .DiskPath' 2>/dev/null || echo ""); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Tidying $module..."
-            (cd "$module" && go mod tidy 2>/dev/null || true)
+            (cd "$module" && go mod tidy)
         fi
     done
 fi
 
-# Install OpenCode
+# Install Go linting tools
+log_info "Installing Go linting tools..."
+go install golang.org/x/tools/cmd/goimports@latest
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Install frontend deps (always)
+log_info "Setting up frontend dependencies..."
+if [ -d "$REPO_DIR/frontend" ]; then
+    cd "$REPO_DIR/frontend"
+    npm install
+    npx svelte-kit sync
+    
+    # Install additional linting tools
+    npm install -D eslint prettier eslint-config-prettier
+    
+    log_success "Frontend ready"
+fi
+
+# Install OpenCode (if not exists)
 log_info "Installing OpenCode..."
 if ! command -v opencode &> /dev/null; then
     curl -fsSL https://opencode.ai/install | bash
 fi
 export PATH="$HOME/.opencode/bin:$PATH"
 echo "export PATH=\"\$HOME/.opencode/bin:\$PATH\"" >> ~/.bashrc 2>/dev/null || true
-
-# Verify installations
-log_info "Verifying tools..."
-command -v git >/dev/null 2>&1 && log_success "git"
-command -v make >/dev/null 2>&1 && log_success "make"
-command -v go >/dev/null 2>&1 && log_success "go"
-command -v node >/dev/null 2>&1 && log_success "node"
-command -v npm >/dev/null 2>&1 && log_success "npm"
-command -v docker >/dev/null 2>&1 && log_success "docker"
-command -v opencode >/dev/null 2>&1 && log_success "opencode"
 
 log_success "Development environment ready!"

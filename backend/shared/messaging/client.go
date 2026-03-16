@@ -294,15 +294,15 @@ func (c *natsClient) Close() {
 
 // MockClient is a mock implementation of Client for testing.
 type MockClient struct {
-	mu               sync.RWMutex
-	PublishedMsgs    []*MockMsg
-	Subscriptions    []*MockSubscription
-	StreamSubs       []*MockStreamSubscription
-	RequestResp      *nats.Msg
-	RequestErr       error
-	HealthCheckErr   error
-	DrainErr         error
-	CloseCalled      bool
+	mu             sync.RWMutex
+	PublishedMsgs  []*MockMsg
+	Subscriptions  []*MockSubscription
+	StreamSubs     []*MockStreamSubscription
+	RequestResp    *nats.Msg
+	RequestErr     error
+	HealthCheckErr error
+	DrainErr       error
+	CloseCalled    bool
 }
 
 // MockMsg represents a mock message.

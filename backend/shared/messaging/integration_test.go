@@ -76,10 +76,10 @@ func getTestClient(t *testing.T) Client {
 	t.Helper()
 
 	client, err := NewClient(Config{
-		URLs:         srvURL,
-		Name:         "test-client",
-		Timeout:      10 * time.Second,
-		MaxReconnect: 3,
+		URLs:          srvURL,
+		Name:          "test-client",
+		Timeout:       10 * time.Second,
+		MaxReconnect:  3,
 		ReconnectWait: 1 * time.Second,
 	})
 	require.NoError(t, err, "failed to create client")

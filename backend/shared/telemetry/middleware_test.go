@@ -177,7 +177,7 @@ func TestLoggerMiddlewareCapturesStatusCode(t *testing.T) {
 
 	req := httptest.NewRequest("POST", "/api/users", nil)
 	w := httptest.NewRecorder()
-	
+
 	// Wrap to capture status
 	wrapped := &responseWriter{ResponseWriter: w, statusCode: 0}
 	handler.ServeHTTP(wrapped, req)
@@ -204,35 +204,35 @@ func TestLoggerMiddlewareWithTraceContext(t *testing.T) {
 
 func TestGetClientIP(t *testing.T) {
 	tests := []struct {
-		name         string
-		remoteAddr   string
+		name          string
+		remoteAddr    string
 		xForwardedFor string
-		xRealIP      string
-		expectedIP   string
+		xRealIP       string
+		expectedIP    string
 	}{
 		{
-			name:         "remote addr only",
-			remoteAddr:   "192.168.1.1:12345",
-			expectedIP:   "192.168.1.1",
+			name:       "remote addr only",
+			remoteAddr: "192.168.1.1:12345",
+			expectedIP: "192.168.1.1",
 		},
 		{
-			name:         "x-forwarded-for",
-			remoteAddr:   "10.0.0.1:12345",
+			name:          "x-forwarded-for",
+			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "203.0.113.1, 70.41.3.18",
-			expectedIP:   "203.0.113.1",
+			expectedIP:    "203.0.113.1",
 		},
 		{
-			name:         "x-real-ip",
-			remoteAddr:   "10.0.0.1:12345",
-			xRealIP:      "198.51.100.1",
-			expectedIP:   "198.51.100.1",
+			name:       "x-real-ip",
+			remoteAddr: "10.0.0.1:12345",
+			xRealIP:    "198.51.100.1",
+			expectedIP: "198.51.100.1",
 		},
 		{
-			name:         "x-forwarded-for takes precedence over x-real-ip",
-			remoteAddr:   "10.0.0.1:12345",
+			name:          "x-forwarded-for takes precedence over x-real-ip",
+			remoteAddr:    "10.0.0.1:12345",
 			xForwardedFor: "203.0.113.1",
-			xRealIP:      "198.51.100.1",
-			expectedIP:   "203.0.113.1",
+			xRealIP:       "198.51.100.1",
+			expectedIP:    "203.0.113.1",
 		},
 	}
 
