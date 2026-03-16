@@ -4,18 +4,18 @@ This template provides a complete structure for documenting a unit from concepti
 
 ## Template Documents
 
-- [problem_space.md](problem_space.md) - Problem space exploration
-- [bsd.md](bsd.md) - Business Specification Document
-- [user_stories.md](user_stories.md) - User stories and acceptance criteria
-- [research.md](research.md) - Research and evaluate different approaches
-- [fsd.md](fsd.md) - Functional Specification Document
-- [architecture.md](architecture.md) - Technical architecture decisions
-- [implementation.md](implementation.md) - Implementation plan and details
-- [security.md](security.md) - Security considerations
-- [design.md](design.md) - Visual/UX design specifications
-- [mockups.md](mockups.md) - Wireframes and mockups
-- [migration_and_rollback.md](migration_and_rollback.md) - Database migration and rollback plans
-- [testing.md](testing.md) - Testing strategy and test cases
-- [api.md](api.md) - API specifications
-- [monitoring.md](monitoring.md) - Observability requirements
-- [dependencies.md](dependencies.md) - External dependencies
+- [problem_space.md](problem_space.md)
+- [bsd.md](bsd.md)
+- [user_stories.md](user_stories.md)
+- [fsd.md](fsd.md)
+- [research.md](research.md)
+- [architecture.md](architecture.md)
+- [api.md](api.md)
+- [security.md](security.md)
+- [monitoring.md](monitoring.md)
+- [design.md](design.md)
+- [mockups.md](mockups.md)
+- [testing.md](testing.md)
+- [implementation.md](implementation.md)
+- [migration_and_rollback.md](migration_and_rollback.md)
+- [dependencies.md](dependencies.md)
