@@ -1,18 +1,10 @@
 # Unit Template
 
-<!--
-Intent: Provide a complete template structure for documenting a unit from conception to implementation.
-Scope: All documents needed for a comprehensive unit specification.
-Used by: AI agents to understand the full lifecycle of unit development.
-
-NOTE: Remove this comment block in the final document
--->
-
 This template provides a complete structure for documenting a unit from conception to implementation.
 
 ## Template Documents
 
-- [problem_space.md](problem_space.md) - Problem space exploration through questions (MUST complete before BSD)
+- [problem_space.md](problem_space.md) - Problem space exploration
 - [bsd.md](bsd.md) - Business Specification Document
 - [user_stories.md](user_stories.md) - User stories and acceptance criteria
 - [research.md](research.md) - Research and evaluate different approaches
