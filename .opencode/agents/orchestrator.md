@@ -77,7 +77,24 @@ The standard unit workflow sequence:
 When you need a new specialized agent:
 
 1. Create `.opencode/agents/{name}.md`
-2. Use this template:
+2. Set `mode: subagent` in the frontmatter
+3. Use the specific agent type when spawning (NOT "general")
+
+**Valid agent types:**
+- `planning-discovery` - exploratory questions
+- `planning-document` - creates problem_space.md, bsd.md
+- `planning-requirements` - user stories, FSD
+- `research` - tech research
+- `architecture` - system design
+- `implementation` - implementation plan
+- `testing` - test strategy
+- `backend` - backend code
+- `frontend` - frontend code
+- `review` - code review
+- `tester` - run tests
+- `qa` - quality assurance
+
+**Never use "general" - create a proper subagent.**
 
 ```markdown
 ---
@@ -128,7 +145,30 @@ User: "Start the observability unit"
 
 ## Subagent Spawning Pattern
 
+### All subagents return task_id
+Every subagent spawn returns a task_id. If the subagent:
+- Asks a question → Resume with answer
+- Needs clarification → Provide it and resume
+- Returns early → Resume to continue
+
+**Block minimally - prefer resuming with answers rather than asking user.**
+
 ### For Discovery (Manual)
+```
+1. Spawn subagent with initial prompt
+2. If it asks questions → Resume with task_id, provide answer
+3. Keep resuming until subagent signals done
+4. Check full output, proceed
+```
+
+### For All Other Agents
+```
+1. Spawn subagent
+2. If subagent returns early (asks questions) → Resume with task_id immediately
+3. Task tool BLOCKS until truly complete
+4. Full output returned
+5. Run QA immediately
+6. If QA fails, use task_id to resume and fix
 ```
 1. Spawn subagent with initial prompt
 2. Wait for user to respond

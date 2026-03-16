@@ -19,6 +19,7 @@ Create `problem_space.md` and `bsd.md` in the unit directory.
 
 - Read `design/README.md` for ACE Framework patterns
 - Read `design/units/README.md` to see existing units
+- Read existing documents in the unit directory if they exist
 - Unit directory: `design/units/{UNIT_NAME}/`
 - **IMPORTANT**: Run @planning-discovery BEFORE this agent to gather user input
 
@@ -37,3 +38,9 @@ Create in `design/units/{UNIT_NAME}/`:
 - `bsd.md`
 
 Return file paths. **Requires QA after completion.**
+
+## Important
+
+- DO NOT ask questions - use the discovery context provided
+- If you need clarification, ask follow-up questions but try to proceed
+- Complete the documents in full
