@@ -32,11 +32,11 @@ The standard unit workflow sequence:
 
 ## Discovery Agent (Special Case)
 
-**planning-discovery** is SPECIAL:
-- Runs BEFORE any new document to explore problem space
-- Just asks questions in a loop - NO documents created
+**planning-discovery** runs BEFORE EVERY new document:
+- Ask questions in a loop until fully understood
+- NO documents created - just exploration
 - NO QA or review required
-- orchestrator calls it before document agents
+- Use prior documents as context to avoid repeat questions
 
 ## Error Handling
 
@@ -109,10 +109,10 @@ Activate [Agency Agent Name] (from `agency-agents/[path]/[file].md`)
 User: "Start the observability unit"
 1. Create short-term/observability.json
 2. Read design/units/observability/ to see existing docs
-3. If creating new document:
-   a. Launch @planning-discovery (questions loop, NO QA)
-   b. Launch @planning-document (creates docs, REQUIRES QA)
-4. Run @qa to evaluate (except for discovery)
+3. For EACH new document to create:
+   a. Launch @planning-discovery FIRST (questions loop, NO QA)
+   b. Launch appropriate document agent (REQUIRES QA)
+4. Run @qa to evaluate
 5. Update memory
 6. Report to user
 ```
