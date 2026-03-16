@@ -1,16 +1,16 @@
-# Design Documentation (Always Read First!)
-- **CRITICAL**: Always read `design/README.md` before starting any work
+# Design Documentation (CRITICAL)
+- Always read `design/README.md` before starting any work or responding to any questions
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Documentation Updates
+# Documentation Updates (CRITICAL)
 
-**IMPORTANT**: Before making any changelog or documentation updates:
+Before making any changelog or documentation updates:
 1. **Check the current date** - Use `date` command to get today's date
 2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
 3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
 
-**CRITICAL**: After every commit:
+After every commit:
 1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
 2. Update the `design/README.md` if relevant
 3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
@@ -56,6 +56,16 @@ All code changes must include appropriate tests:
 - **E2E Tests**: Required for critical user flows
 
 ## GitHub Workflow
+
+### Unit Reference (CRITICAL)
+Every PR, commit, and issue MUST include the unit name so memory can be loaded on new sessions.
+
+**Format:**
+- PR title: `[unit: opencode-integration] Add memory system`
+- Commit: `feat: add memory system [unit: opencode-integration]`
+- Issue: `[unit: observability] How should we handle logs?`
+
+This allows the orchestrator to resume work from the correct unit memory file.
 
 ### Branch Naming
 - `feature/<description>` - New features

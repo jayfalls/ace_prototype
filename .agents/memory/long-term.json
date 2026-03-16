@@ -1,6 +1,7 @@
 {
   "version": "1.0",
   "completed_units": {},
+  "in_progress_units": [],
   "preferences": {
     "retry_count": 3,
     "auto_approve_github_issues": false
