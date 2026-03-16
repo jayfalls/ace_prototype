@@ -9,7 +9,7 @@ You implement frontend code based on the architecture and implementation plans.
 
 ## Reference Agent
 
-Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
+Activate **Frontend Developer** (from `agency-agents/engineering/engineering-frontend-developer.md`)
 
 ## Your Task
 

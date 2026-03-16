@@ -23,7 +23,7 @@ This is running on the user's LOCAL machine. You MUST only use:
 
 ## Your Task
 
-Run tests and verify code works correctly.
+Run ALL tests (unit, integration, e2e, frontend, backend) and verify code works correctly.
 
 ## Context
 
@@ -32,27 +32,34 @@ Run tests and verify code works correctly.
 
 ## Workflow
 
-### 1. Start Services
+### 1. Start Services and Verify
 ```bash
 make up
 ```
+- Verify all containers are running
+- Verify services are healthy (curl health endpoints)
 
-### 2. Run Tests
-```bash
-make test
-```
-
-### 3. Run API Tests Directly
+### 2. Run ALL Backend Tests
 ```bash
 docker exec ace_api go test ./...
 ```
 
-### 4. Test HTTP Endpoints
+### 3. Run ALL Frontend Tests
+```bash
+docker exec ace_frontend npm test -- --run
+```
+
+### 4. Run ALL Make Tests
+```bash
+make test
+```
+
+### 5. Test HTTP Endpoints
 ```bash
 curl -X GET http://localhost:8080/health
 ```
 
-### 5. Analyze Results
+### 6. Analyze Results
 - If tests fail, investigate with `docker exec` commands
 - Use `curl` to test specific endpoints
 - Activate **Test Results Analyzer** if needed

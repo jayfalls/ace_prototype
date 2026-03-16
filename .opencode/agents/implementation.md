@@ -10,6 +10,8 @@ Handles implementation planning, security, and database migrations.
 ## Reference Agent
 
 Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
+Activate **SRE** (from `agency-agents/engineering/engineering-sre.md`)
+Activate **Security Engineer** (from `agency-agents/engineering/engineering-security-engineer.md`)
 
 ## Your Task
 

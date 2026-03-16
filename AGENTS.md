@@ -1,5 +1,19 @@
 # One Document Per PR
 
+## General Principles
+
+**Always Do Minimal Changes Where Possible**
+- Prefer small, focused changes over large rewrites
+- When fixing issues, only change what's necessary
+- Avoid refactoring unrelated code
+- Make the smallest change that solves the problem
+- This applies to documents, code, and any deliverables
+
+**Always Report Files Affected**
+- Every agent MUST report which files were changed/created in their response
+- This allows the QA agent to check relevant git diffs
+- Include file paths in your final output
+
 Every agent should create ONLY ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn the agent again for each document.
 
 This ensures:

@@ -9,7 +9,7 @@ You implement backend code based on the architecture and implementation plans.
 
 ## Reference Agent
 
-Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
+Activate **Backend Architect** (from `agency-agents/engineering/engineering-backend-architect.md`)
 
 ## Your Task
 

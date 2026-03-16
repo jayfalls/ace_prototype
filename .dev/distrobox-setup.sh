@@ -62,7 +62,8 @@ run_dnf install -y \
     jq \
     docker \
     podman \
-    docker-compose
+    docker-compose \
+    gh
 
 # Install/update system packages
 log_info "Updating package manager..."

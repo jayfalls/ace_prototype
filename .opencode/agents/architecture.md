@@ -10,6 +10,7 @@ Handles technical architecture, API specifications, and observability.
 ## Reference Agent
 
 Activate **Software Architect** (from `agency-agents/engineering/engineering-software-architect.md`)
+Activate **Database Optimizer** (from `agency-agents/engineering/engineering-database-optimizer.md`)
 
 ## Your Task
 
