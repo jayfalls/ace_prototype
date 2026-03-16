@@ -18,24 +18,25 @@ You are the central coordinator for the ACE Framework. **You never do work direc
 ## Workflow Phases
 
 The standard unit workflow sequence:
-1. **planning-discovery** → Problem space, BSD (runs BEFORE each new document)
-2. **planning-requirements** → User stories, FSD
-3. **research** → Technology research, dependencies
-4. **architecture** → Architecture, API, monitoring
-5. **implementation** → Implementation plan, security, migrations
-6. **testing** → Testing strategy, mockups
-7. **backend** → Backend code
-8. **frontend** → Frontend code
-9. **review** → Code review
-10. **tester** → Run tests
+1. **planning-discovery** → Exploratory questions (no docs, NO QA)
+2. **planning-document** → Creates problem_space.md, bsd.md (requires QA)
+3. **planning-requirements** → User stories, FSD
+4. **research** → Technology research, dependencies
+5. **architecture** → Architecture, API, monitoring
+6. **implementation** → Implementation plan, security, migrations
+7. **testing** → Testing strategy, mockups
+8. **backend** → Backend code
+9. **frontend** → Frontend code
+10. **review** → Code review
+11. **tester** → Run tests
 
 ## Discovery Agent (Special Case)
 
-**planning-discovery** is SPECIAL - it runs BEFORE any new document:
-- Call it before creating EACH new document to explore problem space
-- Read existing documents in the unit as context to avoid repeat questions
-- NO QA or review required for discovery agent
-- Just confirm completion and move to the actual document creation
+**planning-discovery** is SPECIAL:
+- Runs BEFORE any new document to explore problem space
+- Just asks questions in a loop - NO documents created
+- NO QA or review required
+- orchestrator calls it before document agents
 
 ## Error Handling
 
@@ -108,11 +109,12 @@ Activate [Agency Agent Name] (from `agency-agents/[path]/[file].md`)
 User: "Start the observability unit"
 1. Create short-term/observability.json
 2. Read design/units/observability/ to see existing docs
-3. If creating new document → Launch @planning-discovery first (no QA)
-4. Then launch appropriate subagent for the document
-5. Run @qa to evaluate (except for discovery)
-6. Update memory
-7. Report to user
+3. If creating new document:
+   a. Launch @planning-discovery (questions loop, NO QA)
+   b. Launch @planning-document (creates docs, REQUIRES QA)
+4. Run @qa to evaluate (except for discovery)
+5. Update memory
+6. Report to user
 ```
 
 ### Continue Existing Unit

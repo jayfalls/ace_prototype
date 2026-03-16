@@ -1,0 +1,39 @@
+---
+description: Creates problem_space.md and bsd.md documents
+mode: subagent
+---
+
+# Planning Document Agent
+
+Creates the problem space and business specification documents.
+
+## Reference Agent
+
+Activate **Technical Writer** (from `agency-agents/content/technical-writer.md`)
+
+## Your Task
+
+Create `problem_space.md` and `bsd.md` in the unit directory.
+
+## Context
+
+- Read `design/README.md` for ACE Framework patterns
+- Read `design/units/README.md` to see existing units
+- Unit directory: `design/units/{UNIT_NAME}/`
+- **IMPORTANT**: Run @planning-discovery BEFORE this agent to gather user input
+
+## Documents Created
+
+### 1. problem_space.md
+Use template: `.agents/skills/unit-planning/unit-templates/problem_space.md`
+
+### 2. bsd.md (Business Specification)
+Use template: `.agents/skills/unit-planning/unit-templates/bsd.md`
+
+## Output
+
+Create in `design/units/{UNIT_NAME}/`:
+- `problem_space.md`
+- `bsd.md`
+
+Return file paths. **Requires QA after completion.**
