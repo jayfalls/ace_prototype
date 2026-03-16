@@ -1,4 +1,12 @@
-# Design Documentation (CRITICAL)
+# One Document Per PR
+
+Every agent should create ONLY ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn the agent again for each document.
+
+This ensures:
+- Minimal, focused PRs
+- Easier review
+- Clear commit history
+- Iterative validation through QA
 - Always read `design/README.md` before starting any work or responding to any questions
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes

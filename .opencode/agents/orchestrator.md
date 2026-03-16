@@ -72,6 +72,19 @@ The standard unit workflow sequence:
    - User tells orchestrator when discovery is complete
    - Orchestrator checks full output, proceeds to document agent
 
+## One Document Per PR
+
+**CRITICAL**: Every subagent should create ONLY ONE document per session/PR.
+
+If a phase requires multiple documents:
+1. Spawn subagent for first document
+2. Run QA
+3. Spawn subagent again for second document
+4. Run QA
+...and so on
+
+This ensures minimal, focused PRs.
+
 ## Creating New Agents
 
 When you need a new specialized agent:

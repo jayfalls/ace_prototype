@@ -3,12 +3,14 @@
   "current_phase": "orchestrator",
   "status": "in_progress",
   "pending_tasks": [
-    "Review remaining agent files (11 left)"
+    "Review remaining agent files"
   ],
   "episodes": [
     { "phase": "orchestrator", "notes": ["QA found issues: BSD/FSD references missing, episodic/semantic examples wrong, QA fix guidance missing. Fixed all issues."], "timestamp": "2026-03-15T20:35:00Z" },
     { "phase": "pre-commit-fix", "notes": ["Fixed pre-commit: added git staging for auto-fixed files (go fmt, eslint --fix)", "Fixed Go version: explicitly use Go 1.26 via get_go() helper", "Fixed test output: removed -v flag to reduce noise", "Fixed flaky integration tests: added -p 1 -count=1 and 100ms subscription delays", "All 8 quality gates now passing consistently"], "timestamp": "2026-03-16T12:34:00Z" },
-    { "phase": "discovery-agent", "notes": ["Separated planning-discovery from document creation", "planning-discovery: questions loop only, no docs, no QA", "planning-document: NEW agent creates problem_space.md and bsd.md (requires QA)", "Orchestrator updated to call discovery before any document agent"], "timestamp": "2026-03-16T12:45:00Z" }
+    { "phase": "discovery-agent", "notes": ["Separated planning-discovery from document creation", "planning-discovery: questions loop only, no docs, no QA", "planning-document: NEW agent creates problem_space.md and bsd.md (requires QA)", "Orchestrator updated to call discovery before any document agent"], "timestamp": "2026-03-16T12:45:00Z" },
+    { "phase": "workflow-testing", "notes": ["Tested fun unit workflow end-to-end", "Discovery -> planning-document -> QA -> fix -> QA pass", "Confirmed task tool returns full output on completion", "Orchestrator: resume via task_id for fixes"], "timestamp": "2026-03-16T13:15:00Z" },
+    { "phase": "agent-patterns", "notes": ["Added ONE DOCUMENT PER PR to all document agents", "All document agents now have: guidance to not ask questions", "Created proper planning-document subagent (not using general)", "Orchestrator: resume subagents when they return early", "Deleted fun test unit"], "timestamp": "2026-03-16T13:25:00Z" }
   ],
-  "last_updated": "2026-03-16T12:45:00Z"
+  "last_updated": "2026-03-16T13:25:00Z"
 }
