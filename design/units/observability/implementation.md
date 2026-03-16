@@ -459,6 +459,35 @@ export { getTraceId, setGlobalTraceId };
 
 ---
 
+### PR 15: Grafana Provisioning (Issue #163)
+
+**Goal:** Add Grafana provisioning for auto-configured datasources and dashboards
+
+**Files:**
+- `devops/provisioning/datasources/datasources.yml` - Datasource configuration
+- `devops/provisioning/dashboards/dashboards.yml` - Dashboard imports
+- `devops/dev/compose.yml` - Mount provisioning files (dev)
+- `devops/prod/compose.yml` - Mount provisioning files (prod)
+
+**Requirements:**
+1. Create datasource provisioning for:
+   - Loki: `http://loki:3100`
+   - Tempo: `http://tempo:4315`
+   - Prometheus: `http://prometheus:9090`
+
+2. Create dashboard provisioning to import pre-built dashboards
+
+3. Add pre-built dashboards from Grafana.com for Loki, Tempo, Prometheus
+
+4. Update compose files to mount provisioning into Grafana container
+
+**Acceptance Criteria:**
+- Datasources auto-configured on Grafana first load
+- Dashboards available without manual import
+- Works for both dev and prod compose files
+
+---
+
 ## Summary
 
 | PR | Name | Files | Description |
@@ -477,5 +506,6 @@ export { getTraceId, setGlobalTraceId };
 | 12 | OTel Collector | 1 | Docker Compose config |
 | 13 | Frontend | 4+ | SvelteKit telemetry |
 | 14 | Integration Tests | 1 | E2E tests |
+| 15 | Grafana Provisioning | 4+ | Auto-configure datasources/dashboards (Issue #163) |
 
-**Total: 14 PRs**
+**Total: 15 PRs**
