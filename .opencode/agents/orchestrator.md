@@ -37,6 +37,8 @@ The standard unit workflow sequence:
 - NO documents created - just exploration
 - NO QA or review required
 - Use prior documents as context to avoid repeat questions
+- **RE-USE SAME TASK_ID**: When continuing discovery for the same unit, always resume the same task_id to retain context
+- Do NOT spawn new discovery agents for the same unit - resume the existing session
 
 ## Error Handling
 

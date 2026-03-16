@@ -21,6 +21,7 @@ Define user requirements and functional specifications for a unit.
 - Read `design/units/{UNIT_NAME}/problem_space.md` first
 - Read `design/units/{UNIT_NAME}/bsd.md`
 - Read `design/README.md` for ACE Framework patterns
+- Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 
 ## Documents Created
@@ -55,8 +56,12 @@ Skill: unit-planning
 
 ## Output
 
-Create in `design/units/{UNIT_NAME}/`:
-- `user_stories.md`
-- `fsd.md`
+The orchestrator will spawn this agent TWICE if needed (once per document).
 
-Return file paths and verification that prerequisites are met.
+**Create ONE of:**
+- `user_stories.md` - if this session is for user stories
+- `fsd.md` - if this session is for functional specification
+
+If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
+
+Return the file path created and verification that prerequisites are met.

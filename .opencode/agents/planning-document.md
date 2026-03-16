@@ -21,7 +21,6 @@ Create `problem_space.md` and `bsd.md` in the unit directory.
 - Read `design/units/README.md` to see existing units
 - Read existing documents in the unit directory if they exist
 - Unit directory: `design/units/{UNIT_NAME}/`
-- **IMPORTANT**: Run @planning-discovery BEFORE this agent to gather user input
 
 ## Documents Created
 
