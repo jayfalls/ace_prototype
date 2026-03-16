@@ -9,6 +9,7 @@ This template provides a complete structure for documenting a unit from concepti
 - [user_stories.md](user_stories.md)
 - [fsd.md](fsd.md)
 - [research.md](research.md)
+- [dependencies.md](dependencies.md)
 - [architecture.md](architecture.md)
 - [api.md](api.md)
 - [security.md](security.md)
@@ -18,4 +19,3 @@ This template provides a complete structure for documenting a unit from concepti
 - [testing.md](testing.md)
 - [implementation.md](implementation.md)
 - [migration_and_rollback.md](migration_and_rollback.md)
-- [dependencies.md](dependencies.md)

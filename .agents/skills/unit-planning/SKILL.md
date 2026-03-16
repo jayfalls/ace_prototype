@@ -21,22 +21,20 @@ This skill provides templates for creating unit design documents.
 
 ### Phase 3: Research & Design
 5. **research.md** - Technology research and evaluation
-6. **architecture.md** - Technical architecture
-7. **api.md** - API specifications
-8. **security.md** - Security considerations
-9. **monitoring.md** - Observability requirements
+6. **dependencies.md** - External dependencies (identified from research)
+7. **architecture.md** - Technical architecture
+8. **api.md** - API specifications
+9. **security.md** - Security considerations
+10. **monitoring.md** - Observability requirements
 
 ### Phase 4: UX
-10. **design.md** - Visual design
-11. **mockups.md** - Wireframes
+11. **design.md** - Visual design
+12. **mockups.md** - Wireframes
 
 ### Phase 5: Planning
-12. **testing.md** - Testing strategy
-13. **implementation.md** - Implementation plan (how to build)
-14. **migration_and_rollback.md** - Database migrations
-
-### Phase 6: Dependencies
-15. **dependencies.md** - External dependencies
+13. **testing.md** - Testing strategy
+14. **implementation.md** - Implementation plan (how to build)
+15. **migration_and_rollback.md** - Database migrations
 
 ## Templates
 
@@ -46,6 +44,7 @@ Located in `.agents/skills/unit-planning/unit-templates/`:
 - `user_stories.md` - User stories
 - `fsd.md` - Functional Specification
 - `research.md` - Technology research
+- `dependencies.md` - External dependencies
 - `architecture.md` - Technical architecture
 - `api.md` - API specifications
 - `security.md` - Security considerations
@@ -55,7 +54,6 @@ Located in `.agents/skills/unit-planning/unit-templates/`:
 - `testing.md` - Testing strategy
 - `implementation.md` - Implementation plan
 - `migration_and_rollback.md` - Database migrations
-- `dependencies.md` - External dependencies
 
 ## Usage
 
