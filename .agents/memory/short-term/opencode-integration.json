@@ -2,10 +2,12 @@
   "unit": "opencode-integration",
   "current_phase": "orchestrator",
   "status": "completed",
-  "pending_tasks": [],
+  "pending_tasks": [
+    "Review all agent files in .opencode/agents/ (12 files)"
+  ],
   "episodes": [
     { "phase": "orchestrator", "notes": ["QA found issues: BSD/FSD references missing, episodic/semantic examples wrong, QA fix guidance missing. Fixed all issues."], "timestamp": "2026-03-15T20:35:00Z" },
     { "phase": "pre-commit-fix", "notes": ["Fixed pre-commit: added git staging for auto-fixed files (go fmt, eslint --fix)", "Fixed Go version: explicitly use Go 1.26 via get_go() helper", "Fixed test output: removed -v flag to reduce noise", "Fixed flaky integration tests: added -p 1 -count=1 and 100ms subscription delays", "All 8 quality gates now passing consistently"], "timestamp": "2026-03-16T12:34:00Z" }
   ],
-  "last_updated": "2026-03-16T12:34:00Z"
+  "last_updated": "2026-03-16T12:35:00Z"
 }
