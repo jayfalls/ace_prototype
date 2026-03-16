@@ -40,14 +40,11 @@ The standard unit workflow sequence:
 **CRITICAL: Discovery Communication Flow**
 1. Spawn @planning-discovery with initial context
 2. Discovery agent asks questions → Show USER verbatim questions
-3. USER answers → Feed ANSWER verbatim back to discovery agent
+3. USER answers → Feed ANSWER verbatim back to discovery agent (NO additional commands)
 4. Repeat steps 2-3 until discovery signals done
 5. Check full output, proceed to document agent
 
-**NEVER let user and discovery agent communicate directly - orchestrator must be the pass-through for ALL discovery responses.**
-
-- **RE-USE SAME TASK_ID**: When continuing discovery for the same unit, always resume the same task_id to retain context
-- Do NOT spawn new discovery agents for the same unit - resume the existing session
+**NEVER add commands like "please provide recommendations" or "what's next" - only pass the raw user response.**
 
 ## Error Handling
 
