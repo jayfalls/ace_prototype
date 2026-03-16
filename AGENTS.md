@@ -1,43 +1,97 @@
-**CRITICAL** paths are non-negotiable steps, if you don't adhere to any of the **CRITICAL** steps, your work will be invalidated and thrown out.
+# One Document Per PR
 
-# Startup
-- **CRITICAL**: On initialisation before responding to any messages from the user, run the `cd /workspace/project/ace_prototype && ./.openhands/setup.sh` script. This will install all your tooling(go, npm, docker, etc), git hooks & installs the agency_agents files for the agent specialisation tool.
-- MAKE SURE TO RUN THIS SCRIPT BEFORE DOING ANY WORK, THIS MUST ALWAYS BE THE FIRST THING YOU DO!!!
+## General Principles
 
-# Design Documentation (Always Read First!)
-- **CRITICAL**: Always read `design/README.md` before starting any work
+**Always Do Minimal Changes Where Possible**
+- Prefer small, focused changes over large rewrites
+- When fixing issues, only change what's necessary
+- Avoid refactoring unrelated code
+- Make the smallest change that solves the problem
+- This applies to documents, code, and any deliverables
+
+**Always Report Files Affected**
+- Every agent MUST report which files were changed/created in their response
+- This allows the QA agent to check relevant git diffs
+- Include file paths in your final output
+
+Every agent should create ONLY ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn the agent again for each document.
+
+This ensures:
+- Minimal, focused PRs
+- Easier review
+- Clear commit history
+- Iterative validation through QA
+- Always read `design/README.md` before starting any work or responding to any questions
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Agency Specialisation
-- **CRITICAL**: BEFORE EVERY ACTION(Starting a unit, Planning&Creating a document, Creating Issues, Starting a Phase, Writing/Reviewing/Testing code, Responding to the user), MAKE SURE TO USE THE Agency Specialisation SKILL AND DO YOUR Agency Specialisation Activation
+# Memory System
 
-# Project Structure
-The ace_prototype repository is organized as follows:
-- `agency-agents` - Bespoke workflow instructions
-- `design/` - All design documentation for the system
-  - `design/README.md` - Overall system architecture and design
-  - `design/units/` - Individual unit specifications (features, components, refactors)
-- `devops` - Deployment files
-- `documentation/` - Project documentation and changelogs
-  - `documentation/changelogs/` - Daily changelog files
-- `backend/` - Go backend source code (when implemented)
-- `frontend/` - SvelteKit/TypeScript frontend source code (when implemented)
+You have access to memory stores in `.agents/memory/`.
 
-# Documentation Updates
+**Keep it Lean**:
+- Only store essential state
+- Delete completed tasks promptly
 
-**IMPORTANT**: Before making any changelog or documentation updates:
-1. **Check the current date** - Use `date` command to get today's date
-2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
-3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
+**How to update**:
+- Before delegation: Read the file to know current state
+- After delegation: Write updated file with progress
 
-**CRITICAL**: After every commit:
-1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
-2. Update the `design/README.md` if relevant
-3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
-4. Ensure BSD/FSD documents match the actual implementation
-5. Update API documentation if endpoints changed
-6. Update the user wiki documentation/ folder with relevant changes
+**Episodic Memory**: Captured in the `episodes` array in short-term memory. Each episode records what happened in a phase.
+
+**Semantic Memory**: Stored in long-term memory's `learned_patterns` array.
+
+## Long-term Memory
+
+**Location**: `.agents/memory/long-term.json`
+
+**Purpose**: Persistent across all sessions.
+
+**Contains**:
+- `completed_units`: Historical completion data
+- `preferences`: User preferences
+- `learned_patterns`: Patterns from workflows
+
+## Short-term Memory - Per-Unit
+
+**Location**: `.agents/memory/short-term/{unit-name}.json`
+
+**Purpose**: Tracks work-in-progress for a specific unit. Each unit has its own file.
+
+**When to load**: Always try to find the relevant short term memory file for whatever unit you are working on.
+
+**Structure**:
+```json
+{
+  "unit": "observability",
+  "current_phase": "planning-discovery",
+  "status": "in_progress",
+  "pending_tasks": [],
+  "episodes": [
+    {
+      "phase": "planning-discovery",
+      "notes": [],
+      "timestamp": "2026-03-15T12:00:00Z"
+    }
+  ],
+  "last_updated": "2026-03-15T12:00:00Z"
+}
+```
+
+### When a trigger comes in:
+
+1. **Parse the trigger**:
+   - User request: Extract unit name from request
+   - GitHub event: Extract from branch name or PR title/description or Issue title/description
+
+2. **Find matching unit**:
+   - Check `.agents/memory/short-term/{unit}.json`
+   - If not found, check `.agents/memory/long-term.json`
+   - If still not found, ask user
+
+3. **Load memory**: Read the short-term memory file for that unit
+
+4. **Resume**: Continue from the current phase in memory
 
 # Working on the Code
 
@@ -77,6 +131,16 @@ All code changes must include appropriate tests:
 - **E2E Tests**: Required for critical user flows
 
 ## GitHub Workflow
+
+### Unit Reference (CRITICAL)
+Every PR, commit, and issue MUST include the unit name so memory can be loaded on new sessions.
+
+**Format:**
+- PR title: `[unit: opencode-integration] Add memory system`
+- Commit: `feat: add memory system [unit: opencode-integration]`
+- Issue: `[unit: observability] How should we handle logs?`
+
+This allows the orchestrator to resume work from the correct unit memory file.
 
 ### Branch Naming
 - `feature/<description>` - New features

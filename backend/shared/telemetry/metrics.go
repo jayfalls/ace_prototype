@@ -17,8 +17,8 @@ import (
 const (
 	MetricHTTPRequestDuration = "http_request_duration_seconds"
 	MetricHTTPRequestsTotal   = "http_requests_total"
-	MetricHTTPActiveRequests = "http_active_requests"
-	
+	MetricHTTPActiveRequests  = "http_active_requests"
+
 	// NATS metrics
 	MetricNATSMessagesPublished = "nats_messages_published_total"
 	MetricNATSMessagesConsumed  = "nats_messages_consumed_total"
@@ -26,12 +26,12 @@ const (
 
 // Label names (low cardinality only)
 const (
-	LabelServiceName   = "service_name"
-	LabelMethod        = "method"
-	LabelPath          = "path"
-	LabelStatusCode    = "status_code"
-	LabelNATSService  = "nats_service" // Service name for NATS metrics
-	LabelNATSSubject  = "nats_subject" // Subject pattern (e.g., "ace.usage.event")
+	LabelServiceName = "service_name"
+	LabelMethod      = "method"
+	LabelPath        = "path"
+	LabelStatusCode  = "status_code"
+	LabelNATSService = "nats_service" // Service name for NATS metrics
+	LabelNATSSubject = "nats_subject" // Subject pattern (e.g., "ace.usage.event")
 )
 
 // UUID regex pattern (matches standard UUID format)
@@ -51,13 +51,13 @@ var (
 
 // Metrics holds all standard metrics
 type Metrics struct {
-	requestDuration      *prometheus.HistogramVec
-	requestsTotal        *prometheus.CounterVec
-	activeRequests       *prometheus.GaugeVec
+	requestDuration       *prometheus.HistogramVec
+	requestsTotal         *prometheus.CounterVec
+	activeRequests        *prometheus.GaugeVec
 	natsMessagesPublished *prometheus.CounterVec
 	natsMessagesConsumed  *prometheus.CounterVec
-	registry             *prometheus.Registry
-	meter                metric.Meter // OTel meter for potential future use
+	registry              *prometheus.Registry
+	meter                 metric.Meter // OTel meter for potential future use
 }
 
 // getGlobalMetrics returns the singleton metrics instance
@@ -79,7 +79,7 @@ func newMetrics(reg *prometheus.Registry) *Metrics {
 	if reg == nil {
 		reg = prometheus.NewRegistry()
 	}
-	
+
 	metrics := &Metrics{
 		requestDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -118,16 +118,16 @@ func newMetrics(reg *prometheus.Registry) *Metrics {
 			[]string{LabelNATSService, LabelNATSSubject},
 		),
 		registry: reg,
-		meter:     nil,
+		meter:    nil,
 	}
-	
+
 	// Register metrics with the registry
 	reg.MustRegister(metrics.requestDuration)
 	reg.MustRegister(metrics.requestsTotal)
 	reg.MustRegister(metrics.activeRequests)
 	reg.MustRegister(metrics.natsMessagesPublished)
 	reg.MustRegister(metrics.natsMessagesConsumed)
-	
+
 	return metrics
 }
 
@@ -173,8 +173,8 @@ func MetricsMiddleware(serviceName string) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip metrics and health endpoints to avoid recursion
 			// Health check paths: /health, /health/live, /health/ready
-			if r.URL.Path == "/metrics" || r.URL.Path == "/health" || 
-			   r.URL.Path == "/health/live" || r.URL.Path == "/health/ready" {
+			if r.URL.Path == "/metrics" || r.URL.Path == "/health" ||
+				r.URL.Path == "/health/live" || r.URL.Path == "/health/ready" {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -295,7 +295,7 @@ type metricsRecorder struct {
 func NewMetricsRecorder(serviceName string) MetricsRecorder {
 	return &metricsRecorder{
 		serviceName: serviceName,
-		metrics:    getGlobalMetrics(),
+		metrics:     getGlobalMetrics(),
 	}
 }
 

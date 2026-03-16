@@ -23,16 +23,16 @@ func TestConfig(t *testing.T) {
 
 func TestUsageEventJSON(t *testing.T) {
 	_ = UsageEvent{
-		AgentID:        "agent-123",
-		CycleID:        "cycle-456",
-		SessionID:      "session-789",
-		ServiceName:    "api",
-		OperationType:  OperationTypeLLMCall,
-		ResourceType:   ResourceTypeAPI,
-		CostUSD:        0.05,
-		DurationMs:     1500,
-		TokenCount:     1000,
-		Metadata:       map[string]string{"model": "gpt-4"},
+		AgentID:       "agent-123",
+		CycleID:       "cycle-456",
+		SessionID:     "session-789",
+		ServiceName:   "api",
+		OperationType: OperationTypeLLMCall,
+		ResourceType:  ResourceTypeAPI,
+		CostUSD:       0.05,
+		DurationMs:    1500,
+		TokenCount:    1000,
+		Metadata:      map[string]string{"model": "gpt-4"},
 	}
 
 	// Verify operation type constant
@@ -104,7 +104,7 @@ func TestInit(t *testing.T) {
 		require.NotNil(t, telemetry)
 		require.NotNil(t, telemetry.Logger)
 		require.NotNil(t, telemetry.Shutdown)
-		
+
 		// Test shutdown
 		err := telemetry.Shutdown(ctx)
 		assert.NoError(t, err)
@@ -131,7 +131,7 @@ func TestSpanAttributesJSON(t *testing.T) {
 
 	jsonBytes, err := attrs.MarshalJSON()
 	require.NoError(t, err)
-	
+
 	// Verify JSON contains expected keys
 	assert.Contains(t, string(jsonBytes), "agent_id")
 	assert.Contains(t, string(jsonBytes), "cycle_id")
@@ -196,10 +196,10 @@ func TestNATSCarrier_WithHeader(t *testing.T) {
 		Header:  nats.Header{"traceparent": []string{"00-abc-123"}},
 	}
 	carrier := NATSCarrier{msg: msg}
-	
+
 	assert.Equal(t, "00-abc-123", carrier.Get("traceparent"))
 	assert.Contains(t, carrier.Keys(), "traceparent")
-	
+
 	carrier.Set("tracestate", "vendor=custom")
 	assert.Equal(t, "vendor=custom", carrier.Get("tracestate"))
 }

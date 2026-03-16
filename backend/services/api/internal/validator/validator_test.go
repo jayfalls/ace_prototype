@@ -27,7 +27,7 @@ func TestValidateStruct_Valid(t *testing.T) {
 
 func TestValidateStruct_Invalid(t *testing.T) {
 	testStruct := TestStruct{
-		Name:  "A", // too short (min=2)
+		Name:  "A",       // too short (min=2)
 		Email: "invalid", // not an email
 	}
 

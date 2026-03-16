@@ -11,17 +11,17 @@ import (
 
 // MockJetStreamManager is a mock implementation of nats.JetStreamManager for testing.
 type MockJetStreamManager struct {
-	StreamConfigs  map[string]*nats.StreamConfig
+	StreamConfigs   map[string]*nats.StreamConfig
 	ConsumerConfigs map[string]map[string]*nats.ConsumerConfig
-	AddStreamErr   error
-	AddConsumerErr error
-	StreamInfoErr error
+	AddStreamErr    error
+	AddConsumerErr  error
+	StreamInfoErr   error
 	DeleteStreamErr error
 }
 
 func NewMockJetStreamManager() *MockJetStreamManager {
 	return &MockJetStreamManager{
-		StreamConfigs:  make(map[string]*nats.StreamConfig),
+		StreamConfigs:   make(map[string]*nats.StreamConfig),
 		ConsumerConfigs: make(map[string]map[string]*nats.ConsumerConfig),
 	}
 }
@@ -286,7 +286,7 @@ func TestCreateConsumerWithDLQ(t *testing.T) {
 		ConsumerName:  "test-consumer",
 		FilterSubject: "ace.engine.>",
 		MaxDeliver:    3,
-		AckWait:      30 * time.Second,
+		AckWait:       30 * time.Second,
 	}
 
 	err = CreateConsumerWithDLQ(ctx, mock, dlqCfg)

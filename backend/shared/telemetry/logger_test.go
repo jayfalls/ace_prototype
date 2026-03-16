@@ -28,12 +28,12 @@ func TestNewLoggerProduction(t *testing.T) {
 func TestNewLoggerJSONOutput(t *testing.T) {
 	// Create a buffer to capture output
 	buf, testLogger := createTestLogger()
-	
+
 	testLogger.Info("test message")
 	testLogger.Sync()
 
 	output := buf.String()
-	
+
 	// Parse JSON
 	var logEntry map[string]interface{}
 	err := json.Unmarshal([]byte(output), &logEntry)
@@ -56,18 +56,18 @@ func TestNewLoggerDebugLevel(t *testing.T) {
 	buf, testLogger := createTestLoggerWithLevel(zapcore.DebugLevel)
 	testLogger.Debug("debug test")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	assert.Contains(t, output, "debug test")
 }
 
 func TestNewLoggerWithFields(t *testing.T) {
 	fields := LogFields{
-		TraceID:      "trace-123",
-		SpanID:      "span-456",
-		AgentID:     "agent-789",
-		CycleID:     "cycle-001",
-		SessionID:   "session-002",
+		TraceID:       "trace-123",
+		SpanID:        "span-456",
+		AgentID:       "agent-789",
+		CycleID:       "cycle-001",
+		SessionID:     "session-002",
 		CorrelationID: "corr-003",
 	}
 
@@ -93,14 +93,14 @@ func TestNewLoggerWithFields(t *testing.T) {
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 	core := zapcore.NewCore(encoder, zapcore.AddSync(buf), zapcore.InfoLevel)
 	testLogger := zap.New(core)
-	
+
 	// Add fields to the test logger (simulating what NewLoggerWithFields does)
 	testLogger = fields.AddFields(testLogger)
 	testLogger = testLogger.With(zap.String("service_name", "test-service"))
-	
+
 	testLogger.Info("test with fields")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	var logEntry map[string]interface{}
 	err = json.Unmarshal([]byte(output), &logEntry)
@@ -117,7 +117,7 @@ func TestNewLoggerWithFields(t *testing.T) {
 
 func TestNewLoggerPartialFields(t *testing.T) {
 	fields := LogFields{
-		AgentID:  "agent-789",
+		AgentID: "agent-789",
 		CycleID: "cycle-001",
 	}
 
@@ -143,14 +143,14 @@ func TestNewLoggerPartialFields(t *testing.T) {
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 	core := zapcore.NewCore(encoder, zapcore.AddSync(buf), zapcore.InfoLevel)
 	testLogger := zap.New(core)
-	
+
 	// Add fields to the test logger (simulating what NewLoggerWithFields does)
 	testLogger = fields.AddFields(testLogger)
 	testLogger = testLogger.With(zap.String("service_name", "test-service"))
-	
+
 	testLogger.Info("test with partial fields")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	var logEntry map[string]interface{}
 	err = json.Unmarshal([]byte(output), &logEntry)
@@ -159,7 +159,7 @@ func TestNewLoggerPartialFields(t *testing.T) {
 	// Verify only set fields
 	assert.Equal(t, "agent-789", logEntry["agent_id"])
 	assert.Equal(t, "cycle-001", logEntry["cycle_id"])
-	
+
 	// Verify unset fields are not present
 	assert.NotContains(t, logEntry, "trace_id")
 	assert.NotContains(t, logEntry, "span_id")
@@ -172,9 +172,9 @@ func TestLogFieldsAddFields(t *testing.T) {
 	require.NoError(t, err)
 
 	fields := LogFields{
-		TraceID:   "trace-123",
-		AgentID:   "agent-456",
-		CycleID:   "cycle-789",
+		TraceID: "trace-123",
+		AgentID: "agent-456",
+		CycleID: "cycle-789",
 	}
 
 	loggerWithFields := fields.AddFields(logger)
@@ -192,7 +192,7 @@ func TestNewLoggerWarnLevel(t *testing.T) {
 	buf, testLogger := createTestLoggerWithLevel(zapcore.WarnLevel)
 	testLogger.Warn("warning message")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	var logEntry map[string]interface{}
 	err := json.Unmarshal([]byte(output), &logEntry)
@@ -205,7 +205,7 @@ func TestNewLoggerErrorLevel(t *testing.T) {
 	buf, testLogger := createTestLoggerWithLevel(zapcore.ErrorLevel)
 	testLogger.Error("error message")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	var logEntry map[string]interface{}
 	err := json.Unmarshal([]byte(output), &logEntry)
@@ -218,12 +218,12 @@ func TestNewLoggerTimestamp(t *testing.T) {
 	buf, testLogger := createTestLogger()
 	testLogger.Info("timestamp test")
 	testLogger.Sync()
-	
+
 	output := buf.String()
 	var logEntry map[string]interface{}
 	err := json.Unmarshal([]byte(output), &logEntry)
 	require.NoError(t, err)
-	
+
 	// Verify timestamp exists and is in ISO8601 format
 	assert.Contains(t, logEntry, "timestamp")
 	timestamp, ok := logEntry["timestamp"].(string)
@@ -239,7 +239,7 @@ func createTestLogger() (*bytes.Buffer, *zap.Logger) {
 // createTestLoggerWithLevel creates a test logger with a specific level that writes to a buffer
 func createTestLoggerWithLevel(level zapcore.Level) (*bytes.Buffer, *zap.Logger) {
 	buf := &bytes.Buffer{}
-	
+
 	// Create encoder config matching NewLogger
 	encoderConfig := zapcore.EncoderConfig{
 		TimeKey:        "timestamp",
@@ -254,13 +254,13 @@ func createTestLoggerWithLevel(level zapcore.Level) (*bytes.Buffer, *zap.Logger)
 		EncodeDuration: zapcore.SecondsDurationEncoder,
 		EncodeName:     zapcore.FullNameEncoder,
 	}
-	
+
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 	core := zapcore.NewCore(encoder, zapcore.AddSync(buf), level)
-	
+
 	logger := zap.New(core)
 	logger = logger.With(zap.String("service_name", "test-service"))
-	
+
 	return buf, logger
 }
 

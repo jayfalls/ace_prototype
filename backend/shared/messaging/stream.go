@@ -41,10 +41,10 @@ var StreamConfigs = []StreamConfig{
 			"ace.llm.response",
 		},
 		Retention: nats.LimitsPolicy,
-		MaxBytes: 1 * 1024 * 1024 * 1024, // 1GB
-		MaxAge:   24 * time.Hour,
-		Storage:  nats.FileStorage,
-		Replicas: 1,
+		MaxBytes:  1 * 1024 * 1024 * 1024, // 1GB
+		MaxAge:    24 * time.Hour,
+		Storage:   nats.FileStorage,
+		Replicas:  1,
 	},
 	{
 		Name:        "USAGE",
@@ -53,10 +53,10 @@ var StreamConfigs = []StreamConfig{
 			"ace.usage.>",
 		},
 		Retention: nats.LimitsPolicy,
-		MaxBytes: 100 * 1024 * 1024,        // 100MB
-		MaxAge:   30 * 24 * time.Hour,      // 30 days
-		Storage:  nats.FileStorage,
-		Replicas: 1,
+		MaxBytes:  100 * 1024 * 1024,   // 100MB
+		MaxAge:    30 * 24 * time.Hour, // 30 days
+		Storage:   nats.FileStorage,
+		Replicas:  1,
 	},
 	{
 		Name:        "SYSTEM",
@@ -65,9 +65,9 @@ var StreamConfigs = []StreamConfig{
 			"ace.system.>",
 		},
 		Retention: nats.WorkQueuePolicy,
-		MaxBytes: 10 * 1024 * 1024, // 10MB
-		Storage:  nats.MemoryStorage,
-		Replicas: 1,
+		MaxBytes:  10 * 1024 * 1024, // 10MB
+		Storage:   nats.MemoryStorage,
+		Replicas:  1,
 	},
 }
 
@@ -126,16 +126,16 @@ type ConsumerConfig struct {
 // DefaultConsumerConfig returns default consumer configuration.
 func DefaultConsumerConfig(stream, consumer, filterSubject string) ConsumerConfig {
 	return ConsumerConfig{
-		Stream:          stream,
-		Consumer:        consumer,
-		Durable:         consumer,
-		DeliverSubject:  consumer,
-		FilterSubject:   filterSubject,
-		DeliverPolicy:   nats.DeliverNewPolicy,
-		AckPolicy:       nats.AckExplicitPolicy,
-		AckWait:         30 * time.Second,
-		MaxDeliver:      3,
-		QueueGroup:      "",
+		Stream:         stream,
+		Consumer:       consumer,
+		Durable:        consumer,
+		DeliverSubject: consumer,
+		FilterSubject:  filterSubject,
+		DeliverPolicy:  nats.DeliverNewPolicy,
+		AckPolicy:      nats.AckExplicitPolicy,
+		AckWait:        30 * time.Second,
+		MaxDeliver:     3,
+		QueueGroup:     "",
 	}
 }
 

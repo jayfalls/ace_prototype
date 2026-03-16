@@ -25,18 +25,18 @@ type UsageEvent struct {
 
 // Operation type constants
 const (
-	OperationTypeLLMCall        = "llm_call"
-	OperationTypeMemoryRead     = "memory_read"
-	OperationTypeMemoryWrite    = "memory_write"
-	OperationTypeToolExecute    = "tool_execute"
-	OperationTypeDBQuery        = "db_query"
-	OperationTypeNATSPublish    = "nats_publish"
-	OperationTypeNATSSubscribe  = "nats_subscribe"
+	OperationTypeLLMCall       = "llm_call"
+	OperationTypeMemoryRead    = "memory_read"
+	OperationTypeMemoryWrite   = "memory_write"
+	OperationTypeToolExecute   = "tool_execute"
+	OperationTypeDBQuery       = "db_query"
+	OperationTypeNATSPublish   = "nats_publish"
+	OperationTypeNATSSubscribe = "nats_subscribe"
 )
 
 // Resource type constants
 const (
-	ResourceTypeAPI        = "api"
+	ResourceTypeAPI       = "api"
 	ResourceTypeMemory    = "memory"
 	ResourceTypeTool      = "tool"
 	ResourceTypeDatabase  = "database"

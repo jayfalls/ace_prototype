@@ -174,13 +174,13 @@ func SubscribeToStreamWithEnvelopeAndSubject(ctx context.Context, client Client,
 
 // StreamSubscriptionConfig holds configuration for stream subscriptions.
 type StreamSubscriptionConfig struct {
-	Stream        string
-	Consumer      string
-	Subject       string
-	Handler       func(*nats.Msg) error
-	AutoAck       bool
-	MaxAckWait    time.Duration
-	MaxDeliver    int
+	Stream     string
+	Consumer   string
+	Subject    string
+	Handler    func(*nats.Msg) error
+	AutoAck    bool
+	MaxAckWait time.Duration
+	MaxDeliver int
 }
 
 // SubscribeToStreamWithConfig creates a JetStream subscription with detailed configuration.

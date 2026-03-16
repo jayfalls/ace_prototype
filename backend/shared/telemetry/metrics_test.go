@@ -231,13 +231,13 @@ func TestIsAlphanumericID(t *testing.T) {
 		{"abc123def456", true},
 		{"ABC123DEF456", true},
 		{"550e8400e29b41d4a716446655440000", true},
-		{"12345678", true},     // 8 chars - all digits
-		{"123abcde", true},     // 8 chars - mixed
-		{"abc12345", true},     // 8 chars - mixed
+		{"12345678", true}, // 8 chars - all digits
+		{"123abcde", true}, // 8 chars - mixed
+		{"abc12345", true}, // 8 chars - mixed
 		{"", false},
-		{"abc123", false},      // too short (6 chars)
-		{"abcdefgh", false},    // too short, no digits
-		{"abc-123", false},     // contains hyphen
+		{"abc123", false},   // too short (6 chars)
+		{"abcdefgh", false}, // too short, no digits
+		{"abc-123", false},  // contains hyphen
 	}
 
 	for _, tt := range tests {
@@ -255,12 +255,12 @@ func TestGetPathLabelTruncatesLongPath(t *testing.T) {
 func TestRegisterMetrics(t *testing.T) {
 	handler := RegisterMetrics()
 	assert.NotNil(t, handler)
-	
+
 	// Verify it's a valid http.Handler
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	handler.ServeHTTP(rec, req)
-	
+
 	// Should return 200 with Prometheus content
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Header().Get("Content-Type"), "text/plain")
@@ -268,13 +268,13 @@ func TestRegisterMetrics(t *testing.T) {
 
 func TestMetricsRecorderInterface(t *testing.T) {
 	rec := NewMetricsRecorder("test-service")
-	
+
 	// Test that it implements the interface
 	var _ MetricsRecorder = rec
-	
+
 	// Test recording
 	rec.RecordRequest("GET", "/api/test", 200, 100*1000*1000) // 100ms in nanoseconds
-	
+
 	// Record some more requests
 	rec.RecordRequest("POST", "/api/users", 201, 50*1000*1000)
 	rec.RecordRequest("GET", "/api/users", 500, 200*1000*1000)
@@ -282,7 +282,7 @@ func TestMetricsRecorderInterface(t *testing.T) {
 
 func TestMetricsRecorderIncrementDecrement(t *testing.T) {
 	rec := NewMetricsRecorder("test-service")
-	
+
 	rec.IncrementActiveRequests()
 	rec.IncrementActiveRequests()
 	rec.DecrementActiveRequests()
@@ -304,20 +304,20 @@ func TestLabelConstants(t *testing.T) {
 
 func TestMetricsMiddlewareWithVariousMethods(t *testing.T) {
 	methods := []string{"GET", "POST", "PUT", "DELETE", "PATCH"}
-	
+
 	for _, method := range methods {
 		t.Run(method, func(t *testing.T) {
 			testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})
-			
+
 			middleware := MetricsMiddleware("test-service")
 			handler := middleware(testHandler)
-			
+
 			req := httptest.NewRequest(method, "/test", nil)
 			w := httptest.NewRecorder()
 			handler.ServeHTTP(w, req)
-			
+
 			assert.Equal(t, http.StatusOK, w.Code)
 		})
 	}
@@ -346,12 +346,12 @@ func TestMetricsPrometheusFormat(t *testing.T) {
 
 	// Verify Prometheus format
 	body := rec.Body.String()
-	
+
 	// Check for metric names
 	assert.Contains(t, body, "http_request_duration_seconds")
 	assert.Contains(t, body, "http_requests_total")
 	assert.Contains(t, body, "http_active_requests")
-	
+
 	// Check for labels
 	assert.Contains(t, body, "service_name")
 	assert.Contains(t, body, "method")
@@ -362,15 +362,15 @@ func TestMetricsPrometheusFormat(t *testing.T) {
 func TestNoHighCardinalityLabels(t *testing.T) {
 	// Create and register new metrics to test cardinality
 	rec := NewMetricsRecorder("cardinality-test")
-	
+
 	// Record many different paths
 	for i := 0; i < 100; i++ {
 		rec.RecordRequest("GET", "/api/item/"+strconv.Itoa(i), 200, 10000000)
 	}
-	
+
 	// Record with different users (should NOT be a label)
 	// This is just to verify the design - agentId should NOT be in labels
-	
+
 	// The metrics should only have low-cardinality labels
 	// This test passes if the code compiles and runs without agentId
 }
@@ -393,7 +393,7 @@ func TestMetricsMiddlewareConcurrent(t *testing.T) {
 			done <- true
 		}()
 	}
-	
+
 	// Wait for all to complete
 	for i := 0; i < 10; i++ {
 		<-done
@@ -402,23 +402,23 @@ func TestMetricsMiddlewareConcurrent(t *testing.T) {
 
 func TestMetricsEndToEnd(t *testing.T) {
 	require := require.New(t)
-	
+
 	// Create recorder
 	rec := NewMetricsRecorder("e2e-test")
-	
+
 	// Simulate request lifecycle
 	rec.IncrementActiveRequests()
 	rec.RecordRequest("GET", "/api/users", 200, 50*1000*1000)
 	rec.DecrementActiveRequests()
-	
+
 	// Get metrics
 	metricsHandler := RegisterMetrics()
 	rec2 := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/metrics", nil)
 	metricsHandler.ServeHTTP(rec2, req)
-	
+
 	require.Equal(http.StatusOK, rec2.Code)
-	
+
 	// Verify content
 	body := rec2.Body.String()
 	require.Contains(body, "http_request_duration_seconds")

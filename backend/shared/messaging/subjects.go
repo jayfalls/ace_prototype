@@ -9,12 +9,12 @@ import (
 var (
 	prefixRegex = regexp.MustCompile(`^ace\.[a-z]+\.`)
 
-	enginePattern   = regexp.MustCompile(`^ace\.engine\.[^.]+\.(layer|loop)\.[^.]+\.(input|output|status)$`)
-	memoryPattern   = regexp.MustCompile(`^ace\.memory\.[^.]+\.(store|query|result)$`)
-	toolsPattern    = regexp.MustCompile(`^ace\.tools\.[^.]+\.[^.]+\.(invoke|result)$`)
-	sensesPattern   = regexp.MustCompile(`^ace\.senses\.[^.]+\.[^.]+\.event$`)
-	llmPattern      = regexp.MustCompile(`^ace\.llm\.[^.]+\.(request|response)$`)
-	usagePattern    = regexp.MustCompile(`^ace\.usage\.[^.]+\.(token|cost)$`)
+	enginePattern       = regexp.MustCompile(`^ace\.engine\.[^.]+\.(layer|loop)\.[^.]+\.(input|output|status)$`)
+	memoryPattern       = regexp.MustCompile(`^ace\.memory\.[^.]+\.(store|query|result)$`)
+	toolsPattern        = regexp.MustCompile(`^ace\.tools\.[^.]+\.[^.]+\.(invoke|result)$`)
+	sensesPattern       = regexp.MustCompile(`^ace\.senses\.[^.]+\.[^.]+\.event$`)
+	llmPattern          = regexp.MustCompile(`^ace\.llm\.[^.]+\.(request|response)$`)
+	usagePattern        = regexp.MustCompile(`^ace\.usage\.[^.]+\.(token|cost)$`)
 	systemAgentsPattern = regexp.MustCompile(`^ace\.system\.agents\.(spawn|shutdown)$`)
 	systemHealthPattern = regexp.MustCompile(`^ace\.system\.health\.[^.]+$`)
 )
@@ -26,7 +26,7 @@ type Subject string
 const (
 	SubjectEngineLayerInput  Subject = "ace.engine.%s.layer.%s.input"
 	SubjectEngineLayerOutput Subject = "ace.engine.%s.layer.%s.output"
-	SubjectEngineLoopStatus Subject = "ace.engine.%s.loop.%s.status"
+	SubjectEngineLoopStatus  Subject = "ace.engine.%s.loop.%s.status"
 )
 
 // Memory subjects
@@ -61,9 +61,9 @@ const (
 
 // System subjects
 const (
-	SubjectSystemAgentsSpawn   Subject = "ace.system.agents.spawn"
+	SubjectSystemAgentsSpawn    Subject = "ace.system.agents.spawn"
 	SubjectSystemAgentsShutdown Subject = "ace.system.agents.shutdown"
-	SubjectSystemHealth        Subject = "ace.system.health.%s"
+	SubjectSystemHealth         Subject = "ace.system.health.%s"
 )
 
 // Format returns the subject with interpolated values.
@@ -74,7 +74,7 @@ func (s Subject) Format(args ...interface{}) string {
 // Validate checks if the subject matches expected patterns.
 func (s Subject) Validate() error {
 	subject := string(s)
-	
+
 	// Check for empty subject
 	if subject == "" {
 		return &MessagingError{
@@ -82,7 +82,7 @@ func (s Subject) Validate() error {
 			Message: "subject cannot be empty",
 		}
 	}
-	
+
 	// Check if subject starts with "ace." prefix
 	if !prefixRegex.MatchString(subject) {
 		return &MessagingError{
@@ -90,7 +90,7 @@ func (s Subject) Validate() error {
 			Message: "subject must start with 'ace.<domain>.'",
 		}
 	}
-	
+
 	// Validate specific subject patterns using pre-compiled regex
 	patterns := []struct {
 		regex   *regexp.Regexp
@@ -105,13 +105,13 @@ func (s Subject) Validate() error {
 		{systemAgentsPattern, "system agents subject invalid format"},
 		{systemHealthPattern, "system health subject invalid format"},
 	}
-	
+
 	for _, p := range patterns {
 		if p.regex.MatchString(subject) {
 			return nil
 		}
 	}
-	
+
 	return &MessagingError{
 		Code:    "INVALID_SUBJECT",
 		Message: fmt.Sprintf("subject '%s' does not match any known pattern", subject),

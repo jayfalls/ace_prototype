@@ -7,9 +7,9 @@ import (
 
 func TestErrorTypes(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		wantMsg  string
+		name    string
+		err     error
+		wantMsg string
 	}{
 		{
 			name:    "ErrConnectionFailed",

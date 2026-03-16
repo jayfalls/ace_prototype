@@ -16,9 +16,9 @@ type APIResponse struct {
 
 // APIError represents an error response
 type APIError struct {
-	Code      string         `json:"code"`
-	Message   string         `json:"message"`
-	Details   []FieldError   `json:"details,omitempty"`
+	Code    string       `json:"code"`
+	Message string       `json:"message"`
+	Details []FieldError `json:"details,omitempty"`
 }
 
 // FieldError represents a validation error for a specific field

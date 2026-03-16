@@ -1,21 +1,23 @@
 # Getting Started
 
+## Prerequisites
+
+- Docker or Podman
+
 ## Quick Start
 
+- Clone the repo
 ```bash
-# Clone the repository
 git clone https://github.com/jayfalls/ace_prototype.git
 cd ace_prototype
+```
 
-# Start all services
+- Run the ACE
+```bash
 make up
 ```
 
-## Configuration
-
-Copy `.env.example` to `.env` if you want to customize any settings.
-
-## Make Commands
+### Make Commands
 
 | Command | Description |
 |---------|-------------|
@@ -30,7 +32,6 @@ Copy `.env.example` to `.env` if you want to customize any settings.
 | `make clean` | Remove all containers and volumes |
 | `make build` | Build all images |
 | `make ps` | Show running containers |
-| `make test` | Run all tests (API + Frontend) |
 | `make help` | Show available commands |
 
 ## Services
@@ -41,11 +42,3 @@ Copy `.env.example` to `.env` if you want to customize any settings.
 | API | http://localhost:8080 |
 | PostgreSQL | localhost:5432 |
 | NATS | localhost:4222 |
-
-## Health Check
-
-Check API and database health:
-```bash
-curl http://localhost:8080/health
-# Returns: {"status":"OK","db":"healthy"}
-```

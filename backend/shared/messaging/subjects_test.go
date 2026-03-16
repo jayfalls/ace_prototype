@@ -112,32 +112,32 @@ func TestSubjectValidate(t *testing.T) {
 		{"engine layer input", SubjectEngineLayerInput.Format("agent-1", "2"), false},
 		{"engine layer output", SubjectEngineLayerOutput.Format("agent-1", "3"), false},
 		{"engine loop status", SubjectEngineLoopStatus.Format("agent-1", "main"), false},
-		
+
 		// Memory subjects
 		{"memory store", SubjectMemoryStore.Format("agent-1"), false},
 		{"memory query", SubjectMemoryQuery.Format("agent-1"), false},
 		{"memory result", SubjectMemoryResult.Format("agent-1"), false},
-		
+
 		// Tools subjects
 		{"tools invoke", SubjectToolsInvoke.Format("agent-1", "browse"), false},
 		{"tools result", SubjectToolsResult.Format("agent-1", "browse"), false},
-		
+
 		// Senses subjects
 		{"senses event", SubjectSensesEvent.Format("agent-1", "chat"), false},
-		
+
 		// LLM subjects
 		{"llm request", SubjectLLMRequest.Format("agent-1"), false},
 		{"llm response", SubjectLLMResponse.Format("agent-1"), false},
-		
+
 		// Usage subjects
 		{"usage token", SubjectUsageToken.Format("agent-1"), false},
 		{"usage cost", SubjectUsageCost.Format("agent-1"), false},
-		
+
 		// System subjects
 		{"system agents spawn", string(SubjectSystemAgentsSpawn), false},
 		{"system agents shutdown", string(SubjectSystemAgentsShutdown), false},
 		{"system health", SubjectSystemHealth.Format("api"), false},
-		
+
 		// Invalid subjects
 		{"invalid", "invalid.subject", true},
 		{"ace invalid", "ace.invalid", true},
