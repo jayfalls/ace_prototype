@@ -21,6 +21,7 @@ Research technologies and create research documentation for a unit.
 - Read `design/units/{UNIT_NAME}/fsd.md` first (functional requirements)
 - Read `design/units/{UNIT_NAME}/user_stories.md`
 - Read `design/README.md` for ACE Framework patterns
+- Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 
 ## Documents Created
@@ -61,8 +62,12 @@ Skill: unit-planning
 
 ## Output
 
-Create in `design/units/{UNIT_NAME}/`:
-- `research.md`
-- `dependencies.md`
+The orchestrator will spawn this agent TWICE if needed (once per document).
 
-Return file paths and technology recommendations.
+**Create ONE of:**
+- `research.md` - technology evaluation and trade-offs
+- `dependencies.md` - external dependencies and version constraints
+
+If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
+
+Return the file path created and technology recommendations.

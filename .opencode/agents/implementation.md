@@ -21,6 +21,7 @@ Create implementation plan with micro-PR breakdown for a unit.
 - Read `design/units/{UNIT_NAME}/api.md`
 - Read `design/units/{UNIT_NAME}/fsd.md`
 - Read `design/README.md` for ACE Framework patterns
+- Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 
 ## Documents Created
@@ -69,9 +70,13 @@ Each micro-PR should:
 
 ## Output
 
-Create in `design/units/{UNIT_NAME}/`:
-- `implementation.md`
-- `security.md`
-- `migration_and_rollback.md`
+The orchestrator will spawn this agent THREE times if needed (once per document).
 
-Return file paths and micro-PR breakdown.
+**Create ONE of:**
+- `implementation.md` - micro-PR breakdown and task breakdown
+- `security.md` - security considerations and authentication
+- `migration_and_rollback.md` - database migrations and rollback procedures
+
+If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
+
+Return the file path created and micro-PR breakdown.

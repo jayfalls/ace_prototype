@@ -22,6 +22,7 @@ Create testing strategy and UI mockup documents for a unit.
 - Read `design/units/{UNIT_NAME}/architecture.md`
 - Read `design/units/{UNIT_NAME}/fsd.md`
 - Read `design/README.md` for ACE Framework patterns
+- Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 
 ## Documents Created
@@ -57,8 +58,12 @@ Skill: unit-planning
 
 ## Output
 
-Create in `design/units/{UNIT_NAME}/`:
-- `testing.md`
-- `mockups.md`
+The orchestrator will spawn this agent TWICE if needed (once per document).
 
-Return file paths and test strategy summary.
+**Create ONE of:**
+- `testing.md` - unit, integration, E2E test requirements
+- `mockups.md` - UI wireframes and component hierarchy
+
+If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
+
+Return the file path created and test strategy summary.

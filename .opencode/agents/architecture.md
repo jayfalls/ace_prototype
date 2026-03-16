@@ -21,6 +21,7 @@ Create technical architecture documents for a unit.
 - Read `design/units/{UNIT_NAME}/fsd.md`
 - Read `design/units/{UNIT_NAME}/dependencies.md`
 - Read `design/README.md` for ACE Framework patterns
+- Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 
 ## Documents Created
@@ -63,9 +64,13 @@ Skill: unit-planning
 
 ## Output
 
-Create in `design/units/{UNIT_NAME}/`:
-- `architecture.md`
-- `api.md`
-- `monitoring.md`
+The orchestrator will spawn this agent THREE times if needed (once per document).
 
-Return file paths and architecture summary.
+**Create ONE of:**
+- `architecture.md` - system components and data flow
+- `api.md` - REST endpoints and request/response schemas
+- `monitoring.md` - metrics, logging, and alerts
+
+If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
+
+Return the file path created and architecture summary.
