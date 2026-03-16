@@ -7,9 +7,21 @@
 set +euo pipefail
 
 # Add Go 1.26 to PATH if installed
-if [ -d "/usr/local/go/bin" ]; then
-    export PATH="/usr/local/go/bin:$PATH"
+GO126_PATH="/usr/local/go/bin"
+if [ -d "$GO126_PATH" ]; then
+    export PATH="$GO126_PATH:$PATH"
 fi
+
+# Helper to get Go command (prefer Go 1.26 if available)
+get_go() {
+    if [ -x "$GO126_PATH/go" ]; then
+        echo "$GO126_PATH/go"
+    else
+        echo "go"
+    fi
+}
+
+GO_CMD=$(get_go)
 
 # Get the directory where this script is located
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
@@ -71,10 +83,10 @@ if [ ! -f "go.work" ]; then
     log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
+    for module in $($GO_CMD work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Building $module..."
-            if ! (cd "$module" && go build ./...) 2>&1; then
+            if ! (cd "$module" && $GO_CMD build ./...) 2>&1; then
                 log_error "Build failed in $module"
                 FAILED=1
             fi
@@ -96,13 +108,13 @@ if [ ! -f "go.work" ]; then
     log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
+    for module in $($GO_CMD work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Formatting $module..."
-            (cd "$module" && go fmt ./...) 2>&1 || true
+            (cd "$module" && $GO_CMD fmt ./...) 2>&1 || true
             
             log_info "Vetting $module..."
-            if ! (cd "$module" && go vet ./...) 2>&1; then
+            if ! (cd "$module" && $GO_CMD vet ./...) 2>&1; then
                 log_error "Go vet failed in $module"
                 FAILED=1
             fi
@@ -128,11 +140,11 @@ if [ ! -f "go.work" ]; then
     log_skip "No Go workspace found, skipping"
     ((SKIPPED++))
 else
-    for module in $(go work edit -json | jq -r '.Use[] | .DiskPath'); do
+    for module in $($GO_CMD work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Testing $module..."
             # Run only unit tests (skip integration tests)
-            if ! (cd "$module" && go test -v -short ./...) 2>&1; then
+            if ! (cd "$module" && $GO_CMD test -short ./...) 2>&1; then
                 log_error "Tests failed in $module"
                 FAILED=1
             fi
@@ -152,7 +164,7 @@ cd "$REPO_ROOT/backend"
 
 SQLC_EXISTS=false
 
-for module in $(go work edit -json 2>/dev/null | jq -r '.Use[] | .DiskPath' 2>/dev/null || echo ""); do
+for module in $($GO_CMD work edit -json 2>/dev/null | jq -r '.Use[] | .DiskPath' 2>/dev/null || echo ""); do
     if [ -d "$module" ] && [ -f "$module/sqlc.yaml" ]; then
         # Check if queries directory exists and has files
         QUERY_DIR=$(cd "$module" && grep -A5 "queries:" sqlc.yaml 2>/dev/null | grep "path:" | head -1 | awk '{print $2}')
