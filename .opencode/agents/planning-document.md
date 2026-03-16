@@ -15,10 +15,6 @@ Activate **Technical Writer** (from `agency-agents/content/technical-writer.md`)
 
 Create `problem_space.md` and `bsd.md` in the unit directory.
 
-**Sequence**: 
-1. First, create/update `problem_space.md` (problem space first, always)
-2. Then create `bsd.md` (BSD builds on problem space)
-
 **Note**: The orchestrator will spawn this agent twice to ensure proper QA separation.
 
 ## Context
