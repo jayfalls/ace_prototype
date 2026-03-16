@@ -96,6 +96,16 @@ If a phase requires multiple documents:
 
 This ensures minimal, focused PRs.
 
+## Always Reuse Sub Agents
+
+**CRITICAL**: If a subagent for this unit already exists and is relevant, ALWAYS reuse it (via task_id) instead of spawning a new one.
+
+- Check memory for existing task_id for this agent and unit
+- Resume existing session to preserve context
+- Only spawn new if no relevant session exists
+
+This ensures continuity and preserves conversation context.
+
 ## Creating New Agents
 
 When you need a new specialized agent:

@@ -23,6 +23,7 @@ Define user requirements and functional specifications for a unit.
 - Read `design/README.md` for ACE Framework patterns
 - Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
+- **Reference**: Activate the `unit-planning` skill for templates and structure
 
 ## Documents Created
 
