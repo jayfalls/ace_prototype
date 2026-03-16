@@ -88,9 +88,9 @@ The standard unit workflow sequence:
 **CRITICAL**: Every subagent should create ONLY ONE document per session/PR.
 
 If a phase requires multiple documents:
-1. Spawn subagent for first document
+1. Spawn subagent with context specifying WHICH document to create
 2. Run QA
-3. Spawn subagent again for second document
+3. Spawn subagent again with context for next document
 4. Run QA
 ...and so on
 

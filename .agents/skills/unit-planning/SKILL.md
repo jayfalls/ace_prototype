@@ -62,3 +62,10 @@ When creating a design document:
 2. Follow the document sequence above
 3. Fill in the template based on the unit context
 4. Save to `design/units/{UNIT_NAME}/{template_name}.md`
+
+## Handling Existing Documents
+
+If a document already exists:
+- Read it for context
+- If new information from earlier documents invalidates any part, correct only those specific sections
+- Do not rewrite the entire document unless explicitly instructed
