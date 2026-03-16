@@ -50,19 +50,6 @@ Skill: unit-planning
 - `.agents/skills/unit-planning/unit-templates/user_stories.md`
 - `.agents/skills/unit-planning/unit-templates/fsd.md`
 
-## Prerequisites
-
-- `problem_space.md` must exist
-- `bsd.md` must exist
-
 ## Output
-
-The orchestrator will spawn this agent TWICE if needed (once per document).
-
-**Create ONE of:**
-- `user_stories.md` - if this session is for user stories
-- `fsd.md` - if this session is for functional specification
-
-If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
 
 Return the file path created and verification that prerequisites are met.

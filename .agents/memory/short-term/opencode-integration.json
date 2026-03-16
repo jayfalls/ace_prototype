@@ -1,16 +1,25 @@
 {
   "unit": "opencode-integration",
-  "current_phase": "orchestrator",
+  "current_phase": "agent-discovery",
   "status": "in_progress",
   "pending_tasks": [
-    "Review remaining agent files"
+    "Review remaining agent files: backend, frontend, review, tester, qa"
   ],
   "episodes": [
     { "phase": "orchestrator", "notes": ["QA found issues: BSD/FSD references missing, episodic/semantic examples wrong, QA fix guidance missing. Fixed all issues."], "timestamp": "2026-03-15T20:35:00Z" },
     { "phase": "pre-commit-fix", "notes": ["Fixed pre-commit: added git staging for auto-fixed files (go fmt, eslint --fix)", "Fixed Go version: explicitly use Go 1.26 via get_go() helper", "Fixed test output: removed -v flag to reduce noise", "Fixed flaky integration tests: added -p 1 -count=1 and 100ms subscription delays", "All 8 quality gates now passing consistently"], "timestamp": "2026-03-16T12:34:00Z" },
     { "phase": "discovery-agent", "notes": ["Separated planning-discovery from document creation", "planning-discovery: questions loop only, no docs, no QA", "planning-document: NEW agent creates problem_space.md and bsd.md (requires QA)", "Orchestrator updated to call discovery before any document agent"], "timestamp": "2026-03-16T12:45:00Z" },
     { "phase": "workflow-testing", "notes": ["Tested fun unit workflow end-to-end", "Discovery -> planning-document -> QA -> fix -> QA pass", "Confirmed task tool returns full output on completion", "Orchestrator: resume via task_id for fixes"], "timestamp": "2026-03-16T13:15:00Z" },
-    { "phase": "agent-patterns", "notes": ["Added ONE DOCUMENT PER PR to all document agents", "All document agents now have: guidance to not ask questions", "Created proper planning-document subagent (not using general)", "Orchestrator: resume subagents when they return early", "Deleted fun test unit"], "timestamp": "2026-03-16T13:25:00Z" }
+    { "phase": "agent-patterns", "notes": ["Added ONE DOCUMENT PER PR to all document agents", "All document agents now have: guidance to not ask questions", "Created proper planning-document subagent (not using general)", "Orchestrator: resume subagents when they return early", "Deleted fun test unit"], "timestamp": "2026-03-16T13:25:00Z" },
+    { "phase": "orchestrator-discovery-loop", "notes": ["Orchestrator must be pass-through for ALL discovery responses", "Discovery questions go to user verbatim, user answers go back verbatim", "Re-use same task_id for discovery to preserve context", "NEVER add commands like 'please provide recommendations' - only pass raw user response"], "timestamp": "2026-03-16T14:00:00Z" },
+    { "phase": "unit-planning-skill", "notes": ["Document sequence now in unit-planning SKILL.md", "Logical phases: Discovery -> Requirements -> Research/Design -> UX -> Planning", "Dependencies after research", "Implementation last", "Handling existing documents guidance added to skill"], "timestamp": "2026-03-16T14:30:00Z" },
+    { "phase": "planning-document-discovery", "notes": ["Discovered planning-document agent", "Findings: add unit-planning ref, orchestrator spawns twice", "Problem space first (skill covers sequence)", "Handle existing docs (merge/update)", "Applied changes to agent and orchestrator"], "timestamp": "2026-03-16T14:45:00Z" },
+    { "phase": "planning-requirements-discovery", "notes": ["Reused discovery task_id from planning-document", "Orchestrator handles document assignment via spawn context", "Existing docs guidance moved to unit-planning skill", "Sequence handled by skill - stop asking", "No changes needed to agent"], "timestamp": "2026-03-16T15:00:00Z" },
+    { "phase": "research-discovery", "notes": ["All generic/duplicated advice belongs in unit-planning skill, not sub agents", "Sequence handled by skill", "No changes needed"], "timestamp": "2026-03-16T15:10:00Z" },
+    { "phase": "architecture-discovery", "notes": ["Three-document flow handled by orchestrator", "Intra-phase prerequisites handled by skill", "No changes needed"], "timestamp": "2026-03-16T15:20:00Z" },
+    { "phase": "orchestrator-fix", "notes": ["Added clarification: orchestrator spawns with context specifying WHICH document to create", "Added 'Handling Existing Documents' to unit-planning skill"], "timestamp": "2026-03-16T15:25:00Z" },
+    { "phase": "implementation-discovery", "notes": ["Started but not completed", "Key findings: remove 'don't overwrite' from agents (skill is source of truth)", "Reference agent Senior Developer is fine", "Orchestrator to specify reference agent based on tech stack", "All order/sequence in skill not in sub agents"], "timestamp": "2026-03-16T15:30:00Z" },
+    { "phase": "testing-discovery", "notes": ["Started but issues with session management", "Non-UI units: yes create mockups but orchestrator handles spawn", "All 'spawn twice' context removed from sub agents", "Should have reused implementation discovery session"], "timestamp": "2026-03-16T15:35:00Z" }
   ],
-  "last_updated": "2026-03-16T13:25:00Z"
+  "last_updated": "2026-03-16T15:35:00Z"
 }

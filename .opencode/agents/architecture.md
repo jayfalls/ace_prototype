@@ -57,21 +57,6 @@ Skill: unit-planning
 - `.agents/skills/unit-planning/unit-templates/api.md`
 - `.agents/skills/unit-planning/unit-templates/monitoring.md`
 
-## Prerequisites
-
-- `research.md` must exist
-- `dependencies.md` must exist
-- `fsd.md` must exist
-
 ## Output
-
-The orchestrator will spawn this agent THREE times if needed (once per document).
-
-**Create ONE of:**
-- `architecture.md` - system components and data flow
-- `api.md` - REST endpoints and request/response schemas
-- `monitoring.md` - metrics, logging, and alerts
-
-If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
 
 Return the file path created and architecture summary.

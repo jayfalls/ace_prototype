@@ -49,11 +49,6 @@ Skill: unit-planning
 - `.agents/skills/unit-planning/unit-templates/research.md`
 - `.agents/skills/unit-planning/unit-templates/dependencies.md`
 
-## Prerequisites
-
-- `fsd.md` must exist (functional requirements)
-- `user_stories.md` must exist
-
 ## Research Guidelines
 
 1. **Multiple Options**: Always provide at least 2-3 alternatives
@@ -62,13 +57,5 @@ Skill: unit-planning
 4. **Current Best Practices**: Verify with web searches
 
 ## Output
-
-The orchestrator will spawn this agent TWICE if needed (once per document).
-
-**Create ONE of:**
-- `research.md` - technology evaluation and trade-offs
-- `dependencies.md` - external dependencies and version constraints
-
-If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
 
 Return the file path created and technology recommendations.

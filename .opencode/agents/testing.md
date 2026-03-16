@@ -51,20 +51,6 @@ Skill: unit-planning
 - `.agents/skills/unit-planning/unit-templates/testing.md`
 - `.agents/skills/unit-planning/unit-templates/mockups.md`
 
-## Prerequisites
-
-- `implementation.md` must exist
-- `architecture.md` must exist
-- `fsd.md` must exist
-
 ## Output
-
-The orchestrator will spawn this agent TWICE if needed (once per document).
-
-**Create ONE of:**
-- `testing.md` - unit, integration, E2E test requirements
-- `mockups.md` - UI wireframes and component hierarchy
-
-If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
 
 Return the file path created and test strategy summary.

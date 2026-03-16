@@ -15,8 +15,6 @@ Activate **Technical Writer** (from `agency-agents/content/technical-writer.md`)
 
 Create `problem_space.md` and `bsd.md` in the unit directory.
 
-**Note**: The orchestrator will spawn this agent twice to ensure proper QA separation.
-
 ## Context
 
 - Read `design/README.md` for ACE Framework patterns

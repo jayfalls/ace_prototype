@@ -56,11 +56,6 @@ Skill: unit-planning
 - `.agents/skills/unit-planning/unit-templates/security.md`
 - `.agents/skills/unit-planning/unit-templates/migration_and_rollback.md`
 
-## Prerequisites
-
-- `architecture.md` must exist
-- `api.md` must exist
-
 ## Micro-PR Guidelines
 
 Each micro-PR should:
@@ -70,14 +65,5 @@ Each micro-PR should:
 - Be reviewable in one sitting
 
 ## Output
-
-The orchestrator will spawn this agent THREE times if needed (once per document).
-
-**Create ONE of:**
-- `implementation.md` - micro-PR breakdown and task breakdown
-- `security.md` - security considerations and authentication
-- `migration_and_rollback.md` - database migrations and rollback procedures
-
-If the document already exists, read it for context. Only update if new information requires it. Don't overwrite unless explicitly instructed.
 
 Return the file path created and micro-PR breakdown.
