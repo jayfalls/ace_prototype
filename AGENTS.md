@@ -25,21 +25,6 @@ This ensures:
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Documentation Updates (CRITICAL)
-
-Before making any changelog or documentation updates:
-1. **Check the current date** - Use `date` command to get today's date
-2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
-3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
-
-After every commit:
-1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
-2. Update the `design/README.md` if relevant
-3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
-4. Ensure BSD/FSD documents match the actual implementation
-5. Update API documentation if endpoints changed
-6. Update the user wiki documentation/ folder with relevant changes
-
 # Memory System
 
 You have access to memory stores in `.agents/memory/`.
