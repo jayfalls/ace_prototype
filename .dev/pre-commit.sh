@@ -143,8 +143,8 @@ else
     for module in $($GO_CMD work edit -json | jq -r '.Use[] | .DiskPath'); do
         if [ -d "$module" ] && [ -f "$module/go.mod" ]; then
             log_info "Testing $module..."
-            # Run only unit tests (skip integration tests)
-            if ! (cd "$module" && $GO_CMD test -short ./...) 2>&1; then
+            # Run ALL tests (including integration tests) - sequentially, no caching
+            if ! (cd "$module" && $GO_CMD test -p 1 -count=1 ./...) 2>&1; then
                 log_error "Tests failed in $module"
                 FAILED=1
             fi

@@ -178,6 +178,9 @@ func TestIntegration_RequestReply(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
 
+	// Give subscription time to be established
+	time.Sleep(100 * time.Millisecond)
+
 	// Make request
 	start := time.Now()
 	respData, err := RequestReply(client, "test.request.subject", "corr-id-789", "agent-1", "cycle-1", "test-service", []byte("request data"), 5*time.Second)
@@ -220,6 +223,9 @@ func TestIntegration_RequestReplyWithSubject(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
+
+	// Give subscription time to be established
+	time.Sleep(100 * time.Millisecond)
 
 	// Make request using Subject
 	respData, err := RequestReplyWithSubject(client, SubjectLLMRequest, "corr-id-llm", "agent-1", "cycle-1", "test-service", []byte(`{"prompt": "hello"}`), 5*time.Second, "provider1")
@@ -379,6 +385,9 @@ func TestIntegration_ForwardMessage(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
+
+	// Give subscription time to be established
+	time.Sleep(100 * time.Millisecond)
 
 	// Create incoming message with envelope
 	incoming := &nats.Msg{
