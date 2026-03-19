@@ -116,9 +116,6 @@ up: ## Start all services in development mode
 		echo "Creating .env from .env.example..."; \
 		cp devops/.env.example .env; \
 	fi
-	@# Ensure clean shutdown by stopping any existing containers first
-	$(COMPOSE) down --remove-orphans 2>/dev/null || true
-	@sleep 1
 	$(COMPOSE) up -d
 	@echo "$(GREEN)Services started. Access:$(NC)"
 	@echo "  - Frontend:      http://localhost:5173"
@@ -133,7 +130,12 @@ up: ## Start all services in development mode
 
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans
-	@docker rm -f ace_api ace_fe ace_db ace_broker 2>/dev/null || true
+
+re: ## Restart all services (down + up)
+	$(COMPOSE) down --remove-orphans
+	@sleep 1
+	$(COMPOSE) up -d
+	@echo "$(GREEN)Services restarted. Access:$(NC)"
 
 logs: ## View aggregated logs for all services
 	$(COMPOSE) logs -f
