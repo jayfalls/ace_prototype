@@ -20,10 +20,22 @@ scrape_configs:
       - targets: ['loki:3100']
     metrics_path: '/metrics'
 
-  # Tempo metrics
+  # Tempo metrics (port 3200 has HTTP API, port 4314 has OTLP gRPC)
   - job_name: 'tempo'
     static_configs:
-      - targets: ['tempo:4314']
+      - targets: ['tempo:3200']
+    metrics_path: '/metrics'
+
+  # NATS metrics
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['ace_broker:8222']
+    metrics_path: '/metrics'
+
+  # PostgreSQL metrics
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['ace_db:9187']
     metrics_path: '/metrics'
 
   # ACE API metrics
