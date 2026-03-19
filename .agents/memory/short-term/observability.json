@@ -2,6 +2,7 @@
   "unit": "observability",
   "current_phase": "testing",
   "status": "in_progress",
+  "current_pr": "PR 14: Integration Tests (Issue #149)",
   "completed_phases": [
     "planning-discovery",
     "planning-requirements",
