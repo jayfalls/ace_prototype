@@ -21,7 +21,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -59,6 +63,41 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// setupTestTracer sets up a trace provider for testing.
+// It uses OTLP exporter to the configured endpoint, with a noop span processor fallback.
+func setupTestTracer(ctx context.Context, serviceName string, otlpEndpoint string) (*sdktrace.TracerProvider, error) {
+	// Try to create OTLP exporter
+	exporter, err := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(otlpEndpoint),
+		otlptracegrpc.WithInsecure(),
+	)
+	if err != nil {
+		// If OTLP exporter fails, use a no-op provider
+		return sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		), nil
+	}
+
+	// Create resource
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(serviceName),
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create tracer provider with batch span processor
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+	)
+
+	return tp, nil
 }
 
 // IntegrationTestContext holds all the resources needed for integration tests
@@ -148,23 +187,18 @@ func TestIntegration_FullTrace(t *testing.T) {
 	ctx := setupIntegrationTest(t)
 	defer teardownIntegrationTest(ctx)
 
-	// Initialize the global trace provider for the test
-	// This allows the trace middleware to create valid spans
-	config := Config{
-		ServiceName:  ctx.config.ServiceName,
-		Environment:  "dev",
-		OTLPEndpoint: ctx.config.OTLPEndpoint,
-	}
+	// Set up trace provider for the test
+	testCtx := context.Background()
+	tp, err := setupTestTracer(testCtx, ctx.config.ServiceName, ctx.config.OTLPEndpoint)
+	require.NoError(t, err)
+	defer tp.Shutdown(testCtx)
 
-	telemetry, err := Init(context.Background(), config)
-	if err != nil {
-		t.Logf("Warning: could not initialize OTLP tracer: %v", err)
-	}
-	defer func() {
-		if telemetry != nil {
-			telemetry.Shutdown(context.Background())
-		}
-	}()
+	// Set global tracer provider and propagator
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	))
 
 	// Ensure the usage_events table exists
 	ctx.runMigration(t)
@@ -175,7 +209,7 @@ func TestIntegration_FullTrace(t *testing.T) {
 	sessionID := uuid.New().String()
 
 	// Start the real UsageConsumer
-	consumerCtx, cancel := context.WithCancel(context.Background())
+	consumerCtx, cancel := context.WithCancel(testCtx)
 	defer cancel()
 
 	err = ctx.consumer.Start(consumerCtx)
@@ -237,7 +271,7 @@ func TestIntegration_FullTrace(t *testing.T) {
 	var found bool
 	for i := 0; i < 20; i++ {
 		var count int
-		err := ctx.dbPool.QueryRow(context.Background(),
+		err := ctx.dbPool.QueryRow(testCtx,
 			`SELECT COUNT(*) FROM usage_events WHERE agent_id = $1 AND cycle_id = $2 AND session_id = $3`,
 			agentID, cycleID, sessionID,
 		).Scan(&count)
@@ -259,7 +293,7 @@ func TestIntegration_FullTrace(t *testing.T) {
 		CostUSD       float64
 		DurationMs    int64
 	}
-	err = ctx.dbPool.QueryRow(context.Background(),
+	err = ctx.dbPool.QueryRow(testCtx,
 		`SELECT service_name, operation_type, resource_type, token_count, cost_usd, duration_ms
 		 FROM usage_events WHERE agent_id = $1`,
 		agentID,
@@ -640,31 +674,21 @@ func TestIntegration_HTTPExtraction(t *testing.T) {
 	ctx := setupIntegrationTest(t)
 	defer teardownIntegrationTest(ctx)
 
-	// Initialize the global trace provider
-	config := Config{
-		ServiceName:  ctx.config.ServiceName,
-		Environment:  "dev",
-		OTLPEndpoint: ctx.config.OTLPEndpoint,
-	}
+	// Set up trace provider for the test
+	testCtx := context.Background()
+	tp, err := setupTestTracer(testCtx, ctx.config.ServiceName, ctx.config.OTLPEndpoint)
+	require.NoError(t, err)
+	defer tp.Shutdown(testCtx)
 
-	telemetry, err := Init(context.Background(), config)
-	if err != nil {
-		t.Logf("Warning: could not initialize OTLP tracer: %v", err)
-	}
-	defer func() {
-		if telemetry != nil {
-			telemetry.Shutdown(context.Background())
-		}
-	}()
-
-	// Initialize propagator
+	// Set global tracer provider and propagator (required for ExtractHTTP to work)
+	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 
 	// Create a span and get its traceparent header
-	_, span := otel.Tracer(ctx.config.ServiceName).Start(context.Background(), "original-span")
+	_, span := otel.Tracer(ctx.config.ServiceName).Start(testCtx, "original-span")
 	defer span.End()
 
 	spanCtx := span.SpanContext()
@@ -676,8 +700,8 @@ func TestIntegration_HTTPExtraction(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("traceparent", traceparent)
 
-	// Extract trace context from HTTP headers
-	extractedCtx := ExtractHTTP(context.Background(), headers)
+	// Extract trace context from HTTP headers using the global propagator
+	extractedCtx := ExtractHTTP(testCtx, headers)
 
 	// Start a new span with the extracted context to verify extraction
 	extractedCtx, extractedSpan := otel.Tracer(ctx.config.ServiceName).Start(extractedCtx, "extracted-span")
