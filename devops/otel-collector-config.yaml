@@ -16,20 +16,10 @@ receivers:
             - targets: ['ace_api:8080']
           metrics_path: '/metrics'
   
-  # Filelog receiver for Loki - reads container log files
+  # Filelog receiver - reads container stdout from Docker log files
   filelog:
     include: ["/var/lib/docker/containers/*/*-json.log"]
-    operators:
-      - type: json_parser
-        timestamp:
-          parse_from: body.time
-          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
-      - type: move
-        from: body.level
-        to: attributes.level
-      - type: move
-        from: body.message
-        to: body
+    start_at: end
 
 processors:
   # Batch processor for efficient export
@@ -51,15 +41,17 @@ processors:
 
 exporters:
   # Tempo exporter for traces
-  # Note: Using internal Docker network port (4316), not host port
   otlp/tempo:
     endpoint: tempo:4316
     tls:
       insecure: true
   
-  # Loki exporter for logs (via OTLP)
+  # Loki exporter - uses OTLP HTTP protocol (Loki 3.x supports OTLP)
+  # Endpoint: /otlp/v1/logs for OTLP protocol
   otlphttp/loki:
     endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
   
   # Prometheus exporter for metrics
   prometheus:

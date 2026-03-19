@@ -133,7 +133,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{service_name=~\".+\"} | json",
+          "expr": "{service_name=~\".+\"} | json | line_format \"{{.log}}\"",
           "refId": "A"
         }
       ],
@@ -223,7 +223,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (level) (count_over_time({service_name=~\".+\"} | json [5m]))",
+          "expr": "sum by (level) (count_over_time({service_name=~\".+\"} | json | __error__=\"\" [5m]))",
           "legendFormat": "{{level}}",
           "refId": "A"
         }
@@ -310,7 +310,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service_name) (rate({service_name=~\".+\"} | json [1m]))",
+          "expr": "sum by (service_name) (rate({service_name=~\".+\"} [1m]))",
           "legendFormat": "{{service_name}}",
           "refId": "A"
         }
@@ -377,12 +377,12 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (service_name, level, operation_type, trace_id) (count_over_time({service_name=~\".+\"} | json [1h]))",
+          "expr": "sum by (service_name) (count_over_time({service_name=~\".+\"} | json | __error__=\"\" [1h]))",
           "legendFormat": "",
           "refId": "A"
         }
       ],
-      "title": "Error Summary (Last Hour)",
+      "title": "Log Summary (Last Hour)",
       "type": "table"
     }
   ],
