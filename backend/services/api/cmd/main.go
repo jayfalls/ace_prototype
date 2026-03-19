@@ -60,12 +60,10 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 	r.Use(middleware.Recovery)
 	r.Use(middleware.CORS(cfg.CORSAllowedOrigins))
 
-	// Add telemetry middleware if available
-	if tel != nil {
-		r.Use(telemetry.TraceMiddleware())
-		r.Use(telemetry.MetricsMiddleware("api"))
-		r.Use(telemetry.LoggerMiddleware("api"))
-	}
+	// Add telemetry middleware
+	r.Use(telemetry.TraceMiddleware())
+	r.Use(telemetry.MetricsMiddleware("api"))
+	r.Use(telemetry.LoggerMiddleware("api"))
 
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -76,6 +74,9 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
 	r.Get("/health/exporters", healthHandler.Exporters)
+
+	// Metrics endpoint for Prometheus scraping
+	r.Handle("/metrics", telemetry.RegisterMetrics())
 
 	// Example routes demonstrating validation
 	r.Route("/examples", func(r chi.Router) {
@@ -156,14 +157,8 @@ func main() {
 	})
 	if err != nil {
 		log.Printf("Warning: Failed to initialize telemetry: %v", err)
-		// Continue without telemetry - it's optional
-		tel = nil
 	}
-	defer func() {
-		if tel != nil {
-			tel.Shutdown(ctx)
-		}
-	}()
+	defer tel.Shutdown(ctx)
 
 	shared.Hello()
 
