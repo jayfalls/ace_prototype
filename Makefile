@@ -162,7 +162,7 @@ ps: ## Show running containers
 
 test: ## Run all tests in API and frontend containers
 	@echo "$(BLUE)Running tests in API container...$(NC)"
-	@$(ORCHESTRATOR) exec -w /app/services/api ace_api go test ./... 2>/dev/null || echo "API tests not available - make sure container is running with 'make up'"
+	@$(ORCHESTRATOR) exec -w /app ace_api go test -tags=integration ./...
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
