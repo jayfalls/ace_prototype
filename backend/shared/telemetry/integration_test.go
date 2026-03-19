@@ -148,6 +148,24 @@ func TestIntegration_FullTrace(t *testing.T) {
 	ctx := setupIntegrationTest(t)
 	defer teardownIntegrationTest(ctx)
 
+	// Initialize the global trace provider for the test
+	// This allows the trace middleware to create valid spans
+	config := Config{
+		ServiceName:  ctx.config.ServiceName,
+		Environment:  "dev",
+		OTLPEndpoint: ctx.config.OTLPEndpoint,
+	}
+
+	telemetry, err := Init(context.Background(), config)
+	if err != nil {
+		t.Logf("Warning: could not initialize OTLP tracer: %v", err)
+	}
+	defer func() {
+		if telemetry != nil {
+			telemetry.Shutdown(context.Background())
+		}
+	}()
+
 	// Ensure the usage_events table exists
 	ctx.runMigration(t)
 
@@ -160,7 +178,7 @@ func TestIntegration_FullTrace(t *testing.T) {
 	consumerCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	err := ctx.consumer.Start(consumerCtx)
+	err = ctx.consumer.Start(consumerCtx)
 	require.NoError(t, err)
 
 	// Small delay to ensure consumer is subscribed
@@ -168,8 +186,9 @@ func TestIntegration_FullTrace(t *testing.T) {
 
 	// Create a test HTTP handler with trace middleware that publishes a usage event
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get trace context from request
+		// Get trace context from request - the trace middleware creates a span
 		span := trace.SpanFromContext(r.Context())
+		spanCtx := span.SpanContext()
 
 		// Simulate some work
 		time.Sleep(10 * time.Millisecond)
@@ -192,8 +211,8 @@ func TestIntegration_FullTrace(t *testing.T) {
 
 		// Write response with trace ID
 		traceID := ""
-		if span.SpanContext().IsValid() {
-			traceID = span.SpanContext().TraceID().String()
+		if spanCtx.IsValid() {
+			traceID = spanCtx.TraceID().String()
 		}
 		w.Header().Set("X-Trace-ID", traceID)
 		w.WriteHeader(http.StatusOK)
@@ -211,7 +230,7 @@ func TestIntegration_FullTrace(t *testing.T) {
 	wrappedHandler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.NotEmpty(t, rr.Header().Get("X-Trace-ID"))
+	assert.NotEmpty(t, rr.Header().Get("X-Trace-ID"), "X-Trace-ID header should be set by handler")
 
 	// Wait for the event to be consumed and persisted to DB
 	// Poll the database until we find the record or timeout
@@ -621,14 +640,31 @@ func TestIntegration_HTTPExtraction(t *testing.T) {
 	ctx := setupIntegrationTest(t)
 	defer teardownIntegrationTest(ctx)
 
+	// Initialize the global trace provider
+	config := Config{
+		ServiceName:  ctx.config.ServiceName,
+		Environment:  "dev",
+		OTLPEndpoint: ctx.config.OTLPEndpoint,
+	}
+
+	telemetry, err := Init(context.Background(), config)
+	if err != nil {
+		t.Logf("Warning: could not initialize OTLP tracer: %v", err)
+	}
+	defer func() {
+		if telemetry != nil {
+			telemetry.Shutdown(context.Background())
+		}
+	}()
+
 	// Initialize propagator
 	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	))
 
-	// Create a span and extract its traceparent header
-	testCtx, span := otel.Tracer(ctx.config.ServiceName).Start(context.Background(), "test-span")
+	// Create a span and get its traceparent header
+	_, span := otel.Tracer(ctx.config.ServiceName).Start(context.Background(), "original-span")
 	defer span.End()
 
 	spanCtx := span.SpanContext()
@@ -641,10 +677,15 @@ func TestIntegration_HTTPExtraction(t *testing.T) {
 	headers.Set("traceparent", traceparent)
 
 	// Extract trace context from HTTP headers
-	extractedCtx := ExtractHTTP(testCtx, headers)
+	extractedCtx := ExtractHTTP(context.Background(), headers)
 
-	// Verify extraction worked
-	extractedSpan := trace.SpanFromContext(extractedCtx)
-	assert.True(t, extractedSpan.SpanContext().IsValid(), "extracted span should be valid")
-	assert.Equal(t, spanCtx.TraceID().String(), extractedSpan.SpanContext().TraceID().String())
+	// Start a new span with the extracted context to verify extraction
+	extractedCtx, extractedSpan := otel.Tracer(ctx.config.ServiceName).Start(extractedCtx, "extracted-span")
+	defer extractedSpan.End()
+
+	// Verify the extracted span has the same trace ID
+	extractedSpanCtx := extractedSpan.SpanContext()
+	assert.True(t, extractedSpanCtx.IsValid(), "extracted span should be valid")
+	assert.Equal(t, spanCtx.TraceID().String(), extractedSpanCtx.TraceID().String(),
+		"trace IDs should match after extraction")
 }
