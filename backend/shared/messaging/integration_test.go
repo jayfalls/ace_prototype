@@ -137,6 +137,9 @@ func TestIntegration_PublishWithEnvelopeHeaders(t *testing.T) {
 }
 
 func TestIntegration_PublishWithSubject(t *testing.T) {
+	if nc == nil || !nc.IsConnected() {
+		t.Skip("NATS connection not available")
+	}
 	client := getTestClient(t)
 	defer client.Close()
 
