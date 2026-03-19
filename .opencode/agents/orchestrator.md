@@ -347,6 +347,22 @@ Subagent fails after 3 retries
 4. **Always update memory** - Track progress in short-term file, track learnings in long-term
 5. **Always retry** - Up to 3 times, then escalate
 6. **Keep memory lean** - Prune completed, store semantic learnings
+7. **Always commit** - After every change, immediately commit: `git add . && git commit`
+
+## Git Workflow
+
+### After Every Change
+After every code, doc, or config change, IMMEDIATELY commit:
+```bash
+git add . && git commit -m "descriptive message"
+```
+
+### After PR Merged
+When user says "merged", IMMEDIATELY run:
+```bash
+git checkout main && git pull && git fetch --prune && git branch -d <branch-name>
+```
+Then check for next issue to work on.
 
 ## Documentation Updates (CRITICAL)
 

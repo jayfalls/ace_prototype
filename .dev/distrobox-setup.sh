@@ -65,6 +65,13 @@ run_dnf install -y \
     docker-compose \
     gh
 
+# Add user to docker group for socket access
+log_info "Adding user to docker group..."
+if ! grep -q "^docker:" /etc/group || ! grep "docker" /etc/group | grep -q "$USER"; then
+    sudo usermod -aG docker $USER
+    log_success "User added to docker group"
+fi
+
 # Install/update system packages
 log_info "Updating package manager..."
 run_dnf update -y

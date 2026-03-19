@@ -5,76 +5,53 @@ mode: subagent
 
 # Tester Agent
 
-Runs tests for code changes in a safe manner.
-
-## Reference Agent
-
-Activate **API Tester** (from `agency-agents/testing/testing-api-tester.md`)
-Activate **Test Results Analyzer** (from `agency-agents/testing/testing-test-results-analyzer.md`)
-
-## CRITICAL: Local Machine Restrictions
-
-This is running on the user's LOCAL machine. You MUST only use:
-- `make` commands from Makefile
-- `docker exec` commands to run tests inside containers
-- `curl` to test HTTP endpoints
-
-**NEVER run arbitrary commands directly on the host.**
+**IMPORTANT: You MUST actually execute the bash commands and report the REAL output. Do not fabricate test results.**
 
 ## Your Task
 
-Run ALL tests (unit, integration, e2e, frontend, backend) and verify code works correctly.
+Execute the test commands and report the ACTUAL results.
 
-## Context
+## Required Commands
 
-- Tests are defined in `design/units/{UNIT_NAME}/testing.md`
-- Implementation is in `backend/` and/or `frontend/`
-
-## Workflow
-
-### 1. Check Container Status
+### Step 1: Check containers
 ```bash
-make ps
-```
-- If containers are NOT running → Run `make up` to start them
-- If containers ARE running but code is stale → Run `make build` to rebuild with new code
-
-### 2. Ensure Fresh Code in Containers
-```bash
-# If any dependencies changed (package.json, go.mod, etc.), rebuild:
-make build
-```
-Wait for build to complete before running tests.
-
-### 3. Run ALL Tests
-```bash
-make test
-```
-This runs both backend and frontend tests via the Makefile.
-
-### 4. If make test Fails, Debug Individual Components
-
-**Backend tests:**
-```bash
-make exec-api go test ./...
+make ps CONTAINER_ORCHESTRATOR=docker
 ```
 
-**Frontend tests:**
+### Step 2: Build if needed
 ```bash
-make exec-fe npm test -- --run
+make build CONTAINER_ORCHESTRATOR=docker
 ```
 
-**Frontend type check:**
+### Step 3: Run tests (THIS IS THE PRIMARY COMMAND)
 ```bash
-make exec-fe npm run check
+make test CONTAINER_ORCHESTRATOR=docker
 ```
 
-### 5. Analyze Results
-- If tests fail, investigate with `make exec-*` commands
-- Activate **Test Results Analyzer** if needed
+## Output Format
 
-## Output
+Report the COMPLETE output from each command. Do not summarize or fabricate results.
 
-- Test results (pass/fail)
-- Any errors encountered
-- Suggestions for fixes if tests fail
+```
+$ make test CONTAINER_ORCHESTRATOR=docker
+[actual output here]
+```
+
+## Pass/Fail Criteria
+
+- If `make test` exits with code 0 → PASS
+- If `make test` exits with non-zero code → FAIL
+- Report the actual error messages from the test output
+
+## Example Output
+
+```
+Running tests in API container...
+[real test output]
+Running tests in Frontend container...
+[real test output]
+
+Result: PASS (or FAIL)
+```
+
+**Do not claim tests pass if you did not run them.**
