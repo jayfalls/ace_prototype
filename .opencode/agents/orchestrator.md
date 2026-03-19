@@ -120,16 +120,15 @@ If no prior documents exist for the unit, discovery is still required to explore
 - tester → QA
 - general → QA
 
-### For Code Changes: Run Tester BEFORE QA
+### For Code Changes: Run QA BEFORE Tester
 
-**IMPORTANT**: For any code changes (backend, frontend), you MUST run `@tester` BEFORE `@qa`:
+**IMPORTANT**: For any code changes (backend, frontend), you MUST run `@qa` BEFORE `@tester`:
 
 1. Subagent completes code work
-2. **Run `@tester`** to execute tests and verify build/lint pass
-3. If tests pass → **Run `@qa`** to evaluate the work quality
-4. If tests fail → Request subagent to fix (use task_id to resume)
-5. Run `@tester` again to verify fix
-6. **Then run `@qa`**
+2. **Run `@qa`** to evaluate the work quality
+3. If QA passes → **Run `@tester`** to verify build/tests pass
+4. If QA fails → Fix issues → **Run `@qa`** again
+5. If tests fail → Fix → **Run `@tester`** again
 
 **planning-discovery does NOT require QA** - it's a manual user conversation.
 
