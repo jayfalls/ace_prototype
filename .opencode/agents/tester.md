@@ -37,22 +37,23 @@ Run ALL tests (unit, integration, e2e, frontend, backend) and verify code works 
 make ps
 ```
 - If containers are NOT running → Run `make up` to start them
-- If containers ARE running but code is stale → Run `make build` to rebuild with new code
 
-### 2. Ensure Fresh Code in Containers
+### 2. Rebuild if Needed
 ```bash
-# If any dependencies changed (package.json, go.mod, etc.), rebuild:
 make build
 ```
-Wait for build to complete before running tests.
+This ensures containers have the latest code with any dependency changes.
 
-### 3. Run ALL Tests
+### 3. Run Tests Using make test (REQUIRED)
 ```bash
 make test
 ```
-This runs both backend and frontend tests via the Makefile.
+This is the PRIMARY test command. You MUST run `make test` to verify all tests pass.
 
-### 4. If make test Fails, Debug Individual Components
+**If `make test` fails, the code is NOT ready.**
+
+### 4. Debug Only If make test Fails
+Only use these commands AFTER `make test` fails to debug:
 
 **Backend tests:**
 ```bash
@@ -64,14 +65,9 @@ make exec-api go test ./...
 make exec-fe npm test -- --run
 ```
 
-**Frontend type check:**
-```bash
-make exec-fe npm run check
-```
-
-### 5. Analyze Results
-- If tests fail, investigate with `make exec-*` commands
-- Activate **Test Results Analyzer** if needed
+### 5. Report Results
+- `make test` must PASS before reporting success
+- If tests fail, report which tests failed and why
 
 ## Output
 
