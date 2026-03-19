@@ -126,35 +126,10 @@ If no prior documents exist for the unit, discovery is still required to explore
 
 1. Subagent completes code work
 2. **Run `@tester`** to execute tests and verify build/lint pass
-3. **Run `@qa`** to evaluate the work quality
-
-**Never skip tester** - it validates the code actually works. QA is for quality assessment, not test execution.
-
-### QA Workflow
-
-1. **For code changes:**
-   a. Run `@tester` subagent to execute tests
-   b. If tests pass → Run `@qa` subagent
-   c. If tests fail → Request subagent to fix (use task_id to resume)
-   d. Run `@tester` again to verify fix
-   e. Then run `@qa`
-
-2. **For documentation/design changes:**
-   a. Run `@qa` subagent directly (no tester needed)
-
-3. Delegate to `@qa` subagent with:
-   - What the subagent was supposed to deliver
-   - What was actually delivered
-   - Quality criteria to check
-   - **Files affected** (ask subagent to report these)
-
-4. If QA passes → Continue to next phase
-
-5. **If QA fails → ALWAYS fix the issues before proceeding**
-   - Request subagent to fix the specific issues (use task_id to resume)
-   - Run tester again if code was modified
-   - Run QA again to verify fix
-   - Do NOT skip or ignore QA failures
+3. If tests pass → **Run `@qa`** to evaluate the work quality
+4. If tests fail → Request subagent to fix (use task_id to resume)
+5. Run `@tester` again to verify fix
+6. **Then run `@qa`**
 
 **planning-discovery does NOT require QA** - it's a manual user conversation.
 
