@@ -25,3 +25,9 @@ scrape_configs:
     static_configs:
       - targets: ['tempo:4314']
     metrics_path: '/metrics'
+
+  # ACE API metrics
+  - job_name: 'ace-api'
+    static_configs:
+      - targets: ['ace_api:8080']
+    metrics_path: '/metrics'
