@@ -177,6 +177,12 @@ task_id: ses_123  # planning-discovery
 task_id: ses_123  # planning-discovery - SAME, RESUMED!
 ```
 
+**Consequences of not reusing:**
+- Loss of conversation context
+- Agent cannot see previous work or file modifications
+- Breaks the workflow continuity
+- Each agent type must maintain ONE task_id per unit
+
 Only spawn a NEW agent if:
 - This is the FIRST time calling this agent type
 - No previous task_id exists for this unit
