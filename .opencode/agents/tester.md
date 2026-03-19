@@ -34,19 +34,19 @@ Run ALL tests (unit, integration, e2e, frontend, backend) and verify code works 
 
 ### 1. Check Container Status
 ```bash
-make ps
+make ps CONTAINER_ORCHESTRATOR=docker
 ```
-- If containers are NOT running → Run `make up` to start them
+- If containers are NOT running → Run `make up CONTAINER_ORCHESTRATOR=docker`
 
 ### 2. Rebuild if Needed
 ```bash
-make build
+make build CONTAINER_ORCHESTRATOR=docker
 ```
 This ensures containers have the latest code with any dependency changes.
 
 ### 3. Run Tests Using make test (REQUIRED)
 ```bash
-make test
+make test CONTAINER_ORCHESTRATOR=docker
 ```
 This is the PRIMARY test command. You MUST run `make test` to verify all tests pass.
 
@@ -57,12 +57,12 @@ Only use these commands AFTER `make test` fails to debug:
 
 **Backend tests:**
 ```bash
-make exec-api go test ./...
+make exec-api CONTAINER_ORCHESTRATOR=docker go test ./...
 ```
 
 **Frontend tests:**
 ```bash
-make exec-fe npm test -- --run
+make exec-fe CONTAINER_ORCHESTRATOR=docker npm test -- --run
 ```
 
 ### 5. Report Results
