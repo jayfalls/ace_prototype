@@ -118,15 +118,17 @@ up: ## Start all services in development mode
 	fi
 	$(COMPOSE) up -d
 	@echo "$(GREEN)Services started. Access:$(NC)"
-	@echo "  - Frontend:      http://localhost:5173"
-	@echo "  - API:           http://localhost:8080"
-	@echo "  - PostgreSQL:    localhost:5432"
-	@echo "  - NATS:          localhost:4222"
-	@echo "  - Prometheus:     http://localhost:9090"
-	@echo "  - Grafana:       http://localhost:3000"
-	@echo "  - Loki:          http://localhost:3100"
-	@echo "  - Tempo:         http://localhost:3200"
-	@echo "  - OTel Collector: http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)"
+	@echo "  - Frontend:       http://localhost:5173"
+	@echo "  - API:            http://localhost:8080"
+	@echo "  - PostgreSQL:     localhost:5432"
+	@echo "  - NATS:           localhost:4222"
+	@echo "  - Prometheus:      http://localhost:9090"
+	@echo "  - Grafana:        http://localhost:3000"
+	@echo "  - Loki:           http://localhost:3100"
+	@echo "  - Tempo:          http://localhost:3200"
+	@echo "  - OTel Collector:  http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)"
+	@echo "  - NATS Exporter:  http://localhost:55678"
+	@echo "  - PG Exporter:    http://localhost:55679"
 
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans

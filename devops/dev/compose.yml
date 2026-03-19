@@ -85,6 +85,33 @@ services:
       - ace_network
 
   ###############################
+  # Exporters
+  ###############################
+
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:latest
+    container_name: ace_nats_exporter
+    command: -varz nats://ace_broker:4222
+    ports:
+      - "55678:7777"
+    networks:
+      - ace_network
+    depends_on:
+      - ace_broker
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: ace_postgres_exporter
+    environment:
+      - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER:-ace}:${POSTGRES_PASSWORD:-ace_password}@ace_db:5432/${POSTGRES_DB:-ace}?sslmode=disable
+    ports:
+      - "55679:9187"
+    networks:
+      - ace_network
+    depends_on:
+      - ace_db
+
+  ###############################
   # Observability Stack
   ###############################
 

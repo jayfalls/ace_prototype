@@ -26,17 +26,15 @@ scrape_configs:
       - targets: ['tempo:3200']
     metrics_path: '/metrics'
 
-  # NATS metrics
+  # NATS metrics via exporter
   - job_name: 'nats'
     static_configs:
-      - targets: ['ace_broker:8222']
-    metrics_path: '/metrics'
+      - targets: ['nats-exporter:7777']
 
-  # PostgreSQL metrics
+  # PostgreSQL metrics via exporter
   - job_name: 'postgres'
     static_configs:
-      - targets: ['ace_db:9187']
-    metrics_path: '/metrics'
+      - targets: ['postgres-exporter:9187']
 
   # ACE API metrics
   - job_name: 'ace-api'
