@@ -466,25 +466,25 @@ export { getTraceId, setGlobalTraceId };
 **Files:**
 - `devops/provisioning/datasources/datasources.yml` - Datasource configuration
 - `devops/provisioning/dashboards/dashboards.yml` - Dashboard imports
-- `devops/dev/compose.yml` - Mount provisioning files (dev)
-- `devops/prod/compose.yml` - Mount provisioning files (prod)
+- `devops/dev/compose.yml` - Mount provisioning files (dev only)
+- `devops/prod/compose.yml` - No provisioning (manual config in prod)
 
 **Requirements:**
 1. Create datasource provisioning for:
    - Loki: `http://loki:3100`
-   - Tempo: `http://tempo:4315`
+   - Tempo: `http://tempo:3200`
    - Prometheus: `http://prometheus:9090`
 
 2. Create dashboard provisioning to import pre-built dashboards
 
-3. Add pre-built dashboards from Grafana.com for Loki, Tempo, Prometheus
+3. Add pre-built dashboards from Grafana.com for Loki, Tempo, Prometheus, NATS, PostgreSQL
 
-4. Update compose files to mount provisioning into Grafana container
+4. Update compose files to mount provisioning into Grafana container (dev only)
 
 **Acceptance Criteria:**
-- Datasources auto-configured on Grafana first load
-- Dashboards available without manual import
-- Works for both dev and prod compose files
+- Datasources auto-configured on Grafana first load (dev)
+- Dashboards available without manual import (dev)
+- Works for dev compose files only (prod uses manual config)
 
 ---
 

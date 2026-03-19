@@ -185,8 +185,8 @@ services:
       - ../../.env
     volumes:
       - grafana_data:/var/lib/grafana
-      - ../provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ../provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../provisioning/datasources:/etc/grafana/provisioning/datasources:ro,Z
+      - ../provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro,Z
     environment:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
