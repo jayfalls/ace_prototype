@@ -22,7 +22,7 @@ $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
 # Support both docker-compose and docker compose (fallback)
-COMPOSE := $(shell command -v podman &>/dev/null && echo "podman compose" || (command -v docker-compose &>/dev/null && echo "docker-compose" || echo "docker compose")) -f devops/$(ENVIRONMENT)/compose.yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
 
 # Distrobox config
 DISTROBOX_NAME := opencode
@@ -121,10 +121,15 @@ up: ## Start all services in development mode
 	@sleep 1
 	$(COMPOSE) up -d
 	@echo "$(GREEN)Services started. Access:$(NC)"
-	@echo "  - Frontend: http://localhost:5173"
-	@echo "  - API:      http://localhost:8080"
-	@echo "  - PostgreSQL: localhost:5432"
-	@echo "  - NATS:     localhost:4222"
+	@echo "  - Frontend:      http://localhost:5173"
+	@echo "  - API:           http://localhost:8080"
+	@echo "  - PostgreSQL:    localhost:5432"
+	@echo "  - NATS:          localhost:4222"
+	@echo "  - Prometheus:     http://localhost:9090"
+	@echo "  - Grafana:       http://localhost:3000"
+	@echo "  - Loki:          http://localhost:3100"
+	@echo "  - Tempo:         http://localhost:3200"
+	@echo "  - OTel Collector: http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)"
 
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans
