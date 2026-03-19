@@ -130,6 +130,8 @@ If no prior documents exist for the unit, discovery is still required to explore
 4. If QA fails → Fix issues → **Run `@qa`** again
 5. If tests fail → Fix → **Run `@tester`** again
 
+**When delegating to tester:** Only provide the files affected - the tester knows which tests to run based on file patterns.
+
 **planning-discovery does NOT require QA** - it's a manual user conversation.
 
 ## One Document Per PR
