@@ -92,19 +92,6 @@ dev: ## Full dev setup: clone agency-agents, setup distrobox, install deps
 	@echo "To start OpenCode, run:"
 	@echo "  $(YELLOW)make agent$(NC)"
 
-dev-reset: ## Delete and recreate distrobox (for fixing Docker access issues)
-	@echo "$(YELLOW)WARNING: This will delete your '$(DISTROBOX_NAME)' distrobox and recreate it.$(NC)"
-	@echo "Press Ctrl+C to cancel, or Enter to continue..."
-	@read
-	@echo "$(BLUE)Deleting existing distrobox...$(NC)"
-	@distrobox rm $(DISTROBOX_NAME) --yes 2>/dev/null || true
-	@echo "$(BLUE)Creating new distrobox with Docker socket...$(NC)"
-	@distrobox create --name $(DISTROBOX_NAME) --image $(DISTROBOX_IMAGE) --volume /var/run/docker.sock:/var/run/docker.sock
-	@REPO_DIR="$(shell pwd)"; \
-	echo "Installing dependencies..."; \
-	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/distrobox-setup.sh"
-	@echo "$(GREEN)Distrobox reset complete!$(NC)"
-
 agent: ## Enter distrobox and run OpenCode interactively
 	@echo "$(BLUE)Starting OpenCode in distrobox...$(NC)"
 	@if ! distrobox list | grep -q "$(DISTROBOX_NAME)"; then \
@@ -175,10 +162,10 @@ ps: ## Show running containers
 
 test: ## Run all tests in API and frontend containers
 	@echo "$(BLUE)Running tests in API container...$(NC)"
-	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/services/api && go test -tags=integration ./...'"
-	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared && go test -tags=integration ./...'"
-	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared/messaging && go test -tags=integration ./...'"
-	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared/telemetry && go test -tags=integration ./...'"
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/services/api && go test -tags=integration ./..."
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/messaging && go test -tags=integration ./..."
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/telemetry && go test -tags=integration ./..."
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
-	@sg docker -c "$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo 'Frontend tests not available - make sure container is running with make up'"
+	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"

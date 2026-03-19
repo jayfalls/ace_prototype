@@ -69,15 +69,7 @@ run_dnf install -y \
 log_info "Adding user to docker group..."
 if ! grep -q "^docker:" /etc/group || ! grep "docker" /etc/group | grep -q "$USER"; then
     sudo usermod -aG docker $USER
-    log_success "User added to docker group. Please re-enter distrobox: exit and run 'distrobox enter $(hostname)'"
-fi
-
-# Test docker access
-log_info "Testing Docker access..."
-if sg docker -c "docker ps" &>/dev/null; then
-    log_success "Docker is accessible"
-else
-    log_error "Docker not accessible. Please exit and re-enter distrobox."
+    log_success "User added to docker group"
 fi
 
 # Install/update system packages
