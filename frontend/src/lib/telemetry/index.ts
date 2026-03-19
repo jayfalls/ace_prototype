@@ -7,7 +7,7 @@
  * @package @ace/frontend
  */
 
-import { init, getTraceId, setGlobalTraceId, startSpan, withSpan, shutdown } from './trace';
+import { init, getTraceId, setGlobalTraceId, startSpan, withSpan, shutdown, getCurrentContext, withContext, injectContext, extractContext } from './trace';
 import { initErrorTracking, trackError, endErrorSpan } from './error';
 import { initPerformanceMonitoring, getPerformanceMetrics, addPerformanceMetric } from './metrics';
 
@@ -50,6 +50,10 @@ export {
     startSpan,
     withSpan,
     shutdown,
+    getCurrentContext,
+    withContext,
+    injectContext,
+    extractContext,
 };
 
 // Re-export all error tracking functions
@@ -65,7 +69,3 @@ export {
     getPerformanceMetrics,
     addPerformanceMetric,
 };
-
-// Re-export types
-export type { } from './trace';
-export type { } from './error';
