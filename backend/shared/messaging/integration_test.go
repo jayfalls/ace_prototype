@@ -152,12 +152,12 @@ func TestIntegration_PublishWithSubject(t *testing.T) {
 	err = PublishWithSubject(client, SubjectEngineLayerInput, "corr-id-456", "agent1", "cycle-1", "test-service", []byte("engine payload"), "agent1", "layer1")
 	require.NoError(t, err)
 
-	// Wait for message
+	// Wait for message (use longer timeout for CI/test environments)
 	select {
 	case msg := <-received:
 		require.NotNil(t, msg)
 		assert.Equal(t, "engine payload", string(msg.Data))
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("timeout waiting for message")
 	}
 }

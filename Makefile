@@ -22,7 +22,7 @@ $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
 # Support both docker-compose and docker compose (fallback)
-COMPOSE := $(shell command -v podman &>/dev/null && echo "podman compose" || (command -v docker-compose &>/dev/null && echo "docker-compose" || echo "docker compose")) -f devops/$(ENVIRONMENT)/compose.yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml --env-file .env
 
 # Distrobox config
 DISTROBOX_NAME := opencode
@@ -116,19 +116,28 @@ up: ## Start all services in development mode
 		echo "Creating .env from .env.example..."; \
 		cp devops/.env.example .env; \
 	fi
-	@# Ensure clean shutdown by stopping any existing containers first
-	$(COMPOSE) down --remove-orphans 2>/dev/null || true
-	@sleep 1
 	$(COMPOSE) up -d
 	@echo "$(GREEN)Services started. Access:$(NC)"
-	@echo "  - Frontend: http://localhost:5173"
-	@echo "  - API:      http://localhost:8080"
-	@echo "  - PostgreSQL: localhost:5432"
-	@echo "  - NATS:     localhost:4222"
+	@echo "  - Frontend:       http://localhost:5173"
+	@echo "  - API:            http://localhost:8080"
+	@echo "  - PostgreSQL:     localhost:5432"
+	@echo "  - NATS:           localhost:4222"
+	@echo "  - Prometheus:      http://localhost:9090"
+	@echo "  - Grafana:        http://localhost:3000"
+	@echo "  - Loki:           http://localhost:3100"
+	@echo "  - Tempo:          http://localhost:3200"
+	@echo "  - OTel Collector:  http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)"
+	@echo "  - NATS Exporter:  http://localhost:55678"
+	@echo "  - PG Exporter:    http://localhost:55679"
 
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans
-	@docker rm -f ace_api ace_fe ace_db ace_broker 2>/dev/null || true
+
+re: ## Restart all services (down + up)
+	$(COMPOSE) down --remove-orphans
+	@sleep 1
+	$(COMPOSE) up -d
+	@echo "$(GREEN)Services restarted. Access:$(NC)"
 
 logs: ## View aggregated logs for all services
 	$(COMPOSE) logs -f

@@ -171,10 +171,8 @@ func MetricsMiddleware(serviceName string) func(http.Handler) http.Handler {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Skip metrics and health endpoints to avoid recursion
-			// Health check paths: /health, /health/live, /health/ready
-			if r.URL.Path == "/metrics" || r.URL.Path == "/health" ||
-				r.URL.Path == "/health/live" || r.URL.Path == "/health/ready" {
+			// Only skip /metrics endpoint to avoid recursion
+			if r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}

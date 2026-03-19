@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -30,9 +31,9 @@ func TraceMiddleware() func(http.Handler) http.Handler {
 			// Extract trace context from HTTP headers
 			ctx := ExtractHTTP(r.Context(), r.Header)
 
-			// Create a span for the HTTP request
+			// Create a span for the HTTP request using the global tracer provider
 			spanName := r.Method + " " + r.URL.Path
-			ctx, span := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, spanName)
+			ctx, span := otel.GetTracerProvider().Tracer("").Start(ctx, spanName)
 			defer span.End()
 
 			// Add span attributes

@@ -1,13 +1,15 @@
 server:
   http_listen_port: 3200
-  grpc_listen_port: 4316
+  grpc_listen_port: 9095  # Tempo internal gRPC API (not exposed)
 
 distributor:
   receivers:
     otlp:
       protocols:
         http:
+          endpoint: "0.0.0.0:4315"
         grpc:
+          endpoint: "0.0.0.0:4316"  # OTLP gRPC receiver
 
 ingester:
   max_block_duration: 5m
