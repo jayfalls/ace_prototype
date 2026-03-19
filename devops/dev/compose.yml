@@ -190,13 +190,14 @@ services:
     container_name: ace_tempo
     env_file:
       - ../../.env
+    environment:
+      - TEMPO_DISTRIBUTOR_OTLP_HTTP_SERVER_ENDPOINT=0.0.0.0:4315
+      - TEMPO_DISTRIBUTOR_OTLP_GRPC_SERVER_ENDPOINT=0.0.0.0:4317
     volumes:
-      - ./tempo-config.yml:/etc/tempo-config.yml:ro,Z
       - tempo_data:/var/tempo
-    command: [ "--config.file=/etc/tempo-config.yml" ]
     ports:
-      - "${TEMPO_OTLP_GRPC_PORT}:4316"   # OTLP gRPC
       - "${TEMPO_OTLP_HTTP_PORT}:4315"   # OTLP HTTP
+      - "${TEMPO_OTLP_GRPC_PORT}:4316"   # OTLP gRPC
       - "3200:3200"                      # Tempo HTTP API
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3200/ready"]
