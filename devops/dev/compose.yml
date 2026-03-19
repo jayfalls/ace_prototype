@@ -157,7 +157,7 @@ services:
       prometheus:
         condition: service_healthy
     environment:
-      - OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4316
+      - OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4315
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:13133/"]
       interval: 30s
@@ -188,12 +188,9 @@ services:
   tempo:
     image: grafana/tempo:2.9.1
     container_name: ace_tempo
-    env_file:
-      - ../../.env
-    environment:
-      - TEMPO_DISTRIBUTOR_OTLP_HTTP_SERVER_ENDPOINT=0.0.0.0:4315
-      - TEMPO_DISTRIBUTOR_OTLP_GRPC_SERVER_ENDPOINT=0.0.0.0:4317
+    command: -config.file /etc/tempo.yaml
     volumes:
+      - ./tempo-config.yml:/etc/tempo.yaml:Z
       - tempo_data:/var/tempo
     ports:
       - "${TEMPO_OTLP_HTTP_PORT}:4315"   # OTLP HTTP
