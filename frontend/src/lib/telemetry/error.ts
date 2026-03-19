@@ -95,8 +95,6 @@ export function initErrorTracking(): void {
         
         console.error('[telemetry] Unhandled promise rejection:', errorMessage);
     });
-
-    console.log('[telemetry] Error tracking initialized');
 }
 
 /**
