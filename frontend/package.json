@@ -6,18 +6,38 @@
   "scripts": {
     "dev": "vite dev --host 0.0.0.0 --port 5173",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/sdk-trace-web": "^1.29.0",
+    "@opentelemetry/sdk-trace-base": "^1.29.0",
+    "@opentelemetry/context-zone": "^1.29.0",
+    "@opentelemetry/instrumentation-fetch": "^0.53.0",
+    "@opentelemetry/instrumentation-xml-http-request": "^0.53.0",
+    "@opentelemetry/instrumentation-document-load": "^0.53.0",
+    "@opentelemetry/instrumentation-user-interaction": "^0.53.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.53.0",
+    "@opentelemetry/resources": "^1.29.0",
+    "@opentelemetry/semantic-conventions": "^1.29.0"
   },
   "devDependencies": {
     "@sveltejs/adapter-node": "^5.2.9",
     "@sveltejs/kit": "^2.15.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@testing-library/svelte": "^5.2.4",
+    "@vitest/ui": "^2.1.8",
     "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
+    "jsdom": "^25.0.1",
     "prettier": "^3.8.1",
     "svelte": "^5.19.0",
     "svelte-check": "^4.1.4",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^2.1.8"
   }
 }

@@ -120,18 +120,17 @@ If no prior documents exist for the unit, discovery is still required to explore
 - tester → QA
 - general → QA
 
-1. Delegate to `@qa` subagent with:
-   - What the subagent was supposed to deliver
-   - What was actually delivered
-   - Quality criteria to check
-   - **Files affected** (ask subagent to report these)
+### For Code Changes: Run QA BEFORE Tester
 
-2. If QA passes → Continue to next phase
+**IMPORTANT**: For any code changes (backend, frontend), you MUST run `@qa` BEFORE `@tester`:
 
-3. **If QA fails → ALWAYS fix the issues before proceeding**
-   - Request subagent to fix the specific issues (use task_id to resume)
-   - Run QA again to verify fix
-   - Do NOT skip or ignore QA failures
+1. Subagent completes code work
+2. **Run `@qa`** to evaluate the work quality
+3. If QA passes → **Run `@tester`** to verify build/tests pass
+4. If QA fails → Fix issues → **Run `@qa`** again
+5. If tests fail → Fix → **Run `@tester`** again
+
+**When delegating to tester:** Only provide the files affected - the tester knows which tests to run based on file patterns.
 
 **planning-discovery does NOT require QA** - it's a manual user conversation.
 
@@ -176,6 +175,12 @@ task_id: ses_456  # planning-discovery - NEW, WRONG!
 task_id: ses_123  # planning-discovery
 task_id: ses_123  # planning-discovery - SAME, RESUMED!
 ```
+
+**Consequences of not reusing:**
+- Loss of conversation context
+- Agent cannot see previous work or file modifications
+- Breaks the workflow continuity
+- Each agent type must maintain ONE task_id per unit
 
 Only spawn a NEW agent if:
 - This is the FIRST time calling this agent type

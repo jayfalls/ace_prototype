@@ -12,7 +12,6 @@ agency-agents/
 build/
 dist/
 downloads/
-lib/
 lib64/
 parts/
 sdist/

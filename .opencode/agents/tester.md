@@ -32,36 +32,45 @@ Run ALL tests (unit, integration, e2e, frontend, backend) and verify code works 
 
 ## Workflow
 
-### 1. Start Services and Verify
+### 1. Check Container Status
 ```bash
-make up
+make ps
 ```
-- Verify all containers are running
-- Verify services are healthy (curl health endpoints)
+- If containers are NOT running → Run `make up` to start them
+- If containers ARE running but code is stale → Run `make build` to rebuild with new code
 
-### 2. Run ALL Backend Tests
+### 2. Ensure Fresh Code in Containers
 ```bash
-docker exec ace_api go test ./...
+# If any dependencies changed (package.json, go.mod, etc.), rebuild:
+make build
 ```
+Wait for build to complete before running tests.
 
-### 3. Run ALL Frontend Tests
-```bash
-docker exec ace_frontend npm test -- --run
-```
-
-### 4. Run ALL Make Tests
+### 3. Run ALL Tests
 ```bash
 make test
 ```
+This runs both backend and frontend tests via the Makefile.
 
-### 5. Test HTTP Endpoints
+### 4. If make test Fails, Debug Individual Components
+
+**Backend tests:**
 ```bash
-curl -X GET http://localhost:8080/health
+make exec-api go test ./...
 ```
 
-### 6. Analyze Results
-- If tests fail, investigate with `docker exec` commands
-- Use `curl` to test specific endpoints
+**Frontend tests:**
+```bash
+make exec-fe npm test -- --run
+```
+
+**Frontend type check:**
+```bash
+make exec-fe npm run check
+```
+
+### 5. Analyze Results
+- If tests fail, investigate with `make exec-*` commands
 - Activate **Test Results Analyzer** if needed
 
 ## Output
