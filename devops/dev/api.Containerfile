@@ -9,6 +9,8 @@ COPY backend/go.work.sum ./
 # Copy module files
 COPY backend/services/api/go.mod backend/services/api/go.sum ./services/api/
 COPY backend/shared/go.mod ./shared/
+COPY backend/shared/messaging/go.mod ./shared/messaging/
+COPY backend/shared/telemetry/go.mod ./shared/telemetry/
 
 # Download dependencies
 RUN go work sync && go mod download
