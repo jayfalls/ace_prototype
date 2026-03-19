@@ -91,7 +91,7 @@ services:
   nats-exporter:
     image: natsio/prometheus-nats-exporter:latest
     container_name: ace_nats_exporter
-    command: -varz nats://ace_broker:4222
+    command: -varz http://ace_broker:8222
     ports:
       - "55678:7777"
     networks:
