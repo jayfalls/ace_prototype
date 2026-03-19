@@ -22,7 +22,7 @@ $(error ENVIRONMENT must be either 'dev' or 'prod', got: $(ENVIRONMENT))
 endif
 
 # Support both docker-compose and docker compose (fallback)
-COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml
+COMPOSE := $(ORCHESTRATOR) compose -f devops/$(ENVIRONMENT)/compose.yml --env-file .env
 
 # Distrobox config
 DISTROBOX_NAME := opencode
