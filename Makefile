@@ -175,10 +175,10 @@ ps: ## Show running containers
 
 test: ## Run all tests in API and frontend containers
 	@echo "$(BLUE)Running tests in API container...$(NC)"
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/services/api && go test -tags=integration ./..."
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/messaging && go test -tags=integration ./..."
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/telemetry && go test -tags=integration ./..."
+	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/services/api && go test -tags=integration ./...'"
+	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared && go test -tags=integration ./...'"
+	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared/messaging && go test -tags=integration ./...'"
+	@sg docker -c "$(ORCHESTRATOR) exec ace_api sh -c 'cd /app/shared/telemetry && go test -tags=integration ./...'"
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
-	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
+	@sg docker -c "$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo 'Frontend tests not available - make sure container is running with make up'"
