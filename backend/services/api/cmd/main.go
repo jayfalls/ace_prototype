@@ -31,18 +31,21 @@ import (
 
 // NOTE: Commented out code to be enabled once needed
 
-func migrate(databaseURL string) {
+// migrate runs all pending database migrations using Goose.
+// It is called during server startup before any HTTP traffic is served.
+func migrate(databaseURL string) error {
 	goose.SetTableName("schema_migrations")
 	sqlDB, err := sql.Open("pgx", databaseURL)
 	if err != nil {
-		log.Fatalf("Failed to open database for migrations: %v", err)
+		return fmt.Errorf("open database for migrations: %w", err)
 	}
 	defer sqlDB.Close()
 
 	if err := goose.Up(sqlDB, "migrations"); err != nil {
-		log.Fatalf("Failed to run migrations: %v", err)
+		return fmt.Errorf("run migrations: %w", err)
 	}
 	log.Println("Migrations completed successfully")
+	return nil
 }
 
 func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, tel *telemetry.Telemetry) *chi.Mux {
@@ -134,7 +137,9 @@ func main() {
 	defer db.Close()
 
 	// Run database migrations
-	migrate(cfg.DatabaseURL)
+	if err := migrate(cfg.DatabaseURL); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	// Create NATS client
 	natsClient, err := messaging.NewClient(messaging.Config{
