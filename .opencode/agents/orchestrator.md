@@ -152,35 +152,61 @@ When creating new files or directories that should NOT be committed:
 
 ## Always Reuse Sub Agents - THIS IS CRITICAL
 
-**RULE: NEVER create a new task_id for the same agent type**
+**RULE: NEVER create a new task_id for the same agent type in the same unit**
 
-When you need to call an agent that has already been called:
-1. **Check the task_id** from the previous spawn of this agent type
-2. **REUSE that task_id** - use `task_id` parameter to resume the existing session
-3. **NEVER create a new session** - always resume with existing task_id
+### How Task Tool Works
 
-Example:
+When you spawn a subagent via `task()`, it returns a `task_id`. This task_id is your session handle. **You must track and reuse it.**
+
+### Mandatory: Track task_ids in Short-Term Memory
+
+After spawning ANY agent, immediately save the task_id to the unit's short-term memory file:
+
+```json
+{
+  "task_ids": {
+    "planning": "ses_abc123",
+    "research": null,
+    "technical": null,
+    "qa": null
+  }
+}
 ```
-# WRONG - creates new task each time
-task_id: ses_123  # planning
-task_id: ses_456  # planning - NEW, WRONG!
 
-# CORRECT - reuses same task_id
-task_id: ses_123  # planning
-task_id: ses_123  # planning - SAME, RESUMED!
+**Before spawning any agent, ALWAYS check if task_id exists in memory:**
+1. Read `.agents/memory/short-term/{unit}.json`
+2. Check `task_ids.{agent_type}` 
+3. If NOT null → pass that task_id to resume the session
+4. If null → spawn new session, then save the returned task_id
+
+### Correct Pattern
+```
+1. Read memory → task_ids.planning = "ses_abc123" (exists)
+2. Call task(planning, task_id="ses_abc123") → RESUMES same session
+3. Agent sees all prior context, files modified, conversation history
 ```
 
-**Consequences of not reusing:**
-- Loss of conversation context
-- Agent cannot see previous work or file modifications
-- Breaks the workflow continuity
-- Each agent type must maintain ONE task_id per unit
+### WRONG Pattern (What I Was Doing)
+```
+1. Don't check memory
+2. Call task(planning) without task_id → CREATES new session
+3. Agent has NO context, starts fresh, loses all prior work
+4. Creates duplicate work and broken continuity
+```
 
-Only spawn a NEW agent if:
-- This is the FIRST time calling this agent type
-- No previous task_id exists for this unit
+### Consequences of not reusing:
+- Agent loses all prior conversation context
+- Agent cannot see files it previously created/modified
+- Agent cannot see QA feedback from prior runs
+- Workflow continuity completely broken
+- Duplicate work and inconsistent outputs
 
-This ensures continuity and preserves conversation context.
+### When to Create NEW Session
+Only spawn a NEW agent (no task_id) if:
+- This is the VERY FIRST call to this agent type for this unit
+- The `task_ids.{agent_type}` in memory is `null`
+
+This ensures continuity and preserves conversation context across all interactions.
 
 ## Creating New Agents
 
