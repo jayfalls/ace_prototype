@@ -406,11 +406,10 @@ git add . && git commit -m "descriptive message"
 
 ### MANDATORY: Create PR For Every Piece of Work
 
-**ABSOLUTE RULE: Every small piece of work MUST have a PR. A PR can contain multiple commits.**
+**ABSOLUTE RULE: Every small piece of work MUST have a PR.**
 
 This is NON-NEGOTIABLE:
-- **Every piece of work requires a PR** - not every commit
-- **A PR can have dozens of commits** - that's normal and expected
+- **Every piece of work requires a PR**
 - **Work is NOT complete** until a PR is created
 - **Never skip PR creation** - even for small changes
 
@@ -430,7 +429,6 @@ This is NON-NEGOTIABLE:
 
 **PR Description Requirements:**
 - Summary of the complete piece of work
-- All commits included in this PR
 - Test results (attach QA report if applicable)
 - Files affected
 - Link to related issues
