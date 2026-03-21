@@ -18,7 +18,7 @@ Comprehensive database design, patterns, and API/DB documentation for the ACE Fr
 - Mockups (pending)
 - Testing (pending)
 - Implementation (pending)
-- Migration and Rollback (pending)
+- [migration_and_rollback.md](migration_and_rollback.md) - Migration documentation specification
 
 ## Scope
 
