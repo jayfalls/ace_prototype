@@ -11,7 +11,7 @@ Comprehensive database design, patterns, and API/DB documentation for the ACE Fr
 - Research (pending)
 - Dependencies (pending)
 - [architecture.md](architecture.md) - Technical architecture
-- API Documentation (pending)
+- [api.md](api.md) - API/DB documentation specification
 - Security (pending)
 - Monitoring (pending)
 - Design (pending)
