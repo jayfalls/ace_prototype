@@ -128,6 +128,37 @@ All subagents require QA:
 
 **CRITICAL: QA issues are BLOCKING. You MUST fix them before moving to the next phase.**
 
+### MANDATORY: Fix ALL QA Issues - No Exceptions
+
+**ABSOLUTE RULE: You MUST fix EVERY issue the QA agent flags before proceeding to the next phase.**
+
+This policy is NON-NEGOTIABLE:
+- **ALL issues must be fixed NOW** - not deferred to follow-up PRs
+- **No exceptions** - even if QA says "can proceed" or "address in follow-up"
+- **Every single issue** - HIGH, MEDIUM, LOW severity all require fixes
+- **Complete resolution** - don't partial-fix or skip any issues
+
+**Process when QA flags issues:**
+1. Read the QA report carefully
+2. Identify ALL issues flagged (regardless of severity)
+3. Resume the original agent with task_id to fix issues
+4. Provide the agent with the complete list of issues to address
+5. Agent must fix ALL issues in one session
+6. Run QA again to verify ALL issues are resolved
+7. Repeat until QA returns PASS with zero issues
+
+**Why this matters:**
+- Quality gates exist for a reason
+- Deferred issues become technical debt
+- Follow-up PRs often never happen
+- Consistent quality builds trust
+- Better to fix issues when context is fresh
+
+**If QA says "conditional pass" or "can proceed with follow-up":**
+- Treat this as FAIL
+- Fix ALL issues immediately
+- Do not proceed until QA returns clean PASS
+
 ## One Document Per PR
 
 **CRITICAL**: Every subagent should create ONLY ONE document per session/PR.
