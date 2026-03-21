@@ -446,11 +446,15 @@ This is NON-NEGOTIABLE:
 
 **Process when creating a PR:**
 1. Ensure all commits for this piece of work are made
-2. Push the branch: `git push -u origin <branch-name>`
-3. Create PR using `gh pr create`
-4. Include clear description with all changes and test results
-5. Link the PR to the user once created
-6. Only then report completion to user
+2. **Update the changelog** — Add/update `documentation/changelogs/<YYYY-MM-DD>.md` with today's changes BEFORE pushing (see Documentation Updates section below)
+3. Commit the changelog update: `git add . && git commit`
+4. Push the branch: `git push -u origin <branch-name>`
+5. Create PR using `gh pr create`
+6. Include clear description with all changes and test results
+7. Link the PR to the user once created
+8. Only then report completion to user
+
+**CRITICAL: The changelog MUST be committed and pushed WITH the PR. A PR without a changelog entry is incomplete.**
 
 **PR Description Requirements:**
 - Summary of the complete piece of work
@@ -491,20 +495,33 @@ Then check for next issue to work on.
 
 ## Documentation Updates (CRITICAL)
 
-When documentation updates are needed:
+**The changelog is NOT optional. Every PR must include a changelog entry.**
 
 ### Before making any changelog or documentation updates:
-1. **Check the current date** - Use `date` command to get today's date
-2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
-3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
+1. **Check the current date** — Use `date` command to get today's date
+2. **Check existing changelog files** — List `documentation/changelogs/` to see what files exist and their dates
+3. **Only update/add to existing files** — Never overwrite existing changelog content, only append new entries
 
-### After every commit:
+### What goes in the changelog:
+- **Added**: New files, documents, features, or capabilities
+- **Changed**: Modifications to existing files, behavior, or structure
+- **Fixed**: Bug fixes, QA issue resolutions
+- **Removed**: Deleted files or removed functionality
+- **Notes**: Context, decisions, QA results, PR references
+
+### When to update the changelog:
+- **BEFORE pushing and creating a PR** — not after
+- Every document created (research.md, architecture.md, etc.)
+- Every code change committed
+- Every QA fix applied
+- Every design decision made
+
+### Also update after every commit:
 1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
-2. Update the `design/README.md` if relevant
-3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
-4. Ensure BSD/FSD documents match the actual implementation
-5. Update API documentation if endpoints changed
-6. Update the user wiki documentation/ folder with relevant changes
+2. Update `design/README.md` if relevant (e.g., new Makefile targets, new constraints)
+3. Ensure BSD/FSD documents match the actual implementation
+4. Update API documentation if endpoints changed
+5. Update the user wiki `documentation/` folder with relevant changes
 
 ### Unit Completion
 
