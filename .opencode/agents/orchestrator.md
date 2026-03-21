@@ -128,6 +128,37 @@ All subagents require QA:
 
 **CRITICAL: QA issues are BLOCKING. You MUST fix them before moving to the next phase.**
 
+### MANDATORY: Fix ALL QA Issues - No Exceptions
+
+**ABSOLUTE RULE: You MUST fix EVERY issue the QA agent flags before proceeding to the next phase.**
+
+This policy is NON-NEGOTIABLE:
+- **ALL issues must be fixed NOW** - not deferred to follow-up PRs
+- **No exceptions** - even if QA says "can proceed" or "address in follow-up"
+- **Every single issue** - HIGH, MEDIUM, LOW severity all require fixes
+- **Complete resolution** - don't partial-fix or skip any issues
+
+**Process when QA flags issues:**
+1. Read the QA report carefully
+2. Identify ALL issues flagged (regardless of severity)
+3. Resume the original agent with task_id to fix issues
+4. Provide the agent with the complete list of issues to address
+5. Agent must fix ALL issues in one session
+6. Run QA again to verify ALL issues are resolved
+7. Repeat until QA returns PASS with zero issues
+
+**Why this matters:**
+- Quality gates exist for a reason
+- Deferred issues become technical debt
+- Follow-up PRs often never happen
+- Consistent quality builds trust
+- Better to fix issues when context is fresh
+
+**If QA says "conditional pass" or "can proceed with follow-up":**
+- Treat this as FAIL
+- Fix ALL issues immediately
+- Do not proceed until QA returns clean PASS
+
 ## One Document Per PR
 
 **CRITICAL**: Every subagent should create ONLY ONE document per session/PR.
@@ -363,6 +394,7 @@ Subagent fails after 3 retries
 5. **Always retry** - Up to 3 times, then escalate
 6. **Keep memory lean** - Prune completed, store semantic learnings
 7. **Always commit** - After every change, immediately commit: `git add . && git commit`
+8. **ALWAYS create a PR** - After every commit, immediately create a PR. Work is NOT complete without a PR.
 
 ## Git Workflow
 
@@ -371,6 +403,41 @@ After every code, doc, or config change, IMMEDIATELY commit:
 ```bash
 git add . && git commit -m "descriptive message"
 ```
+
+### MANDATORY: Create PR For Every Piece of Work
+
+**ABSOLUTE RULE: Every small piece of work MUST have a PR.**
+
+This is NON-NEGOTIABLE:
+- **Every piece of work requires a PR**
+- **Work is NOT complete** until a PR is created
+- **Never skip PR creation** - even for small changes
+
+**When to create a PR:**
+- After completing a document (research.md, architecture.md, etc.)
+- After implementing a feature or fix
+- After addressing QA issues
+- When the piece of work is ready for review
+
+**Process when creating a PR:**
+1. Ensure all commits for this piece of work are made
+2. Push the branch: `git push -u origin <branch-name>`
+3. Create PR using `gh pr create`
+4. Include clear description with all changes and test results
+5. Link the PR to the user once created
+6. Only then report completion to user
+
+**PR Description Requirements:**
+- Summary of the complete piece of work
+- Test results (attach QA report if applicable)
+- Files affected
+- Link to related issues
+- Unit reference in title: `[unit: <unit-name>]`
+
+**If you forget to create a PR:**
+- This is a BLOCKING failure
+- Create the PR immediately when you realize
+- Update user with the PR link
 
 ### After PR Merged
 When user says "merged", IMMEDIATELY run:
