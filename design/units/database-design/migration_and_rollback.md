@@ -491,6 +491,7 @@ From the existing codebase:
 | Numeric filename prefix (`001_create_usage_events.go`) | `backend/shared/telemetry/migrations/` | Timestamp prefix (`YYYYMMDDHHMMSS_description.go`) | Trivial (rename on next migration) |
 | Bare `up`/`down` function names | `001_create_usage_events.go` | Descriptive names (`upCreateUsageEvents`) | Trivial |
 | `CREATE TABLE IF NOT EXISTS` | `001_create_usage_events.go` | `CREATE TABLE` (Goose manages existence) | Trivial |
+| `log.Fatalf` in `migrate` function | `backend/services/api/cmd/main.go` | `return fmt.Errorf(...)` with caller handling | Trivial (acceptable for main function) |
 
 ### Phased Migration Plan (FR-5.2)
 
