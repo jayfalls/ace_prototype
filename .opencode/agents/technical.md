@@ -57,6 +57,8 @@ Create technical design documents for a unit. The orchestrator will specify whic
 - PR ordering and dependencies
 - Acceptance criteria per PR
 - Task breakdown
+- **Code migration**: Include phase to migrate existing code to new standards (rename files, fix patterns, add docs)
+- **NEVER include effort/time estimates** — document WHAT and in WHAT ORDER, not how long
 
 ### Security (security.md)
 - Security considerations
@@ -77,6 +79,8 @@ Each micro-PR should:
 - Have clear acceptance criteria
 - Include necessary tests
 - Be reviewable in one sitting
+- **Include code migration tasks** when creating implementation plans — existing code must be updated to new standards
+- **NEVER include effort/time estimates** — they are meaningless for planning documents
 
 ## Templates
 
