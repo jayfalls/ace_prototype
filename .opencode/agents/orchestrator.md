@@ -395,8 +395,33 @@ Subagent fails after 3 retries
 6. **Keep memory lean** - Prune completed, store semantic learnings
 7. **Always commit** - After every change, immediately commit: `git add . && git commit`
 8. **ALWAYS create a PR** - After every commit, immediately create a PR. Work is NOT complete without a PR.
+9. **WAIT for merge** - Never start new work until the current PR is merged
 
 ## Git Workflow
+
+### CRITICAL: Branch Verification Before Any Work
+
+**ALWAYS verify the branch state before spawning any subagent or starting any work.**
+
+Run these checks EVERY time before delegating work:
+
+```bash
+git branch --show-current  # Must NOT be on main
+git status                  # Must be clean (or only have expected changes)
+```
+
+**Rules:**
+- **NEVER work directly on main** — all work must be on a feature branch
+- If on main: immediately `git checkout -b feature/<description>` before doing anything
+- If uncommitted changes exist that aren't part of the current task: stash or commit them first
+- If accidentally committed to main: revert immediately, create branch, cherry-pick
+
+**Branch naming convention:**
+- `feature/<description>` — New features
+- `fix/<description>` — Bug fixes
+- `docs/<description>` — Documentation changes
+- `refactor/<description>` — Code refactoring
+- `test/<description>` — Adding or updating tests
 
 ### After Every Change
 After every code, doc, or config change, IMMEDIATELY commit:
@@ -421,11 +446,15 @@ This is NON-NEGOTIABLE:
 
 **Process when creating a PR:**
 1. Ensure all commits for this piece of work are made
-2. Push the branch: `git push -u origin <branch-name>`
-3. Create PR using `gh pr create`
-4. Include clear description with all changes and test results
-5. Link the PR to the user once created
-6. Only then report completion to user
+2. **Update the changelog** — Add/update `documentation/changelogs/<YYYY-MM-DD>.md` with today's changes BEFORE pushing (see Documentation Updates section below)
+3. Commit the changelog update: `git add . && git commit`
+4. Push the branch: `git push -u origin <branch-name>`
+5. Create PR using `gh pr create`
+6. Include clear description with all changes and test results
+7. Link the PR to the user once created
+8. Only then report completion to user
+
+**CRITICAL: The changelog MUST be committed and pushed WITH the PR. A PR without a changelog entry is incomplete.**
 
 **PR Description Requirements:**
 - Summary of the complete piece of work
@@ -439,6 +468,24 @@ This is NON-NEGOTIABLE:
 - Create the PR immediately when you realize
 - Update user with the PR link
 
+### CRITICAL: Do NOT Start New Work Until PR Is Merged
+
+**After creating a PR, you MUST wait for it to be merged before starting the next piece of work.**
+
+- **NEVER create a new branch or spawn a subagent for the next document while a PR is still open**
+- After pushing and creating a PR: report the link to the user and **STOP**
+- Wait for the user to say "merged" before proceeding
+- Even if the user says "continue" or "next" — check if the current PR is merged first
+
+**The only acceptable work while a PR is open:**
+- Fixing issues flagged by PR review comments (on the same branch)
+- Responding to questions about the PR
+
+**Why:**
+- Prevents branch conflicts and merge hell
+- Ensures each piece of work gets proper review before the next starts
+- Keeps the workflow sequential and traceable
+
 ### After PR Merged
 When user says "merged", IMMEDIATELY run:
 ```bash
@@ -448,20 +495,33 @@ Then check for next issue to work on.
 
 ## Documentation Updates (CRITICAL)
 
-When documentation updates are needed:
+**The changelog is NOT optional. Every PR must include a changelog entry.**
 
 ### Before making any changelog or documentation updates:
-1. **Check the current date** - Use `date` command to get today's date
-2. **Check existing changelog files** - List `documentation/changelogs/` to see what files exist and their dates
-3. **Only update/add to existing files** - Never overwrite existing changelog content, only append new entries
+1. **Check the current date** — Use `date` command to get today's date
+2. **Check existing changelog files** — List `documentation/changelogs/` to see what files exist and their dates
+3. **Only update/add to existing files** — Never overwrite existing changelog content, only append new entries
 
-### After every commit:
+### What goes in the changelog:
+- **Added**: New files, documents, features, or capabilities
+- **Changed**: Modifications to existing files, behavior, or structure
+- **Fixed**: Bug fixes, QA issue resolutions
+- **Removed**: Deleted files or removed functionality
+- **Notes**: Context, decisions, QA results, PR references
+
+### When to update the changelog:
+- **BEFORE pushing and creating a PR** — not after
+- Every document created (research.md, architecture.md, etc.)
+- Every code change committed
+- Every QA fix applied
+- Every design decision made
+
+### Also update after every commit:
 1. Update the relevant design documents in `design/units/<unit-name>/` to reflect the final implementation
-2. Update the `design/README.md` if relevant
-3. Add entries to the daily changelog in `documentation/changelogs/<YYYY-MM-DD>.md`
-4. Ensure BSD/FSD documents match the actual implementation
-5. Update API documentation if endpoints changed
-6. Update the user wiki documentation/ folder with relevant changes
+2. Update `design/README.md` if relevant (e.g., new Makefile targets, new constraints)
+3. Ensure BSD/FSD documents match the actual implementation
+4. Update API documentation if endpoints changed
+5. Update the user wiki `documentation/` folder with relevant changes
 
 ### Unit Completion
 

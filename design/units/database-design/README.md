@@ -10,7 +10,7 @@ Comprehensive database design, patterns, and API/DB documentation for the ACE Fr
 - [fsd.md](fsd.md) - Functional Specification Document
 - Research (pending)
 - Dependencies (pending)
-- Architecture (pending)
+- [architecture.md](architecture.md) - Technical architecture
 - API Documentation (pending)
 - Security (pending)
 - Monitoring (pending)
