@@ -17,7 +17,7 @@ Comprehensive database design, patterns, and API/DB documentation for the ACE Fr
 - Design (pending)
 - Mockups (pending)
 - Testing (pending)
-- Implementation (pending)
+- [implementation.md](implementation.md) - Implementation plan (23 micro-PRs)
 - [migration_and_rollback.md](migration_and_rollback.md) - Migration documentation specification
 
 ## Scope
