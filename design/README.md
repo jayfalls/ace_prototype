@@ -116,6 +116,15 @@ client, err := messaging.NewClient(messaging.Config{
 // this and produces incomplete envelopes.
 err = messaging.Publish(client, subject, correlationID, agentID, cycleID, "my-service", payload)
 
+// Publish with Subject type (recommended for type safety)
+err = messaging.PublishWithSubject(client, messaging.SubjectEngineLayerInput, correlationID, agentID, cycleID, "my-service", payload, agentID, layerID)
+
+// Request-reply pattern — use when you need a response
+reply, err := messaging.RequestReply(client, subject, correlationID, agentID, cycleID, "my-service", payload, 30*time.Second)
+
+// Request-reply with Subject type
+reply, err := messaging.RequestReplyWithSubject(client, messaging.SubjectLLMRequest, correlationID, agentID, cycleID, "my-service", payload, 30*time.Second, agentID)
+
 // Subscribe with automatic envelope parsing
 sub, err := messaging.SubscribeWithEnvelope(client, subject, func(env *messaging.Envelope, data []byte) error {
     // env.AgentID, env.CycleID, env.CorrelationID are populated from headers
@@ -125,14 +134,52 @@ sub, err := messaging.SubscribeWithEnvelope(client, subject, func(env *messaging
 // JetStream consumer — use this when at-least-once delivery matters
 err = messaging.SubscribeToStream(ctx, client, "COGNITIVE", "consumer-name", subject, handler)
 
+// JetStream with envelope parsing
+err = messaging.SubscribeToStreamWithEnvelope(ctx, client, "COGNITIVE", "consumer-name", subject, func(env *messaging.Envelope, data []byte) error {
+    return nil
+})
+
 // Health check — include in /health/ready alongside the database ping
 err = client.HealthCheck() // verifies TCP connection AND JetStream AccountInfo
 
 // Create or update all streams idempotently on startup
 err = messaging.EnsureStreams(ctx, js)
+
+// Reply to an incoming request (preserves correlation ID)
+err = messaging.ReplyTo(client, incomingMsg, payload)
+
+// Forward a message to a new subject (preserves envelope)
+err = messaging.ForwardMessage(client, incomingMsg, newSubject)
+
+// Create request envelope from incoming message (preserves correlation ID)
+env := messaging.CreateRequestEnvelope(incomingMsg, agentID, cycleID, "my-service")
 ```
 
 Subject constants are typed `Subject` values in `shared/messaging/subjects.go` with a `.Format(args...)` method for interpolation — never construct subject strings by hand, because typos produce silent routing failures with no compile-time detection.
+
+**Available Subjects:**
+- `SubjectEngineLayerInput` — `ace.engine.%s.layer.%s.input`
+- `SubjectEngineLayerOutput` — `ace.engine.%s.layer.%s.output`
+- `SubjectEngineLoopStatus` — `ace.engine.%s.loop.%s.status`
+- `SubjectMemoryStore` — `ace.memory.%s.store`
+- `SubjectMemoryQuery` — `ace.memory.%s.query`
+- `SubjectMemoryResult` — `ace.memory.%s.result`
+- `SubjectToolsInvoke` — `ace.tools.%s.%s.invoke`
+- `SubjectToolsResult` — `ace.tools.%s.%s.result`
+- `SubjectSensesEvent` — `ace.senses.%s.%s.event`
+- `SubjectLLMRequest` — `ace.llm.%s.request`
+- `SubjectLLMResponse` — `ace.llm.%s.response`
+- `SubjectUsageToken` — `ace.usage.%s.token`
+- `SubjectUsageCost` — `ace.usage.%s.cost`
+- `SubjectSystemAgentsSpawn` — `ace.system.agents.spawn`
+- `SubjectSystemAgentsShutdown` — `ace.system.agents.shutdown`
+- `SubjectSystemHealth` — `ace.system.health.%s`
+
+**JetStream Streams:**
+- `COGNITIVE` — Cognitive engine messages (1GB, 24h retention)
+- `USAGE` — LLM usage events (100MB, 30 days retention)
+- `SYSTEM` — System events (10MB, work queue policy)
+- `DLQ` — Dead letter queue for failed messages
 
 ### `shared/telemetry`
 
@@ -149,6 +196,9 @@ defer tel.Shutdown(ctx)
 // tel.Meter   — metric.Meter
 // tel.Logger  — *zap.Logger pre-configured with service_name
 // tel.Usage   — *UsagePublisher
+
+// Health check — include in /health/ready alongside the database ping
+err = telemetry.HealthCheck() // verifies OTLP exporter connection
 
 // Attach correlation context to the logger for a request or cycle scope
 logger := telemetry.LogFields{
@@ -171,6 +221,9 @@ defer span.End()
 telemetry.InjectTraceContext(ctx, natsMsg)
 ctx = telemetry.ExtractTraceContext(ctx, natsMsg)
 
+// Extract trace context from HTTP headers
+ctx = telemetry.ExtractHTTP(r.Context(), r.Header)
+
 // Usage events feed cost attribution, the Layer Inspector, and billing.
 // All return error — log failures, never propagate them.
 err = tel.Usage.LLMCall(ctx, agentID, cycleID, sessionID, "api", tokens, costUSD, durationMs)
@@ -184,9 +237,32 @@ err = tel.Usage.Publish(ctx, telemetry.UsageEvent{
     Metadata:      map[string]string{"query": "select_agents"},
 })
 
-// Attach metrics middleware to the Chi router
-router.Use(telemetry.MetricsMiddleware(cfg.ServiceName))
+// Attach middleware to the Chi router
+router.Use(telemetry.TraceMiddleware()) // extracts trace context from HTTP headers
+router.Use(telemetry.MetricsMiddleware(cfg.ServiceName)) // records request metrics
+router.Use(telemetry.LoggerMiddleware(cfg.ServiceName)) // logs HTTP requests
 ```
+
+**Middleware Stack (attach in this order):**
+1. `TraceMiddleware()` — Extracts W3C Trace Context from HTTP headers
+2. `MetricsMiddleware(serviceName)` — Records request latency and error rates
+3. `LoggerMiddleware(serviceName)` — Logs HTTP requests with trace context
+
+**UsageEvent Operation Types:**
+- `OperationTypeLLMCall` — LLM API calls
+- `OperationTypeMemoryRead` — Memory reads
+- `OperationTypeMemoryWrite` — Memory writes
+- `OperationTypeToolExecute` — Tool executions
+- `OperationTypeDBQuery` — Database queries
+- `OperationTypeNATSPublish` — NATS publish operations
+- `OperationTypeNATSSubscribe` — NATS subscribe operations
+
+**UsageEvent Resource Types:**
+- `ResourceTypeAPI` — API resources
+- `ResourceTypeMemory` — Memory resources
+- `ResourceTypeTool` — Tool resources
+- `ResourceTypeDatabase` — Database resources
+- `ResourceTypeMessaging` — Messaging resources
 
 ### `services/api` Handler Pattern
 
