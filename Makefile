@@ -35,7 +35,7 @@ BLUE := $(shell printf '\033[0;34m')
 RED := $(shell printf '\033[0;31m')
 NC := $(shell printf '\033[0m')
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop
+.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop docs
 
 ##@ General
 
@@ -178,3 +178,9 @@ test: ## Run all tests in API and frontend containers
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
+
+##@ Documentation
+
+docs: ## Generate, validate, and lint all documentation
+	@echo "Generating documentation..."
+	cd scripts/docs-gen && go run .
