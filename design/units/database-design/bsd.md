@@ -19,6 +19,8 @@ Create a comprehensive database design documentation unit that serves dual purpo
 2. **API/DB Documentation** with full OpenAPI specifications linking endpoints to database operations
 3. **Pattern Documentation** for naming conventions, SQLC usage, Goose migrations, and reusable query helpers
 4. **Performance Guidance** documenting indexing strategies, pagination patterns, and connection pooling
+5. **Standardization Plan** for migrating existing implementations to the new documented standards
+6. **Agent Integration** ensuring opencode agents can effectively reference and work with API documentation
 
 ## Core Principles
 1. **Authoritative source of truth** - Single location for all database design decisions
@@ -58,6 +60,20 @@ Create a comprehensive database design documentation unit that serves dual purpo
 - Schema versioning approach
 - Migration testing patterns
 
+### Standardization & Adoption
+- Migration plan for existing implementations to adopt new standards
+- Code refactoring guidelines for aligning current codebase with documented patterns
+- Backward compatibility considerations during migration
+- Phased rollout strategy for standard adoption
+- Documentation of legacy patterns and their modern equivalents
+
+### Agent Integration
+- Update opencode agents to reference and utilize API documentation
+- Create agent-specific documentation for working with database patterns
+- Establish agent guidelines for schema-aware code generation
+- Document how agents should query and reference OpenAPI specifications
+- Provide agent training materials for SQLC and Goose pattern usage
+
 ## Out of Scope
 - Application business logic documentation (separate unit concern)
 - Frontend component documentation
@@ -73,6 +89,9 @@ Create a comprehensive database design documentation unit that serves dual purpo
 - **Better decisions**: Performance patterns prevent common pitfalls before they occur
 - **Knowledge preservation**: Design decisions documented survive team turnover
 - **Cross-team clarity**: Frontend developers understand API contracts; DevOps understands schema requirements
+- **Codebase modernization**: Existing implementations migrated to current standards improve maintainability
+- **AI-assisted development**: Opencode agents can leverage API documentation to generate better, more consistent code
+- **Reduced technical debt**: Standardized patterns eliminate legacy inconsistencies across the codebase
 
 ## Success Criteria
 | Criterion | Metric | Target |
@@ -87,6 +106,8 @@ Create a comprehensive database design documentation unit that serves dual purpo
 | SQLC pattern coverage | Workflows documented | Query organization, code generation, helpers |
 | Developer satisfaction | Survey feedback | >4.0/5.0 clarity rating |
 | Documentation freshness | Time since last sync with code | <1 sprint lag |
+| Existing implementation migration | Legacy code refactored to standards | 100% of existing implementations aligned |
+| Agent integration | Agents trained on API documentation | 100% of agents can reference and use API docs |
 
 ## Dependencies
 - **core-infra unit**: Existing schema implementations and migrations to document
