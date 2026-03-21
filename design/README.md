@@ -138,7 +138,7 @@ See [units/architecture/architecture.md](units/architecture/architecture.md) for
 
 ## 3. Data Model
 
-The data model is defined in the Core Infrastructure unit.
+The data model is defined in the [Database Design](units/database-design/README.md) unit.
 
 ### Core Entities
 - **Agent**: Autonomous cognitive entity (id, name, description, config, status)
@@ -161,7 +161,7 @@ The data model is defined in the Core Infrastructure unit.
 
 ## 4. API
 
-The API structure is defined in the Core Infrastructure unit.
+The API structure is defined in the [Database Design](units/database-design/README.md) unit.
 
 ### REST API
 - **Agents**: CRUD + lifecycle (start/stop)
