@@ -394,6 +394,7 @@ Subagent fails after 3 retries
 5. **Always retry** - Up to 3 times, then escalate
 6. **Keep memory lean** - Prune completed, store semantic learnings
 7. **Always commit** - After every change, immediately commit: `git add . && git commit`
+8. **ALWAYS create a PR** - After every commit, immediately create a PR. Work is NOT complete without a PR.
 
 ## Git Workflow
 
@@ -402,6 +403,35 @@ After every code, doc, or config change, IMMEDIATELY commit:
 ```bash
 git add . && git commit -m "descriptive message"
 ```
+
+### MANDATORY: Create PR After Every Commit
+
+**ABSOLUTE RULE: After EVERY commit, you MUST immediately create a PR.**
+
+This is NON-NEGOTIABLE:
+- **Every commit requires a PR** - no exceptions
+- **Work is NOT complete** until a PR is created
+- **Never skip PR creation** - even for small changes
+- **Always push and create PR** before reporting to user
+
+**Process after every commit:**
+1. Push the branch: `git push -u origin <branch-name>`
+2. Create PR immediately using `gh pr create`
+3. Include clear description with changes and test results
+4. Link the PR to the user once created
+5. Only then report completion to user
+
+**PR Description Requirements:**
+- Summary of changes
+- Test results (attach QA report if applicable)
+- Files affected
+- Link to related issues
+- Unit reference in title: `[unit: <unit-name>]`
+
+**If you forget to create a PR:**
+- This is a BLOCKING failure
+- Create the PR immediately when you realize
+- Update user with the PR link
 
 ### After PR Merged
 When user says "merged", IMMEDIATELY run:
