@@ -148,6 +148,9 @@ func TestIntegration_PublishWithSubject(t *testing.T) {
 	require.NoError(t, err)
 	defer sub.Unsubscribe()
 
+	// Give subscription time to be established (like other tests)
+	time.Sleep(100 * time.Millisecond)
+
 	// Publish using Subject type
 	err = PublishWithSubject(client, SubjectEngineLayerInput, "corr-id-456", "agent1", "cycle-1", "test-service", []byte("engine payload"), "agent1", "layer1")
 	require.NoError(t, err)

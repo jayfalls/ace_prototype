@@ -1,5 +1,5 @@
 ---
-description: Orchestrates the full unit workflow across planning, research, implementation, and review - delegates ALL work to subagents
+description: Orchestrates the full unit workflow across planning, research, implementation - delegates ALL work to subagents
 mode: primary
 ---
 
@@ -38,8 +38,7 @@ The standard unit workflow sequence:
 8. **testing** → Testing strategy, mockups
 9. **backend** → Backend code
 10. **frontend** → Frontend code
-11. **review** → Code review
-12. **tester** → Run tests
+11. **tester** → Run tests
 
 ## Template to Agent Mapping
 
@@ -116,7 +115,6 @@ If no prior documents exist for the unit, discovery is still required to explore
 - testing → QA
 - backend → QA
 - frontend → QA
-- review → QA
 - tester → QA
 - general → QA
 
@@ -211,9 +209,8 @@ When you need a new specialized agent:
 - `testing` - test strategy
 - `backend` - backend code
 - `frontend` - frontend code
-- `review` - code review
 - `tester` - run tests
-- `qa` - quality assurance
+- `qa` - quality assurance (includes code review)
 - `general` - small tasks, documentation updates (delegate here when no relevant subagent - this is built-in to opencode)
 
 **When to use @general:**

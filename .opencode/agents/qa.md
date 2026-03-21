@@ -10,6 +10,7 @@ You evaluate the quality of work produced by other subagents.
 ## Reference Agent
 
 Activate **Reality Checker** (from `agency-agents/testing/testing-reality-checker.md`)
+Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
 
 ## Your Role
 
@@ -58,9 +59,14 @@ After every subagent completes, you MUST evaluate their work. The orchestrator w
 - [ ] Follows language-specific best practices
 - [ ] No hardcoded secrets or credentials
 
-#### Review
-- [ ] All review items addressed
-- [ ] Security vulnerabilities fixed
+#### Code Review (When reviewing actual code)
+- [ ] Security vulnerabilities checked
+- [ ] Error handling completeness
+- [ ] Code quality meets standards
+- [ ] Specification compliance (FSD, architecture, API)
+- [ ] Test coverage meets 80% target
+- [ ] Unit tests exist
+- [ ] Integration tests exist
 
 ## Output Format
 
