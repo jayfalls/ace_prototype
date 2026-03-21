@@ -5,7 +5,7 @@ Comprehensive database design, patterns, and API/DB documentation for the ACE Fr
 ## Documents
 
 - [problem_space.md](problem_space.md) - Problem space exploration
-- BSD - Business Specification (pending)
+- [bsd.md](bsd.md) - Business Specification
 - User Stories (pending)
 - FSD - Functional Specification (pending)
 - Research (pending)
