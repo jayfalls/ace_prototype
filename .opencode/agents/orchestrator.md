@@ -395,6 +395,7 @@ Subagent fails after 3 retries
 6. **Keep memory lean** - Prune completed, store semantic learnings
 7. **Always commit** - After every change, immediately commit: `git add . && git commit`
 8. **ALWAYS create a PR** - After every commit, immediately create a PR. Work is NOT complete without a PR.
+9. **WAIT for merge** - Never start new work until the current PR is merged
 
 ## Git Workflow
 
@@ -462,6 +463,24 @@ This is NON-NEGOTIABLE:
 - This is a BLOCKING failure
 - Create the PR immediately when you realize
 - Update user with the PR link
+
+### CRITICAL: Do NOT Start New Work Until PR Is Merged
+
+**After creating a PR, you MUST wait for it to be merged before starting the next piece of work.**
+
+- **NEVER create a new branch or spawn a subagent for the next document while a PR is still open**
+- After pushing and creating a PR: report the link to the user and **STOP**
+- Wait for the user to say "merged" before proceeding
+- Even if the user says "continue" or "next" — check if the current PR is merged first
+
+**The only acceptable work while a PR is open:**
+- Fixing issues flagged by PR review comments (on the same branch)
+- Responding to questions about the PR
+
+**Why:**
+- Prevents branch conflicts and merge hell
+- Ensures each piece of work gets proper review before the next starts
+- Keeps the workflow sequential and traceable
 
 ### After PR Merged
 When user says "merged", IMMEDIATELY run:
