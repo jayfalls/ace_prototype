@@ -38,7 +38,6 @@ The standard unit workflow sequence:
 8. **testing** → Testing strategy, mockups
 9. **backend** → Backend code
 10. **frontend** → Frontend code
-11. **tester** → Run tests
 
 ## Template to Agent Mapping
 
@@ -115,24 +114,20 @@ If no prior documents exist for the unit, discovery is still required to explore
 - testing → QA
 - backend → QA
 - frontend → QA
-- tester → QA
 - general → QA
 
-### For Code Changes: Run QA BEFORE Tester
+### For Code Changes: Run QA (Includes Test Execution)
 
-**IMPORTANT**: For any code changes (backend, frontend), you MUST run `@qa` BEFORE `@tester`:
+**IMPORTANT**: For any code changes (backend, frontend), you MUST run `@qa` which now includes both quality checks AND test execution:
 
 1. Subagent completes code work
-2. **Run `@qa`** to evaluate the work quality
-3. If QA passes → **Run `@tester`** to verify build/tests pass
+2. **Run `@qa`** to evaluate the work quality AND execute tests
+3. If QA passes (quality + tests) → Continue to next phase
 4. **If QA fails → YOU MUST FIX ALL ISSUES before proceeding**
 5. After fixing QA issues → **Run `@qa`** again to verify fixes
 6. Repeat until QA passes completely
-7. If tests fail → Fix → **Run `@tester`** again
 
 **CRITICAL: QA issues are BLOCKING. You MUST fix them before moving to the next phase.**
-
-**When delegating to tester:** Only provide the files affected - the tester knows which tests to run based on file patterns.
 
 **planning-discovery does NOT require QA** - it's a manual user conversation.
 
@@ -209,8 +204,7 @@ When you need a new specialized agent:
 - `testing` - test strategy
 - `backend` - backend code
 - `frontend` - frontend code
-- `tester` - run tests
-- `qa` - quality assurance (includes code review)
+- `qa` - quality assurance (includes code review and test execution)
 - `general` - small tasks, documentation updates (delegate here when no relevant subagent - this is built-in to opencode)
 
 **When to use @general:**

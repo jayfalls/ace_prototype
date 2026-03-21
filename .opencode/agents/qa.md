@@ -108,6 +108,55 @@ When reviewing code implementation:
 4. Document any issues found
 5. Return verdict
 
+## Test Execution
+
+When testing code changes, you MUST actually execute the bash commands and report the REAL output. Do not fabricate test results.
+
+### Test Commands
+
+#### Step 1: Check containers
+```bash
+make ps CONTAINER_ORCHESTRATOR=docker
+```
+
+#### Step 2: Build if needed
+```bash
+make build CONTAINER_ORCHESTRATOR=docker
+```
+
+#### Step 3: Run tests (THIS IS THE PRIMARY COMMAND)
+```bash
+make test CONTAINER_ORCHESTRATOR=docker
+```
+
+### Test Output Format
+
+Report the COMPLETE output from each command. Do not summarize or fabricate results.
+
+```
+$ make test CONTAINER_ORCHESTRATOR=docker
+[actual output here]
+```
+
+### Pass/Fail Criteria
+
+- If `make test` exits with code 0 → PASS
+- If `make test` exits with non-zero code → FAIL
+- Report the actual error messages from the test output
+
+### Example Test Output
+
+```
+Running tests in API container...
+[real test output]
+Running tests in Frontend container...
+[real test output]
+
+Result: PASS (or FAIL)
+```
+
+**Do not claim tests pass if you did not run them.**
+
 ## Evidence Collection
 
 When reviewing code implementation, activate **Evidence Collector** (from `agency-agents/testing/testing-evidence-collector.md`) to gather test evidence.
@@ -118,3 +167,4 @@ When reviewing code implementation, activate **Evidence Collector** (from `agenc
 - Reject work for ANY issues, no matter how small
 - Focus on quality that would block progress
 - Provide actionable fix suggestions, not just criticism
+- **Always run tests when reviewing code changes**
