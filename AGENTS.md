@@ -142,6 +142,14 @@ Every PR, commit, and issue MUST include the unit name so memory can be loaded o
 
 This allows the orchestrator to resume work from the correct unit memory file.
 
+### Branch Workflow (CRITICAL)
+**ALWAYS create a new branch for every feature, fix, or piece of work.** Never work directly on main or any existing branch.
+
+Steps:
+1. Before starting any work: `git checkout main && git pull && git checkout -b feature/<description>`
+2. One branch per feature/PR - never bundle unrelated work
+3. After PR is merged: delete the branch and checkout back to main
+
 ### Branch Naming
 - `feature/<description>` - New features
 - `fix/<description>` - Bug fixes
