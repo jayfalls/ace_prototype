@@ -419,6 +419,177 @@ AI agent documentation has emerged as a critical new category in 2025-2026. Key 
 
 ---
 
+### 4.1 Agent Prompt Templates for Schema-Aware Code Generation (FR-6.2)
+
+#### Industry Standards
+
+AI agent prompt templates for database code generation (2025-2026):
+- **Structured prompts** with clear requirements, constraints, and examples outperform free-form prompts
+- **Template patterns** should include: context, task description, constraints, expected output format, validation steps
+- **Cursor rules / CLAUDE.md files** provide persistent context that agents read at session start
+- **In-context learning examples** (question/SQL pairs) improve query generation accuracy (Oracle Generative AI Agents documentation)
+
+#### Prompt Template Patterns Evaluated
+
+##### Pattern 1: Structured Task Template
+**Description**: Template with explicit sections: Context → Task → Constraints → Output Format → Validation.
+
+**Example — Migration Generation**:
+```
+Context: Table `users` exists with columns (id UUID, name VARCHAR(255), created_at TIMESTAMPTZ).
+Task: Create a Goose migration to add an `email` column (VARCHAR(255), NOT NULL, UNIQUE).
+Constraints:
+- Use Go migration functions (not SQL files)
+- Include both up and down functions
+- Follow naming convention: YYYYMMDDHHMMSS_add_email_to_users.go
+- Use init() registration pattern
+- Add index: idx_users_email
+Validation:
+- Verify migration file follows naming convention
+- Verify down function properly removes column and index
+- Run goose status to confirm migration is detected
+```
+
+**Pros**: Clear structure, explicit constraints, built-in validation steps. Proven effective in GitHub's AGENTS.md study.
+
+**Cons**: Longer prompts consume more context window. May be over-engineered for simple tasks.
+
+##### Pattern 2: Code Generation with Schema Context
+**Description**: Provide schema context inline with the generation task. Agent sees the full schema before generating code.
+
+**Example — SQLC Query Generation**:
+```
+Given this schema:
+CREATE TABLE agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'idle',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+Generate SQLC queries for CRUD operations on the agents table.
+Requirements:
+- One query file: db/queries/agents.sql
+- Use SQLC annotations: -- name: FunctionName :one/:many/:exec
+- Include: GetById, ListByUserId, Create, Update, Delete
+- Use named parameters ($1, $2, etc.)
+- Add soft delete support (WHERE deleted_at IS NULL for reads)
+```
+
+**Pros**: Agent has full context. Generates accurate SQL matching actual schema. Reduces hallucination.
+
+**Cons**: Schema context consumes tokens. May need to truncate for large schemas.
+
+##### Pattern 3: Constraint-First Template
+**Description**: Lead with constraints and prohibitions, then describe the task. Emphasizes what NOT to do.
+
+**Example — Repository Code Generation**:
+```
+CONSTRAINTS (CRITICAL):
+- NEVER hand-edit files in db/sqlc/ — these are generated
+- ALWAYS use the generated types from db/sqlc/models.go
+- NEVER use raw SQL strings — use SQLC generated functions
+- ALWAYS include context.Context as first parameter
+- ALWAYS handle errors (never use _ for error returns)
+
+Task: Create a repository method for listing active agents by user_id.
+Use the SQLC-generated ListAgentsByUserId function.
+Return ([]*db.Agent, error).
+```
+
+**Pros**: Constraints are unmissable. Prevents common agent mistakes. Mirrors AGENTS.md boundary patterns.
+
+**Cons**: May be overly restrictive for experienced agents.
+
+#### Comparison Matrix
+
+| Criteria | Structured Task | Schema Context | Constraint-First |
+|----------|-----------------|----------------|------------------|
+| Accuracy | High | Very High | High |
+| Token Usage | High | Very High | Medium |
+| Flexibility | Low | Medium | Low |
+| Best For | Migrations | SQLC queries | Repository code |
+| Agent Compatibility | All | All | All |
+
+#### Recommendation for Agent Prompt Templates
+
+**Primary: Structured Task Template** — Document as the default pattern for agent-facing tasks. Include template examples for the three most common operations:
+1. "Create a migration for table X with columns Y"
+2. "Generate SQLC queries for CRUD on table X"
+3. "Create repository methods for entity X"
+
+**Supplementary: Constraint-First for Critical Operations** — Use constraint-first pattern for operations that commonly produce agent errors (migrations, SQLC file management).
+
+---
+
+### 4.2 Agent Constraints for Database Code Generation (FR-6.3)
+
+#### Industry Standards
+
+Effective agent constraints for database code (2025-2026):
+- **Rules files** (`.cursor/rules/`, `CLAUDE.md`, `AGENTS.md`) provide persistent constraints read at session start
+- **Negative constraints** ("NEVER do X") are more effective than positive instructions alone
+- **Specific tool constraints** outperform generic style guidelines (GitHub study: "Never commit secrets" was most helpful constraint)
+- **Human-in-the-loop for critical actions** — database migrations, destructive operations should require approval
+
+#### Agent Constraint Categories
+
+##### Category 1: Tooling Constraints (Critical)
+These prevent irreversible mistakes:
+- **NEVER** hand-edit files in `db/sqlc/` — modify `.sql` query files and run `sqlc generate`
+- **NEVER** run `goose down` in production without explicit approval
+- **NEVER** use `DROP TABLE` without a backup or migration rollback plan
+- **ALWAYS** run `sqlc generate` after modifying `.sql` query files
+- **ALWAYS** verify `goose status` before running `goose up`
+
+##### Category 2: Schema Constraints (Must Follow)
+These ensure schema consistency:
+- **ALWAYS** use `gen_random_uuid()` for new table primary keys
+- **ALWAYS** include `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` and `updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` columns
+- **ALWAYS** include `down` function in migrations (even if it's a no-op for data migrations)
+- **ALWAYS** add `CREATE TRIGGER set_{table}_updated_at` for new tables
+- **NEVER** use `timestamp without time zone` — always use `TIMESTAMPTZ`
+- **NEVER** use `VARCHAR` without length constraint unless truly unlimited
+
+##### Category 3: Naming Constraints (Should Follow)
+These maintain convention compliance:
+- Tables: `snake_case`, plural nouns
+- Columns: `snake_case`, singular
+- Indexes: `idx_{table}_{columns}`
+- Constraints: `{type}_{table}_{columns}` (e.g., `fk_agents_user_id`)
+- SQLC queries: `-- name: FunctionName :one/:many/:exec`
+
+##### Category 4: Safety Constraints (Recommended)
+These reduce risk:
+- **ALWAYS** test migrations on a local database before committing
+- **ALWAYS** include `IF NOT EXISTS` / `IF EXISTS` in migrations for idempotency
+- **CONSIDER** backward compatibility — use expand-contract pattern for column renames
+- **VERIFY** foreign key references exist before adding constraints
+
+#### Decision Trees for Agent Tasks
+
+**Decision: Creating a new table?**
+```
+Start → Include id (UUID, gen_random_uuid()) → Include created_at, updated_at (TIMESTAMPTZ) →
+Add trigger set_{table}_updated_at → Add indexes for foreign keys →
+Create migration with up + down → Create SQLC queries →
+Run sqlc generate → Test migration locally → Commit
+```
+
+**Decision: Modifying an existing column?**
+```
+Start → Is it a rename? → YES: Use expand-contract (add new, backfill, migrate code, drop old)
+                        → NO: Is it a type change? → YES: Expand-contract with validation
+                                                   → NO: Direct ALTER with default for NOT NULL
+```
+
+#### Recommendation for Agent Constraints
+
+Document as `documentation/agents/patterns.md` with four constraint categories (tooling, schema, naming, safety). Include decision trees for common agent tasks. Constraints should be in the AGENTS.md format with clear "NEVER" and "ALWAYS" markers.
+
+---
+
 ## 5. Pattern Documentation (FA-3)
 
 ### 5.1 Naming Conventions (FR-3.1)
@@ -610,7 +781,40 @@ Go connection pooling for PostgreSQL (2025-2026):
 
 #### Recommendation for Connection Pooling
 
-**Primary: pgxpool** — Document pgxpool configuration as the recommended approach. Include tuning guidance for `MaxConns`, `MinConns`, `MaxConnLifetime`, and `MaxConnIdleTime` with environment-specific recommendations (dev vs prod).
+**Primary: pgxpool** — Document pgxpool configuration as the recommended approach.
+
+##### Parameter Tuning with Environment-Specific Values (FR-3.3 Requirement)
+
+| Parameter | Description | Development | Production (Single Instance) | Production (Multi-Instance) |
+|-----------|-------------|-------------|------------------------------|----------------------------|
+| `MaxConns` | Maximum open connections | 10 | 25-50 | 10-20 per instance |
+| `MinConns` | Minimum idle connections kept warm | 2 | 5-10 | 2-5 per instance |
+| `MaxConnLifetime` | Max time a connection is reused | 30 min | 1 hour | 30 min (with load balancer) |
+| `MaxConnIdleTime` | Max time idle before closing | 10 min | 30 min | 5-10 min |
+| `HealthCheckPeriod` | Connection health check interval | 1 min | 1 min | 30 sec |
+
+**Tuning Guidelines**:
+- **MaxConns baseline**: `(CPU cores * 2) + 1` — but adjust based on PostgreSQL's `max_connections` (default 100)
+- **PostgreSQL max_connections budget**: Reserve 10-20 connections for admin/monitoring. Divide remainder across application instances
+- **Example**: PostgreSQL `max_connections=100`, 3 API instances → each instance gets ~25 max connections
+- **Connection lifetime**: Shorter lifetimes when using PgBouncer or load-balanced replicas (avoids stale connections)
+- **Idle connections**: Set `MinConns = MaxConns` in production to avoid connection creation latency under load
+
+**Health Check Pattern**:
+```go
+// Include in /health/ready endpoint
+err := pool.Ping(ctx)
+if err != nil {
+    return fmt.Errorf("database not ready: %w", err)
+}
+```
+
+**Monitoring**: Track pool stats via `pool.Stat()`:
+- `AcquireCount()` — total connections acquired
+- `AcquireDuration()` — total time waiting for connections
+- `IdleConns()` — current idle connections
+- `TotalConns()` — total connections in pool
+- Alert on `AcquireDuration` increases (pool exhaustion indicator)
 
 **Supplementary: PgBouncer** — Document PgBouncer as an option for production deployments with multiple API instances.
 
@@ -703,6 +907,55 @@ Query pattern documentation (2025-2026):
 - **JSONB operators** (`@>`, `->`, `->>`) for querying semi-structured data
 - **GIN indexes** for JSONB and full-text search
 - Query patterns documented with: SQL example, SQLC annotation, Go repository usage, performance notes
+
+#### Cursor vs Offset Pagination (FR-1.4 Acceptance Criteria)
+
+The FSD requires documenting performance trade-offs, use case guidance, and index requirements for pagination. Research (Sentry, Gusto Embedded, SupaExplorer, caduh.com) establishes clear guidance:
+
+##### Performance Comparison
+
+| Metric | Offset Pagination | Cursor Pagination |
+|--------|-------------------|-------------------|
+| Time Complexity | O(N) — degrades linearly | O(1) — constant regardless of position |
+| Page 1 Latency | ~50ms | ~50ms |
+| Page 100 Latency | ~500ms | ~50ms |
+| Page 1000 Latency | 5+ seconds (100x slower) | ~50ms |
+| Write Stability | Unstable — inserts/deletes cause gaps/duplication | Stable — tracks records, not positions |
+| Total Count | Easy (COUNT query) | Hard/expensive |
+| Random Access | Native (jump to page N) | Not native (sequential only) |
+
+**Offset Degradation Mechanism**: PostgreSQL must scan and discard OFFSET rows before returning results. At `OFFSET 99000`, the database processes 99,100 rows to return 100. This grows linearly and becomes unusable beyond page 100 on tables with 1M+ rows.
+
+**Cursor Efficiency Mechanism**: Cursor uses indexed WHERE clause (e.g., `WHERE id > 1234 ORDER BY id LIMIT 100`) — the database uses the index to jump directly to the cursor position. No row skipping, constant performance.
+
+##### When to Use Each Approach
+
+| Requirement | Use Offset | Use Cursor |
+|-------------|------------|------------|
+| "Jump to page N" UI | ✅ | ❌ |
+| Infinite scroll / "Load more" | ❌ | ✅ |
+| Small datasets (<10K rows) | ✅ | Either |
+| Large datasets (>100K rows) | ❌ | ✅ |
+| Admin dashboards with page numbers | ✅ | ❌ |
+| Real-time feeds (social, chat) | ❌ | ✅ |
+| Data exports with pagination | ✅ | ✅ |
+| High write-rate tables | ❌ | ✅ |
+| SEO category pages with numbered links | ✅ | ❌ |
+
+##### Index Requirements for Efficient Pagination
+
+**Offset Pagination**:
+- Index on ORDER BY column(s) — B-tree on `created_at DESC`
+- Covering index for common filter combinations
+- Example: `CREATE INDEX idx_posts_created ON posts(created_at DESC);`
+
+**Cursor Pagination (Keyset)**:
+- **Required**: Composite index on `(sort_column, tie_breaker)` — e.g., `(created_at DESC, id DESC)`
+- **Critical**: Always include a unique tie-breaker column (typically `id`) in ORDER BY to ensure deterministic ordering when sort column has duplicates
+- **Filter indexes**: Extend index for common filters: `(author_id, created_at DESC, id DESC)`
+- Example: `CREATE INDEX idx_posts_cursor ON posts(created_at DESC, id DESC);`
+
+**Cursor Encoding**: Encode cursor as base64url of JSON containing last row's sort values. Include filter snapshots for validation.
 
 #### Documentation Approach
 
@@ -929,6 +1182,95 @@ Legacy pattern identification methods (2025-2026):
 - **Manual audit**: Review existing schema against documented conventions
 - **Migration complexity scoring**: Categorize patterns by migration difficulty (trivial, moderate, complex)
 
+#### Alternative Approaches Evaluated
+
+##### Approach 1: Custom Go Script + pg_catalog Analysis
+**Description**: Write a Go script that queries PostgreSQL's system catalogs to detect non-standard patterns: camelCase columns, missing NOT NULL constraints, inconsistent data types, missing indexes on foreign keys.
+
+**Pros**:
+- Full control over detection rules
+- Integrates with existing Go/PostgreSQL stack
+- Can generate markdown report with findings
+- Can be run in CI/CD for ongoing compliance checking
+- Matches existing documentation generation approach (Section 1)
+
+**Cons**:
+- Must maintain detection rules as conventions evolve
+- Initial development effort
+
+**Use Cases**: Primary approach for ongoing legacy pattern detection. Run periodically and in CI/CD.
+
+##### Approach 2: SchemaCrawler Lint (Open-Source)
+**Description**: Java-based schema analysis tool with built-in lint checks. Detects: columns with same name but different types across tables, foreign keys without indexes, tables without primary keys, redundant indexes, tables with all nullable columns, badly named columns.
+
+**Pros**:
+- 20+ built-in lint checks for common schema anti-patterns
+- Configurable rules via YAML
+- Supports PostgreSQL
+- Free and open-source
+- Mature tool (widely used in enterprise)
+
+**Cons**:
+- Requires Java runtime
+- Output format is not markdown (requires conversion)
+- No direct integration with Go tooling
+
+**Use Cases**: Supplementary tool for comprehensive schema analysis. Run against production database for thorough audit.
+
+##### Approach 3: pgSchema Declarative Diff
+**Description**: Use pgschema (Go-based) to dump current schema, compare against desired state, and identify deviations from standards.
+
+**Pros**:
+- Written in Go (stack-aligned)
+- Terraform-style declarative workflow
+- Detects all schema objects including PostgreSQL-specific features
+- Can identify objects that don't match desired conventions
+
+**Cons**:
+- Requires defining "desired state" schema
+- Primarily designed for migration, not linting
+- Newer tool (2025)
+
+**Use Cases**: Alternative for teams wanting declarative schema management. Can be combined with custom lint rules.
+
+##### Approach 4: Manual Audit with Schema Diff
+**Description**: Manual review of schema against documented conventions, using tools like pgAdmin Schema Diff or pgCompare to identify differences between environments.
+
+**Pros**:
+- Catches nuances automated tools miss
+- Human judgment for complex decisions
+- No tooling dependencies
+
+**Cons**:
+- Time-consuming
+- Not repeatable or scalable
+- Subject to human error
+- Cannot be automated in CI/CD
+
+**Use Cases**: Complementary to automated approaches. Use for initial assessment and complex pattern evaluation.
+
+#### Comparison Matrix
+
+| Criteria | Custom Go Script | SchemaCrawler Lint | pgSchema Diff | Manual Audit |
+|----------|-----------------|-------------------|---------------|--------------|
+| Stack Alignment | Excellent | Poor (Java) | Excellent (Go) | N/A |
+| Automation | Full (CI/CD) | Partial | Full | None |
+| Detection Depth | Custom | 20+ built-in checks | Schema-level | Variable |
+| Maintenance | Custom rules | Community | Community | Manual |
+| Output Format | Markdown | Custom | SQL | Ad-hoc |
+| Cost | Free | Free | Free | Time-intensive |
+
+#### Recommendation for Legacy Pattern Identification
+
+**Primary: Custom Go Script** — Extend the documentation generation script (Section 1) to include legacy pattern detection. Check for:
+- Non-standard naming (camelCase columns, inconsistent prefixes)
+- Missing constraints (NOT NULL, CHECK, FOREIGN KEY)
+- Inconsistent data types (VARCHAR for timestamps, INTEGER for booleans)
+- Missing indexes on foreign keys
+- Hardcoded status values (integers instead of ENUM or VARCHAR)
+
+**Supplementary: SchemaCrawler Lint** — Run periodically for comprehensive audit. Configure to detect project-specific patterns.
+
 #### Documentation Approach
 
 Create `documentation/database-design/legacy-patterns.md` with:
@@ -1035,22 +1377,89 @@ Backward compatibility patterns for database migrations (2025-2026):
 - **API versioning**: Maintain API response stability during schema migration
 - **Deprecation notices**: Communicate breaking changes with advance notice period
 
-#### Documentation Approach
+#### Alternative Approaches Evaluated
 
-Create `documentation/database-design/compatibility.md` with:
-1. Compatibility rules:
-   - API response schema stability during migration
-   - Database view creation for renamed columns
-   - Gradual deprecation of old patterns
-2. Breaking change process:
-   - Deprecation notice period
-   - Migration path for consumers
-   - Rollback capability
-3. Versioning strategy for API-impacting schema changes
+##### Approach 1: Expand-Contract Pattern
+**Description**: Four-phase migration that maintains backward compatibility at every step:
+1. **Expand**: Add new column/table alongside old (old code continues working)
+2. **Migrate**: Dual-write to both old and new; backfill data
+3. **Shift**: Update application code to read from new schema only
+4. **Contract**: Drop old column/table after all consumers migrated
 
-### Recommendation for Backward Compatibility
+**Pros**:
+- Safe rollback at phases 1-3 (switch back to old schema without touching DB)
+- Zero downtime
+- Proven in production at scale (Stripe, Gusto, major SaaS platforms)
+- Clear separation of schema changes from application changes
 
-Document the expand-contract pattern and view-based compatibility as primary approaches. Define clear deprecation timelines and rollback procedures.
+**Cons**:
+- Four deployments required (higher operational overhead)
+- Temporary dual-write complexity
+- Longer migration timeline
+- Must coordinate across services
+
+**Use Cases**: Primary approach for any change that breaks existing consumers (column renames, type changes, table restructures).
+
+##### Approach 2: Database View Compatibility
+**Description**: Create database views that present old column names while underlying table uses new names. Application gradually migrates from view to base table.
+
+**Example**:
+```sql
+-- After renaming 'name' to 'full_name'
+CREATE VIEW users_compat AS
+SELECT id, full_name AS name, email, created_at FROM users;
+```
+
+**Pros**:
+- Allows incremental code migration without dual-write
+- No application downtime
+- Transparent to consumers using the view
+- Simple to implement for column renames
+
+**Cons**:
+- View maintenance overhead (must update when base table changes)
+- Performance implications for complex views (especially with joins)
+- Temporary solution (must be removed eventually)
+- Doesn't work well for type changes
+
+**Use Cases**: Best for simple column renames where the consumer set is well-defined. Complementary to expand-contract for Phase 3 compatibility.
+
+##### Approach 3: API Versioning with Schema Abstraction
+**Description**: Version the API (e.g., `/v1/`, `/v2/`) and map each version to the appropriate schema representation. Old API version continues working with adapter layer.
+
+**Pros**:
+- Clean API contract stability
+- Multiple versions can coexist indefinitely
+- Frontend teams migrate at their own pace
+- Clear deprecation timeline per version
+
+**Cons**:
+- Significant code duplication (adapter layer per version)
+- Higher maintenance burden
+- Doesn't address internal service-to-service calls
+- Overkill for simple column renames
+
+**Use Cases**: Best for major API contract changes where multiple frontend versions must be supported simultaneously.
+
+#### Comparison Matrix
+
+| Criteria | Expand-Contract | Database View | API Versioning |
+|----------|-----------------|---------------|----------------|
+| Downtime | Zero | Zero | Zero |
+| Complexity | High (4 phases) | Low | Very High |
+| Rollback Safety | Excellent (phases 1-3) | Good | Excellent |
+| Timeline | Longest | Short | Long |
+| Code Duplication | Temporary | None | Permanent |
+| Best For | Any breaking change | Column renames | Major API changes |
+| Data Migration | Built-in | Manual | Adapter layer |
+
+#### Recommendation for Backward Compatibility
+
+**Primary: Expand-Contract Pattern** — Document as the default approach for any breaking schema change. The four-phase pattern provides safe rollback at every step and is the industry standard for production migrations.
+
+**Supplementary: Database Views** — Document view-based compatibility as a lightweight option for simple column renames. Use as Phase 3 of expand-contract or as standalone for minor changes.
+
+**Documentation**: Create `documentation/database-design/compatibility.md` with examples of each pattern, decision criteria for when to use each, and deprecation timeline templates.
 
 ---
 
@@ -1167,6 +1576,92 @@ Database migration documentation for Go/PostgreSQL (2025-2026):
 - Schema versioning via `goose_db_version` table (FR-4.4)
 
 **Supplementary: Schema Dump Validation** — Document the pattern of dumping schema after migration and comparing in CI. This provides drift detection without additional tool dependencies.
+
+---
+
+### 11.1 Rollback Patterns & Decision Tree (FR-4.2)
+
+#### Industry Standards
+
+Rollback strategies for database migrations (2025-2026):
+- **Forward fix is preferred over rollback** — once new data exists, undoing schema changes can be more dangerous than adapting behavior (DevX, ArgoCD guidance)
+- **Expand-contract pattern** provides safe rollback at every phase without touching the database (OneUptime, DevX)
+- **Compensating migrations** (write a new migration that undoes the effect) are safer than `down` migrations in production
+- **Pre-migration backups** enable point-in-time recovery for critical failures
+
+#### Rollback Scenarios (FR-4.2 Requirement)
+
+##### Scenario 1: Pre-Deployment Rollback (Safe)
+**When**: Migration has been written but not yet deployed to production.
+**Action**: Simply don't deploy. Revert the migration commit in Git.
+**Risk**: Low — no production data affected.
+**Safety checks**: None required beyond normal code review.
+
+##### Scenario 2: Post-Deployment Rollback (Risky)
+**When**: Migration has been applied to production; application code may already depend on new schema.
+**Action**: Use compensating migration or expand-contract rollback.
+**Risk**: High — new data may exist in new schema; old application code may not handle new data.
+**Safety checks**:
+1. Verify no dependent deployments reference new schema
+2. Check if new data has been written to new columns/tables
+3. Backup affected data before rollback
+4. Test rollback procedure in staging with production-like data
+5. Coordinate with frontend/API teams on response format changes
+
+##### Scenario 3: Data Migration Rollback (Very Risky)
+**When**: Migration included data transformation (backfill, column rename with data copy).
+**Action**: Point-in-time recovery from pre-migration backup, or write compensating data migration.
+**Risk**: Very high — data loss possible.
+**Safety checks**:
+1. Pre-migration backup is mandatory
+2. Verify backup integrity before starting rollback
+3. Test data restoration in staging
+4. Plan for data written between migration and rollback (may be lost)
+
+#### Rollback Decision Tree
+
+```
+Migration failed or causing issues?
+│
+├─ NOT YET DEPLOYED TO PRODUCTION?
+│  └─ YES → Revert Git commit. Do not deploy. (SAFE)
+│
+├─ DEPLOYED TO PRODUCTION?
+│  │
+│  ├─ Is it an ADDITIVE change? (new column, new table, new index)
+│  │  ├─ NO DATA written to new schema yet?
+│  │  │  └─ YES → Run compensating migration (DROP column/table/index) (MODERATE RISK)
+│  │  │
+│  │  └─ DATA EXISTS in new schema?
+│  │     └─ YES → Forward fix preferred. Keep new schema, fix application code. (PREFER FORWARD FIX)
+│  │
+│  ├─ Is it a DESTRUCTIVE change? (DROP column, DROP table, type change)
+│  │  ├─ Pre-migration backup EXISTS?
+│  │  │  └─ YES → Point-in-time recovery from backup (HIGH RISK — data loss possible)
+│  │  │
+│  │  └─ NO backup?
+│  │     └─ Forward fix mandatory. Cannot safely rollback. (FORWARD FIX ONLY)
+│  │
+│  └─ Is it a RENAME or RESTRUCTURE?
+│     ├─ Expand-contract phase 1-3 (old schema still exists)?
+│     │  └─ YES → Switch reads/writes back to old schema via feature flag (LOW RISK)
+│     │
+│     └─ Expand-contract phase 4 (old schema dropped)?
+│        └─ Restore from backup or forward fix (HIGH RISK)
+```
+
+#### `down` Function Requirements
+
+Document the following requirements for Goose `down` functions:
+1. **Must restore schema to previous state** — reverse all changes made in `up`
+2. **Must handle data loss gracefully** — document that `down` may destroy data
+3. **Must be tested before deployment** — run `up` then `down` in test DB, verify schema state
+4. **Must be idempotent** — use `IF EXISTS` / `IF NOT EXISTS` for safety
+5. **Should NOT be used in production for data-destructive operations** — prefer compensating migrations
+
+#### Recommendation for Rollback Documentation
+
+Document the three rollback scenarios with the decision tree above. Include `down` function requirements and safety checklists. Emphasize forward-fix as the preferred approach for post-deployment issues.
 
 ---
 
