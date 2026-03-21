@@ -272,8 +272,8 @@ documentation/api/endpoint-map.md                   (query-to-endpoint mapping)
 
 ### Chi Router + Handlers
 ```
-backend/services/api/internal/routes/*.go
-backend/services/api/internal/handlers/*.go
+backend/services/api/cmd/main.go                  (route registrations)
+backend/services/api/internal/handler/*.go        (handler implementations)
     ↓
 documentation/api/openapi.yaml                      (API specification)
 documentation/api/endpoint-map.md                   (endpoint-to-query mapping)
