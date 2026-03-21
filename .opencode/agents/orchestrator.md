@@ -398,6 +398,30 @@ Subagent fails after 3 retries
 
 ## Git Workflow
 
+### CRITICAL: Branch Verification Before Any Work
+
+**ALWAYS verify the branch state before spawning any subagent or starting any work.**
+
+Run these checks EVERY time before delegating work:
+
+```bash
+git branch --show-current  # Must NOT be on main
+git status                  # Must be clean (or only have expected changes)
+```
+
+**Rules:**
+- **NEVER work directly on main** — all work must be on a feature branch
+- If on main: immediately `git checkout -b feature/<description>` before doing anything
+- If uncommitted changes exist that aren't part of the current task: stash or commit them first
+- If accidentally committed to main: revert immediately, create branch, cherry-pick
+
+**Branch naming convention:**
+- `feature/<description>` — New features
+- `fix/<description>` — Bug fixes
+- `docs/<description>` — Documentation changes
+- `refactor/<description>` — Code refactoring
+- `test/<description>` — Adding or updating tests
+
 ### After Every Change
 After every code, doc, or config change, IMMEDIATELY commit:
 ```bash
