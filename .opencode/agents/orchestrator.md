@@ -127,8 +127,12 @@ If no prior documents exist for the unit, discovery is still required to explore
 1. Subagent completes code work
 2. **Run `@qa`** to evaluate the work quality
 3. If QA passes → **Run `@tester`** to verify build/tests pass
-4. If QA fails → Fix issues → **Run `@qa`** again
-5. If tests fail → Fix → **Run `@tester`** again
+4. **If QA fails → YOU MUST FIX ALL ISSUES before proceeding**
+5. After fixing QA issues → **Run `@qa`** again to verify fixes
+6. Repeat until QA passes completely
+7. If tests fail → Fix → **Run `@tester`** again
+
+**CRITICAL: QA issues are BLOCKING. You MUST fix them before moving to the next phase.**
 
 **When delegating to tester:** Only provide the files affected - the tester knows which tests to run based on file patterns.
 
