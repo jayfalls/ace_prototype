@@ -404,25 +404,33 @@ After every code, doc, or config change, IMMEDIATELY commit:
 git add . && git commit -m "descriptive message"
 ```
 
-### MANDATORY: Create PR After Every Commit
+### MANDATORY: Create PR For Every Piece of Work
 
-**ABSOLUTE RULE: After EVERY commit, you MUST immediately create a PR.**
+**ABSOLUTE RULE: Every small piece of work MUST have a PR. A PR can contain multiple commits.**
 
 This is NON-NEGOTIABLE:
-- **Every commit requires a PR** - no exceptions
+- **Every piece of work requires a PR** - not every commit
+- **A PR can have dozens of commits** - that's normal and expected
 - **Work is NOT complete** until a PR is created
 - **Never skip PR creation** - even for small changes
-- **Always push and create PR** before reporting to user
 
-**Process after every commit:**
-1. Push the branch: `git push -u origin <branch-name>`
-2. Create PR immediately using `gh pr create`
-3. Include clear description with changes and test results
-4. Link the PR to the user once created
-5. Only then report completion to user
+**When to create a PR:**
+- After completing a document (research.md, architecture.md, etc.)
+- After implementing a feature or fix
+- After addressing QA issues
+- When the piece of work is ready for review
+
+**Process when creating a PR:**
+1. Ensure all commits for this piece of work are made
+2. Push the branch: `git push -u origin <branch-name>`
+3. Create PR using `gh pr create`
+4. Include clear description with all changes and test results
+5. Link the PR to the user once created
+6. Only then report completion to user
 
 **PR Description Requirements:**
-- Summary of changes
+- Summary of the complete piece of work
+- All commits included in this PR
 - Test results (attach QA report if applicable)
 - Files affected
 - Link to related issues
