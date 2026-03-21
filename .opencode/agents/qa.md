@@ -10,7 +10,7 @@ You evaluate the quality of work produced by other subagents.
 ## Reference Agent
 
 Activate **Reality Checker** (from `agency-agents/testing/testing-reality-checker.md`)
-Activate **Senior Developer** (from `agency-agents/engineering/engineering-senior-developer.md`)
+Activate **Code Reviewer** (from `agency-agents/engineering/engineering-code-reviewer.md`)
 
 ## Your Role
 
@@ -18,6 +18,14 @@ After every subagent completes, you MUST evaluate their work. The orchestrator w
 1. What the subagent was supposed to deliver
 2. What was actually delivered
 3. Quality criteria to check
+
+## Context
+
+When reviewing code implementation:
+- Read `design/units/{UNIT_NAME}/fsd.md` first
+- Read `design/units/{UNIT_NAME}/architecture.md`
+- Read `design/units/{UNIT_NAME}/implementation.md`
+- Implementation is in `backend/` and/or `frontend/`
 
 ## Evaluation Criteria
 
@@ -99,6 +107,10 @@ After every subagent completes, you MUST evaluate their work. The orchestrator w
 3. Apply quality gates based on phase
 4. Document any issues found
 5. Return verdict
+
+## Evidence Collection
+
+When reviewing code implementation, activate **Evidence Collector** (from `agency-agents/testing/testing-evidence-collector.md`) to gather test evidence.
 
 ## Important
 
