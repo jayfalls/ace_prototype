@@ -359,28 +359,59 @@ This section tracks the completion status of each design unit. Units are complet
 
 | Unit | Status | Description |
 |------|--------|-------------|
-| **Architecture** | ✅ Complete | System architecture and design patterns |
+| **Architecture Planning** | ✅ Complete | System architecture and design patterns |
 | **Core Infrastructure** | ✅ Complete | Foundation services and infrastructure |
-| **Core API** | ✅ Complete | API patterns, structure, tools, and libraries |
+| **API Design** | ✅ Complete | API patterns, structure, tools, and libraries |
+| **Integrate Agent Tools (Agency Agents)** | ✅ Complete | Agent tool integration patterns |
 | **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`shared/messaging`) |
+| **OpenCode Migration** | ✅ Complete | OpenCode integration and migration |
 | **Observability** | ✅ Complete | Observability primitives (`shared/telemetry`) |
 
 ### In Progress Units
 
 | Unit | Status | Description |
 |------|--------|-------------|
-| **Database Design** | 🔄 In Progress | Database design documentation and API/DB specification |
+| **Database Design & API/DB Documentation** | 🔄 In Progress | Database design documentation and API/DB specification |
 
-### Future Units
+### Planned Units — Foundation
 
 | Unit | Status | Description |
 |------|--------|-------------|
-| **Cognitive Engine** | 🔜 Future | 6 ACE layers with NATS inter-layer communication |
-| **Frontend** | 🔜 Future | SvelteKit user interface |
-| **Telemetry (Senses)** | 🔜 Future | Input handling: chat, sensors, metrics, webhooks |
-| **Actuators (Outputs)** | 🔜 Future | Output handling: chat, tools, signals, export |
-| **Memory** | 🔜 Future | Per-layer + global memory modules |
-| **Swarm** | 🔜 Future | Multi-agent orchestration and pod management |
+| **Caching Strategies** | 📋 Planned | Caching patterns and implementation strategies |
+| **Users & Auth (JWT, SSO)** | 📋 Planned | Authentication and authorization system |
+| **Auditing** | 📋 Planned | Audit logging and compliance tracking |
+| **Security (Certs, TLS, HTTPS, etc)** | 📋 Planned | Security infrastructure and encryption |
+| **CI/CD (PromptFoo)** | 📋 Planned | Continuous integration and deployment pipeline |
+| **Frontend Design (Impeccable)** | 📋 Planned | SvelteKit user interface design and implementation |
+| **Production Deployment (End User Experience)** | 📋 Planned | Production deployment and end-user setup |
+
+### Planned Units — Research
+
+| Unit | Status | Description |
+|------|--------|-------------|
+| **Existing Agents Study** | 📋 Planned | Study of OpenClaw, Claude Code, Open Code, Oh My OpenAgent, Devin |
+
+### Planned Units — Core Cognitive
+
+| Unit | Status | Description |
+|------|--------|-------------|
+| **Providers** | 📋 Planned | Testing, sequencing, groups, rate limits, usage & cost tracking |
+| **Cognitive Engine** | 📋 Planned | 6 ACE layers with NATS inter-layer communication, start up sequence and validation, shut down, failure cases, Loops |
+| **Layer Inspector** | 📋 Planned | Cognitive cycle inspection and debugging |
+| **Senses (Inputs)** | 📋 Planned | Input handling and sanitisation layer |
+| **Tools (Outputs & Interfaces)** | 📋 Planned | Output handling and tool interfaces |
+| **Memory** | 📋 Planned | Per-layer + global memory modules (L1, L2, L3, L4), context poisoning mitigations, RLM integration |
+| **Skills** | 📋 Planned | Agent skills system (agentskills.io specification) |
+
+### Planned Units — Advanced
+
+| Unit | Status | Description |
+|------|--------|-------------|
+| **Global Layers** | 📋 Planned | Global cognitive layer coordination |
+| **Agent Switching** | 📋 Planned | Dynamic agent switching and context transfer |
+| **Multi Agent** | 📋 Planned | Multi-agent orchestration and pod management |
+| **Env Set Up** | 📋 Planned | LLM managed installer script for spot instances |
+| **Integrate Auto Research into Agent** | 📋 Planned | Auto-research integration (self-improvement, actions, fine-tuning) |
 
 ---
 
