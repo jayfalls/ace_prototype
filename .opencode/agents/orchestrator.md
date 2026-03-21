@@ -71,7 +71,8 @@ The standard unit workflow sequence:
 
 If no prior documents exist for the unit, discovery is still required to explore the problem space.
 
-**CRITICAL: Discovery Communication Flow**
+### Discovery Communication Flow
+
 1. Spawn @planning-discovery with initial context
 2. Discovery agent asks questions → **SHOW THE USER THE FULL RESPONSE VERBATIM**
 3. USER answers → **FEED THE ANSWER TO THE DISCOVERY AGENT VERBATIM (NO ADDITIONAL COMMENTS)**
@@ -82,20 +83,9 @@ If no prior documents exist for the unit, discovery is still required to explore
 - NEVER interpret or summarize discovery agent's output - show it VERBATIM in full
 - NEVER add commands like "please provide recommendations" or "what's next"
 - NEVER answer discovery questions yourself - always forward to user
-- The discovery agent's FULL response must be shown to the user, not just the question**
+- The discovery agent's FULL response must be shown to the user, not just the question
 
-## Error Handling
-
-### Retry Strategy
-- **Max retries**: 3 attempts per subagent task
-- **Retry on**: Subagent failures, test failures
-
-### Escalation Flow
-1. First attempt: Delegate to subagent
-2. If fails: Check error type
-   - Recoverable (timeout): Retry up to 3x
-   - Non-recoverable (bad input): Report to user
-3. After 3 retries: Escalate to user with error details
+**planning-discovery does NOT require QA** - it's a manual user conversation.
 
 ## QA After Every Subagent (EXCEPT Discovery)
 
@@ -123,8 +113,6 @@ If no prior documents exist for the unit, discovery is still required to explore
 6. Repeat until QA passes completely
 
 **CRITICAL: QA issues are BLOCKING. You MUST fix them before moving to the next phase.**
-
-**planning-discovery does NOT require QA** - it's a manual user conversation.
 
 ## One Document Per PR
 
@@ -235,6 +223,30 @@ Activate [Agency Agent Name] (from `agency-agents/[path]/[file].md`)
 [What this agent produces]
 ```
 
+## Subagent Spawning Pattern
+
+### CRITICAL: Discovery Requires User Interaction
+
+For **planning-discovery** ONLY:
+1. Spawn subagent with initial prompt
+2. **STOP** - The subagent will ask questions
+3. **SHOW THE QUESTION TO THE USER VERBATIM** (do NOT answer it yourself)
+4. Wait for USER to answer
+5. Feed the USER'S ANSWER back to the discovery agent (verbatim, no added commands)
+6. Repeat steps 3-5 until discovery signals done
+7. Check full output, proceed to document agent
+
+**NEVER answer discovery questions yourself - always forward to user.**
+
+### For All Other Agents
+
+For all other subagents (planning, research, technical, etc.):
+1. Spawn subagent with initial prompt
+2. Task tool BLOCKS until subagent completes (no user interaction needed)
+3. Full output returned automatically
+4. Run QA immediately
+5. If QA fails, use task_id to resume and fix
+
 ## Usage Patterns
 
 ### Start New Unit
@@ -255,42 +267,6 @@ User: "Start the observability unit"
 4. Update memory
 5. Report to user
 ```
-
-## Subagent Spawning Pattern
-
-### CRITICAL: Discovery Requires User Interaction
-
-For **planning-discovery** ONLY:
-1. Spawn subagent with initial prompt
-2. **STOP** - The subagent will ask questions
-3. **SHOW THE QUESTION TO THE USER VERBATIM** (do NOT answer it yourself)
-4. Wait for USER to answer
-5. Feed the USER'S ANSWER back to the discovery agent (verbatim, no added commands)
-6. Repeat steps 3-5 until discovery signals done
-7. Check full output, proceed to document agent
-
-**NEVER answer discovery questions yourself - always forward to user.**
-
-## Two Types of Subagent Flows
-
-### DISCOVERY (planning-discovery) - USER FLOW
-- Requires user interaction
-- Discovery asks questions → YOU show to user → User answers → Feed back to discovery
-- Loop until discovery signals done
-
-### ALL OTHER AGENTS - AUTOMATIC
-- No user interaction needed
-- Spawn → Wait for completion → Run QA → Continue
-- If subagent has issues, orchestrator handles internally (never involve user)
-
-### For All Other Agents
-
-For all other subagents (planning-document, backend, frontend, etc.):
-1. Spawn subagent with initial prompt
-2. Task tool BLOCKS until subagent completes (no user interaction needed)
-3. Full output returned automatically
-4. Run QA immediately
-5. If QA fails, use task_id to resume and fix
 
 ### Continue Existing Unit
 ```
@@ -326,6 +302,19 @@ Subagent fails after 3 retries
    - Abort
 3. Wait for user decision
 ```
+
+## Error Handling
+
+### Retry Strategy
+- **Max retries**: 3 attempts per subagent task
+- **Retry on**: Subagent failures, test failures
+
+### Escalation Flow
+1. First attempt: Delegate to subagent
+2. If fails: Check error type
+   - Recoverable (timeout): Retry up to 3x
+   - Non-recoverable (bad input): Report to user
+3. After 3 retries: Escalate to user with error details
 
 ## Key Reminders
 
