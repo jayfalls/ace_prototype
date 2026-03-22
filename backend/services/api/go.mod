@@ -3,6 +3,7 @@ module ace/api
 go 1.26
 
 require (
+	github.com/AxelTahmid/annot8 v0.5.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/jackc/pgx/v5 v5.8.0
@@ -10,7 +11,6 @@ require (
 )
 
 require (
-	github.com/AxelTahmid/annot8 v0.5.0 // indirect
 	github.com/MarceloPetrucio/go-scalar-api-reference v0.0.0-20240521013641-ce5d2efe0e06 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
