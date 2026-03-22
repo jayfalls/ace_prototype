@@ -56,8 +56,8 @@ make up
 # Run tests
 make test
 
-# Generate documentation
-make docs
+# Generate and validate documentation
+make test
 
 # Run migrations
 goose -dir backend/shared/telemetry/migrations up

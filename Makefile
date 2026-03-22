@@ -35,7 +35,7 @@ BLUE := $(shell printf '\033[0;34m')
 RED := $(shell printf '\033[0;31m')
 NC := $(shell printf '\033[0m')
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop docs
+.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop
 
 ##@ General
 
@@ -158,9 +158,6 @@ clean: ## Remove all containers and volumes
 	$(COMPOSE) down -v
 	@echo "All containers and volumes removed."
 
-re: ## Restart all services
-	$(COMPOSE) restart
-
 build: ## Build all service images
 	$(COMPOSE) build
 
@@ -175,9 +172,7 @@ test: ## Run all tests and validate documentation
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/messaging && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/telemetry && go test -tags=integration ./..."
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/backend/scripts/docs-gen && go run ."
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
-	@echo ""
-	@echo "$(BLUE)Validating documentation...$(NC)"
-	cd backend/scripts/docs-gen && go run . 2>/dev/null || echo "Documentation validation not available - requires database"

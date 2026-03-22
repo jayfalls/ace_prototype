@@ -240,4 +240,4 @@ New migrations and schema changes should be validated against these conventions:
 4. **Indexes**: idx_{table}_{columns} naming
 5. **Constraints**: {type}_{table}_{columns} naming
 
-CI/CD validation is enforced via `make docs` (see `architecture.md` §Makefile Integration).
+CI/CD validation is enforced via `make test` (see `architecture.md` §Makefile Integration).
