@@ -123,6 +123,7 @@ up: ## Start all services in development mode
 	@echo "$(GREEN)Services started. Access:$(NC)"
 	@echo "  - Frontend:       http://localhost:5173"
 	@echo "  - API:            http://localhost:8080"
+	@echo "  - API Docs:       http://localhost:8080/docs"
 	@echo "  - PostgreSQL:     localhost:5432"
 	@echo "  - NATS:           localhost:4222"
 	@echo "  - Prometheus:      http://localhost:9090"
