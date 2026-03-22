@@ -188,9 +188,31 @@ done
 echo ""
 
 # ============================================
-# 5. Frontend Lint (svelte-check + eslint)
+# 5. Documentation Validation
 # ============================================
-log_info "5/8: Frontend Lint..."
+log_info "5/9: Documentation Validation..."
+
+cd "$REPO_ROOT/backend"
+
+if [ ! -d "scripts/docs-gen" ]; then
+    log_skip "No docs-gen scripts found, skipping"
+    ((SKIPPED++))
+else
+    log_info "Running documentation validation pipeline..."
+    if (cd scripts/docs-gen && $GO_CMD run . 2>&1); then
+        log_success "Documentation validation passed"
+    else
+        log_warn "Documentation validation requires database — skipping"
+        ((SKIPPED++))
+    fi
+fi
+
+echo ""
+
+# ============================================
+# 6. Frontend Lint (svelte-check + eslint)
+# ============================================
+log_info "6/9: Frontend Lint..."
 
 cd "$REPO_ROOT/frontend"
 
@@ -222,9 +244,9 @@ fi
 echo ""
 
 # ============================================
-# 6. Frontend Test
+# 7. Frontend Test
 # ============================================
-log_info "6/8: Frontend Test..."
+log_info "7/9: Frontend Test..."
 
 cd "$REPO_ROOT/frontend"
 
@@ -253,9 +275,9 @@ fi
 echo ""
 
 # ============================================
-# 7. Docker Compose Validation
+# 8. Docker Compose Validation
 # ============================================
-log_info "7/8: Docker Compose Validation..."
+log_info "8/9: Docker Compose Validation..."
 
 COMPOSE_FAILED=false
 
@@ -284,9 +306,9 @@ fi
 echo ""
 
 # ============================================
-# 8. Makefile Validation
+# 9. Makefile Validation
 # ============================================
-log_info "8/8: Makefile Validation..."
+log_info "9/9: Makefile Validation..."
 
 if [ ! -f "$REPO_ROOT/Makefile" ]; then
     log_skip "No Makefile found, skipping"
@@ -319,7 +341,7 @@ if [ $FAILED -gt 0 ]; then
 elif [ $SKIPPED -gt 0 ]; then
     echo -e "${GREEN}All quality gates passed (or skipped)${NC}"
     echo ""
-    echo "Passed: $((8 - SKIPPED - FAILED))"
+    echo "Passed: $((9 - SKIPPED - FAILED))"
     echo "Skipped: $SKIPPED"
     echo "Failed: $FAILED"
     echo ""

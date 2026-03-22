@@ -349,8 +349,7 @@ All development tasks are driven through the Makefile. The Makefile is the singl
 | `make down` | Stop all services | Stop development |
 | `make re` | Restart all services (down + up) | Restart services |
 | `make build` | Build all service images | Build containers |
-| `make test` | Run all tests in API and frontend containers | Run tests |
-| `make docs` | Generate, validate, and lint all documentation | Update docs |
+| `make test` | Run all tests and validate documentation | Run tests |
 | `make logs` | View aggregated logs for all services | View logs |
 | `make logs-api` | View logs for ace_api service | View API logs |
 | `make logs-fe` | View logs for ace_fe service | View frontend logs |

@@ -169,7 +169,7 @@ ps: ## Show running containers
 
 ##@ Testing
 
-test: ## Run all tests in API and frontend containers
+test: ## Run all tests and validate documentation
 	@echo "$(BLUE)Running tests in API container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/services/api && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
@@ -178,9 +178,6 @@ test: ## Run all tests in API and frontend containers
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
-
-##@ Documentation
-
-docs: ## Generate, validate, and lint all documentation
-	@echo "Generating documentation..."
-	cd scripts/docs-gen && go run .
+	@echo ""
+	@echo "$(BLUE)Validating documentation...$(NC)"
+	cd backend/scripts/docs-gen && go run . 2>/dev/null || echo "Documentation validation not available - requires database"

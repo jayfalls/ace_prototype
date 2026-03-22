@@ -24,6 +24,7 @@ Create planning documents for a unit. The orchestrator will specify which docume
 - Read existing documents in the unit directory if they exist
 - Unit directory: `design/units/{UNIT_NAME}/`
 - **Reference**: Activate the `unit-planning` skill for templates and structure
+- **Database reference**: Read `documentation/README.md` for how docs are structured and consumed
 
 ## Documents Created
 

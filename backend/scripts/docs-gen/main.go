@@ -22,10 +22,10 @@ func main() {
 		name string
 		dir  string
 	}{
-		{"Schema Documentation", "scripts/schema-doc-gen"},
-		{"ERD Generation", "scripts/erd-gen"},
-		{"Documentation Validation", "scripts/validate-docs"},
-		{"OpenAPI Generation", "scripts/openapi-gen"},
+		{"Schema Documentation", "backend/scripts/schema-doc-gen"},
+		{"ERD Generation", "backend/scripts/erd-gen"},
+		{"Documentation Validation", "backend/scripts/validate-docs"},
+		{"OpenAPI Generation", "backend/scripts/openapi-gen"},
 	}
 
 	for _, script := range scripts {
