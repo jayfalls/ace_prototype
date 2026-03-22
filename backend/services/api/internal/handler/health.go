@@ -21,12 +21,23 @@ func NewHealthHandler(pool *pgxpool.Pool, nats messaging.Client, telemetry *tele
 	return &HealthHandler{pool: pool, nats: nats, telemetry: telemetry}
 }
 
+// @Summary Liveness probe
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]string
+// @Router /health/live [get]
 func (h *HealthHandler) Live(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
 }
 
+// @Summary Readiness probe (includes DB and NATS checks)
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]any
+// @Failure 503 {object} map[string]any
+// @Router /health/ready [get]
 func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	type checkResult struct {
 		Status string `json:"status"`
@@ -61,8 +72,12 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// Exporters checks the health of optional exporters (OTLP, etc.)
-// This is NOT used for Kubernetes readiness probes - it's for monitoring/debugging
+// @Summary Exporter health status
+// @Tags health
+// @Produce json
+// @Success 200 {object} map[string]any
+// @Failure 503 {object} map[string]any
+// @Router /health/exporters [get]
 func (h *HealthHandler) Exporters(w http.ResponseWriter, r *http.Request) {
 	type checkResult struct {
 		Status string `json:"status"`

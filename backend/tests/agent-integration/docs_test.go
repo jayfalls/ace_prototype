@@ -111,11 +111,44 @@ func TestAgentDocsExist(t *testing.T) {
 		"../../documentation/agents/patterns.md",
 		"../../documentation/agents/config-updates.md",
 		"../../documentation/agents/training/adding-a-table.md",
+		"../../documentation/agents/training/adding-a-column.md",
+		"../../documentation/agents/training/new-endpoint.md",
+		"../../documentation/agents/training/debugging-queries.md",
 	}
 
 	for _, f := range requiredFiles {
 		if _, err := os.Stat(f); os.IsNotExist(err) {
 			t.Errorf("required agent documentation file missing: %s", f)
 		}
+	}
+}
+
+// TestSQLCAnnotations verifies that generated SQLC queries use correct annotation syntax.
+// FSD Requirement: FR-2.3
+func TestSQLCAnnotations(t *testing.T) {
+	// Check sqlc.md documents annotation syntax
+	data, err := os.ReadFile("../../documentation/database-design/sqlc.md")
+	if err != nil {
+		t.Fatalf("sqlc.md not found: %v", err)
+	}
+
+	content := string(data)
+
+	// Verify all annotation types are documented
+	annotations := []string{
+		":one",
+		":many",
+		":exec",
+	}
+
+	for _, a := range annotations {
+		if !strings.Contains(content, a) {
+			t.Errorf("sqlc.md missing annotation type: %s", a)
+		}
+	}
+
+	// Verify annotation syntax example is present
+	if !strings.Contains(content, "-- name:") {
+		t.Error("sqlc.md missing annotation syntax example (-- name: FunctionName :type)")
 	}
 }
