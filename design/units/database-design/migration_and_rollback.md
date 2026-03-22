@@ -552,4 +552,4 @@ The `docs-gen` script includes migration documentation generation:
 4. **Forward-only strategy** — `down` functions for testing, not production rollback (FR-4.1)
 5. **SQLC generated files are never hand-edited** — migrations change schema, then `sqlc generate` (design/README.md)
 6. **Version control** — migration docs in same PR as migration code (NFR-4)
-7. **All operations through Makefile** — `make docs` for generation (design/README.md)
+7. **All operations through Makefile** — `make test` for generation (design/README.md)

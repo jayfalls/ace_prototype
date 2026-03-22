@@ -75,7 +75,7 @@ echo ""
 # ============================================
 # 1. Go Build Verification
 # ============================================
-log_info "1/8: Go Build..."
+log_info "1/9: Go Build..."
 
 cd "$REPO_ROOT/backend"
 
@@ -100,7 +100,7 @@ echo ""
 # ============================================
 # 2. Go Lint (auto-fix + check)
 # ============================================
-log_info "2/8: Go Lint..."
+log_info "2/9: Go Lint..."
 
 cd "$REPO_ROOT/backend"
 
@@ -132,7 +132,7 @@ echo ""
 # ============================================
 # 3. Go Test Suite
 # ============================================
-log_info "3/8: Go Test..."
+log_info "3/9: Go Test..."
 
 cd "$REPO_ROOT/backend"
 
@@ -158,7 +158,7 @@ echo ""
 # ============================================
 # 4. SQLC Generate Validation
 # ============================================
-log_info "4/8: SQLC Generate..."
+log_info "4/9: SQLC Generate..."
 
 cd "$REPO_ROOT/backend"
 
@@ -199,10 +199,10 @@ if [ ! -d "scripts/docs-gen" ]; then
     ((SKIPPED++))
 else
     log_info "Running documentation validation pipeline..."
-    if (cd scripts/docs-gen && $GO_CMD run . 2>&1); then
+    if (cd scripts/docs-gen && GOWORK=off $GO_CMD run . 2>&1); then
         log_success "Documentation validation passed"
     else
-        log_warn "Documentation validation requires database — skipping"
+        log_warn "Documentation validation skipped — no database available (run 'make test' with containers up)"
         ((SKIPPED++))
     fi
 fi

@@ -1,45 +1,65 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func main() {
 	fmt.Println("=== Documentation Generation Pipeline ===")
 	fmt.Println()
 
-	// Find repo root by locating .git directory
 	repoRoot, err := findRepoRoot()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: could not find repo root: %v\n", err)
 		os.Exit(1)
 	}
 
-	scripts := []struct {
-		name string
-		dir  string
-	}{
-		{"Schema Documentation", "backend/scripts/schema-doc-gen"},
-		{"ERD Generation", "backend/scripts/erd-gen"},
-		{"Documentation Validation", "backend/scripts/validate-docs"},
-		{"OpenAPI Generation", "backend/scripts/openapi-gen"},
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		dsn = "postgres://postgres:postgres@localhost:5432/ace?sslmode=disable"
 	}
 
-	for _, script := range scripts {
-		fmt.Printf("--- %s ---\n", script.name)
-		cmd := exec.Command("go", "run", ".")
-		cmd.Dir = filepath.Join(repoRoot, script.dir)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error running %s: %v\n", script.name, err)
-			os.Exit(1)
-		}
-		fmt.Println()
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to connect to database: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Hint: Set DATABASE_URL environment variable or ensure PostgreSQL is running.")
+		os.Exit(1)
 	}
+	defer conn.Close(ctx)
+
+	fmt.Println("--- Schema Documentation ---")
+	if err := generateSchemaDocs(ctx, conn, repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating schema docs: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println()
+
+	fmt.Println("--- ERD Generation ---")
+	if err := generateERD(ctx, conn, repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating ERD: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println()
+
+	fmt.Println("--- Documentation Validation ---")
+	if err := validateDocs(ctx, conn, repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Error validating docs: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println()
+
+	fmt.Println("--- OpenAPI Generation ---")
+	if err := generateOpenAPI(ctx, conn, repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating OpenAPI spec: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println()
 
 	fmt.Println("=== Documentation Generation Complete ===")
 }

@@ -30,6 +30,14 @@ type ExampleResponse struct {
 	Email string `json:"email"`
 }
 
+// @Summary Create example (validation demo)
+// @Tags examples
+// @Accept json
+// @Produce json
+// @Param request body CreateExampleRequest true "Example data"
+// @Success 201 {object} ExampleResponse
+// @Failure 400 {object} response.APIError
+// @Router /examples/ [post]
 // Create handles POST /examples - demonstrates validation pattern
 func (h *ExampleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 1. Decode request body
@@ -61,6 +69,13 @@ type GetExampleRequest struct {
 	ID string `validate:"required,uuid"`
 }
 
+// @Summary Get example by ID
+// @Tags examples
+// @Produce json
+// @Param id path string true "Example ID"
+// @Success 200 {object} ExampleResponse
+// @Failure 404 {object} response.APIError
+// @Router /examples/{id} [get]
 // Get handles GET /examples/:id
 func (h *ExampleHandler) Get(w http.ResponseWriter, r *http.Request) {
 	// In a real handler, you would get the ID from URL params

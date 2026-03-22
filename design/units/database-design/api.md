@@ -583,7 +583,7 @@ The OpenAPI spec and related documentation are validated through the pipeline de
 | YAML syntax | `swagger-cli validate` or `redocly lint` | Pre-commit, CI | Invalid YAML structure |
 | Schema completeness | Custom check | CI | Missing request/response for any endpoint |
 | Example validity | Annot8 built-in | Generation | Invalid example JSON |
-| Diff detection | `make docs` dry-run | CI | Spec doesn't match generated output |
+| Diff detection | `make test` dry-run | CI | Spec doesn't match generated output |
 
 ### Endpoint Map Validation
 

@@ -35,7 +35,7 @@ BLUE := $(shell printf '\033[0;34m')
 RED := $(shell printf '\033[0;31m')
 NC := $(shell printf '\033[0m')
 
-.PHONY: help up down logs logs-api logs-fe logs-db logs-broker clean re build ps test dev agent agent-stop docs
+.PHONY: help up down logs clean restart build ps test dev agent agent-stop
 
 ##@ General
 
@@ -99,6 +99,9 @@ agent: ## Enter distrobox and run OpenCode interactively
 		exit 1; \
 	fi
 	@REPO_DIR="$(shell pwd)"; \
+	echo "Ensuring docker perms"
+	sudo systemctl restart docker.socket
+	sudo usermod -aG docker $USER
 	echo "Entering distrobox and starting OpenCode..."; \
 	echo "$(GREEN)Distrobox will open with OpenCode. Your host is protected!$(NC)"; \
 	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && export PATH=\"\$$HOME/.opencode/bin:\$$PATH\" && exec opencode web"
@@ -133,33 +136,18 @@ up: ## Start all services in development mode
 down: ## Stop all services
 	$(COMPOSE) down --remove-orphans
 
-re: ## Restart all services (down + up)
+restart: ## Restart all services
 	$(COMPOSE) down --remove-orphans
 	@sleep 1
 	$(COMPOSE) up -d
 	@echo "$(GREEN)Services restarted. Access:$(NC)"
 
-logs: ## View aggregated logs for all services
+logs: ## View logs for all services
 	$(COMPOSE) logs -f
-
-logs-api: ## View logs for ace_api service
-	$(COMPOSE) logs -f ace_api
-
-logs-fe: ## View logs for ace_fe service
-	$(COMPOSE) logs -f ace_fe
-
-logs-db: ## View logs for ace_db service
-	$(COMPOSE) logs -f ace_db
-
-logs-broker: ## View logs for ace_broker service
-	$(COMPOSE) logs -f ace_broker
 
 clean: ## Remove all containers and volumes
 	$(COMPOSE) down -v
 	@echo "All containers and volumes removed."
-
-re: ## Restart all services
-	$(COMPOSE) restart
 
 build: ## Build all service images
 	$(COMPOSE) build
@@ -175,9 +163,7 @@ test: ## Run all tests and validate documentation
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/messaging && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/telemetry && go test -tags=integration ./..."
+	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/backend/scripts/docs-gen && go run ."
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
-	@echo ""
-	@echo "$(BLUE)Validating documentation...$(NC)"
-	cd backend/scripts/docs-gen && go run . 2>/dev/null || echo "Documentation validation not available - requires database"

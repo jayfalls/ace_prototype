@@ -451,7 +451,7 @@ Per `design/README.md`: "All operations go through the Makefile." Documentation 
 
 | Makefile Target | Description | Trigger |
 |-----------------|-------------|---------|
-| `make docs` | Generate, validate, and lint all documentation | Manual, pre-commit, CI |
+| `make test` | Generate, validate, and lint all documentation | Manual, pre-commit, CI |
 
 ### Implementation
 
@@ -467,7 +467,7 @@ The `docs-gen` script handles the full pipeline internally: extract schema → g
 
 ```
 CI Pipeline
-  └─ make docs    (generate + validate + lint in one step)
+  └─ make test    (generate + validate + lint in one step)
 ```
 
 ---
@@ -692,7 +692,7 @@ These artifacts can be generated simultaneously (no dependencies between them):
 | `schema-validator` (pg_catalog) | < 3s | +0.3s per table |
 | `mermaid-validator` (all diagrams) | < 5s | +0.5s per diagram |
 | `openapi-validator` | < 2s | Linear with spec size |
-| Full pipeline (`make docs-all`) | < 30s | Dominated by generation |
+| Full pipeline (`make test-all`) | < 30s | Dominated by generation |
 
 Times are for the current schema size and will scale as noted. CI/CD overhead is dominated by PostgreSQL test database setup, not documentation generation.
 

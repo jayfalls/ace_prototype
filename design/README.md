@@ -347,14 +347,10 @@ All development tasks are driven through the Makefile. The Makefile is the singl
 | `make agent-stop` | Stop OpenCode in distrobox | Stop AI agent |
 | `make up` | Start all services in development mode | Start development |
 | `make down` | Stop all services | Stop development |
-| `make re` | Restart all services (down + up) | Restart services |
+| `make restart` | Restart all services | Restart services |
 | `make build` | Build all service images | Build containers |
 | `make test` | Run all tests and validate documentation | Run tests |
-| `make logs` | View aggregated logs for all services | View logs |
-| `make logs-api` | View logs for ace_api service | View API logs |
-| `make logs-fe` | View logs for ace_fe service | View frontend logs |
-| `make logs-db` | View logs for ace_db service | View database logs |
-| `make logs-broker` | View logs for ace_broker service | View NATS logs |
+| `make logs` | View logs for all services | View logs |
 | `make clean` | Remove all containers and volumes | Clean up |
 | `make ps` | Show running containers | Check status |
 | `make help` | Show help message | Get help |

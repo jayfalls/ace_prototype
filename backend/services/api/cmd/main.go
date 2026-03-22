@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AxelTahmid/annot8"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -80,6 +82,35 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 
 	// Metrics endpoint for Prometheus scraping
 	r.Handle("/metrics", telemetry.RegisterMetrics())
+
+	// OpenAPI spec endpoint (generated from handler annotations via Annot8)
+	r.Get("/openapi.json", func(w http.ResponseWriter, req *http.Request) {
+		gen := annot8.NewGenerator()
+		spec := gen.GenerateSpec(r, annot8.Config{
+			Title:       "ACE API",
+			Description: "ACE Framework API — automated OpenAPI 3.1 spec from handler annotations",
+			Version:     "0.1.0",
+		})
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = spec
+		data, _ := json.Marshal(spec)
+		w.Write(data)
+	})
+
+	// Interactive API documentation (Swagger UI)
+	r.Get("/docs", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `<!DOCTYPE html>
+<html><head><title>ACE API Docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+</head><body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+<script>SwaggerUIBundle({url: "/openapi.json", dom_id: "#swagger-ui"})</script>
+</body></html>`)
+	})
 
 	// Example routes demonstrating validation
 	r.Route("/examples", func(r chi.Router) {

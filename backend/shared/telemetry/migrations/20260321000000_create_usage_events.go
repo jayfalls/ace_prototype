@@ -35,6 +35,21 @@ func upCreateUsageEvents(tx *sql.Tx) error {
 		CREATE INDEX idx_usage_events_timestamp ON usage_events(timestamp DESC);
 		CREATE INDEX idx_usage_events_operation_type ON usage_events(operation_type);
 		CREATE INDEX idx_usage_events_service_name ON usage_events(service_name);
+
+		COMMENT ON TABLE usage_events IS 'Per-operation usage data for attribution, billing, and analytics.';
+		COMMENT ON COLUMN usage_events.id IS 'Unique event identifier (UUID gen_random_uuid).';
+		COMMENT ON COLUMN usage_events.timestamp IS 'When the operation occurred (UTC).';
+		COMMENT ON COLUMN usage_events.agent_id IS 'UUID of the agent that performed the operation.';
+		COMMENT ON COLUMN usage_events.cycle_id IS 'UUID of the cycle containing this operation.';
+		COMMENT ON COLUMN usage_events.session_id IS 'UUID of the session containing this operation.';
+		COMMENT ON COLUMN usage_events.service_name IS 'Name of the service that handled the operation.';
+		COMMENT ON COLUMN usage_events.operation_type IS 'Type of operation (e.g., llm_completion, tool_execution).';
+		COMMENT ON COLUMN usage_events.resource_type IS 'Type of resource consumed (e.g., token, compute, storage).';
+		COMMENT ON COLUMN usage_events.cost_usd IS 'Cost of the operation in USD.';
+		COMMENT ON COLUMN usage_events.duration_ms IS 'Duration of the operation in milliseconds.';
+		COMMENT ON COLUMN usage_events.token_count IS 'Number of tokens consumed (for LLM operations).';
+		COMMENT ON COLUMN usage_events.metadata IS 'Additional operation metadata (JSONB).';
+		COMMENT ON COLUMN usage_events.created_at IS 'When this row was inserted into the database.';
 	`)
 	return err
 }
