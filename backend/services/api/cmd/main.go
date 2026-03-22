@@ -99,7 +99,18 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 	})
 
 	// Interactive API documentation (Swagger UI)
-	r.Get("/docs", annot8.SwaggerUIHandler("/openapi.json"))
+	r.Get("/docs", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `<!DOCTYPE html>
+<html><head><title>ACE API Docs</title>
+<link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css">
+</head><body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"></script>
+<script>SwaggerUIBundle({url: "/openapi.json", dom_id: "#swagger-ui"})</script>
+</body></html>`)
+	})
 
 	// Example routes demonstrating validation
 	r.Route("/examples", func(r chi.Router) {

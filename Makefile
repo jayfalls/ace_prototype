@@ -99,6 +99,9 @@ agent: ## Enter distrobox and run OpenCode interactively
 		exit 1; \
 	fi
 	@REPO_DIR="$(shell pwd)"; \
+	echo "Ensuring docker perms"
+	sudo systemctl restart docker.socket
+	sudo usermod -aG docker $USER
 	echo "Entering distrobox and starting OpenCode..."; \
 	echo "$(GREEN)Distrobox will open with OpenCode. Your host is protected!$(NC)"; \
 	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && export PATH=\"\$$HOME/.opencode/bin:\$$PATH\" && exec opencode web"
