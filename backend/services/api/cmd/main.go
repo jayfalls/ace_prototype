@@ -98,6 +98,9 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 		w.Write(data)
 	})
 
+	// Interactive API documentation (Swagger UI)
+	r.Get("/docs", annot8.SwaggerUIHandler("/openapi.json"))
+
 	// Example routes demonstrating validation
 	r.Route("/examples", func(r chi.Router) {
 		r.Post("/", exampleHandler.Create)
