@@ -1,0 +1,348 @@
+openapi: 3.1.0
+info:
+  title: ACE API
+  version: 1.0.0
+  description: |
+    ACE Framework API — autonomous agent cognitive engine.
+    
+    All responses use a standard envelope:
+    - Success: `{ "success": true, "data": {...} }`
+    - Error: `{ "success": false, "error": { "code": "...", "message": "...", "details": [...] } }`
+
+servers:
+  - url: http://localhost:8080
+    description: Development
+
+paths:
+  /:
+    get:
+      operationId: getRoot
+      summary: Root endpoint
+      description: Returns the API server identifier.
+      tags:
+        - system
+      security: []
+      responses:
+        "200":
+          description: Server identifier
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service:
+                    type: string
+                    example: ace-api
+                  version:
+                    type: string
+                    example: 1.0.0
+
+  /health/live:
+    get:
+      operationId: healthLive
+      summary: Liveness probe
+      description: |
+        Kubernetes liveness probe. Returns 200 if the process is running.
+        Does not check dependencies.
+      tags:
+        - health
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /health/ready:
+    get:
+      operationId: healthReady
+      summary: Readiness probe
+      description: |
+        Kubernetes readiness probe. Checks database and NATS connectivity.
+        Returns 200 if all dependencies are healthy, 503 if any are degraded.
+      tags:
+        - health
+      security: []
+      responses:
+        "200":
+          description: All dependencies healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: ok
+                      nats:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: ok
+        "503":
+          description: One or more dependencies degraded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: degraded
+                  checks:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        status:
+                          type: string
+                        reason:
+                          type: string
+
+  /health/exporters:
+    get:
+      operationId: healthExporters
+      summary: Exporter health
+      description: |
+        Checks the health of optional exporters (OTLP, etc.).
+        Not used for Kubernetes readiness — for monitoring/debugging only.
+      tags:
+        - health
+      security: []
+      responses:
+        "200":
+          description: All exporters healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  checks:
+                    type: object
+                    properties:
+                      telemetry:
+                        type: object
+                        properties:
+                          status:
+                            type: string
+                            example: ok
+        "503":
+          description: One or more exporters degraded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: degraded
+                  checks:
+                    type: object
+
+  /metrics:
+    get:
+      operationId: getMetrics
+      summary: Prometheus metrics
+      description: Returns Prometheus-formatted metrics for scraping.
+      tags:
+        - system
+      security: []
+      responses:
+        "200":
+          description: Prometheus metrics in text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /examples/:
+    post:
+      operationId: createExample
+      summary: Create an example
+      description: |
+        Create a new example. Demonstrates the validation pattern used across the API.
+        This is a placeholder endpoint — no database persistence.
+      tags:
+        - examples
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExampleRequest"
+      responses:
+        "201":
+          description: Example created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+        "400":
+          description: Validation error or invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+
+  /examples/{id}:
+    get:
+      operationId: getExample
+      summary: Get example by ID
+      description: |
+        Retrieves an example by its ID. Demonstrates URL parameter validation.
+        This is a placeholder endpoint — returns a hardcoded response.
+      tags:
+        - examples
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Example ID (UUID)
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Example found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+        "404":
+          description: Example not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Bearer token authentication. Currently not enforced on any endpoint.
+        All endpoints are public. When auth middleware is added, protected endpoints
+        will require `Authorization: Bearer <token>` header.
+
+  schemas:
+    APIResponse:
+      type: object
+      description: Standard success response envelope
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          description: Response payload — type varies by endpoint
+      required:
+        - success
+
+    APIErrorResponse:
+      type: object
+      description: Standard error response envelope
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          $ref: "#/components/schemas/APIError"
+      required:
+        - success
+        - error
+
+    APIError:
+      type: object
+      description: Error details
+      properties:
+        code:
+          type: string
+          description: Machine-readable error code (snake_case)
+          example: validation_error
+        message:
+          type: string
+          description: Human-readable error message
+          example: Invalid request data
+        details:
+          type: array
+          description: Field-level validation errors (only for validation_error)
+          items:
+            $ref: "#/components/schemas/FieldError"
+      required:
+        - code
+        - message
+
+    FieldError:
+      type: object
+      description: Field-level validation error
+      properties:
+        field:
+          type: string
+          description: Name of the field that failed validation
+          example: name
+        message:
+          type: string
+          description: Human-readable validation message
+          example: This field is required
+      required:
+        - field
+        - message
+
+    CreateExampleRequest:
+      type: object
+      description: Request body for creating an example
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Example name
+          example: Test Example
+        email:
+          type: string
+          format: email
+          description: Valid email address
+          example: test@example.com
+
+    ExampleResponse:
+      type: object
+      description: Example resource
+      properties:
+        id:
+          type: string
+          description: Unique identifier
+          example: "123"
+        name:
+          type: string
+          description: Example name
+          example: Test Example
+        email:
+          type: string
+          format: email
+          description: Email address
+          example: test@example.com
