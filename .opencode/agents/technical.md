@@ -28,6 +28,8 @@ Create technical design documents for a unit. The orchestrator will specify whic
 - Read any existing documents in `design/units/{UNIT_NAME}/` for context
 - Unit directory: `design/units/{UNIT_NAME}/`
 - **Reference**: Activate the `unit-planning` skill for templates and structure
+- **Database reference**: Read `documentation/README.md` for how docs are structured and consumed
+- **Existing patterns**: Read `documentation/database-design/conventions.md` and `documentation/agents/patterns.md` for established standards
 
 ## Documents Created
 

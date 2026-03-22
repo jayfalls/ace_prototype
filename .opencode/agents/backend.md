@@ -23,6 +23,15 @@ Implement backend code for the unit specified by the orchestrator.
 - Read `design/units/{UNIT_NAME}/fsd.md`
 - Read `design/README.md` for ACE Framework patterns
 - Read `AGENTS.md` for coding best practices
+- **Database reference**: Read these docs when working with database code:
+  - `documentation/database-design/conventions.md` — Naming standards and data types
+  - `documentation/database-design/migrations.md` — Migration workflow and templates
+  - `documentation/database-design/schema/{group}/{table}.md` — Table schemas
+  - `documentation/database-design/sqlc.md` — SQLC workflow and annotations
+  - `documentation/database-design/query-patterns/{domain}.md` — Query patterns
+  - `documentation/api/openapi.yaml` — API endpoint definitions
+  - `documentation/api/endpoint-map.md` — Handler → Service → Repository → SQLC mapping
+  - `documentation/agents/patterns.md` — Constraint-first quick reference (ALWAYS/NEVER rules)
 
 ## Workflow
 

@@ -26,6 +26,10 @@ When reviewing code implementation:
 - Read `design/units/{UNIT_NAME}/architecture.md`
 - Read `design/units/{UNIT_NAME}/implementation.md`
 - Implementation is in `backend/` and/or `frontend/`
+- **Database reference**: When reviewing database code, check against:
+  - `documentation/database-design/conventions.md` — Naming standards
+  - `documentation/database-design/migrations.md` — Migration patterns
+  - `documentation/agents/patterns.md` — ALWAYS/NEVER rules
 
 ## Evaluation Criteria
 
