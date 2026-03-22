@@ -1,0 +1,45 @@
+{
+  "unit": "cleanup",
+  "current_phase": "planning-discovery-complete",
+  "status": "in_progress",
+  "pending_tasks": [
+    "Create bsd.md",
+    "Create user_stories.md",
+    "Create fsd.md"
+  ],
+  "task_ids": {
+    "planning": null,
+    "research": null,
+    "technical": null,
+    "design": null,
+    "testing": null,
+    "backend": null,
+    "frontend": null,
+    "qa": null
+  },
+  "episodes": [
+    {
+      "phase": "planning-discovery",
+      "notes": [
+        "User wants comprehensive QA review of all existing units",
+        "Three-phase approach: review units, review codebase, review documentation",
+        "All 6 units to review: architecture, core-api, core-infra, database-design, messaging-paradigm, observability",
+        "Flag everything - all severity levels",
+        "Deliverable: detailed report with actionables, then fix"
+      ],
+      "timestamp": "2026-03-22T12:00:00Z"
+    },
+    {
+      "phase": "planning-discovery-complete",
+      "notes": [
+        "Created problem_space.md for cleanup unit",
+        "Document captures all discovery context, scope, and approach",
+        "Three-phase review structure defined: docs → code → alignment",
+        "Focus areas: code quality, documentation alignment, architecture consistency, completeness gaps, scalability",
+        "All severity levels flagged: critical, medium, low"
+      ],
+      "timestamp": "2026-03-22T12:00:00Z"
+    }
+  ],
+  "last_updated": "2026-03-22T12:00:00Z"
+}
