@@ -177,8 +177,17 @@ Steps:
 - Attach test results to PRs (both backend and frontend)
 - **PR Descriptions**: Include clear description of changes, test results, and any relevant context
 - **Issue Linking**: Always include "Closes #XX" or "Fixes #XX" in the PR description to automatically close the referenced issue when the PR is merged
-- **Post-Merge Changelog**: After a PR is created, immediately update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes
+- **Changelog (MANDATORY)**: After creating a PR, IMMEDIATELY update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes. This is NOT optional - every PR must have a corresponding changelog entry.
 - **Documentation Requirement**: After creating a PR AND after addressing any PR comments, always update the documentation:
   - Add or update relevant documentation files in `documentation/` if needed
   - Update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the changes made
   - This applies to both initial PR creation and follow-up commits addressing comments
+
+### CRITICAL: Wait for Merge
+**NEVER proceed to the next document or task until the current PR is merged by the user.**
+
+- After creating a PR and updating the changelog, STOP and wait for user to merge
+- Do NOT create the next document or start the next task
+- Do NOT assume the user wants to continue
+- Wait for explicit confirmation that the PR is merged before proceeding
+- This ensures the user has full control over the workflow and can review before continuing
