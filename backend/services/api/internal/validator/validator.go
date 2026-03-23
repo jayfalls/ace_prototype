@@ -15,6 +15,6 @@ func init() {
 
 // ValidateStruct validates a struct using the global validator instance.
 // Returns validation errors if any, or nil if validation passes.
-func ValidateStruct(s interface{}) error {
+func ValidateStruct[T any](s T) error {
 	return Validate.Struct(s)
 }
