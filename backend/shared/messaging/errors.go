@@ -123,7 +123,7 @@ func (e *MessagingError) Is(target error) bool {
 }
 
 // As checks if the error can be cast to the target type.
-func (e *MessagingError) As(target interface{}) bool {
+func (e *MessagingError) As(target any) bool {
 	if te, ok := target.(*MessagingError); ok {
 		*te = *e
 		return true

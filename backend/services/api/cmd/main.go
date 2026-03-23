@@ -26,9 +26,7 @@ import (
 	"ace/shared/messaging"
 	"ace/shared/telemetry"
 	_ "ace/shared/telemetry/migrations"
-
 	// _ "ace/api/migrations"
-	"ace/shared"
 )
 
 // NOTE: Commented out code to be enabled once needed
@@ -195,8 +193,6 @@ func main() {
 		log.Printf("Warning: Failed to initialize telemetry: %v", err)
 	}
 	defer tel.Shutdown(ctx)
-
-	shared.Hello()
 
 	router := newRouter(cfg, db.Pool, natsClient, tel)
 	serve(cfg.APIHost, cfg.APIPort, router)
