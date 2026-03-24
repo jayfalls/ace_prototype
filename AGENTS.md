@@ -1,4 +1,4 @@
-# One Document Per PR
+# Coding Standards
 
 ## General Principles
 
@@ -10,88 +10,25 @@
 - This applies to documents, code, and any deliverables
 
 **Always Report Files Affected**
-- Every agent MUST report which files were changed/created in their response
-- This allows the QA agent to check relevant git diffs
-- Include file paths in your final output
+- Every change MUST report which files were changed/created in the response
+- This allows QA to check relevant git diffs
+- Include file paths in the final output
 
-Every agent should create ONLY ONE document per session/PR. If multiple documents need creation, the orchestrator will spawn the agent again for each document.
+**One Document Per PR**
+Every piece of work should create ONLY ONE document per session/PR. If multiple documents need creation, they should be created one at a time.
 
-This ensures:
-- Minimal, focused PRs
-- Easier review
-- Clear commit history
-- Iterative validation through QA
-- Always read `design/README.md` before starting any work or responding to any questions
+**Always Read Context First**
+- Always read `design/README.md` before starting any work
 - Reference `design/units/README.md` for individual unit documentation
 - Understanding the overall system design is essential before making any changes
 
-# Memory System
+## Unit Reference
+Every PR, commit, and issue MUST include the unit name so progress can be tracked across sessions.
 
-You have access to memory stores in `.agents/memory/`.
-
-**Keep it Lean**:
-- Only store essential state
-- Delete completed tasks promptly
-
-**How to update**:
-- Before delegation: Read the file to know current state
-- After delegation: Write updated file with progress
-
-**Episodic Memory**: Captured in the `episodes` array in short-term memory. Each episode records what happened in a phase.
-
-**Semantic Memory**: Stored in long-term memory's `learned_patterns` array.
-
-## Long-term Memory
-
-**Location**: `.agents/memory/long-term.json`
-
-**Purpose**: Persistent across all sessions.
-
-**Contains**:
-- `completed_units`: Historical completion data
-- `preferences`: User preferences
-- `learned_patterns`: Patterns from workflows
-
-## Short-term Memory - Per-Unit
-
-**Location**: `.agents/memory/short-term/{unit-name}.json`
-
-**Purpose**: Tracks work-in-progress for a specific unit. Each unit has its own file.
-
-**When to load**: Always try to find the relevant short term memory file for whatever unit you are working on.
-
-**Structure**:
-```json
-{
-  "unit": "observability",
-  "current_phase": "planning-discovery",
-  "status": "in_progress",
-  "pending_tasks": [],
-  "episodes": [
-    {
-      "phase": "planning-discovery",
-      "notes": [],
-      "timestamp": "2026-03-15T12:00:00Z"
-    }
-  ],
-  "last_updated": "2026-03-15T12:00:00Z"
-}
-```
-
-### When a trigger comes in:
-
-1. **Parse the trigger**:
-   - User request: Extract unit name from request
-   - GitHub event: Extract from branch name or PR title/description or Issue title/description
-
-2. **Find matching unit**:
-   - Check `.agents/memory/short-term/{unit}.json`
-   - If not found, check `.agents/memory/long-term.json`
-   - If still not found, ask user
-
-3. **Load memory**: Read the short-term memory file for that unit
-
-4. **Resume**: Continue from the current phase in memory
+**Format:**
+- PR title: `[unit: opencode-integration] Add memory system`
+- Commit: `feat: add memory system [unit: opencode-integration]`
+- Issue: `[unit: observability] How should we handle logs?`
 
 # Working on the Code
 
@@ -129,65 +66,3 @@ All code changes must include appropriate tests:
 - **Integration Tests**: Required for API and database operations
 - **Frontend Tests**: Use Vitest for unit tests
 - **E2E Tests**: Required for critical user flows
-
-## GitHub Workflow
-
-### Unit Reference (CRITICAL)
-Every PR, commit, and issue MUST include the unit name so memory can be loaded on new sessions.
-
-**Format:**
-- PR title: `[unit: opencode-integration] Add memory system`
-- Commit: `feat: add memory system [unit: opencode-integration]`
-- Issue: `[unit: observability] How should we handle logs?`
-
-This allows the orchestrator to resume work from the correct unit memory file.
-
-### Branch Workflow (CRITICAL)
-**ALWAYS create a new branch for every feature, fix, or piece of work.** Never work directly on main or any existing branch.
-
-**NEVER commit directly to main.** All work must be done on feature branches. If you accidentally commit to main, immediately revert the commit and create a proper branch.
-
-Steps:
-1. Before starting any work: `git checkout main && git pull && git checkout -b feature/<description>`
-2. One branch per feature/PR - never bundle unrelated work
-3. **ALWAYS create a PR after committing changes** - no work is complete without a PR
-4. After PR is merged: delete the branch immediately (`git branch -d <branch-name> && git push origin --delete <branch-name>`)
-5. After deleting branch: `git checkout main && git pull && git fetch --prune`
-
-### Branch Naming
-- `feature/<description>` - New features
-- `fix/<description>` - Bug fixes
-- `docs/<description>` - Documentation changes
-- `refactor/<description>` - Code refactoring
-- `test/<description>` - Adding or updating tests
-
-### Commit Messages
-- Use clear, descriptive commit messages
-- Conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`, `test:`
-
-### Pull Requests
-**ALWAYS create a PR after committing changes** - work is not complete until a PR is created.
-
-- Always link PRs to the user once you have created them
-- Always update the user on any changes made to the PR
-- Always aim for minimal changes when addressing PR comments, reduce your changes
-- Once the PR is merged, checkout to main, pull, delete the old branch and git fetch --prune
-- Always create new PRs for each piece of work
-- Aim for micro-PRs
-- Attach test results to PRs (both backend and frontend)
-- **PR Descriptions**: Include clear description of changes, test results, and any relevant context
-- **Issue Linking**: Always include "Closes #XX" or "Fixes #XX" in the PR description to automatically close the referenced issue when the PR is merged
-- **Changelog (MANDATORY)**: After creating a PR, IMMEDIATELY update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the relevant changes. This is NOT optional - every PR must have a corresponding changelog entry.
-- **Documentation Requirement**: After creating a PR AND after addressing any PR comments, always update the documentation:
-  - Add or update relevant documentation files in `documentation/` if needed
-  - Update the changelog in `documentation/changelogs/<YYYY-MM-DD>.md` with the changes made
-  - This applies to both initial PR creation and follow-up commits addressing comments
-
-### CRITICAL: Wait for Merge
-**NEVER proceed to the next document or task until the current PR is merged by the user.**
-
-- After creating a PR and updating the changelog, STOP and wait for user to merge
-- Do NOT create the next document or start the next task
-- Do NOT assume the user wants to continue
-- Wait for explicit confirmation that the PR is merged before proceeding
-- This ensures the user has full control over the workflow and can review before continuing
