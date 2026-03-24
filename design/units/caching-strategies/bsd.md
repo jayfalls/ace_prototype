@@ -18,6 +18,8 @@ The shared library defines interfaces and patterns, not implementations. Backend
 
 ## In Scope
 - **Shared caching library (`shared/caching`)** — Transport-agnostic Go package with core operations (`Get`, `Set`, `Delete`), cache-aside pattern (`GetOrFetch`), bulk operations, TTL management, and namespace isolation
+- **Frontend caching module** — SvelteKit/browser-side caching module for UI data, API response caching, and client-side state management
+- **Backend tool selection** — Research and evaluation of cache backends (Redis vs Memcached vs PostgreSQL-backed) and in-memory libraries (ristretto, bigcache, groupcache) with recommendation
 - **Pluggable backend interface** — Abstract cache backend allowing single-process in-memory (development) and Redis (production) without service code changes
 - **Invalidation primitives** — First-class support for TTL-based, event-driven, versioned, and hybrid invalidation strategies as composable building blocks
 - **Stampede protection** — Built-in single-flight/request coalescing to prevent thundering herd when popular cache keys expire
@@ -29,8 +31,6 @@ The shared library defines interfaces and patterns, not implementations. Backend
 - **Testing strategy** — Unit tests per backend, integration tests for cross-service invalidation, load tests for stampede scenarios, consistency tests for distributed invalidation
 
 ## Out of Scope
-- **Frontend/browser-side caching module** — SvelteKit caching is a separate concern deferred to the frontend design unit
-- **Specific backend selection** — Redis vs Memcached vs PostgreSQL-backed evaluation happens in the research phase; this unit delivers the pluggable interface, not a production backend decision
 - **Production deployment and sizing** — Cache cluster provisioning, capacity planning, and operational runbooks are deferred to the production deployment unit
 - **Cache implementation inside cognitive layers** — The cognitive engine unit will consume `shared/caching` primitives; this unit only provides them
 - **Custom NATS subjects for cache invalidation** — Subject definition and subscription wiring live in service-internal adapter code, not in the shared package (transport-agnostic constraint)
