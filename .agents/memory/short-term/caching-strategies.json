@@ -23,7 +23,12 @@
       "phase": "planning",
       "notes": ["problem_space.md created and QA passed"],
       "timestamp": "2026-03-23T00:00:00Z"
+    },
+    {
+      "phase": "planning-bsd",
+      "notes": ["bsd.md created - business specification defined with scope, value proposition, and success criteria"],
+      "timestamp": "2026-03-23T12:00:00Z"
     }
   ],
-  "last_updated": "2026-03-23T00:00:00Z"
+  "last_updated": "2026-03-23T12:00:00Z"
 }
