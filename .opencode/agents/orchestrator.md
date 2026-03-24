@@ -65,18 +65,20 @@ Location: `.agents/memory/short-term/{unit-name}.json`
 1. **discovery** → Problem space exploration (orchestrator only, no QA)
 2. **planning** → problem_space, bsd, user_stories, fsd
 3. **research** → Technology research, dependencies
-4. **technical** → Architecture, api, implementation, security
+4. **technical** → Architecture, api, security
 5. **design** → Visual design, mockups
 6. **testing** → Test strategy
-7. **backend** — Go code
-8. **frontend** — SvelteKit code
+7. **implementation** → Implementation plan (ALWAYS last planning doc)
+8. **backend** — Go code
+9. **frontend** — SvelteKit code
 
 ### Available Agent Types
 - `planning` — problem_space, bsd, user_stories, fsd
 - `research` — technology research, dependencies
-- `technical` — architecture, api, security, implementation
+- `technical` — architecture, api, security
 - `design` — visual design, mockups
 - `testing` — test strategy
+- `implementation` — implementation plan
 - `backend` — Go backend code
 - `frontend` — SvelteKit frontend code
 - `qa` — quality assurance + test execution
@@ -87,9 +89,10 @@ Location: `.agents/memory/short-term/{unit-name}.json`
 | problem_space.md | planning |
 | bsd.md, user_stories.md, fsd.md | planning |
 | research.md, dependencies.md | research |
-| architecture.md, api.md, security.md, implementation.md | technical |
+| architecture.md, api.md, security.md | technical |
 | design.md, mockups.md | design |
 | testing.md | testing |
+| implementation.md | implementation |
 
 ### Task ID Reuse (CRITICAL)
 
