@@ -205,8 +205,8 @@ type Cache interface {
     // Configuration
     WithNamespace(namespace string) Cache
     WithAgentID(agentID string) Cache
-    WithTTL(ttl time.Duration) Cache
-    WithTags(tags ...string) Cache
+    WithDefaultTTL(ttl time.Duration) Cache
+    WithDefaultTags(tags ...string) Cache
 
     // Observability
     Stats(ctx context.Context) (*CacheStats, error)
@@ -285,8 +285,8 @@ func NewKeyBuilder(namespace, agentID string) *KeyBuilder
 func (kb *KeyBuilder) EntityType(t string) *KeyBuilder
 func (kb *KeyBuilder) EntityID(id string) *KeyBuilder
 func (kb *KeyBuilder) Version(v string) *KeyBuilder
-func (kb *KeyBuilder) Build() string
-func (kb *KeyBuilder) Pattern() string  // Returns glob pattern for invalidation
+func (kb *KeyBuilder) Build() (string, error)
+func (kb *KeyBuilder) Pattern() (string, error)  // Returns glob pattern for invalidation
 ```
 
 ### Stampede Protection Interface
