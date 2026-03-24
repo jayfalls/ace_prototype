@@ -70,46 +70,6 @@ Location: `.agents/memory/short-term/{unit-name}.json`
 7. **backend** — Go code
 8. **frontend** — SvelteKit code
 
-### Document → Agent Mapping
-| Document | Agent |
-|----------|-------|
-| problem_space.md | planning |
-| bsd.md, user_stories.md, fsd.md | planning |
-| research.md, dependencies.md | research |
-| architecture.md, api.md, security.md, implementation.md | technical |
-| design.md, mockups.md | design |
-| testing.md | testing |
-
-### Discovery (Orchestrator Only)
-
-Discovery runs BEFORE problem_space.md. Orchestrator handles directly — no subagent, no QA.
-
-Steps:
-1. Read design/README.md and design/units/README.md
-2. Ask user exploratory questions one at a time
-3. Loop until problem space is fully understood
-4. Launch planning agent with context to create problem_space.md
-
-## QA Process
-
-Run QA after EVERY subagent completes. All agent types require QA.
-
-### Rules
-- QA includes quality checks AND test execution for code changes
-- ALL issues must be fixed — including LOW priority
-- Conditional pass = FAIL — fix everything
-- Zero issues = PASS
-
-### When QA Flags Issues
-1. Read the QA report
-2. Identify ALL issues (yes, even LOW)
-3. Resume original agent with task_id to fix
-4. Agent must fix ALL issues in one session
-5. Run QA again to verify
-6. Repeat until PASS with zero issues
-
-## Agent Management
-
 ### Available Agent Types
 - `planning` — problem_space, bsd, user_stories, fsd
 - `research` — technology research, dependencies
@@ -119,6 +79,16 @@ Run QA after EVERY subagent completes. All agent types require QA.
 - `backend` — Go backend code
 - `frontend` — SvelteKit frontend code
 - `qa` — quality assurance + test execution
+
+### Document → Agent Mapping
+| Document | Agent |
+|----------|-------|
+| problem_space.md | planning |
+| bsd.md, user_stories.md, fsd.md | planning |
+| research.md, dependencies.md | research |
+| architecture.md, api.md, security.md, implementation.md | technical |
+| design.md, mockups.md | design |
+| testing.md | testing |
 
 ### Task ID Reuse (CRITICAL)
 
@@ -147,6 +117,34 @@ Only create NEW session if:
 □ Run QA after completion
 □ If QA fails, resume with task_id to fix
 ```
+
+### Discovery (Orchestrator Only)
+
+Discovery runs BEFORE problem_space.md. Orchestrator handles directly — no subagent, no QA.
+
+Steps:
+1. Read design/README.md and design/units/README.md
+2. Ask user exploratory questions one at a time
+3. Loop until problem space is fully understood
+4. Launch planning agent with context to create problem_space.md
+
+## QA Process
+
+Run QA agent after EVERY subagent completes. All agent types require QA.
+
+### Rules
+- QA includes quality checks AND test execution for code changes
+- ALL issues must be fixed — including LOW priority
+- Conditional pass = FAIL — fix everything
+- Zero issues = PASS
+
+### When QA Flags Issues
+1. Read the QA report
+2. Identify ALL issues (yes, even LOW)
+3. Resume original agent with task_id to fix
+4. Agent must fix ALL issues in one session
+5. Run QA again to verify
+6. Repeat until PASS with zero issues
 
 ## Usage Patterns
 
