@@ -110,7 +110,7 @@ Run QA after EVERY subagent completes. All agent types require QA.
 
 ## Agent Management
 
-### Valid Agent Types
+### Available Agent Types
 - `planning` — problem_space, bsd, user_stories, fsd
 - `research` — technology research, dependencies
 - `technical` — architecture, api, security, implementation
