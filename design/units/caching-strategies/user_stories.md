@@ -89,34 +89,6 @@ Scenario: Cache entries are isolated by namespace
   Then each service receives its own distinct value
 ```
 
-### Scenario: Pluggable backend — in-memory for development
-```gherkin
-Scenario: Service uses in-memory cache backend in development
-  Given the service is configured with cache backend type "in-memory"
-  When the service performs cache operations (Get, Set, Delete)
-  Then all operations execute against the in-memory store
-  And no external cache infrastructure is required
-```
-
-### Scenario: Pluggable backend — Redis for production
-```gherkin
-Scenario: Service uses Redis cache backend in production
-  Given the service is configured with cache backend type "redis" with connection settings
-  When the service performs cache operations (Get, Set, Delete)
-  Then all operations execute against the Redis cluster
-  And the service code is identical to the in-memory backend configuration
-```
-
-### Scenario: Backend switch without code changes
-```gherkin
-Scenario: Switching cache backend requires only configuration change
-  Given a service is running with in-memory cache backend
-  When the cache backend configuration is changed to "redis"
-  And the service is restarted
-  Then the service continues to operate correctly against Redis
-  And no service code changes were required
-```
-
 ---
 
 ## Feature: Frontend Caching
@@ -174,25 +146,16 @@ Scenario: Frontend serves cached data when network is unavailable
 ```gherkin
 Background: Evaluating cache backend options
   Given the caching strategies unit is in the research phase
-  And candidate backends include Redis, Memcached, and PostgreSQL-backed cache
+  And candidate backends include Valkey, Memcached, and PostgreSQL-backed cache
 ```
 
-### Scenario: Evaluate Redis as distributed cache backend
+### Scenario: Evaluate Valkey as distributed cache backend
 ```gherkin
-Scenario: Research team evaluates Redis for production use
-  Given Redis is a candidate distributed cache backend
-  When the research team benchmarks Redis against production workloads
+Scenario: Research team evaluates Valkey for production use
+  Given Valkey is a candidate distributed cache backend
+  When the research team benchmarks Valkey against production workloads
   Then the evaluation captures latency, throughput, memory overhead, and operational complexity
   And a recommendation with trade-offs is documented
-```
-
-### Scenario: Evaluate in-memory cache libraries
-```gherkin
-Scenario: Research team evaluates Go in-memory cache libraries
-  Given candidate libraries include ristretto, bigcache, and groupcache
-  When the research team benchmarks each library
-  Then the evaluation captures eviction policies, concurrency safety, memory overhead, and API ergonomics
-  And a recommendation for the default in-memory backend is documented
 ```
 
 ### Scenario: Backend selection criteria matrix
@@ -563,21 +526,11 @@ Background: Test infrastructure for shared/caching
   And a NATS test server is available for integration tests
 ```
 
-### Scenario: Unit tests cover each cache backend implementation
+### Scenario: Valkey backend passes all unit tests
 ```gherkin
-Scenario: In-memory backend passes all unit tests
-  Given the in-memory cache backend is implemented
-  When the unit test suite is executed against the in-memory backend
-  Then all cache operations (Get, Set, Delete, GetOrFetch, bulk operations) pass
-  And TTL behavior is verified
-  And namespace isolation is verified
-```
-
-### Scenario: Redis backend passes all unit tests
-```gherkin
-Scenario: Redis backend passes all unit tests with a mock or test Redis instance
-  Given the Redis cache backend is implemented
-  When the unit test suite is executed against the Redis backend
+Scenario: Valkey backend passes all unit tests with a mock or test Valkey instance
+  Given the Valkey cache backend is implemented
+  When the unit test suite is executed against the Valkey backend
   Then all cache operations pass
   And connection failure handling is verified
   And serialization correctness is verified
@@ -606,7 +559,7 @@ Scenario: System handles thundering herd without duplicate fetches
 ### Scenario: Consistency test for distributed invalidation
 ```gherkin
 Scenario: Distributed cache invalidation converges within the consistency window
-  Given multiple service instances share a Redis cache backend
+  Given multiple service instances share a Valkey cache backend
   When an invalidation event is published for a shared key
   Then all instances invalidate their local caches within the defined consistency window
   And no stale data is served after the window expires
@@ -635,16 +588,10 @@ Scenario: Caching test guidelines are available for services consuming shared/ca
 | Bulk get multiple keys | Library adoption — bulk operations supported | Should |
 | Bulk set multiple keys | Library adoption — bulk operations supported | Should |
 | Cache entries are isolated by namespace | Library adoption — namespace isolation supported | Must |
-| Service uses in-memory cache backend in development | Backend pluggability — zero code changes to switch | Must |
-| Service uses Redis cache backend in production | Backend pluggability — zero code changes to switch | Must |
-| Switching cache backend requires only configuration change | Backend pluggability — zero code changes to switch | Must |
 | Frontend caches API responses to reduce network calls | Library adoption — frontend caching module available | Should |
 | Frontend cache clears when user triggers a state change | Invalidation consistency — frontend invalidation supported | Should |
 | Browser cache entries expire after configured TTL | Invalidation consistency — TTL expiration works | Should |
 | Frontend serves cached data when network is unavailable | Library adoption — offline fallback supported | Could |
-| Research team evaluates Redis for production use | Backend pluggability — informed selection | Must |
-| Research team evaluates Go in-memory cache libraries | Backend pluggability — informed selection | Must |
-| Backend options are scored against selection criteria | Backend pluggability — documented recommendation | Must |
 | Cache entry expires after configured TTL | Invalidation consistency — TTL-based invalidation | Must |
 | Frequently accessed cache entries have their TTL extended | Invalidation consistency — sliding TTL | Should |
 | Stale data is served while background refresh is in progress | Invalidation consistency — stale-while-revalidate | Should |
@@ -676,8 +623,7 @@ Scenario: Caching test guidelines are available for services consuming shared/ca
 | Cache operations are attributed to the correct agent | Observability coverage — agentId in UsageEvents | Must |
 | Bulk operations only affect the current agent's entries | Library adoption — agent-scoped operations | Must |
 | Invalidation events only clear entries for the targeted agent | Invalidation consistency — agent-scoped invalidation | Must |
-| In-memory backend passes all unit tests | Testing strategy — unit tests per backend | Must |
-| Redis backend passes all unit tests with a mock or test Redis instance | Testing strategy — unit tests per backend | Must |
+| Valkey backend passes all unit tests with a mock or test Valkey instance | Testing strategy — unit tests per backend | Must |
 | Cache invalidation propagates across services via NATS | Testing strategy — integration tests for cross-service invalidation | Must |
 | System handles thundering herd without duplicate fetches | Testing strategy — load tests for stampede scenarios | Must |
 | Distributed cache invalidation converges within the consistency window | Testing strategy — consistency tests for distributed invalidation | Must |

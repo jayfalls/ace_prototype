@@ -481,26 +481,26 @@ Service A (data change) → Publish InvalidationEvent → NATS subject: ace.cach
 
 ## Recommended Architecture
 
+### Cache Backend Decision
+
+**Decision: Valkey is the sole cache backend for all environments, including local development via Docker Compose.**
+
+Research was conducted on in-memory cache libraries (Otter v2, Ristretto, BigCache, FreeCache, go-cache, sturdyc) — see Category 3 below for historical context. The Valkey-only approach was chosen because:
+- One client (valkey-go), one backend (Valkey) — no abstraction layer needed
+- Docker Compose makes Valkey available in all environments (including local dev) with minimal overhead
+- Eliminates complexity of maintaining pluggable backend interfaces
+- Consistent behavior and observability across all environments
+- The in-memory library comparison (Category 3-4) is retained for reference but is not used
+
 ### Distributed Cache Backend
 
 | Environment | Recommendation | Rationale |
 |-------------|---------------|-----------|
-| **Development** | In-memory (Otter v2) | Zero infrastructure, fast iteration, matches FSD default |
-| **Production (primary)** | **Valkey** | Best performance, cleanest licensing, cloud-provider alignment |
-| **Production (metadata)** | PostgreSQL | Version stamps, warming schedules, cache statistics (via SQLC) |
+| **All environments** | **Valkey** | Sole backend — runs via Docker Compose everywhere |
+| **Metadata** | PostgreSQL | Version stamps, warming schedules, cache statistics (via SQLC) |
 | **Future consideration** | Dragonfly | If single-node throughput becomes the bottleneck |
 
 **Rationale for Valkey over Redis**: The license change created real operational risk. Valkey delivers equal or better performance with BSD licensing. AWS and GCP have made it their default — following the cloud providers' lead reduces vendor friction. Redis's vector search and Redis Stack modules are not needed for caching workloads.
-
-### In-Memory Cache Library
-
-| Use Case | Recommendation | Rationale |
-|----------|---------------|-----------|
-| **Default in-memory backend** | **Otter v2** | Best hit rates, throughput, and memory efficiency. Modern API with generics. |
-| **Fallback/alternative** | Ristretto | Proven in production if Otter's newer codebase is a concern |
-| **Specialized: stampede + batching** | sturdyc | If upstream API caching with built-in coalescing is needed |
-
-**Rationale for Otter v2**: It's the evolution of the Go caching ecosystem. The author documented the progression from early caches through ristretto to otter, incorporating lessons learned. W-TinyLFU provides the best hit rates, and throughput benchmarks consistently show it as the fastest option for most workloads.
 
 ### Cross-Service Invalidation
 
@@ -528,10 +528,9 @@ Service A (data change) → Publish InvalidationEvent → NATS subject: ace.cach
 | Risk | Mitigation |
 |------|------------|
 | **Valkey lacks Redis Stack modules** | ACE caching doesn't need vector search/JSON/TimeSeries. If needed later, Dragonfly or Redis under AGPLv3 is an option. |
-| **Otter v2 is newer (less battle-tested)** | Ristretto is available as a drop-in alternative. The `CacheBackend` interface abstracts the library choice. |
 | **NATS at-most-once delivery may miss invalidations** | TTL safety net catches missed events. Hybrid strategy (event + TTL) provides dual-layer protection. |
 | **singleflight global lock at extreme scale** | Shard the key space across multiple singleflight groups if profiling shows contention. Not needed at typical scale. |
-| **Valkey/Redis divergence over time** | The `CacheBackend` interface isolates implementation. Protocol compatibility is ~90% and stable. |
+| **Valkey/Redis divergence over time** | Protocol compatibility is ~90% and stable. Valkey maintains RESP wire-level compatibility. |
 | **Version stamp DB queries add latency** | Only used for versioned invalidation strategy (not all namespaces). Can be cached locally with short TTL. |
 
 ---
