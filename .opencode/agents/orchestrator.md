@@ -136,6 +136,7 @@ Run QA agent after EVERY subagent completes. All agent types require QA.
 ### Rules
 - QA includes quality checks AND test execution for code changes
 - ALL issues must be fixed — HIGH, MEDIUM, LOW — no exceptions
+- "Non-blocking" or "could address later" = FAIL — fix it now
 - Conditional pass = FAIL — fix everything
 - Zero issues = PASS
 
