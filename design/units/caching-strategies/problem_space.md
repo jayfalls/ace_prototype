@@ -26,7 +26,7 @@ A:
 1. Every subsequent service that needs caching uses `shared/caching` — no custom cache implementations
 2. Cache operations are observable: hit/miss rates, eviction counts, invalidation chains, and latency are tracked as UsageEvents and exposed via the observability pipeline
 3. Cache invalidation is consistent: when data changes in one service, all dependent caches across services are invalidated within defined consistency windows
-4. The library supports pluggable backends: a single-process in-memory cache for development, Valkey for production, without changing service code
+4. The library uses Valkey as the sole cache backend across all environments, including local development via Docker Compose
 5. Stampede protection prevents thundering herd scenarios when popular cache keys expire
 6. Cache warming strategies can be configured per-use-case to pre-populate critical data on service startup
 
@@ -48,7 +48,7 @@ A: **Both** — a design specification AND a shared library (`shared/caching`), 
 
 #### 2. Cache Tiers and Locations
 **Q: Should the caching system be tied to specific backends or infrastructure?**
-A: **Agnostic and modular** — supporting pluggable backends. The shared library defines the interface and patterns; the backend implementation (in-memory, Valkey, Memcached, PostgreSQL-backed, or custom) is selected per deployment. A single-process L1 cache (in-memory) may coexist with a distributed L2 cache (Valkey) for the same key namespace. Specific tool choices (Valkey vs alternatives) will be determined in the research phase.
+A: **Valkey-only** — Valkey is the sole cache backend, running in all environments (local development via Docker Compose, staging, production). The shared library defines the interface and patterns; the backend is always Valkey. Specific configuration (memory limits, eviction policies) is tuned per deployment.
 
 #### 3. Invalidation Strategy
 **Q: What cache invalidation approach should be used?**
@@ -87,7 +87,7 @@ A: The research/technical phase should determine the full API surface, but reaso
 #### 6. Testing Strategy
 **Q: What testing approach is needed?**
 A: **All of the following** — every feature must be rock solid:
-- **Unit tests** for each cache backend implementation (in-memory, Valkey mock, etc.)
+- **Unit tests** for cache operations (Valkey mock and test instance)
 - **Integration tests** for cross-service invalidation (cache in service A invalidated by event from service B via NATS)
 - **Load tests** for stampede scenarios (simultaneous expiry of popular keys)
 - **Consistency tests** for distributed invalidation (verify eventual consistency windows)
@@ -113,7 +113,7 @@ A: The memory unit has its own memory tiers (L1-L4). Caching operates at a diffe
 
 2. **Observability is the primary driver** — cache operations must be observable not just for reliability monitoring but for product features (cost savings dashboards, efficiency indicators). This mirrors the observability unit's principle of "observability drives product features first, then reliability."
 
-3. **Pluggable backends prevent lock-in** — the shared library defines interfaces and patterns, not implementations. A single-process in-memory cache for development and Valkey for production should be swappable without service code changes.
+3. **Valkey runs everywhere** — Valkey is the sole cache backend, running in all environments including local development via Docker Compose. One client, one backend, all environments — no abstraction layer needed.
 
 4. **Invalidation is the hard problem** — supporting TTL-based, event-driven, versioned, and hybrid invalidation as first-class primitives (not afterthoughts) is the key differentiator. Most caching failures come from invalidation bugs, not from caching bugs.
 
@@ -127,8 +127,7 @@ A: The memory unit has its own memory tiers (L1-L4). Caching operates at a diffe
 
 ## Dependencies Identified
 
-- **Go standard library** — `sync`, `context`, `time` for in-memory cache primitives
-- **Valkey client (valkey-go)** — for distributed cache backend (research phase)
+- **Valkey client (valkey-go)** — sole cache backend client (research phase)
 - **shared/messaging** — for NATS-based cache invalidation event flow (integration pattern, not package dependency)
 - **shared/telemetry** — for UsageEvent emission, trace spans, and metrics on all cache operations
 - **PostgreSQL** — for cache metadata, warming schedules, version stamps (queries via SQLC)
@@ -138,32 +137,29 @@ A: The memory unit has its own memory tiers (L1-L4). Caching operates at a diffe
 1. The `shared/caching` package will be imported by all backend services that need caching (cognitive engine, memory manager, tool executor, API)
 2. The frontend will have a separate browser-side caching module (not Go) — designed but implementation deferred to the frontend unit
 3. NATS-based invalidation will use dedicated subjects (e.g., `ace.cache.%s.invalidate`) — subject constants defined in the caching package or a caching-specific adapter
-4. Valkey is the chosen distributed cache backend; alternatives include Memcached, PostgreSQL-backed caches, or custom solutions
-5. The in-memory cache backend will use a well-tested Go LRU/LFU library (e.g., groupcache, ristretto, or bigcache) — specific choice determined in research
-6. Cache key conventions will be standardized: `{namespace}:{agentId}:{entityType}:{entityId}:{version}`
-7. Stale-while-revalidate pattern will be the default for most use cases — serve stale data immediately, refresh in background
-8. Cache warming will be configurable per-namespace with optional NATS-triggered warming events
+4. Valkey is the chosen cache backend for all environments including local development
+5. Cache key conventions will be standardized: `{namespace}:{agentId}:{entityType}:{entityId}:{version}`
+6. Stale-while-revalidate pattern will be the default for most use cases — serve stale data immediately, refresh in background
+7. Cache warming will be configurable per-namespace with optional NATS-triggered warming events
 
 ## Open Questions (For Research)
 
-1. **Distributed cache backend**: Valkey vs Memcached vs PostgreSQL-backed vs custom — evaluate based on operational complexity, performance, and consistency guarantees
-2. **In-memory cache library**: groupcache vs ristretto vs bigcache vs sync.Map — evaluate based on eviction policies, concurrency, and memory overhead
-3. **Cross-service invalidation protocol**: Should invalidation be key-based, tag-based, or namespace-based? What consistency guarantees can we provide across NATS?
-4. **Stampede protection implementation**: Single-flight (request coalescing) should be built into the library — but should it be optional or mandatory per operation?
-5. **Cache key serialization**: How to handle complex keys efficiently? Hash-based? Struct-based? Template-based?
-6. **Memory overhead estimation**: What is the expected cache size per agent? Per service? Per pod? This determines backend sizing requirements
-7. **Cold start warming**: How aggressive should cache warming be on service startup? Full pre-population vs lazy loading?
+1. **Valkey configuration**: Optimal memory limits, eviction policies, and cluster sizing for ACE workloads
+2. **Cross-service invalidation protocol**: Should invalidation be key-based, tag-based, or namespace-based? What consistency guarantees can we provide across NATS?
+3. **Stampede protection implementation**: Single-flight (request coalescing) should be built into the library — but should it be optional or mandatory per operation?
+4. **Cache key serialization**: How to handle complex keys efficiently? Hash-based? Struct-based? Template-based?
+5. **Memory overhead estimation**: What is the expected cache size per agent? Per service? Per pod? This determines backend sizing requirements
+6. **Cold start warming**: How aggressive should cache warming be on service startup? Full pre-population vs lazy loading?
 
 ## Next Steps
 
 1. Proceed to BSD (Business Specification Document) with the problem space clarified
 2. Research phase should evaluate:
-   - Distributed cache backend options (Valkey, Memcached, PostgreSQL-backed)
-   - In-memory cache libraries (ristretto, bigcache, groupcache)
+   - Valkey configuration and cluster sizing for ACE workloads
    - Cross-service invalidation patterns over NATS
    - Stampede protection strategies (single-flight, request coalescing)
    - Cache key design conventions
 3. Design the `shared/caching` package API surface
 4. Define UsageEvent integration points with `shared/telemetry`
 5. Define NATS integration patterns with `shared/messaging`
-6. Design testing strategy covering unit, integration, load, and consistency tests
+6. Define testing strategy covering unit, integration, load, and consistency tests

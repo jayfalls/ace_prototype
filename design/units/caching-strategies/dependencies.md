@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `shared/caching` package depends on two cache backends — **Valkey** (distributed, all environments) and an **in-memory library** (development-only fast path) — plus internal ACE shared packages for messaging, telemetry, and database access. Valkey is a hard requirement: it is the sole distributed cache backend and must be present in every environment.
+The `shared/caching` package depends on **Valkey** as the sole cache backend, plus internal ACE shared packages for messaging, telemetry, and database access. Valkey runs in ALL environments including local development via Docker Compose.
 
 ## Infrastructure Dependencies
 
@@ -10,18 +10,13 @@ The `shared/caching` package depends on two cache backends — **Valkey** (distr
 
 | Resource | Type | Specification | Purpose |
 |----------|------|---------------|---------|
-| **Valkey** | Cache server | Valkey 8.1+ | Distributed cache backend (HARD REQUIREMENT — all environments) |
+| **Valkey** | Cache server | Valkey 8.1+ | Cache backend (HARD REQUIREMENT — all environments including local dev) |
 | PostgreSQL 18 | Database | Existing `ace_db` | Version stamps, warming schedules, cache statistics |
 | NATS 2.12+ | Message broker | Existing `ace_broker` | Cache invalidation events via `shared/messaging` |
 
 #### Valkey — Hard Requirement
 
-**Valkey is the only distributed cache backend.** Redis, Memcached, Dragonfly, and PostgreSQL-backed caches are not supported. The pluggable backend interface supports exactly two types:
-
-1. `in-memory` — development and testing only (zero infrastructure)
-2. `valkey` — all other environments (dev Docker Compose, staging, production)
-
-Every environment must include a Valkey instance. There are no diverging environments.
+**Valkey is the only cache backend.** Redis, Memcached, Dragonfly, PostgreSQL-backed caches, and in-memory cache libraries are not supported. Every environment — including local development — includes a Valkey instance via Docker Compose.
 
 | Property | Value |
 |----------|-------|
@@ -62,8 +57,6 @@ volumes:
 #### Environment Variables
 
 ```bash
-# Valkey connection
-export CACHE_BACKEND="valkey"
 # redis:// scheme retained for RESP protocol compatibility; Valkey maintains full wire-level compatibility with Redis
 export VALKEY_URL="redis://valkey:6379"
 export VALKEY_MAX_RETRIES=3
@@ -82,7 +75,6 @@ export VALKEY_POOL_SIZE=100
 | Module | Version | Purpose | License |
 |--------|---------|---------|---------|
 | `github.com/valkey-io/valkey-go` | `^1.0.73` | Valkey Go client (auto pipelining, client-side caching) | Apache 2.0 |
-| `github.com/maypok86/otter/v2` | `^2.3.0` | In-memory cache backend (W-TinyLFU, development default) | Apache 2.0 |
 | `golang.org/x/sync` | `^0.15.0` | `singleflight` package for stampede protection | BSD 3-clause |
 
 ### Internal Dependencies
@@ -151,34 +143,7 @@ client, err := valkey.NewClient(valkey.ClientOption{
 - Most active Valkey Go client (37 releases, weekly updates)
 - Compatible with Valkey 7.2, 8.0, 8.1, and 9.0
 
-### 2. Otter v2 (`github.com/maypok86/otter/v2`)
-
-The recommended in-memory cache library for development and as the in-memory backend implementation.
-
-| Property | Value |
-|----------|-------|
-| Module | `github.com/maypok86/otter/v2` |
-| Version | `^2.3.0` (latest as of December 2025) |
-| License | Apache 2.0 |
-| Go version required | 1.24+ |
-| Eviction policy | W-TinyLFU (adaptive) |
-
-**Installation**:
-```bash
-go get github.com/maypok86/otter/v2@v2.3.0
-```
-
-**Why Otter v2** (from research.md):
-- Best hit rates across all workload types (W-TinyLFU admission)
-- Highest throughput under high contention
-- Lowest memory overhead across all cache capacities
-- Built-in TTL support (expire-after-write, expire-after-access)
-- Generics support (type-safe API)
-- Active maintenance (14 releases)
-
-**Compatibility note**: Requires Go 1.24+. The project currently uses Go 1.26, so this is satisfied.
-
-### 3. `golang.org/x/sync` (singleflight)
+### 2. `golang.org/x/sync` (singleflight)
 
 The standard Go extended library providing stampede protection via function call deduplication.
 
@@ -212,7 +177,7 @@ val, err, shared := group.Do("cache-key", func() (interface{}, error) {
 - The FSD already specifies the `SingleFlight` interface matching this API
 - Simple integration with `GetOrFetch` cache-aside pattern
 
-### 4. `shared/messaging` (Internal)
+### 3. `shared/messaging` (Internal)
 
 Existing ACE package providing NATS integration. Used by `shared/caching` for cross-service cache invalidation events.
 
@@ -230,7 +195,7 @@ Existing ACE package providing NATS integration. Used by `shared/caching` for cr
 
 **Note**: `shared/caching` is transport-agnostic — it does not import `shared/messaging` directly. Service-internal adapters wire NATS integration by implementing the invalidation handler interface and calling `messaging.Publish`/`Subscribe`.
 
-### 5. `shared/telemetry` (Internal)
+### 4. `shared/telemetry` (Internal)
 
 Existing ACE package providing observability primitives. Used for `UsageEvent` emission on all cache operations.
 
@@ -248,7 +213,7 @@ Existing ACE package providing observability primitives. Used for `UsageEvent` e
 
 **Note**: Similar to messaging, `shared/caching` defines an observer interface. Service adapters wire `shared/telemetry` to emit UsageEvents.
 
-### 6. PostgreSQL (Existing Infrastructure)
+### 5. PostgreSQL (Existing Infrastructure)
 
 Version stamps for versioned invalidation strategy are stored in PostgreSQL. No new database dependencies.
 
@@ -270,7 +235,6 @@ Version stamps for versioned invalidation strategy are stored in PostgreSQL. No 
 | Dependency | Go Version | ACE Go Version | Compatible |
 |------------|-----------|----------------|------------|
 | `valkey-go ^1.0.73` | 1.21+ | 1.26 | Yes |
-| `otter/v2 ^2.3.0` | 1.24+ | 1.26 | Yes |
 | `x/sync ^0.15.0` | 1.22+ | 1.26 | Yes |
 | `shared/messaging` | 1.26 | 1.26 | Yes |
 | `shared/telemetry` | 1.26 | 1.26 | Yes |
@@ -283,7 +247,6 @@ Version stamps for versioned invalidation strategy are stored in PostgreSQL. No 
 | Dependency | Strategy | Rationale |
 |------------|----------|-----------|
 | `valkey-go` | Pin to `^1.0.x` | Active development (37 releases). Minor versions add features; patch versions fix bugs. |
-| `otter/v2` | Pin to `^2.3.0` | Newer library — pin to known-good version. Review updates quarterly. |
 | `x/sync` | Pin to `^0.15.0` | Go team maintained. Safe to track latest minor. |
 | Valkey server | Pin to `8.x` | Major version for production stability. 8.1+ for I/O threading. |
 
@@ -294,7 +257,6 @@ Version stamps for versioned invalidation strategy are stored in PostgreSQL. No 
 | Dependency | Known CVEs (as of March 2026) | Notes |
 |------------|-------------------------------|-------|
 | `valkey-go` | None | Apache 2.0, Linux Foundation governed |
-| `otter/v2` | None | Apache 2.0, small dependency footprint |
 | `x/sync` | None | Go team maintained, part of official extended library |
 | Valkey server | None | BSD 3-clause, Linux Foundation governed |
 
