@@ -15,7 +15,7 @@ A separate frontend caching module (SvelteKit/browser-side) handles client-side 
 
 | Requirement | Type | Priority | Notes |
 |-------------|------|----------|-------|
-| Pluggable backend interface | Functional | Must | Switch between in-memory and Redis without code changes |
+| Pluggable backend interface | Functional | Must | Switch between in-memory and Valkey without code changes |
 | Core CRUD operations (Get, Set, Delete) | Functional | Must | Basic cache operations with namespace isolation |
 | Cache-aside pattern (GetOrFetch) | Functional | Must | Retrieve from cache or execute fetch, populate, return |
 | Bulk operations (GetMany, SetMany, DeleteMany) | Functional | Should | Batch processing for performance |
@@ -262,7 +262,7 @@ type BackendType string
 
 const (
     BackendInMemory BackendType = "in-memory"
-    BackendRedis    BackendType = "redis"
+    BackendValkey   BackendType = "valkey"
 )
 
 type WarmingConfig struct {
@@ -415,7 +415,7 @@ The single-flight pattern prevents thundering herd when popular cache keys expir
 2. On Get:
    a. If Now() > ExpiresAt: return miss
    b. If sliding TTL: reset ExpiresAt = Now() + TTL
-3. Backend handles eviction (in-memory: LRU, Redis: native TTL)
+3. Backend handles eviction (in-memory: LRU, Valkey: native TTL)
 ```
 
 **Event-Driven Invalidation:**
@@ -567,7 +567,7 @@ Warming pre-populates critical namespaces on service startup:
 | Version stamp not found in DB | Treat as version mismatch, trigger refresh | New entry cached with current version |
 | NATS connection lost during invalidation | TTL safety net catches stale entries | Hybrid strategy with TTL fallback |
 | Cache entry larger than max size | Reject write, emit eviction event | Max size enforced per namespace |
-| Redis cluster partition | Fall back to in-memory if configured, else error | Pluggable backend handles reconnection |
+| Valkey cluster partition | Fall back to in-memory if configured, else error | Pluggable backend handles reconnection |
 | Sliding TTL on every access | TTL extended on access | Configurable, can be disabled |
 | Pattern invalidation matches too many keys | Bulk delete with rate limiting | Configurable batch size for pattern deletes |
 | Tag assigned to non-existent entry | No-op on tag index | Tag index is eventually consistent |
@@ -609,8 +609,8 @@ Warming pre-populates critical namespaces on service startup:
 |-----------|----------------|-------|
 | In-memory Get | < 1ms (p99) | Local memory lookup |
 | In-memory Set | < 1ms (p99) | Local memory write |
-| Redis Get | < 5ms (p99) | Network round-trip + Redis lookup |
-| Redis Set | < 5ms (p99) | Network round-trip + Redis write |
+| Valkey Get | < 5ms (p99) | Network round-trip + Valkey lookup |
+| Valkey Set | < 5ms (p99) | Network round-trip + Valkey write |
 | GetOrFetch (cache hit) | < 2ms (p99) | In-memory hit path |
 | GetOrFetch (cache miss) | Depends on fetchFn | Fetch latency dominates |
 | Bulk Get (100 keys) | < 10ms (p99) | Batch optimization |
@@ -622,7 +622,7 @@ Warming pre-populates critical namespaces on service startup:
 | Metric | Target | Notes |
 |--------|--------|-------|
 | In-memory ops/sec | > 100,000 per instance | Single-process benchmark |
-| Redis ops/sec | > 10,000 per connection | Depends on Redis cluster size |
+| Valkey ops/sec | > 10,000 per connection | Depends on Valkey cluster size |
 | Concurrent single-flight waiters | > 1,000 per key | Goroutine efficiency |
 | Bulk operation batch size | 100-1000 keys | Configurable per operation |
 | Pattern invalidation batch size | 100 keys per batch | Rate limiting to prevent blocking |
@@ -632,7 +632,7 @@ Warming pre-populates critical namespaces on service startup:
 | Resource | Limit | Notes |
 |----------|-------|-------|
 | In-memory cache per namespace | Configurable (default 100MB) | Eviction policy: LRU |
-| Redis memory per namespace | Configurable (default 1GB) | Redis-native eviction |
+| Valkey memory per namespace | Configurable (default 1GB) | Valkey-native eviction |
 | Single-flight map size | Unbounded (cleaned on completion) | Entries removed after broadcast |
 | Version stamp query frequency | Per Get with versioned strategy | Cached in PostgreSQL, indexed |
 | UsageEvent emission rate | No hard limit | Async emission, batched if needed |
@@ -697,7 +697,7 @@ interface FrontendCache {
 
 | Backend | Operational | Performance | Consistency | Ecosystem | Cost | Recommendation |
 |---------|-------------|-------------|-------------|-----------|------|----------------|
-| Redis | Medium | High | High (with config) | Excellent | Medium | **Primary** |
+| Valkey | Medium | High | High (with config) | Excellent | Medium | **Primary |
 | Memcached | Low | Very High | Low (no persistence) | Good | Low | Fallback |
 | PostgreSQL | Low | Medium | Very High | Excellent | Low | Metadata store |
 | In-memory (ristretto) | Very Low | Very High | Local only | Good | None | **Development default** |
@@ -705,7 +705,7 @@ interface FrontendCache {
 ### Recommended Architecture
 
 - **Development**: In-memory backend (ristretto) — zero infrastructure, fast iteration
-- **Production**: Redis cluster for distributed cache, in-memory L1 for hot keys
+- **Production**: Valkey cluster for distributed cache, in-memory L1 for hot keys
 - **Metadata**: PostgreSQL for version stamps, warming schedules, cache statistics
 - **Selection**: Configuration-driven, no code changes to switch
 
@@ -738,7 +738,7 @@ ace.cache.{namespace}.warm          # Trigger warming for namespace
 
 | Test Type | Scope | Priority |
 |-----------|-------|----------|
-| Unit tests | Each backend implementation (in-memory, Redis) | Must |
+| Unit tests | Each backend implementation (in-memory, Valkey) | Must |
 | Unit tests | Key builder, namespace isolation, stampede protection | Must |
 | Integration tests | Cross-service invalidation via NATS | Must |
 | Integration tests | Versioned invalidation with PostgreSQL | Must |

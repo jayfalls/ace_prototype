@@ -14,13 +14,13 @@ This fragmentation creates three concrete problems:
 ## Solution
 Establish `shared/caching` as a foundational infrastructure package — analogous to `shared/messaging` and `shared/telemetry` — before any feature service that needs caching is built. The unit delivers both a design specification (patterns, principles, guidelines) and a shared Go library providing reusable caching primitives.
 
-The shared library defines interfaces and patterns, not implementations. Backend selection (in-memory for development, Redis for production) is pluggable and configured per deployment. Every service that needs caching imports `shared/caching` and inherits consistent cache key conventions, invalidation strategies, observability integration, and stampede protection — rather than inventing its own.
+The shared library defines interfaces and patterns, not implementations. Backend selection (in-memory for development, Valkey for production) is pluggable and configured per deployment. Every service that needs caching imports `shared/caching` and inherits consistent cache key conventions, invalidation strategies, observability integration, and stampede protection — rather than inventing its own.
 
 ## In Scope
 - **Shared caching library (`shared/caching`)** — Transport-agnostic Go package with core operations (`Get`, `Set`, `Delete`), cache-aside pattern (`GetOrFetch`), bulk operations, TTL management, and namespace isolation
 - **Frontend caching module** — SvelteKit/browser-side caching module for UI data, API response caching, and client-side state management
-- **Backend tool selection** — Research and evaluation of cache backends (Redis vs Memcached vs PostgreSQL-backed) and in-memory libraries (ristretto, bigcache, groupcache) with recommendation
-- **Pluggable backend interface** — Abstract cache backend allowing single-process in-memory (development) and Redis (production) without service code changes
+- **Backend tool selection** — Research and evaluation of cache backends (Valkey vs Memcached vs PostgreSQL-backed) and in-memory libraries (ristretto, bigcache, groupcache) with recommendation
+- **Pluggable backend interface** — Abstract cache backend allowing single-process in-memory (development) and Valkey (production) without service code changes
 - **Invalidation primitives** — First-class support for TTL-based, event-driven, versioned, and hybrid invalidation strategies as composable building blocks
 - **Stampede protection** — Built-in single-flight/request coalescing to prevent thundering herd when popular cache keys expire
 - **Cache warming** — Configurable per-namespace pre-population on service startup with optional NATS-triggered warming events
@@ -51,7 +51,7 @@ Establishing this foundation early prevents the exponential cost of retrofitting
 | Library adoption | % of backend services using `shared/caching` for all cache operations | 100% — no custom cache implementations |
 | Observability coverage | % of cache operations emitting UsageEvents with agentId, namespace, and key pattern | 100% — every Get, Set, Delete, Invalidate, Evict |
 | Invalidation consistency | Time from source data change to dependent cache clearance across services | Within defined consistency window per namespace |
-| Backend pluggability | Service code changes required to switch between in-memory and Redis backends | Zero — config change only |
+| Backend pluggability | Service code changes required to switch between in-memory and Valkey backends | Zero — config change only |
 | Stampede protection | Concurrent duplicate fetches for the same expired key | 1 maximum (single-flight coalescing) |
 | Cache warming | Critical namespaces populated within target time of service startup | Configurable per namespace, default < 5s |
 | Cost savings | Estimated LLM cost avoided via cache hits per agent per day | Measurable and attributed via UsageEvents |
