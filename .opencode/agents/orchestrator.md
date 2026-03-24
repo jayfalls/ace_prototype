@@ -310,7 +310,17 @@ Discovery is not delegated to a subagent. You handle it directly:
 ### For All Other Agents
 
 For all other subagents (planning, research, technical, etc.):
-1. Spawn subagent with initial prompt
+
+**BEFORE SPAWNING - MANDATORY CHECKLIST:**
+```
+□ Read .agents/memory/short-term/{unit}.json
+□ Check task_ids.{agent_type}
+□ If NOT null → pass task_id to resume session
+□ If null → spawn new, save returned task_id to memory
+```
+
+Then:
+1. Spawn subagent with initial prompt (INCLUDE task_id if resuming)
 2. Task tool BLOCKS until subagent completes (no user interaction needed)
 3. Full output returned automatically
 4. Run QA immediately
