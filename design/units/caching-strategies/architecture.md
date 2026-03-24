@@ -58,7 +58,7 @@ The `shared/caching` package is a **transport-agnostic caching library** that pr
 
 | Component | Responsibility | Public API |
 |-----------|---------------|------------|
-| **Cache** (interface) | High-level cache operations for services | `Get`, `Set`, `Delete`, `GetOrFetch`, `GetMany`, `SetMany`, `DeleteMany`, `DeletePattern`, `DeleteByTag`, `InvalidateByVersion`, `WithNamespace`, `WithAgentID`, `WithTTL`, `WithTags`, `Stats` |
+| **Cache** (interface) | High-level cache operations for services | `Get`, `Set`, `Delete`, `GetOrFetch`, `GetMany`, `SetMany`, `DeleteMany`, `DeletePattern`, `DeleteByTag`, `InvalidateByVersion`, `WithNamespace`, `WithAgentID`, `WithDefaultTTL`, `WithDefaultTags`, `Stats` |
 | **CacheBackend** (interface) | Low-level Valkey operations wrapper | `Get`, `Set`, `Delete`, `GetMany`, `SetMany`, `DeleteMany`, `DeletePattern`, `DeleteByTag`, `Exists`, `TTL`, `Close` |
 | **ValkeyBackend** | Concrete implementation wrapping `valkey-go` | Implements `CacheBackend` |
 | **KeyBuilder** | Constructs standardized cache keys | `NewKeyBuilder`, `EntityType`, `EntityID`, `Version`, `Build`, `Pattern` |
@@ -326,12 +326,12 @@ The `KeyBuilder.Pattern()` method returns glob patterns for bulk invalidation:
 // Invalidate all decision trees for a specific agent
 kb := NewKeyBuilder("cognitive-engine", "agent-alpha")
 kb.EntityType("decision-tree")
-pattern := kb.Pattern()
+pattern, _ := kb.Pattern()
 // Returns: "cognitive-engine:agent-alpha:decision-tree:*"
 
 // Invalidate everything for an agent
 kb := NewKeyBuilder("cognitive-engine", "agent-alpha")
-pattern := kb.Pattern()
+pattern, _ := kb.Pattern()
 // Returns: "cognitive-engine:agent-alpha:*"
 ```
 
