@@ -30,6 +30,9 @@ type Cache interface {
 	DeleteByTag(ctx context.Context, tag string) error
 	InvalidateByVersion(ctx context.Context, key string, expectedVersion string) error
 
+	// Statistics
+	Stats(ctx context.Context) (*CacheStats, error)
+
 	// Configuration — returns a new Cache scoped to the given parameters
 	WithNamespace(namespace string) Cache
 	WithAgentID(agentID string) Cache
@@ -56,16 +59,11 @@ type CacheBackend interface {
 // CacheObserver is the interface for observing cache operations.
 // All cache operations MUST call the appropriate observer method for observability.
 type CacheObserver interface {
-	ObserveGet(ctx context.Context, key string, hit bool, latency time.Duration)
-	ObserveSet(ctx context.Context, key string, size int, latency time.Duration)
-	ObserveDelete(ctx context.Context, key string, reason string)
-	ObserveGetMany(ctx context.Context, keys []string, hits int, latency time.Duration)
-	ObserveSetMany(ctx context.Context, count int, latency time.Duration)
-	ObserveDeleteMany(ctx context.Context, count int, latency time.Duration)
-	ObserveDeletePattern(ctx context.Context, pattern string, count int, latency time.Duration)
-	ObserveDeleteByTag(ctx context.Context, tag string, count int, latency time.Duration)
-	ObserveInvalidateByVersion(ctx context.Context, key string, success bool, latency time.Duration)
-	ObserveWarming(ctx context.Context, namespace string, progress *WarmingProgress)
+	ObserveGet(ctx context.Context, namespace, key string, hit bool, latencyMs float64)
+	ObserveSet(ctx context.Context, namespace, key string, sizeBytes int64, latencyMs float64)
+	ObserveDelete(ctx context.Context, namespace, key, reason string)
+	ObserveEviction(ctx context.Context, namespace, key, reason string)
+	ObserveWarming(ctx context.Context, namespace string, progress WarmingProgress)
 }
 
 // SingleFlight is the interface for stampede protection.
@@ -102,37 +100,48 @@ type SetOptions struct {
 
 // CacheEntry represents a cached value with metadata.
 type CacheEntry struct {
-	Key        string
-	Value      []byte
-	TTL        time.Duration
-	Tags       []string
-	Version    string
-	InsertedAt time.Time
+	Key           string
+	Value         []byte
+	SizeBytes     int64
+	TTL           time.Duration
+	Tags          []string
+	Version       string
+	Namespace     string
+	AgentID       string
+	EntityType    string
+	EntityID      string
+	CreatedAt     time.Time
+	AccessedAt    time.Time
+	ExpiresAt     time.Time
+	HitCount      int64
+	InvalidatedBy string
 }
 
 // CacheStats holds cache statistics.
 type CacheStats struct {
-	Hits       int64
-	Misses     int64
-	Evictions  int64
-	HitRate    float64
-	TotalSize  int64
-	EntryCount int64
+	Namespace     string
+	HitCount      int64
+	MissCount     int64
+	EvictionCount int64
+	EntryCount    int64
+	HitRate       float64
+	TotalSize     int64
+	AvgLatencyMs  float64
 }
 
 // WarmingProgress holds the progress of cache warming.
 type WarmingProgress struct {
-	Namespace    string
-	EntriesDone  int64
-	EntriesTotal int64
-	StartedAt    time.Time
-	CompletedAt  *time.Time
-	Err          error
+	Namespace        string
+	EntriesPopulated int64
+	EntriesRemaining int64
+	ElapsedMs        float64
+	SuccessCount     int64
+	FailureCount     int64
 }
 
 // SingleFlightResult is the result of a SingleFlight operation.
 type SingleFlightResult struct {
-	Value  interface{}
+	Val    interface{}
 	Err    error
 	Shared bool
 }
@@ -148,14 +157,18 @@ type VersionStamp struct {
 
 // InvalidationEvent represents a cache invalidation event.
 type InvalidationEvent struct {
-	AgentID   string
-	Namespace string
-	Key       string
-	Tag       string
-	Pattern   string
-	Version   string
-	Reason    string
-	Timestamp time.Time
+	EventID       string
+	AgentID       string
+	Namespace     string
+	Key           string
+	Tag           string   // Single tag for single tag invalidation
+	Tags          []string // Multiple tags for multi-tag invalidation
+	KeyPattern    string
+	Version       string
+	Reason        string
+	Timestamp     time.Time
+	SourceService string
+	CorrelationID string
 }
 
 // =============================================================================
@@ -178,6 +191,10 @@ type KeyBuilder struct {
 
 // ValkeyConfig holds the configuration for the Valkey backend.
 type ValkeyConfig struct {
+	// URL is the Valkey connection URL (e.g., valkey://localhost:6379).
+	// If set, Addr, Password, and DB are parsed from this URL.
+	URL string
+
 	// Addr is the Valkey address (host:port). Default: "localhost:6379"
 	Addr string
 
@@ -247,8 +264,8 @@ type Config struct {
 
 // NamespaceConfig holds namespace-specific configuration.
 type NamespaceConfig struct {
-	// Namespace is the namespace name. Required.
-	Namespace string
+	// Name is the namespace name. Required.
+	Name string
 
 	// DefaultTTL is the default TTL for this namespace. Default: 1h
 	DefaultTTL time.Duration
@@ -256,8 +273,14 @@ type NamespaceConfig struct {
 	// MaxSize is the maximum size in bytes for entries in this namespace. Default: 1MB
 	MaxSize int64
 
-	// EvictionPolicy is the eviction policy. Default: EvictionPolicyLRU
-	EvictionPolicy EvictionPolicy
+	// InvalidationStrategy is the invalidation strategy. Default: InvalidationStrategyTTL
+	InvalidationStrategy InvalidationStrategy
+
+	// WarmingEnabled indicates if cache warming is enabled for this namespace. Default: false
+	WarmingEnabled bool
+
+	// WarmingDeadline is the maximum time allowed for warming this namespace. Default: 30s
+	WarmingDeadline time.Duration
 }
 
 // WarmingConfig holds the configuration for cache warming.
@@ -265,11 +288,17 @@ type WarmingConfig struct {
 	// Namespace is the namespace to warm. Required.
 	Namespace string
 
+	// Enabled indicates if warming is enabled for this namespace. Default: false
+	Enabled bool
+
 	// WarmFunc is the function to populate the cache. Required.
 	WarmFunc WarmFunc
 
 	// OnStartup indicates if warming should occur on service startup. Default: false
 	OnStartup bool
+
+	// NATSTrigger indicates if warming should be triggered by NATS messages. Default: false
+	NATSTrigger bool
 
 	// Deadline is the maximum time allowed for warming. Default: 30s
 	Deadline time.Duration
@@ -317,6 +346,17 @@ const (
 
 	// EvictionPolicyRandom evicts keys randomly.
 	EvictionPolicyRandom
+)
+
+// OperationType constants for observability
+const (
+	OperationTypeCacheHit        = "cache-hit"
+	OperationTypeCacheMiss       = "cache-miss"
+	OperationTypeCacheWrite      = "cache-write"
+	OperationTypeCacheInvalidate = "cache-invalidate"
+	OperationTypeCacheEvict      = "cache-evict"
+	OperationTypeCacheWarming    = "cache-warming"
+	ResourceTypeCache            = "cache"
 )
 
 // Default values
