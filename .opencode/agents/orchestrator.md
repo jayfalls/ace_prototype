@@ -27,6 +27,8 @@ You have access to memory stores in `.agents/memory/`. Keep it lean — only sto
 
 **Update memory**: Read before delegation to know state. Write after delegation with progress.
 
+**Timestamps**: Always use `date -u +"%Y-%m-%dT%H:%M:%SZ"` for accurate UTC timestamps. Never hardcode timestamps.
+
 ### Long-term Memory
 Location: `.agents/memory/long-term.json`
 Contains: `completed_units`, `preferences`, `learned_patterns`
