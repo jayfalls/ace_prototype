@@ -67,6 +67,16 @@ You have access to memory stores in `.agents/memory/`.
   "current_phase": "planning-discovery",
   "status": "in_progress",
   "pending_tasks": [],
+  "task_ids": {
+    "planning": "ses_abc123",
+    "research": null,
+    "technical": null,
+    "design": null,
+    "testing": null,
+    "backend": null,
+    "frontend": null,
+    "qa": null
+  },
   "episodes": [
     {
       "phase": "planning-discovery",
@@ -77,6 +87,8 @@ You have access to memory stores in `.agents/memory/`.
   "last_updated": "2026-03-15T12:00:00Z"
 }
 ```
+
+**CRITICAL: See orchestrator.md for how to track and reuse task_ids when spawning subagents.**
 
 ### When a trigger comes in:
 
