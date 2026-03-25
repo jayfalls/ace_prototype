@@ -15,7 +15,7 @@ services:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health/ready"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 10
       start_period: 30s
     user: root
     ports:
@@ -61,7 +61,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 10s
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -75,7 +75,7 @@ services:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
       start_period: 10s
     ports:
       - "${NATS_PORT}:4222"
@@ -130,7 +130,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - ace_network
@@ -163,7 +163,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:13133/"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - ace_network
@@ -181,7 +181,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - ace_network
@@ -201,7 +201,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3200/ready"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - ace_network
@@ -228,7 +228,7 @@ services:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - ace_network
