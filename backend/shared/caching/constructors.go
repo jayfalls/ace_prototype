@@ -34,10 +34,3 @@ func newCache(cfg *cacheConfig) Cache {
 	// TODO: Implement cache.go with actual cache logic
 	panic("not implemented: newCache")
 }
-
-// newValkeyBackend creates a new Valkey backend implementation.
-// This function should be implemented in valkey.go.
-func newValkeyBackend(cfg ValkeyConfig) (CacheBackend, error) {
-	// TODO: Implement valkey.go with actual Valkey client
-	panic("not implemented: newValkeyBackend")
-}
