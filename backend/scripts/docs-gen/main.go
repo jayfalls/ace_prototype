@@ -65,6 +65,7 @@ func main() {
 }
 
 func findRepoRoot() (string, error) {
+	// First, try to find .git directory by traversing up
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -75,8 +76,15 @@ func findRepoRoot() (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("could not find .git directory")
+			break
 		}
 		dir = parent
 	}
+
+	// Fallback: check for /documentation mount (container environment)
+	if _, err := os.Stat("/documentation"); err == nil {
+		return "/", nil
+	}
+
+	return "", fmt.Errorf("could not find repo root: no .git directory or /documentation mount found")
 }

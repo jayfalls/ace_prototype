@@ -161,7 +161,8 @@ test: ## Run all tests and validate documentation
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/messaging && go test -tags=integration ./..."
 	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared/telemetry && go test -tags=integration ./..."
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/scripts/docs-gen && go run ."
+	@DB_IP=$$($(ORCHESTRATOR) inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ace_db) && \
+	$(ORCHESTRATOR) exec ace_api sh -c "cd /app/scripts/docs-gen && DATABASE_URL=postgres://postgres:postgres@$$DB_IP:5432/ace?sslmode=disable go run ."
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@$(ORCHESTRATOR) exec ace_fe npm test -- --run 2>/dev/null || echo "Frontend tests not available - make sure container is running with 'make up'"
