@@ -22,6 +22,7 @@ services:
       - "${API_PORT}:8080"
     volumes:
       - ../../backend:/app:Z
+      - ../../documentation:/documentation:Z
     working_dir: /app
     command: /bin/sh -c "cd /app/services/api && air -c air.toml"
     networks:

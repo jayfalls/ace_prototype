@@ -102,9 +102,17 @@ func validateDocs(ctx context.Context, conn *pgx.Conn, repoRoot string) error {
 		}
 
 		docCount := 0
+		inColumnsSection := false
 		for _, line := range strings.Split(string(content), "\n") {
 			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "| `") && !strings.Contains(line, "Name | Type") && !strings.Contains(line, "------") {
+			if trimmed == "## Columns" {
+				inColumnsSection = true
+				continue
+			}
+			if strings.HasPrefix(trimmed, "## ") && inColumnsSection {
+				break
+			}
+			if inColumnsSection && strings.HasPrefix(trimmed, "| `") && !strings.Contains(line, "------") {
 				docCount++
 			}
 		}

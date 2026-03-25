@@ -5,4 +5,5 @@ use (
 	./shared
 	./shared/messaging
 	./shared/telemetry
+	./scripts/docs-gen
 )

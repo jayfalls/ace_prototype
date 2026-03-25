@@ -118,7 +118,9 @@ When testing code changes, you MUST actually execute the bash commands and repor
 
 ### Test Commands
 
-#### Step 1: Check containers
+**MANDATORY: For any code changes, you MUST run these commands in order:**
+
+#### Step 1: Check containers are running
 ```bash
 make ps CONTAINER_ORCHESTRATOR=docker
 ```
@@ -128,10 +130,16 @@ make ps CONTAINER_ORCHESTRATOR=docker
 make build CONTAINER_ORCHESTRATOR=docker
 ```
 
-#### Step 3: Run tests (THIS IS THE PRIMARY COMMAND)
+#### Step 3: Run tests (THIS IS THE PRIMARY COMMAND - YOU MUST RUN THIS)
 ```bash
 make test CONTAINER_ORCHESTRATOR=docker
 ```
+
+### Critical Rules
+- **You MUST run `make test` for ALL code changes**
+- **Do NOT run `go test` directly** - always use `make test`
+- **Do NOT claim tests pass if you did not run them**
+- **Do NOT skip test execution** - it is mandatory
 
 ### Test Output Format
 

@@ -11,6 +11,7 @@ COPY backend/services/api/go.mod backend/services/api/go.sum ./services/api/
 COPY backend/shared/go.mod ./shared/
 COPY backend/shared/messaging/go.mod ./shared/messaging/
 COPY backend/shared/telemetry/go.mod ./shared/telemetry/
+COPY backend/scripts/docs-gen/go.mod backend/scripts/docs-gen/go.sum ./scripts/docs-gen/
 
 # Download dependencies
 RUN go work sync && go mod download
