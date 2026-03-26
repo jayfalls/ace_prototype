@@ -12,9 +12,9 @@ services:
       ace_broker:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health/ready"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health/ready"]
       interval: 10s
-      timeout: 5s
+      timeout: 10s
       retries: 10
       start_period: 30s
     user: root
@@ -72,9 +72,9 @@ services:
     image: nats:2.12-alpine
     container_name: ace_broker
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8222/healthz"]
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 10
       start_period: 10s
     ports:
@@ -127,7 +127,7 @@ services:
     ports:
       - "${PROMETHEUS_PORT}:9090"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -160,7 +160,7 @@ services:
     environment:
       - OTEL_EXPORTER_OTLP_ENDPOINT=tempo:4315
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:13133/"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:13133/"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -178,7 +178,7 @@ services:
     ports:
       - "${LOKI_PORT}:3100"
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3100/ready"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -198,7 +198,7 @@ services:
       - "${TEMPO_OTLP_GRPC_PORT}:4316"   # OTLP gRPC
       - "3200:3200"                      # Tempo HTTP API
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3200/ready"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3200/ready"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -225,7 +225,7 @@ services:
       - loki
       - tempo
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 10
