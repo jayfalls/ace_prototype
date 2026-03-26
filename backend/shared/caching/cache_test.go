@@ -703,3 +703,370 @@ func TestDeleteByTag_TagExists(t *testing.T) {
 	// Assert
 	require.NoError(t, err)
 }
+
+// =============================================================================
+// Mock CacheObserver
+// =============================================================================
+
+// recordingObserver records all observer calls for test assertions.
+type recordingObserver struct {
+	mu          sync.Mutex
+	getCalls    []observerGetCall
+	setCalls    []observerSetCall
+	deleteCalls []observerDeleteCall
+}
+
+type observerGetCall struct {
+	Namespace string
+	Key       string
+	Hit       bool
+	LatencyMs float64
+}
+
+type observerSetCall struct {
+	Namespace string
+	Key       string
+	SizeBytes int64
+	LatencyMs float64
+}
+
+type observerDeleteCall struct {
+	Namespace string
+	Key       string
+	Reason    string
+}
+
+func (r *recordingObserver) ObserveGet(ctx context.Context, namespace, key string, hit bool, latencyMs float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.getCalls = append(r.getCalls, observerGetCall{Namespace: namespace, Key: key, Hit: hit, LatencyMs: latencyMs})
+}
+
+func (r *recordingObserver) ObserveSet(ctx context.Context, namespace, key string, sizeBytes int64, latencyMs float64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.setCalls = append(r.setCalls, observerSetCall{Namespace: namespace, Key: key, SizeBytes: sizeBytes, LatencyMs: latencyMs})
+}
+
+func (r *recordingObserver) ObserveDelete(ctx context.Context, namespace, key, reason string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.deleteCalls = append(r.deleteCalls, observerDeleteCall{Namespace: namespace, Key: key, Reason: reason})
+}
+
+func (r *recordingObserver) ObserveEviction(ctx context.Context, namespace, key, reason string) {}
+
+func (r *recordingObserver) ObserveWarming(ctx context.Context, namespace string, progress WarmingProgress) {
+}
+
+func (r *recordingObserver) getCallsCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.getCalls)
+}
+
+func (r *recordingObserver) setCallsCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.setCalls)
+}
+
+func (r *recordingObserver) deleteCallsCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.deleteCalls)
+}
+
+func (r *recordingObserver) getGetCalls() []observerGetCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]observerGetCall, len(r.getCalls))
+	copy(out, r.getCalls)
+	return out
+}
+
+func (r *recordingObserver) getSetCalls() []observerSetCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]observerSetCall, len(r.setCalls))
+	copy(out, r.setCalls)
+	return out
+}
+
+func (r *recordingObserver) getDeleteCalls() []observerDeleteCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]observerDeleteCall, len(r.deleteCalls))
+	copy(out, r.deleteCalls)
+	return out
+}
+
+// =============================================================================
+// Additional Bulk Operation Tests
+// =============================================================================
+
+// TestGetMany_AllHits tests that GetMany returns a map with all entries when all keys are present.
+func TestGetMany_AllHits(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:3", []byte("value3"))
+	require.NoError(t, err)
+
+	// Act
+	keys := []string{"user:1", "user:2", "user:3"}
+	result, err := cache.GetMany(context.Background(), keys)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, result, 3, "should have 3 hits")
+	assert.Contains(t, result, "test-ns:agent-1:user:1:")
+	assert.Contains(t, result, "test-ns:agent-1:user:2:")
+	assert.Contains(t, result, "test-ns:agent-1:user:3:")
+	assert.Equal(t, []byte("value1"), result["test-ns:agent-1:user:1:"])
+	assert.Equal(t, []byte("value2"), result["test-ns:agent-1:user:2:"])
+	assert.Equal(t, []byte("value3"), result["test-ns:agent-1:user:3:"])
+}
+
+// TestGetMany_EmptyKeys tests that GetMany returns an empty map when given an empty keys slice.
+func TestGetMany_EmptyKeys(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Act
+	result, err := cache.GetMany(context.Background(), []string{})
+
+	// Assert
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0, "should return empty map for empty keys")
+}
+
+// TestSetMany_NilValue tests that SetMany returns ErrSerializationFailed when one value is nil.
+func TestSetMany_NilValue(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	entries := map[string][]byte{
+		"user:1": []byte("value1"),
+		"user:2": nil,
+	}
+
+	// Act
+	err := cache.SetMany(context.Background(), entries)
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrSerializationFailed)
+}
+
+// TestSetMany_ExceedsMaxSize tests that SetMany returns ErrMaxSizeExceeded when a value exceeds maxSize.
+func TestSetMany_ExceedsMaxSize(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithMaxSize(10))
+
+	entries := map[string][]byte{
+		"user:1": []byte("ok"),
+		"user:2": []byte("this value is way too long"),
+	}
+
+	// Act
+	err := cache.SetMany(context.Background(), entries)
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrMaxSizeExceeded)
+}
+
+// TestSetMany_WithTags tests that SetMany stores entries when WithTags option is used.
+func TestSetMany_WithTags(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	entries := map[string][]byte{
+		"user:1": []byte("value1"),
+		"user:2": []byte("value2"),
+	}
+
+	// Act
+	err := cache.SetMany(context.Background(), entries, WithTags("tag-a", "tag-b"))
+	require.NoError(t, err)
+
+	// Assert - entries should still be stored
+	value, err := cache.Get(context.Background(), "user:1")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value1"), value)
+
+	value, err = cache.Get(context.Background(), "user:2")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value2"), value)
+}
+
+// TestDeleteByTag_EmptyTag tests that DeleteByTag returns ErrTagNotFound for empty tag.
+func TestDeleteByTag_EmptyTag(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Act
+	err := cache.DeleteByTag(context.Background(), "")
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrTagNotFound)
+}
+
+// TestGetMany_ObserverCalledForEachHit tests that the observer is called for each key in GetMany.
+func TestGetMany_ObserverCalledForEachHit(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"))
+	require.NoError(t, err)
+	// user:3 is not set (miss)
+
+	// Act
+	_, err = cache.GetMany(context.Background(), []string{"user:1", "user:2", "user:3"})
+	require.NoError(t, err)
+
+	// Assert - observer should be called 3 times (once per key)
+	getCalls := obs.getGetCalls()
+	assert.Len(t, getCalls, 3, "observer should be called once per key")
+
+	// Check that hits and misses are correctly reported
+	hitCount := 0
+	missCount := 0
+	for _, call := range getCalls {
+		if call.Hit {
+			hitCount++
+		} else {
+			missCount++
+		}
+	}
+	assert.Equal(t, 2, hitCount, "should have 2 hits")
+	assert.Equal(t, 1, missCount, "should have 1 miss")
+}
+
+// TestSetMany_ObserverCalledForEach tests that the observer is called for each entry in SetMany.
+func TestSetMany_ObserverCalledForEach(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	entries := map[string][]byte{
+		"user:1": []byte("value1"),
+		"user:2": []byte("value2"),
+		"user:3": []byte("value3"),
+	}
+
+	// Act
+	err := cache.SetMany(context.Background(), entries)
+	require.NoError(t, err)
+
+	// Assert - observer should be called 3 times (once per entry)
+	setCalls := obs.getSetCalls()
+	assert.Len(t, setCalls, 3, "observer should be called once per entry")
+
+	// All calls should be for namespace "test-ns"
+	for _, call := range setCalls {
+		assert.Equal(t, "test-ns", call.Namespace)
+		assert.True(t, call.SizeBytes > 0, "size should be positive")
+	}
+}
+
+// TestDeleteMany_ObserverCalledForEach tests that the observer is called for each key in DeleteMany.
+func TestDeleteMany_ObserverCalledForEach(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set values first
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"))
+	require.NoError(t, err)
+
+	// Clear set calls from the setup
+	obs.setCalls = nil
+
+	// Act
+	err = cache.DeleteMany(context.Background(), []string{"user:1", "user:2"})
+	require.NoError(t, err)
+
+	// Assert - observer should be called 2 times (once per deleted key)
+	deleteCalls := obs.getDeleteCalls()
+	assert.Len(t, deleteCalls, 2, "observer should be called once per deleted key")
+
+	// All calls should have reason "manual"
+	for _, call := range deleteCalls {
+		assert.Equal(t, "test-ns", call.Namespace)
+		assert.Equal(t, "manual", call.Reason)
+	}
+}
+
+// TestDeletePattern_ObserverCalled tests that the observer is called when DeletePattern is invoked.
+func TestDeletePattern_ObserverCalled(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set a value first
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+
+	// Clear set calls from the setup
+	obs.setCalls = nil
+
+	// Act
+	err = cache.DeletePattern(context.Background(), "test-ns:agent-1:*")
+	require.NoError(t, err)
+
+	// Assert - observer should be called once with reason "pattern"
+	deleteCalls := obs.getDeleteCalls()
+	require.Len(t, deleteCalls, 1, "observer should be called once for DeletePattern")
+	assert.Equal(t, "test-ns", deleteCalls[0].Namespace)
+	assert.Equal(t, "test-ns:agent-1:*", deleteCalls[0].Key)
+	assert.Equal(t, "pattern", deleteCalls[0].Reason)
+}
+
+// TestDeleteByTag_ObserverCalled tests that the observer is called when DeleteByTag is invoked.
+func TestDeleteByTag_ObserverCalled(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set a value with a tag first
+	err := cache.Set(context.Background(), "user:1", []byte("value1"), WithTags("my-tag"))
+	require.NoError(t, err)
+
+	// Clear set calls from the setup
+	obs.setCalls = nil
+
+	// Act
+	err = cache.DeleteByTag(context.Background(), "my-tag")
+	require.NoError(t, err)
+
+	// Assert - observer should be called once with reason "tag"
+	deleteCalls := obs.getDeleteCalls()
+	require.Len(t, deleteCalls, 1, "observer should be called once for DeleteByTag")
+	assert.Equal(t, "test-ns", deleteCalls[0].Namespace)
+	assert.Equal(t, "_tags:my-tag", deleteCalls[0].Key)
+	assert.Equal(t, "tag", deleteCalls[0].Reason)
+}
