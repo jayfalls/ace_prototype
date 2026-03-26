@@ -555,3 +555,151 @@ func TestCache_Set_DefaultTTL(t *testing.T) {
 	require.NoError(t, err)
 	assert.InDelta(t, 45*time.Minute, ttl, float64(time.Second), "TTL should be approximately 45m")
 }
+
+// =============================================================================
+// Bulk Operations Tests (Phase 6)
+// =============================================================================
+
+// TestGetMany_PartialHits tests that GetMany returns a map with only the hits.
+func TestGetMany_PartialHits(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set 2 of 3 keys
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"))
+	require.NoError(t, err)
+	// Don't set user:3
+
+	// Act
+	keys := []string{"user:1", "user:2", "user:3"}
+	result, err := cache.GetMany(context.Background(), keys)
+
+	// Assert
+	require.NoError(t, err)
+	assert.Len(t, result, 2, "should have 2 hits")
+	assert.Contains(t, result, "test-ns:agent-1:user:1:")
+	assert.Contains(t, result, "test-ns:agent-1:user:2:")
+	assert.NotContains(t, result, "test-ns:agent-1:user:3:")
+}
+
+// TestSetMany_Success tests that SetMany stores all entries.
+func TestSetMany_Success(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	entries := map[string][]byte{
+		"user:1": []byte("value1"),
+		"user:2": []byte("value2"),
+		"user:3": []byte("value3"),
+	}
+
+	// Act
+	err := cache.SetMany(context.Background(), entries)
+
+	// Assert
+	require.NoError(t, err)
+
+	// Verify all entries are stored
+	value, err := cache.Get(context.Background(), "user:1")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value1"), value)
+
+	value, err = cache.Get(context.Background(), "user:2")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value2"), value)
+
+	value, err = cache.Get(context.Background(), "user:3")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value3"), value)
+}
+
+// TestDeleteMany_Success tests that DeleteMany removes all specified keys.
+func TestDeleteMany_Success(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set some values
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:3", []byte("value3"))
+	require.NoError(t, err)
+
+	// Act - Delete user:1 and user:2
+	err = cache.DeleteMany(context.Background(), []string{"user:1", "user:2"})
+
+	// Assert
+	require.NoError(t, err)
+
+	// Verify user:1 and user:2 are gone
+	value, err := cache.Get(context.Background(), "user:1")
+	require.NoError(t, err)
+	assert.Nil(t, value)
+
+	value, err = cache.Get(context.Background(), "user:2")
+	require.NoError(t, err)
+	assert.Nil(t, value)
+
+	// Verify user:3 still exists
+	value, err = cache.Get(context.Background(), "user:3")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value3"), value)
+}
+
+// TestDeletePattern_BareStarRejected tests that DeletePattern rejects bare wildcard.
+func TestDeletePattern_BareStarRejected(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Act
+	err := cache.DeletePattern(context.Background(), "*")
+
+	// Assert
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrPatternInvalid)
+}
+
+// TestDeletePattern_ValidPattern tests that DeletePattern works with valid pattern.
+func TestDeletePattern_ValidPattern(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set some values
+	err := cache.Set(context.Background(), "user:1", []byte("value1"))
+	require.NoError(t, err)
+
+	// Act - Delete pattern that includes agentID prefix
+	err = cache.DeletePattern(context.Background(), "test-ns:agent-1:*")
+
+	// Assert
+	require.NoError(t, err)
+}
+
+// TestDeleteByTag_TagExists tests that DeleteByTag removes entries with that tag.
+func TestDeleteByTag_TagExists(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set values with tags
+	err := cache.Set(context.Background(), "user:1", []byte("value1"), WithTags("tag1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"), WithTags("tag1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:3", []byte("value3"), WithTags("tag2"))
+	require.NoError(t, err)
+
+	// Act - Delete by tag
+	err = cache.DeleteByTag(context.Background(), "tag1")
+
+	// Assert
+	require.NoError(t, err)
+}
