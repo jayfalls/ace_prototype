@@ -3,7 +3,6 @@
   "current_phase": "backend",
   "status": "in_progress",
   "pending_tasks": [
-    "Phase 4: SingleFlight",
     "Phase 5: Cache Core",
     "Phase 6: Bulk Operations",
     "Phase 7: Invalidation Strategies",
@@ -87,7 +86,17 @@
       "phase": "backend-phase3",
       "notes": ["Phase 3 complete: valkey_backend.go with all CacheBackend methods, valkey_backend_test.go with 24 test cases. QA PASSED."],
       "timestamp": "2026-03-25T12:35:00Z"
+    },
+    {
+      "phase": "backend-phase4",
+      "notes": ["Phase 4 complete: singleflight.go wrapping golang.org/x/sync/singleflight, singleflight_test.go with 11 test cases. QA PASSED."],
+      "timestamp": "2026-03-26T12:10:00Z"
+    },
+    {
+      "phase": "infrastructure-fix",
+      "notes": ["Fixed container health checks: use 127.0.0.1 instead of localhost, increased timeout to 10s. Containers can't resolve localhost due to DNS issues."],
+      "timestamp": "2026-03-26T12:15:00Z"
     }
   ],
-  "last_updated": "2026-03-25T12:35:00Z"
+  "last_updated": "2026-03-26T12:15:00Z"
 }
