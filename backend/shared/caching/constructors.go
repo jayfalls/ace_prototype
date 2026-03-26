@@ -29,8 +29,31 @@ func NewKeyBuilder(namespace, agentID string) *KeyBuilder {
 // =============================================================================
 
 // newCache creates a new Cache implementation.
-// This function should be implemented in cache.go.
+// This function is implemented in cache.go.
 func newCache(cfg *cacheConfig) Cache {
-	// TODO: Implement cache.go with actual cache logic
-	panic("not implemented: newCache")
+	c := &cacheImpl{
+		namespace:          cfg.namespace,
+		agentID:            cfg.agentID,
+		defaultTTL:         cfg.defaultTTL,
+		defaultTags:        cfg.defaultTags,
+		invalidation:       cfg.invalidation,
+		stampedeProtection: cfg.stampedeProtection,
+		maxSize:            cfg.maxSize,
+		warming:            cfg.warming,
+		backend:            cfg.backend,
+		observer:           cfg.observer,
+		singleFlight:       cfg.singleFlight,
+	}
+
+	// Create default SingleFlight if stampede protection is enabled and none provided
+	if c.stampedeProtection && c.singleFlight == nil {
+		c.singleFlight = NewSingleFlight()
+	}
+
+	// Create no-op observer if none provided
+	if c.observer == nil {
+		c.observer = &noOpObserver{}
+	}
+
+	return c
 }

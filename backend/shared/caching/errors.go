@@ -99,10 +99,32 @@ func (e *CacheError) Unwrap() error {
 	return e.Err
 }
 
+// sentinelCodeMap maps sentinel error variables to their error codes.
+var sentinelCodeMap = map[error]string{
+	ErrCacheMiss:           ErrCodeCacheMiss,
+	ErrBackendUnavailable:  ErrCodeBackendUnavailable,
+	ErrAgentIDMissing:      ErrCodeAgentIDMissing,
+	ErrInvalidKey:          ErrCodeInvalidKey,
+	ErrTTLExpired:          ErrCodeTTLExpired,
+	ErrVersionMismatch:     ErrCodeVersionMismatch,
+	ErrStampedeLock:        ErrCodeStampedeLock,
+	ErrFetchFailed:         ErrCodeFetchFailed,
+	ErrWarmingTimeout:      ErrCodeWarmingTimeout,
+	ErrMaxSizeExceeded:     ErrCodeMaxSizeExceeded,
+	ErrSerializationFailed: ErrCodeSerialization,
+	ErrNATSDisconnected:    ErrCodeNATSDisconnected,
+	ErrPatternInvalid:      ErrCodePatternInvalid,
+	ErrTagNotFound:         ErrCodeTagNotFound,
+}
+
 // Is checks if the target error matches this error.
 func (e *CacheError) Is(target error) bool {
 	if ce, ok := target.(*CacheError); ok {
 		return e.Code == ce.Code
+	}
+	// Check if target is a sentinel error whose code matches ours
+	if code, ok := sentinelCodeMap[target]; ok {
+		return e.Code == code
 	}
 	return errors.Is(e.Err, target)
 }
