@@ -120,12 +120,6 @@ else
             fi
         fi
     done
-    
-# Stage auto-fixed Go files (go fmt changes)
-git -C "$REPO_ROOT" add . 2>/dev/null || true
-    
-    [ $FAILED -eq 0 ] && log_success "Go lint passed"
-fi
 
 echo ""
 
@@ -320,6 +314,12 @@ else
         log_error "Makefile has syntax errors"
         FAILED=1
     fi
+fi
+
+# Stage auto files
+git -C "$REPO_ROOT" add . 2>/dev/null || true
+    
+    [ $FAILED -eq 0 ] && log_success "Go lint passed"
 fi
 
 echo ""
