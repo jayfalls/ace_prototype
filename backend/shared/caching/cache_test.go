@@ -3,6 +3,7 @@ package caching
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -109,6 +110,37 @@ func (m *MockCacheBackend) DeletePattern(ctx context.Context, pattern string) er
 }
 
 func (m *MockCacheBackend) DeleteByTag(ctx context.Context, tag string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Find all tag set keys matching the tag (format: _tags:{...}:{tag})
+	tagSuffix := ":" + tag
+	keysToDelete := make([]string, 0)
+	for key := range m.store {
+		if strings.HasSuffix(key, tagSuffix) && strings.HasPrefix(key, "_tags:") {
+			keysToDelete = append(keysToDelete, key)
+		}
+	}
+
+	// Collect all members to delete their _keytags entries
+	allMembers := make(map[string]bool)
+	for _, tagKey := range keysToDelete {
+		if v, ok := m.store[tagKey]; ok {
+			for _, member := range bytesToStrings(v) {
+				allMembers[member] = true
+			}
+		}
+		delete(m.store, tagKey)
+		delete(m.expireAt, tagKey)
+	}
+
+	// Clean up _keytags for each member
+	for member := range allMembers {
+		keyTagsKey := "_keytags:" + member
+		delete(m.store, keyTagsKey)
+		delete(m.expireAt, keyTagsKey)
+	}
+
 	return nil
 }
 
@@ -137,6 +169,103 @@ func (m *MockCacheBackend) TTL(ctx context.Context, key string) (time.Duration, 
 
 func (m *MockCacheBackend) Close() error {
 	return nil
+}
+
+func (m *MockCacheBackend) SAdd(ctx context.Context, key string, members []string, ttl time.Duration) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Retrieve existing set or create new one
+	var existing []string
+	if v, ok := m.store[key]; ok {
+		existing = bytesToStrings(v)
+	}
+	seen := make(map[string]bool, len(existing))
+	for _, e := range existing {
+		seen[e] = true
+	}
+	for _, member := range members {
+		if !seen[member] {
+			existing = append(existing, member)
+			seen[member] = true
+		}
+	}
+	m.store[key] = stringsToBytes(existing)
+	if ttl > 0 {
+		m.expireAt[key] = time.Now().Add(ttl)
+	}
+	return nil
+}
+
+func (m *MockCacheBackend) SMembers(ctx context.Context, key string) ([]string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if v, ok := m.store[key]; ok {
+		return bytesToStrings(v), nil
+	}
+	return []string{}, nil
+}
+
+func (m *MockCacheBackend) SRem(ctx context.Context, key string, members []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if v, ok := m.store[key]; ok {
+		existing := bytesToStrings(v)
+		toRemove := make(map[string]bool, len(members))
+		for _, member := range members {
+			toRemove[member] = true
+		}
+		remaining := make([]string, 0, len(existing))
+		for _, e := range existing {
+			if !toRemove[e] {
+				remaining = append(remaining, e)
+			}
+		}
+		if len(remaining) == 0 {
+			delete(m.store, key)
+		} else {
+			m.store[key] = stringsToBytes(remaining)
+		}
+	}
+	return nil
+}
+
+// helpers to serialize []string ↔ []byte for mock store
+func stringsToBytes(s []string) []byte {
+	if len(s) == 0 {
+		return []byte{}
+	}
+	out := make([]byte, 0, len(s)*32)
+	for i, v := range s {
+		if i > 0 {
+			out = append(out, '\x00')
+		}
+		out = append(out, []byte(v)...)
+	}
+	return out
+}
+
+func bytesToStrings(b []byte) []string {
+	if len(b) == 0 {
+		return []string{}
+	}
+	parts := strings.Split(string(b), "\x00")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
+}
+
+func bytesToSlice(b []byte) []string {
+	if len(b) == 0 {
+		return []string{}
+	}
+	return strings.Split(string(b), "\x00")
 }
 
 // =============================================================================
@@ -1069,4 +1198,261 @@ func TestDeleteByTag_ObserverCalled(t *testing.T) {
 	assert.Equal(t, "test-ns", deleteCalls[0].Namespace)
 	assert.Equal(t, "_tags:my-tag", deleteCalls[0].Key)
 	assert.Equal(t, "tag", deleteCalls[0].Reason)
+}
+
+// =============================================================================
+// Phase 7: Invalidation Strategies Tests
+// =============================================================================
+
+// TestSet_WithTags_PopulatesTagIndex verifies that Set with tags uses SADD to populate
+// tag sets (_tags:{namespace}:{agentId}:{tag}) and reverse lookup (_keytags:{resolvedKey}).
+func TestSet_WithTags_PopulatesTagIndex(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Act
+	err := cache.Set(context.Background(), "user:123", []byte("value"), WithTags("tag1", "tag2"))
+	require.NoError(t, err)
+
+	// Assert — tag sets should contain the resolved key
+	resolvedKey := "test-ns:agent-1:user:123:"
+
+	// Check tag1 set
+	members, err := backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag1")
+	require.NoError(t, err)
+	assert.Contains(t, members, resolvedKey, "tag1 set should contain the resolved key")
+
+	// Check tag2 set
+	members, err = backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag2")
+	require.NoError(t, err)
+	assert.Contains(t, members, resolvedKey, "tag2 set should contain the resolved key")
+
+	// Check reverse lookup
+	tags, err := backend.SMembers(context.Background(), "_keytags:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Contains(t, tags, "tag1", "reverse lookup should contain tag1")
+	assert.Contains(t, tags, "tag2", "reverse lookup should contain tag2")
+}
+
+// TestDelete_CleansUpTagIndex verifies that Delete removes the key from all tag sets
+// and deletes the reverse lookup set.
+func TestDelete_CleansUpTagIndex(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set with tags
+	err := cache.Set(context.Background(), "user:123", []byte("value"), WithTags("tag1", "tag2"))
+	require.NoError(t, err)
+
+	resolvedKey := "test-ns:agent-1:user:123:"
+
+	// Act - Delete the key
+	err = cache.Delete(context.Background(), "user:123")
+	require.NoError(t, err)
+
+	// Assert — tag sets should no longer contain the resolved key
+	members, err := backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag1")
+	require.NoError(t, err)
+	assert.NotContains(t, members, resolvedKey, "tag1 set should no longer contain the resolved key")
+
+	members, err = backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag2")
+	require.NoError(t, err)
+	assert.NotContains(t, members, resolvedKey, "tag2 set should no longer contain the resolved key")
+
+	// Reverse lookup set should be deleted
+	tags, err := backend.SMembers(context.Background(), "_keytags:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Empty(t, tags, "reverse lookup should be empty after delete")
+}
+
+// TestInvalidateByVersion_Match verifies that InvalidateByVersion deletes the key
+// when the stored version matches the expected version.
+func TestInvalidateByVersion_Match(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set a value with a version
+	err := cache.Set(context.Background(), "user:123", []byte("value"))
+	require.NoError(t, err)
+
+	resolvedKey := "test-ns:agent-1:user:123:"
+
+	// Manually set the version key (since Set doesn't store versions yet)
+	err = backend.Set(context.Background(), "_version:"+resolvedKey, []byte("v1"), 0)
+	require.NoError(t, err)
+
+	// Act
+	err = cache.InvalidateByVersion(context.Background(), "user:123", "v1")
+
+	// Assert
+	require.NoError(t, err)
+
+	// Main key should be deleted
+	value, err := cache.Get(context.Background(), "user:123")
+	require.NoError(t, err)
+	assert.Nil(t, value, "main key should be deleted after version match")
+
+	// Version key should be deleted
+	versionVal, err := backend.Get(context.Background(), "_version:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Nil(t, versionVal, "version key should be deleted after version match")
+
+	// Observer should have been called with reason "version"
+	deleteCalls := obs.getDeleteCalls()
+	require.Len(t, deleteCalls, 1, "observer should be called once for version invalidation")
+	assert.Equal(t, "version", deleteCalls[0].Reason)
+}
+
+// TestInvalidateByVersion_Mismatch verifies that InvalidateByVersion is a no-op
+// when the stored version doesn't match the expected version.
+func TestInvalidateByVersion_Mismatch(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set a value
+	err := cache.Set(context.Background(), "user:123", []byte("value"))
+	require.NoError(t, err)
+
+	resolvedKey := "test-ns:agent-1:user:123:"
+
+	// Manually set the version key to v1
+	err = backend.Set(context.Background(), "_version:"+resolvedKey, []byte("v1"), 0)
+	require.NoError(t, err)
+
+	// Act - try to invalidate with v2 (mismatch)
+	err = cache.InvalidateByVersion(context.Background(), "user:123", "v2")
+
+	// Assert
+	require.NoError(t, err)
+
+	// Main key should still exist
+	value, err := cache.Get(context.Background(), "user:123")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("value"), value, "main key should still exist after version mismatch")
+
+	// Version key should still exist
+	versionVal, err := backend.Get(context.Background(), "_version:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("v1"), versionVal, "version key should still exist after version mismatch")
+
+	// No delete observer calls should have been made
+	deleteCalls := obs.getDeleteCalls()
+	assert.Len(t, deleteCalls, 0, "observer should not be called on version mismatch")
+}
+
+// TestInvalidateByVersion_KeyMissing verifies that InvalidateByVersion is a no-op
+// when the key (and version) doesn't exist.
+func TestInvalidateByVersion_KeyMissing(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Act - try to invalidate a non-existent key
+	err := cache.InvalidateByVersion(context.Background(), "user:999", "v1")
+
+	// Assert
+	require.NoError(t, err, "InvalidateByVersion on missing key should return nil")
+
+	// No delete observer calls should have been made
+	deleteCalls := obs.getDeleteCalls()
+	assert.Len(t, deleteCalls, 0, "observer should not be called on missing key")
+}
+
+// TestInvalidateByVersion_Match_WithTags verifies that InvalidateByVersion with matching version
+// also cleans up the tag index (tag sets and _keytags reverse lookup).
+func TestInvalidateByVersion_Match_WithTags(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+
+	// Set a value with tags (populates tag index)
+	err := cache.Set(context.Background(), "user:123", []byte("value"), WithTags("tag1", "tag2"))
+	require.NoError(t, err)
+
+	resolvedKey := "test-ns:agent-1:user:123:"
+
+	// Manually set the version key
+	err = backend.Set(context.Background(), "_version:"+resolvedKey, []byte("v1"), 0)
+	require.NoError(t, err)
+
+	// Act
+	err = cache.InvalidateByVersion(context.Background(), "user:123", "v1")
+
+	// Assert
+	require.NoError(t, err)
+
+	// Main key should be deleted
+	value, err := cache.Get(context.Background(), "user:123")
+	require.NoError(t, err)
+	assert.Nil(t, value, "main key should be deleted after version match")
+
+	// Version key should be deleted
+	versionVal, err := backend.Get(context.Background(), "_version:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Nil(t, versionVal, "version key should be deleted after version match")
+
+	// Tag sets should no longer contain the resolved key
+	members, err := backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag1")
+	require.NoError(t, err)
+	assert.NotContains(t, members, resolvedKey, "tag1 set should no longer contain the resolved key")
+
+	members, err = backend.SMembers(context.Background(), "_tags:test-ns:agent-1:tag2")
+	require.NoError(t, err)
+	assert.NotContains(t, members, resolvedKey, "tag2 set should no longer contain the resolved key")
+
+	// Reverse lookup set should be deleted
+	tags, err := backend.SMembers(context.Background(), "_keytags:"+resolvedKey)
+	require.NoError(t, err)
+	assert.Empty(t, tags, "reverse lookup should be empty after version invalidation")
+
+	// Observer should have been called with reason "version"
+	deleteCalls := obs.getDeleteCalls()
+	require.Len(t, deleteCalls, 1, "observer should be called once for version invalidation")
+	assert.Equal(t, "version", deleteCalls[0].Reason)
+}
+
+// TestDeleteByTag_CleansUpKeyTags verifies that DeleteByTag cleans up the _keytags reverse lookup sets.
+func TestDeleteByTag_CleansUpKeyTags(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	// Set values with tags
+	err := cache.Set(context.Background(), "user:1", []byte("value1"), WithTags("tag1"))
+	require.NoError(t, err)
+	err = cache.Set(context.Background(), "user:2", []byte("value2"), WithTags("tag1"))
+	require.NoError(t, err)
+
+	resolvedKey1 := "test-ns:agent-1:user:1:"
+	resolvedKey2 := "test-ns:agent-1:user:2:"
+
+	// Verify _keytags exist before DeleteByTag
+	tags1, err := backend.SMembers(context.Background(), "_keytags:"+resolvedKey1)
+	require.NoError(t, err)
+	assert.Contains(t, tags1, "tag1", "_keytags for user:1 should contain tag1 before DeleteByTag")
+
+	tags2, err := backend.SMembers(context.Background(), "_keytags:"+resolvedKey2)
+	require.NoError(t, err)
+	assert.Contains(t, tags2, "tag1", "_keytags for user:2 should contain tag1 before DeleteByTag")
+
+	// Act
+	err = cache.DeleteByTag(context.Background(), "tag1")
+	require.NoError(t, err)
+
+	// Assert — _keytags should be cleaned up
+	tags1, err = backend.SMembers(context.Background(), "_keytags:"+resolvedKey1)
+	require.NoError(t, err)
+	assert.Empty(t, tags1, "_keytags for user:1 should be cleaned up after DeleteByTag")
+
+	tags2, err = backend.SMembers(context.Background(), "_keytags:"+resolvedKey2)
+	require.NoError(t, err)
+	assert.Empty(t, tags2, "_keytags for user:2 should be cleaned up after DeleteByTag")
 }
