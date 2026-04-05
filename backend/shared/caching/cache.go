@@ -347,28 +347,185 @@ func (c *cacheImpl) WithDefaultTags(tags ...string) Cache {
 	return newCache
 }
 
-// GetMany implements the GetMany method (not required for this phase).
+// GetMany retrieves multiple values from the cache.
+// Returns a map containing only the keys that were found (hits).
+// Returns an error if key resolution fails.
 func (c *cacheImpl) GetMany(ctx context.Context, keys []string) (map[string][]byte, error) {
-	return nil, nil
+	// Resolve all keys
+	resolvedKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		resolvedKey, err := c.resolveKey(key)
+		if err != nil {
+			return nil, err
+		}
+		resolvedKeys = append(resolvedKeys, resolvedKey)
+	}
+
+	start := time.Now()
+
+	// Call backend GetMany
+	result, err := c.backend.GetMany(ctx, resolvedKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate latency per key and call observer
+	latencyMs := float64(time.Since(start).Nanoseconds()) / 1e6
+	perKeyLatency := latencyMs / float64(len(resolvedKeys))
+
+	// Observe each key - hits are in result map, misses are not
+	for _, key := range resolvedKeys {
+		hit := false
+		if _, ok := result[key]; ok {
+			hit = true
+		}
+		c.observer.ObserveGet(ctx, c.namespace, key, hit, perKeyLatency)
+	}
+
+	// Return map of hits only (nil if empty)
+	if result == nil {
+		result = make(map[string][]byte)
+	}
+	return result, nil
 }
 
-// SetMany implements the SetMany method (not required for this phase).
+// SetMany stores multiple values in the cache.
+// Returns ErrMaxSizeExceeded if any value exceeds maxSize.
+// Returns error if any value is nil.
 func (c *cacheImpl) SetMany(ctx context.Context, entries map[string][]byte, opts ...SetOption) error {
+	// Validate all values not nil and check maxSize
+	for _, value := range entries {
+		if value == nil {
+			return ErrSerializationFailed
+		}
+		if int64(len(value)) > c.maxSize {
+			return MaxSizeExceededError(int64(len(value)), c.maxSize)
+		}
+	}
+
+	// Apply SetOptions
+	setOpts := applySetOptions(opts...)
+
+	// Apply defaults
+	ttl := setOpts.TTL
+	if ttl == 0 {
+		ttl = c.defaultTTL
+	}
+	tags := setOpts.Tags
+	if len(tags) == 0 {
+		tags = c.defaultTags
+	}
+
+	// Resolve all keys and build entries map
+	resolvedEntries := make(map[string][]byte)
+	resolvedKeys := make([]string, 0, len(entries))
+	for key, value := range entries {
+		resolvedKey, err := c.resolveKey(key)
+		if err != nil {
+			return err
+		}
+		resolvedEntries[resolvedKey] = value
+		resolvedKeys = append(resolvedKeys, resolvedKey)
+	}
+
+	start := time.Now()
+
+	// Call backend SetMany with TTL
+	err := c.backend.SetMany(ctx, resolvedEntries, ttl)
+	if err != nil {
+		return err
+	}
+
+	// Update tag index for all entries if tags provided
+	if len(tags) > 0 {
+		for _, resolvedKey := range resolvedKeys {
+			for _, tag := range tags {
+				tagKey := "_tags:" + tag + ":" + resolvedKey
+				_ = c.backend.Set(ctx, tagKey, []byte("1"), ttl)
+			}
+		}
+	}
+
+	// Calculate latency per key and call observer
+	latencyMs := float64(time.Since(start).Nanoseconds()) / 1e6
+	perKeyLatency := latencyMs / float64(len(resolvedKeys))
+
+	for _, key := range resolvedKeys {
+		size := int64(len(resolvedEntries[key]))
+		c.observer.ObserveSet(ctx, c.namespace, key, size, perKeyLatency)
+	}
+
 	return nil
 }
 
-// DeleteMany implements the DeleteMany method (not required for this phase).
+// DeleteMany removes multiple values from the cache.
 func (c *cacheImpl) DeleteMany(ctx context.Context, keys []string) error {
+	// Resolve all keys
+	resolvedKeys := make([]string, 0, len(keys))
+	for _, key := range keys {
+		resolvedKey, err := c.resolveKey(key)
+		if err != nil {
+			return err
+		}
+		resolvedKeys = append(resolvedKeys, resolvedKey)
+	}
+
+	// Call backend DeleteMany
+	err := c.backend.DeleteMany(ctx, resolvedKeys)
+	if err != nil {
+		return err
+	}
+
+	// Call observer for each key with reason "manual"
+	for _, key := range resolvedKeys {
+		c.observer.ObserveDelete(ctx, c.namespace, key, "manual")
+	}
+
 	return nil
 }
 
-// DeletePattern implements the DeletePattern method (not required for this phase).
+// DeletePattern removes all keys matching the given pattern.
+// Returns ErrPatternInvalid if pattern is bare "*" or doesn't include agentID prefix.
 func (c *cacheImpl) DeletePattern(ctx context.Context, pattern string) error {
+	// Validate pattern is not bare "*"
+	if pattern == "*" {
+		return PatternInvalidError(pattern, "bare wildcard not allowed")
+	}
+
+	// Validate pattern includes agentID prefix
+	if c.agentID != "" && !strings.Contains(pattern, c.agentID) {
+		return PatternInvalidError(pattern, "pattern must include agentID prefix")
+	}
+
+	// Call backend DeletePattern
+	err := c.backend.DeletePattern(ctx, pattern)
+	if err != nil {
+		return err
+	}
+
+	// Call observer with reason "pattern"
+	c.observer.ObserveDelete(ctx, c.namespace, pattern, "pattern")
+
 	return nil
 }
 
-// DeleteByTag implements the DeleteByTag method (not required for this phase).
+// DeleteByTag removes all entries with the given tag.
+// Returns error if tag is empty.
 func (c *cacheImpl) DeleteByTag(ctx context.Context, tag string) error {
+	// Validate tag not empty
+	if tag == "" {
+		return ErrTagNotFound
+	}
+
+	// Call backend DeleteByTag
+	err := c.backend.DeleteByTag(ctx, tag)
+	if err != nil {
+		return err
+	}
+
+	// Call observer with reason "tag"
+	c.observer.ObserveDelete(ctx, c.namespace, "_tags:"+tag, "tag")
+
 	return nil
 }
 
