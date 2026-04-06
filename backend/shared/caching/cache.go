@@ -160,12 +160,24 @@ func (c *cacheImpl) Set(ctx context.Context, key string, value []byte, opts ...S
 		return err
 	}
 
-	// If tags provided, update tag index
+	// If tags provided, update tag index using sets
 	if len(tags) > 0 {
-		// Store key in tag sets (_tags:{tag})
+		// Build tag set key: _tags:{namespace}:{agentId}:{tag}
+		tagSetPrefix := "_tags:" + c.namespace + ":" + c.agentID
+		// Build reverse lookup key: _keytags:{resolvedKey}
+		keyTagsKey := "_keytags:" + resolvedKey
+
+		// For each tag, SADD the key to the tag set
 		for _, tag := range tags {
-			tagKey := "_tags:" + tag
-			_ = c.backend.Set(ctx, tagKey+":"+resolvedKey, []byte("1"), ttl)
+			tagSetKey := tagSetPrefix + ":" + tag
+			if err := c.backend.SAdd(ctx, tagSetKey, []string{resolvedKey}, ttl); err != nil {
+				return err
+			}
+		}
+
+		// Maintain reverse lookup: SADD all tags to _keytags:{resolvedKey}
+		if err := c.backend.SAdd(ctx, keyTagsKey, tags, ttl); err != nil {
+			return err
 		}
 	}
 
@@ -186,9 +198,32 @@ func (c *cacheImpl) Delete(ctx context.Context, key string) error {
 		return err
 	}
 
+	// Read tags from reverse lookup before deleting the key
+	keyTagsKey := "_keytags:" + resolvedKey
+	tags, err := c.backend.SMembers(ctx, keyTagsKey)
+	if err != nil {
+		return err
+	}
+
 	// Call backend Delete
 	err = c.backend.Delete(ctx, resolvedKey)
 	if err != nil {
+		return err
+	}
+
+	// Clean up tag index: SREM the key from each tag set
+	if len(tags) > 0 {
+		tagSetPrefix := "_tags:" + c.namespace + ":" + c.agentID
+		for _, tag := range tags {
+			tagSetKey := tagSetPrefix + ":" + tag
+			if err := c.backend.SRem(ctx, tagSetKey, []string{resolvedKey}); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Delete the reverse lookup set itself
+	if err := c.backend.Delete(ctx, keyTagsKey); err != nil {
 		return err
 	}
 
@@ -438,10 +473,19 @@ func (c *cacheImpl) SetMany(ctx context.Context, entries map[string][]byte, opts
 
 	// Update tag index for all entries if tags provided
 	if len(tags) > 0 {
+		tagSetPrefix := "_tags:" + c.namespace + ":" + c.agentID
 		for _, resolvedKey := range resolvedKeys {
+			// SADD the key to each tag set
 			for _, tag := range tags {
-				tagKey := "_tags:" + tag + ":" + resolvedKey
-				_ = c.backend.Set(ctx, tagKey, []byte("1"), ttl)
+				tagSetKey := tagSetPrefix + ":" + tag
+				if err := c.backend.SAdd(ctx, tagSetKey, []string{resolvedKey}, ttl); err != nil {
+					return err
+				}
+			}
+			// Maintain reverse lookup
+			keyTagsKey := "_keytags:" + resolvedKey
+			if err := c.backend.SAdd(ctx, keyTagsKey, tags, ttl); err != nil {
+				return err
 			}
 		}
 	}
@@ -470,10 +514,43 @@ func (c *cacheImpl) DeleteMany(ctx context.Context, keys []string) error {
 		resolvedKeys = append(resolvedKeys, resolvedKey)
 	}
 
+	// Read tags from reverse lookups before deleting
+	type keyTags struct {
+		key  string
+		tags []string
+	}
+	keyTagsList := make([]keyTags, 0, len(resolvedKeys))
+	for _, resolvedKey := range resolvedKeys {
+		keyTagsKey := "_keytags:" + resolvedKey
+		tags, err := c.backend.SMembers(ctx, keyTagsKey)
+		if err != nil {
+			return err
+		}
+		keyTagsList = append(keyTagsList, keyTags{key: resolvedKey, tags: tags})
+	}
+
 	// Call backend DeleteMany
 	err := c.backend.DeleteMany(ctx, resolvedKeys)
 	if err != nil {
 		return err
+	}
+
+	// Clean up tag index for each key
+	tagSetPrefix := "_tags:" + c.namespace + ":" + c.agentID
+	for _, kt := range keyTagsList {
+		if len(kt.tags) > 0 {
+			for _, tag := range kt.tags {
+				tagSetKey := tagSetPrefix + ":" + tag
+				if err := c.backend.SRem(ctx, tagSetKey, []string{kt.key}); err != nil {
+					return err
+				}
+			}
+		}
+		// Delete the reverse lookup set itself
+		keyTagsKey := "_keytags:" + kt.key
+		if err := c.backend.Delete(ctx, keyTagsKey); err != nil {
+			return err
+		}
 	}
 
 	// Call observer for each key with reason "manual"
@@ -529,8 +606,69 @@ func (c *cacheImpl) DeleteByTag(ctx context.Context, tag string) error {
 	return nil
 }
 
-// InvalidateByVersion implements the InvalidateByVersion method (not required for this phase).
+// InvalidateByVersion removes a cached entry if its stored version matches the expected version.
+// Returns nil if the key is already missing or the version doesn't match (no-op).
 func (c *cacheImpl) InvalidateByVersion(ctx context.Context, key string, expectedVersion string) error {
+	// Resolve the key
+	resolvedKey, err := c.resolveKey(key)
+	if err != nil {
+		return err
+	}
+
+	// Read version from _version:{resolvedKey}
+	versionKey := "_version:" + resolvedKey
+	storedVersion, err := c.backend.Get(ctx, versionKey)
+	if err != nil {
+		return err
+	}
+
+	// If no version stored, key is already invalidated — no-op
+	if storedVersion == nil {
+		return nil
+	}
+
+	// If stored version doesn't match expected, already stale — no-op
+	if string(storedVersion) != expectedVersion {
+		return nil
+	}
+
+	// Versions match — clean up tag index, then delete the main key and version key
+	// Read tags from reverse lookup before deleting
+	keyTagsKey := "_keytags:" + resolvedKey
+	tags, err := c.backend.SMembers(ctx, keyTagsKey)
+	if err != nil {
+		return err
+	}
+
+	// Delete the main key
+	if err := c.backend.Delete(ctx, resolvedKey); err != nil {
+		return err
+	}
+
+	// SREM the key from each tag set
+	if len(tags) > 0 {
+		tagSetPrefix := "_tags:" + c.namespace + ":" + c.agentID
+		for _, tag := range tags {
+			tagSetKey := tagSetPrefix + ":" + tag
+			if err := c.backend.SRem(ctx, tagSetKey, []string{resolvedKey}); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Delete the reverse lookup set itself
+	if err := c.backend.Delete(ctx, keyTagsKey); err != nil {
+		return err
+	}
+
+	// Delete the version key
+	if err := c.backend.Delete(ctx, versionKey); err != nil {
+		return err
+	}
+
+	// Call observer with reason "version"
+	c.observer.ObserveDelete(ctx, c.namespace, resolvedKey, "version")
+
 	return nil
 }
 

@@ -51,6 +51,9 @@ type CacheBackend interface {
 	DeleteMany(ctx context.Context, keys []string) error
 	DeletePattern(ctx context.Context, pattern string) error
 	DeleteByTag(ctx context.Context, tag string) error
+	SAdd(ctx context.Context, key string, members []string, ttl time.Duration) error
+	SMembers(ctx context.Context, key string) ([]string, error)
+	SRem(ctx context.Context, key string, members []string) error
 	Exists(ctx context.Context, key string) (bool, error)
 	TTL(ctx context.Context, key string) (time.Duration, error)
 	Close() error

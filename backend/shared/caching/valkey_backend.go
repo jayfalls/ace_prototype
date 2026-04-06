@@ -253,6 +253,55 @@ func (b *valkeyBackend) DeleteByTag(ctx context.Context, tag string) error {
 	return nil
 }
 
+// SAdd adds members to a set with an optional TTL. Returns ErrBackendUnavailable on error.
+func (b *valkeyBackend) SAdd(ctx context.Context, key string, members []string, ttl time.Duration) error {
+	if len(members) == 0 {
+		return nil
+	}
+
+	saddCmd := b.client.B().Sadd().Key(key).Member(members...).Build()
+
+	if ttl > 0 {
+		expireCmd := b.client.B().Expire().Key(key).Seconds(int64(ttl.Seconds())).Build()
+		results := b.client.DoMulti(ctx, saddCmd, expireCmd)
+		for _, r := range results {
+			if err := r.Error(); err != nil {
+				return BackendUnavailableError(err)
+			}
+		}
+		return nil
+	}
+
+	if err := b.client.Do(ctx, saddCmd).Error(); err != nil {
+		return BackendUnavailableError(err)
+	}
+	return nil
+}
+
+// SMembers returns all members of a set. Returns empty slice on missing key.
+func (b *valkeyBackend) SMembers(ctx context.Context, key string) ([]string, error) {
+	members, err := b.client.Do(ctx, b.client.B().Smembers().Key(key).Build()).AsStrSlice()
+	if err != nil {
+		if errors.Is(err, valkey.Nil) {
+			return []string{}, nil
+		}
+		return nil, BackendUnavailableError(err)
+	}
+	return members, nil
+}
+
+// SRem removes members from a set. Idempotent — no error on missing members.
+func (b *valkeyBackend) SRem(ctx context.Context, key string, members []string) error {
+	if len(members) == 0 {
+		return nil
+	}
+
+	if err := b.client.Do(ctx, b.client.B().Srem().Key(key).Member(members...).Build()).Error(); err != nil {
+		return BackendUnavailableError(err)
+	}
+	return nil
+}
+
 // Exists returns true if the key exists (result > 0).
 func (b *valkeyBackend) Exists(ctx context.Context, key string) (bool, error) {
 	n, err := b.client.Do(ctx, b.client.B().Exists().Key(key).Build()).AsInt64()
