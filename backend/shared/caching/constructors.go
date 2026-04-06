@@ -52,7 +52,7 @@ func newCache(cfg *cacheConfig) Cache {
 
 	// Create no-op observer if none provided
 	if c.observer == nil {
-		c.observer = &noOpObserver{}
+		c.observer = NewNoopObserver()
 	}
 
 	return c

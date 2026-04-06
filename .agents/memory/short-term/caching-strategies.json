@@ -3,7 +3,6 @@
   "current_phase": "backend",
   "status": "in_progress",
   "pending_tasks": [
-    "Phase 8: CacheObserver",
     "Phase 9: WarmingManager",
     "Phase 10: Database Migration",
     "Phase 11: Integration"
@@ -103,12 +102,17 @@
       "phase": "backend-phase6",
       "notes": ["Phase 6 complete: GetMany, SetMany, DeleteMany, DeletePattern, DeleteByTag bulk operations. 6 test cases added. QA PASSED."],
       "timestamp": "2026-03-26T14:00:00Z"
-    }
+    },
     {
       "phase": "backend-phase7",
       "notes": ["Phase 7 complete: Tag index management (SADD/SMEMBERS/SREM), reverse lookup (_keytags:), InvalidateByVersion with tag cleanup. SAdd uses DoMulti for atomicity. 7 test cases added. QA PASSED after fixing tag cleanup in InvalidateByVersion."],
       "timestamp": "2026-04-05T16:34:02Z"
     }
+    {
+      "phase": "backend-phase8",
+      "notes": ["Phase 8 complete: noop_observer.go extracted, atomic hit/miss counters added, Stats() implemented with HitRate calculation. All 10 operations verified to call observer. 3 new tests added. QA PASSED (1 LOW: dead code removed)."],
+      "timestamp": "2026-04-06T09:36:02Z"
+    }
   ],
-  "last_updated": "2026-04-05T16:34:02Z"
+  "last_updated": "2026-04-06T09:36:02Z"
 }
