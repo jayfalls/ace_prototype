@@ -109,33 +109,29 @@ func (m *MockCacheBackend) DeletePattern(ctx context.Context, pattern string) er
 	return nil
 }
 
-func (m *MockCacheBackend) DeleteByTag(ctx context.Context, tag string) error {
+func (m *MockCacheBackend) DeleteByTag(ctx context.Context, tagKey string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	// Find all tag set keys matching the tag (format: _tags:{...}:{tag})
-	tagSuffix := ":" + tag
-	keysToDelete := make([]string, 0)
-	for key := range m.store {
-		if strings.HasSuffix(key, tagSuffix) && strings.HasPrefix(key, "_tags:") {
-			keysToDelete = append(keysToDelete, key)
-		}
+	// tagKey is now the full key: _tags:{namespace}:{agentId}:{tag}
+	// Read all members from this tag set
+	v, ok := m.store[tagKey]
+	if !ok || v == nil {
+		return nil // Tag doesn't exist, nothing to delete
 	}
 
 	// Collect all members to delete their _keytags entries
-	allMembers := make(map[string]bool)
-	for _, tagKey := range keysToDelete {
-		if v, ok := m.store[tagKey]; ok {
-			for _, member := range bytesToStrings(v) {
-				allMembers[member] = true
-			}
-		}
-		delete(m.store, tagKey)
-		delete(m.expireAt, tagKey)
-	}
+	allMembers := bytesToStrings(v)
 
-	// Clean up _keytags for each member
-	for member := range allMembers {
+	// Delete the tag set itself
+	delete(m.store, tagKey)
+	delete(m.expireAt, tagKey)
+
+	// Delete all member keys
+	for _, member := range allMembers {
+		delete(m.store, member)
+		delete(m.expireAt, member)
+		// Clean up _keytags for each member
 		keyTagsKey := "_keytags:" + member
 		delete(m.store, keyTagsKey)
 		delete(m.expireAt, keyTagsKey)
@@ -1189,7 +1185,7 @@ func TestDeleteByTag_ObserverCalled(t *testing.T) {
 	deleteCalls := obs.getDeleteCalls()
 	require.Len(t, deleteCalls, 1, "observer should be called once for DeleteByTag")
 	assert.Equal(t, "test-ns", deleteCalls[0].Namespace)
-	assert.Equal(t, "_tags:my-tag", deleteCalls[0].Key)
+	assert.Equal(t, "_tags:test-ns:agent-1:my-tag", deleteCalls[0].Key)
 	assert.Equal(t, "tag", deleteCalls[0].Reason)
 }
 

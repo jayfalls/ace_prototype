@@ -44,7 +44,6 @@ cache := caching.NewCache(backend,
     caching.WithNamespace("agents"),
     caching.WithDefaultTTL(5*time.Minute),
 )
-defer cache.Close()
 
 // Basic operations
 cache.Set(ctx, "user:123", []byte(`{"name":"Alice"}`),
@@ -230,8 +229,6 @@ err := cache.InvalidateByVersion(ctx, "config:v2", "2.0")
 2. `InvalidateByVersion` reads the stored version and compares
 3. If versions match, the key and all associated index entries are deleted
 
-**Note:** The version store (PostgreSQL-backed persistence) is deferred until a service consumer exists. The `version_store.go` file documents the integration plan.
-
 ## Scoping
 
 Cache instances are immutable. Scoping methods return new instances:
@@ -242,12 +239,14 @@ cache := caching.NewCache(backend,
     caching.WithNamespace("agents"),
     caching.WithAgentID("agent-1"),
     caching.WithDefaultTTL(1*time.Hour),
+    caching.WithDefaultTags("global"),
 )
 
 // Scoped copies — original is unchanged
 agentsCache := cache.WithNamespace("agents")
 usersCache := cache.WithNamespace("users")
 shortTTLCache := cache.WithDefaultTTL(5*time.Minute)
+taggedCache := cache.WithDefaultTags("user", "active")
 ```
 
 ## Statistics
@@ -256,6 +255,7 @@ shortTTLCache := cache.WithDefaultTTL(5*time.Minute)
 stats, err := cache.Stats(ctx)
 // stats.HitCount, stats.MissCount, stats.HitRate
 // stats.EntryCount and stats.TotalSize are 0 (requires direct Valkey access)
+// stats.EvictionCount and stats.AvgLatencyMs are also available
 ```
 
 Hit/miss counters are atomic (`sync/atomic.Int64`) and thread-safe. `HitRate` is computed as `hits / (hits + misses)`.
@@ -266,11 +266,11 @@ Every cache operation calls the `CacheObserver`:
 
 ```go
 type CacheObserver interface {
-    ObserveGet(ctx, namespace, key string, hit bool, latencyMs float64)
-    ObserveSet(ctx, namespace, key string, sizeBytes int64, latencyMs float64)
-    ObserveDelete(ctx, namespace, key, reason string)
-    ObserveEviction(ctx, namespace, key, reason string)
-    ObserveWarming(ctx, namespace string, progress WarmingProgress)
+    ObserveGet(ctx context.Context, namespace, key string, hit bool, latencyMs float64)
+    ObserveSet(ctx context.Context, namespace, key string, sizeBytes int64, latencyMs float64)
+    ObserveDelete(ctx context.Context, namespace, key, reason string)
+    ObserveEviction(ctx context.Context, namespace, key, reason string)
+    ObserveWarming(ctx context.Context, namespace string, progress WarmingProgress)
 }
 ```
 
@@ -348,6 +348,7 @@ if err != nil {
 - `ErrSerializationFailed` — value is nil
 - `ErrPatternInvalid` — pattern is `"*"` or empty
 - `ErrTagNotFound` — tag is empty
+- `ErrNATSDisconnected` — NATS connection lost
 
 ## Configuration Reference
 
