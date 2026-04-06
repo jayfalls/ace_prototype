@@ -3,6 +3,7 @@ package caching
 import (
 	"context"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,18 +26,9 @@ type cacheImpl struct {
 	singleFlight SingleFlight
 	observer     CacheObserver
 	backend      CacheBackend
-}
-
-// noOpObserver implements CacheObserver with no-op methods.
-type noOpObserver struct{}
-
-func (n *noOpObserver) ObserveGet(ctx context.Context, namespace, key string, hit bool, latencyMs float64) {
-}
-func (n *noOpObserver) ObserveSet(ctx context.Context, namespace, key string, sizeBytes int64, latencyMs float64) {
-}
-func (n *noOpObserver) ObserveDelete(ctx context.Context, namespace, key, reason string)   {}
-func (n *noOpObserver) ObserveEviction(ctx context.Context, namespace, key, reason string) {}
-func (n *noOpObserver) ObserveWarming(ctx context.Context, namespace string, progress WarmingProgress) {
+	// Atomic counters for statistics
+	hitCount  atomic.Int64
+	missCount atomic.Int64
 }
 
 // resolveKey resolves a logical key to a fully qualified key.
@@ -111,6 +103,13 @@ func (c *cacheImpl) Get(ctx context.Context, key string) ([]byte, error) {
 	// Calculate latency
 	latencyMs := float64(time.Since(start).Nanoseconds()) / 1e6
 	hit := value != nil
+
+	// Increment atomic counters
+	if hit {
+		c.hitCount.Add(1)
+	} else {
+		c.missCount.Add(1)
+	}
 
 	// Call observer
 	c.observer.ObserveGet(ctx, c.namespace, resolvedKey, hit, latencyMs)
@@ -279,6 +278,7 @@ func (c *cacheImpl) doGetOrFetch(ctx context.Context, resolvedKey string, fetchF
 	// If hit, observe and return
 	if value != nil {
 		latencyMs := float64(time.Since(start).Nanoseconds()) / 1e6
+		c.hitCount.Add(1)
 		c.observer.ObserveGet(ctx, c.namespace, resolvedKey, true, latencyMs)
 		return value, nil
 	}
@@ -305,6 +305,7 @@ func (c *cacheImpl) doGetOrFetch(ctx context.Context, resolvedKey string, fetchF
 
 	// Observe the miss/write
 	latencyMs := float64(time.Since(start).Nanoseconds()) / 1e6
+	c.missCount.Add(1)
 	c.observer.ObserveGet(ctx, c.namespace, resolvedKey, false, latencyMs)
 
 	return fetchValue, nil
@@ -413,6 +414,12 @@ func (c *cacheImpl) GetMany(ctx context.Context, keys []string) (map[string][]by
 		hit := false
 		if _, ok := result[key]; ok {
 			hit = true
+		}
+		// Increment atomic counters
+		if hit {
+			c.hitCount.Add(1)
+		} else {
+			c.missCount.Add(1)
 		}
 		c.observer.ObserveGet(ctx, c.namespace, key, hit, perKeyLatency)
 	}
@@ -672,7 +679,26 @@ func (c *cacheImpl) InvalidateByVersion(ctx context.Context, key string, expecte
 	return nil
 }
 
-// Stats implements the Stats method (not required for this phase).
+// Stats returns cache statistics including hit/miss counts and rates.
+// EntryCount and TotalSize require direct valkey.Client access (DBSIZE, INFO memory)
+// and will be populated in a future phase when the backend exposes those commands.
 func (c *cacheImpl) Stats(ctx context.Context) (*CacheStats, error) {
-	return nil, nil
+	hits := c.hitCount.Load()
+	misses := c.missCount.Load()
+	total := hits + misses
+
+	hitRate := 0.0
+	if total > 0 {
+		hitRate = float64(hits) / float64(total)
+	}
+
+	return &CacheStats{
+		Namespace: c.namespace,
+		HitCount:  hits,
+		MissCount: misses,
+		HitRate:   hitRate,
+		// EntryCount and TotalSize require valkey.Client access
+		// (DBSIZE and INFO memory commands) — will be added when
+		// CacheBackend exposes these or we get direct client access.
+	}, nil
 }

@@ -261,13 +261,6 @@ func bytesToStrings(b []byte) []string {
 	return result
 }
 
-func bytesToSlice(b []byte) []string {
-	if len(b) == 0 {
-		return []string{}
-	}
-	return strings.Split(string(b), "\x00")
-}
-
 // =============================================================================
 // Test Cases
 // =============================================================================
@@ -1455,4 +1448,213 @@ func TestDeleteByTag_CleansUpKeyTags(t *testing.T) {
 	tags2, err = backend.SMembers(context.Background(), "_keytags:"+resolvedKey2)
 	require.NoError(t, err)
 	assert.Empty(t, tags2, "_keytags for user:2 should be cleaned up after DeleteByTag")
+}
+
+// =============================================================================
+// Phase 8: CacheObserver Integration Tests
+// =============================================================================
+
+// TestNoopObserver_NoPanic tests that all cache operations work without panic
+// when using the default no-op observer.
+func TestNoopObserver_NoPanic(t *testing.T) {
+	// Arrange — no observer provided, so noOpObserver is used by default
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+
+	ctx := context.Background()
+
+	// Act & Assert — perform all operations, verify no panic
+	// Get (miss)
+	_, err := cache.Get(ctx, "user:1")
+	require.NoError(t, err)
+
+	// Set
+	err = cache.Set(ctx, "user:1", []byte("value1"))
+	require.NoError(t, err)
+
+	// Get (hit)
+	_, err = cache.Get(ctx, "user:1")
+	require.NoError(t, err)
+
+	// Delete
+	err = cache.Delete(ctx, "user:1")
+	require.NoError(t, err)
+
+	// SetMany
+	err = cache.SetMany(ctx, map[string][]byte{
+		"user:2": []byte("value2"),
+		"user:3": []byte("value3"),
+	})
+	require.NoError(t, err)
+
+	// GetMany
+	_, err = cache.GetMany(ctx, []string{"user:2", "user:3"})
+	require.NoError(t, err)
+
+	// DeleteMany
+	err = cache.DeleteMany(ctx, []string{"user:2", "user:3"})
+	require.NoError(t, err)
+
+	// DeletePattern
+	err = cache.DeletePattern(ctx, "test-ns:agent-1:*")
+	require.NoError(t, err)
+
+	// DeleteByTag (set a key with tag first)
+	err = cache.Set(ctx, "user:4", []byte("value4"), WithTags("my-tag"))
+	require.NoError(t, err)
+	err = cache.DeleteByTag(ctx, "my-tag")
+	require.NoError(t, err)
+
+	// GetOrFetch
+	fetchFn := func(ctx context.Context) ([]byte, error) {
+		return []byte("fetched"), nil
+	}
+	_, err = cache.GetOrFetch(ctx, "user:5", fetchFn)
+	require.NoError(t, err)
+
+	// InvalidateByVersion
+	err = cache.InvalidateByVersion(ctx, "user:6", "v1")
+	require.NoError(t, err)
+
+	// Stats
+	_, err = cache.Stats(ctx)
+	require.NoError(t, err)
+}
+
+// TestObserver_AllOperationTypesCovered tests that every cache operation type
+// triggers the correct observer method.
+func TestObserver_AllOperationTypesCovered(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	obs := &recordingObserver{}
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"), WithObserver(obs))
+	ctx := context.Background()
+
+	// Act — exercise every operation type
+
+	// Get (miss) → ObserveGet with hit=false
+	_, err := cache.Get(ctx, "user:1")
+	require.NoError(t, err)
+
+	// Set → ObserveSet
+	err = cache.Set(ctx, "user:1", []byte("value1"))
+	require.NoError(t, err)
+
+	// Get (hit) → ObserveGet with hit=true
+	_, err = cache.Get(ctx, "user:1")
+	require.NoError(t, err)
+
+	// Delete → ObserveDelete with reason "manual"
+	err = cache.Delete(ctx, "user:1")
+	require.NoError(t, err)
+
+	// GetMany (all misses) → ObserveGet per key
+	_, err = cache.GetMany(ctx, []string{"user:2", "user:3"})
+	require.NoError(t, err)
+
+	// SetMany → ObserveSet per entry
+	err = cache.SetMany(ctx, map[string][]byte{
+		"user:2": []byte("value2"),
+		"user:3": []byte("value3"),
+	})
+	require.NoError(t, err)
+
+	// DeleteMany → ObserveDelete per key with reason "manual"
+	err = cache.DeleteMany(ctx, []string{"user:2", "user:3"})
+	require.NoError(t, err)
+
+	// Set with tags for DeleteByTag
+	err = cache.Set(ctx, "user:4", []byte("value4"), WithTags("my-tag"))
+	require.NoError(t, err)
+
+	// DeletePattern → ObserveDelete with reason "pattern"
+	err = cache.DeletePattern(ctx, "test-ns:agent-1:*")
+	require.NoError(t, err)
+
+	// DeleteByTag → ObserveDelete with reason "tag"
+	err = cache.DeleteByTag(ctx, "my-tag")
+	require.NoError(t, err)
+
+	// GetOrFetch (miss) → ObserveGet with hit=false
+	fetchFn := func(ctx context.Context) ([]byte, error) {
+		return []byte("fetched"), nil
+	}
+	_, err = cache.GetOrFetch(ctx, "user:5", fetchFn)
+	require.NoError(t, err)
+
+	// GetOrFetch (hit) → ObserveGet with hit=true
+	_, err = cache.GetOrFetch(ctx, "user:5", fetchFn)
+	require.NoError(t, err)
+
+	// Assert — verify observer was called for each operation type
+
+	// Get calls: miss(user:1) + hit(user:1) + 2 misses(user:2,user:3) + miss(user:5) + hit(user:5) = 6
+	getCalls := obs.getGetCalls()
+	assert.GreaterOrEqual(t, len(getCalls), 6, "should have at least 6 ObserveGet calls")
+
+	// Set calls: user:1 + user:2 + user:3 + user:4 = 4
+	setCalls := obs.getSetCalls()
+	assert.GreaterOrEqual(t, len(setCalls), 4, "should have at least 4 ObserveSet calls")
+
+	// Delete calls: user:1(manual) + user:2(manual) + user:3(manual) + pattern + my-tag(tag) = 5
+	deleteCalls := obs.getDeleteCalls()
+	assert.GreaterOrEqual(t, len(deleteCalls), 5, "should have at least 5 ObserveDelete calls")
+
+	// Verify specific reasons exist
+	hasManual := false
+	hasPattern := false
+	hasTag := false
+	for _, call := range deleteCalls {
+		if call.Reason == "manual" {
+			hasManual = true
+		}
+		if call.Reason == "pattern" {
+			hasPattern = true
+		}
+		if call.Reason == "tag" {
+			hasTag = true
+		}
+	}
+	assert.True(t, hasManual, "should have at least one delete with reason 'manual'")
+	assert.True(t, hasPattern, "should have at least one delete with reason 'pattern'")
+	assert.True(t, hasTag, "should have at least one delete with reason 'tag'")
+}
+
+// TestStats_AfterOperations tests that Stats returns correct hit/miss counts
+// after performing a known number of operations.
+func TestStats_AfterOperations(t *testing.T) {
+	// Arrange
+	backend := NewMockCacheBackend()
+	cache := NewCache(backend, WithNamespace("test-ns"), WithAgentID("agent-1"))
+	ctx := context.Background()
+
+	// Pre-populate 10 keys for hits
+	for i := 0; i < 10; i++ {
+		err := cache.Set(ctx, "user:"+string(rune('0'+i)), []byte("value"))
+		require.NoError(t, err)
+	}
+
+	// Act — 10 Gets (all hits)
+	for i := 0; i < 10; i++ {
+		_, err := cache.Get(ctx, "user:"+string(rune('0'+i)))
+		require.NoError(t, err)
+	}
+
+	// 5 Gets (all misses — keys don't exist)
+	for i := 10; i < 15; i++ {
+		_, err := cache.Get(ctx, "user:"+string(rune('0'+i)))
+		require.NoError(t, err)
+	}
+
+	// Call Stats
+	stats, err := cache.Stats(ctx)
+	require.NoError(t, err)
+
+	// Assert
+	assert.Equal(t, "test-ns", stats.Namespace)
+	assert.Equal(t, int64(10), stats.HitCount, "should have 10 hits")
+	assert.Equal(t, int64(5), stats.MissCount, "should have 5 misses")
+
+	expectedHitRate := float64(10) / float64(15)
+	assert.InDelta(t, expectedHitRate, stats.HitRate, 0.001, "hit rate should be ~0.667")
 }
