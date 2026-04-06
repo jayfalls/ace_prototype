@@ -43,7 +43,6 @@ Location: `.agents/memory/short-term/{unit-name}.json`
   "current_phase": "planning-discovery",
   "status": "in_progress",
   "pending_tasks": [],
-  "task_ids": { "planning": "ses_abc123", "research": null, "technical": null, "design": null, "testing": null, "backend": null, "frontend": null, "qa": null },
   "episodes": [{ "phase": "...", "notes": [], "timestamp": "..." }],
   "last_updated": "..."
 }
@@ -94,32 +93,16 @@ Location: `.agents/memory/short-term/{unit-name}.json`
 | testing.md | testing |
 | implementation.md | implementation |
 
-### Task ID Reuse (CRITICAL)
-
-**RULE: NEVER create a new task_id for the same agent type in the same unit.**
-
-When you call `task()`, it returns a `task_id`. Save it to memory immediately. Before spawning, check if task_id exists — if yes, pass it to resume the session.
-
-```
-Correct:  Read memory → task_ids.planning = "ses_abc" → call task(planning, task_id="ses_abc")
-Wrong:    Don't check → call task(planning) → new session, loses all context
-```
-
-Only create NEW session if:
-- First call to this agent type for this unit
-- task_ids.{agent_type} is null
-
 ### Spawning Pattern
 
 **Discovery**: Orchestrator handles directly (no subagent). Ask user questions until problem space is understood.
 
 **All other agents**:
 ```
-□ Read memory → check task_ids.{agent_type}
-□ If NOT null → pass task_id to resume
-□ If null → spawn new, save returned task_id
+□ Read memory → check current phase
+□ Spawn appropriate subagent with full context in the prompt
 □ Run QA after completion
-□ If QA fails, resume with task_id to fix
+□ If QA fails, resume original agent to fix
 ```
 
 ### Discovery (Orchestrator Only)
@@ -146,7 +129,7 @@ Run QA agent after EVERY subagent completes. All agent types require QA.
 ### When QA Flags Issues
 1. Read the QA report
 2. Identify ALL issues (yes, even LOW)
-3. Resume original agent with task_id to fix
+3. Resume original agent to fix all issues
 4. Agent must fix ALL issues in one session
 5. Run QA again to verify
 6. Repeat until PASS with zero issues
@@ -163,13 +146,13 @@ User: "Start the observability unit"
    b. Read design/units/README.md to see existing units
    c. Ask user exploratory questions one at a time
    d. Loop until problem space is fully understood
-4. Launch planning agent to create problem_space.md (REQUIRES QA)
+5. Launch planning agent to create problem_space.md (REQUIRES QA)
 5. For EACH remaining document to create:
    a. Launch document agent (REQUIRES QA)
-      - Spawn subagent, WAIT for full completion
+      - Spawn subagent with full context in prompt, WAIT for full completion
       - Task tool returns complete output
       - Run @qa to evaluate
-      - If QA fails, use task_id to resume and fix
+      - If QA fails, resume original agent to fix
 6. Update memory
 7. Report to user
 ```
