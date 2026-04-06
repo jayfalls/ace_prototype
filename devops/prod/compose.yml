@@ -5,7 +5,7 @@ services:
       dockerfile: devops/prod/api.Containerfile
     container_name: ace_api
     env_file:
-      - ../.env
+      - ../../.env
     depends_on:
       ace_db:
         condition: service_healthy
@@ -30,7 +30,7 @@ services:
       dockerfile: devops/prod/fe.Containerfile
     container_name: ace_fe
     env_file:
-      - ../.env
+      - ../../.env
     depends_on:
       ace_api:
         condition: service_healthy
@@ -45,7 +45,7 @@ services:
     image: postgres:18
     container_name: ace_db
     env_file:
-      - ../.env
+      - ../../.env
     ports:
       - "${POSTGRES_PORT}:5432"
     volumes:
@@ -100,7 +100,7 @@ services:
     image: prom/prometheus
     container_name: ace_prometheus
     env_file:
-      - ../.env
+      - ../../.env
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:Z
       - prometheus_data:/prometheus
@@ -119,7 +119,7 @@ services:
     image: otel/opentelemetry-collector-contrib
     container_name: ace_otel_collector
     env_file:
-      - ../.env
+      - ../../.env
     volumes:
       - ../otel-collector-config.yaml:/etc/otelcol-contrib/config.yaml:Z
       - otel_collector_logs:/var/log/otel
@@ -150,7 +150,7 @@ services:
     image: grafana/loki:3.5.0
     container_name: ace_loki
     env_file:
-      - ../.env
+      - ../../.env
     volumes:
       - loki_data:/loki
     ports:
@@ -168,7 +168,7 @@ services:
     image: grafana/tempo:2.9.1
     container_name: ace_tempo
     env_file:
-      - ../.env
+      - ../../.env
     volumes:
       - ./tempo-config.yml:/etc/tempo-config.yml:ro,Z
       - tempo_data:/var/tempo
@@ -190,7 +190,7 @@ services:
     image: grafana/grafana
     container_name: ace_grafana
     env_file:
-      - ../.env
+      - ../../.env
     volumes:
       - grafana_data:/var/lib/grafana
       - ../provisioning/datasources:/etc/grafana/provisioning/datasources:ro
