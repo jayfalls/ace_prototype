@@ -166,7 +166,3 @@ test: ## Run all tests and validate documentation
 	@echo ""
 	@echo "$(BLUE)Running tests in Frontend container...$(NC)"
 	@cd frontend && npm run test:run 2>/dev/null || echo "Frontend tests not available - run 'cd frontend && npm install' first"
-
-test-integration: ## Run integration tests (requires Valkey and all services running)
-	@echo "$(BLUE)Running integration tests...$(NC)"
-	@$(ORCHESTRATOR) exec ace_api sh -c "cd /app/shared && go test -tags=integration ./caching/... -v -race"
