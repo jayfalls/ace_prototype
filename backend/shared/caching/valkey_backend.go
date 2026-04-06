@@ -40,6 +40,9 @@ func newValkeyBackend(cfg ValkeyConfig) (CacheBackend, error) {
 	if cfg.PoolSize == 0 {
 		cfg.PoolSize = 100
 	}
+	if cfg.MinIdleConns == 0 {
+		cfg.MinIdleConns = 10
+	}
 
 	var opt valkey.ClientOption
 
@@ -61,6 +64,7 @@ func newValkeyBackend(cfg ValkeyConfig) (CacheBackend, error) {
 	}
 	opt.ConnWriteTimeout = cfg.WriteTimeout
 	opt.BlockingPoolSize = cfg.PoolSize
+	opt.BlockingPoolMinSize = cfg.MinIdleConns
 
 	client, err := valkey.NewClient(opt)
 	if err != nil {
@@ -218,10 +222,9 @@ func (b *valkeyBackend) DeletePattern(ctx context.Context, pattern string) error
 	return nil
 }
 
-// DeleteByTag reads the Valkey set at _tags:{tag}, deletes all members and the set.
-func (b *valkeyBackend) DeleteByTag(ctx context.Context, tag string) error {
-	tagKey := "_tags:{" + tag + "}"
-
+// DeleteByTag reads the Valkey set at the given tag key, deletes all members and the set.
+// The tag key is constructed by the cache layer as _tags:{namespace}:{agentId}:{tag}.
+func (b *valkeyBackend) DeleteByTag(ctx context.Context, tagKey string) error {
 	// Get all keys associated with this tag
 	keys, err := b.client.Do(ctx, b.client.B().Smembers().Key(tagKey).Build()).AsStrSlice()
 	if err != nil {
@@ -231,7 +234,7 @@ func (b *valkeyBackend) DeleteByTag(ctx context.Context, tag string) error {
 		return BackendUnavailableError(err)
 	}
 
-	// Delete all keys in batches of 100
+	// Delete all keys in batches of 100, and clean up reverse index
 	for i := 0; i < len(keys); i += DefaultBatchSize {
 		end := i + DefaultBatchSize
 		if end > len(keys) {
@@ -241,6 +244,11 @@ func (b *valkeyBackend) DeleteByTag(ctx context.Context, tag string) error {
 		if len(batch) > 0 {
 			if err := b.client.Do(ctx, b.client.B().Del().Key(batch...).Build()).Error(); err != nil {
 				return BackendUnavailableError(err)
+			}
+			// Clean up reverse index for each deleted key
+			for _, k := range batch {
+				keyTagsKey := "_keytags:" + k
+				b.client.Do(ctx, b.client.B().Del().Key(keyTagsKey).Build())
 			}
 		}
 	}

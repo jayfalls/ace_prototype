@@ -2,6 +2,7 @@ package caching
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -100,7 +101,13 @@ func (c *cacheImpl) Get(ctx context.Context, key string) ([]byte, error) {
 	// Call backend Get
 	value, err := c.backend.Get(ctx, resolvedKey)
 	if err != nil {
-		return nil, err
+		if errors.Is(err, ErrCacheMiss) {
+			// Return (nil, nil) on miss — callers check for nil value
+			value = nil
+			err = nil
+		} else {
+			return nil, err
+		}
 	}
 
 	// Calculate latency
@@ -180,6 +187,14 @@ func (c *cacheImpl) Set(ctx context.Context, key string, value []byte, opts ...S
 
 		// Maintain reverse lookup: SADD all tags to _keytags:{resolvedKey}
 		if err := c.backend.SAdd(ctx, keyTagsKey, tags, ttl); err != nil {
+			return err
+		}
+	}
+
+	// Store version key if version provided
+	if setOpts.Version != "" {
+		versionKey := "_version:" + resolvedKey
+		if err := c.backend.Set(ctx, versionKey, []byte(setOpts.Version), ttl); err != nil {
 			return err
 		}
 	}
@@ -609,14 +624,17 @@ func (c *cacheImpl) DeleteByTag(ctx context.Context, tag string) error {
 		return ErrTagNotFound
 	}
 
-	// Call backend DeleteByTag
-	err := c.backend.DeleteByTag(ctx, tag)
+	// Build the full tag set key matching what Set uses: _tags:{namespace}:{agentId}:{tag}
+	tagSetKey := "_tags:" + c.namespace + ":" + c.agentID + ":" + tag
+
+	// Call backend DeleteByTag with the full tag key
+	err := c.backend.DeleteByTag(ctx, tagSetKey)
 	if err != nil {
 		return err
 	}
 
 	// Call observer with reason "tag"
-	c.observer.ObserveDelete(ctx, c.namespace, "_tags:"+tag, "tag")
+	c.observer.ObserveDelete(ctx, c.namespace, tagSetKey, "tag")
 
 	return nil
 }

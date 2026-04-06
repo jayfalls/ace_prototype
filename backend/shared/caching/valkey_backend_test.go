@@ -323,10 +323,10 @@ func TestValkeyBackend_DeleteByTag_EmptyTag(t *testing.T) {
 
 	// SMEMBERS returns nil (tag doesn't exist)
 	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
-		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && strings.HasPrefix(cmd[1], "_tags:{")
+		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && strings.HasPrefix(cmd[1], "_tags:")
 	})).Return(mock.Result(mock.ValkeyNil()))
 
-	err := b.DeleteByTag(ctx, "user:123")
+	err := b.DeleteByTag(ctx, "_tags:ns:agent:user")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -447,10 +447,10 @@ func TestValkeyBackend_DeleteByTag_TagNotExists(t *testing.T) {
 
 	// SMEMBERS returns nil for non-existent tag
 	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
-		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && cmd[1] == "_tags:{nonexistent}"
+		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && strings.HasPrefix(cmd[1], "_tags:")
 	})).Return(mock.Result(mock.ValkeyNil()))
 
-	err := b.DeleteByTag(ctx, "nonexistent")
+	err := b.DeleteByTag(ctx, "_tags:ns:agent:nonexistent")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -461,9 +461,11 @@ func TestValkeyBackend_DeleteByTag_WithKeys(t *testing.T) {
 	b, client := newTestBackend(t)
 	ctx := context.Background()
 
+	tagKey := "_tags:ns:agent:user"
+
 	// SMEMBERS returns keys associated with the tag
 	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
-		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && cmd[1] == "_tags:{user:123}"
+		return len(cmd) >= 2 && cmd[0] == "SMEMBERS" && cmd[1] == tagKey
 	})).Return(mock.Result(mock.ValkeyArray(
 		mock.ValkeyBlobString("cache:key1"),
 		mock.ValkeyBlobString("cache:key2"),
@@ -474,12 +476,21 @@ func TestValkeyBackend_DeleteByTag_WithKeys(t *testing.T) {
 		return cmd[0] == "DEL"
 	})).Return(mock.Result(mock.ValkeyInt64(2)))
 
+	// DEL the _keytags: reverse index for each key
+	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
+		return cmd[0] == "DEL"
+	})).Return(mock.Result(mock.ValkeyInt64(1)))
+
+	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
+		return cmd[0] == "DEL"
+	})).Return(mock.Result(mock.ValkeyInt64(1)))
+
 	// DEL the tag set itself
 	client.EXPECT().Do(ctx, mock.MatchFn(func(cmd []string) bool {
 		return cmd[0] == "DEL"
 	})).Return(mock.Result(mock.ValkeyInt64(1)))
 
-	err := b.DeleteByTag(ctx, "user:123")
+	err := b.DeleteByTag(ctx, tagKey)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,19 @@
 {
   "version": "1.0",
-  "completed_units": {},
+  "completed_units": {
+    "caching-strategies": {
+      "phases_completed": 11,
+      "description": "Valkey-backed cache library with tag-based invalidation, versioned invalidation, stampede protection, bulk operations, cache warming, and observability",
+      "completed_date": "2026-04-06",
+      "key_learnings": [
+        "Tag index must use SADD/SMEMBERS/SREM (not SET) to work with DeleteByTag",
+        "TrackProgress should return defensive copies, not mutable pointers to shared state",
+        "versionStore interface deferred until a service consumer exists (no dead code)",
+        "Valkey is a hard requirement — must be in compose and integration tests fail hard without it",
+        "Prod compose .env path was ../.env (resolved to devops/.env), fixed to ../../.env"
+      ]
+    }
+  },
   "in_progress_units": [],
   "preferences": {
     "retry_count": 3,
