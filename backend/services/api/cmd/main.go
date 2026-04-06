@@ -23,10 +23,10 @@ import (
 	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
 	"ace/api/internal/repository"
+	_ "ace/api/migrations"
 	"ace/shared/messaging"
 	"ace/shared/telemetry"
 	_ "ace/shared/telemetry/migrations"
-	// _ "ace/api/migrations"
 )
 
 // NOTE: Commented out code to be enabled once needed
