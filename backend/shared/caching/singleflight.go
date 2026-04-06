@@ -9,6 +9,9 @@ type singleFlightImpl struct {
 	group singleflight.Group
 }
 
+// Compile-time interface check.
+var _ SingleFlight = (*singleFlightImpl)(nil)
+
 // NewSingleFlight creates a new SingleFlight instance for stampede protection.
 func NewSingleFlight() SingleFlight {
 	return &singleFlightImpl{}
