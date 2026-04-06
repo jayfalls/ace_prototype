@@ -11,6 +11,8 @@ services:
         condition: service_healthy
       ace_broker:
         condition: service_healthy
+      ace_valkey:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health/ready"]
       interval: 10s
@@ -82,6 +84,22 @@ services:
     command: ["-js", "-m", "8222"]
     volumes:
       - nats_data:/data
+    networks:
+      - ace_network
+
+  ace_valkey:
+    image: valkey/valkey:latest
+    container_name: ace_valkey
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "${VALKEY_PORT}:6379"
+    volumes:
+      - valkey_data:/data
     networks:
       - ace_network
 
@@ -240,6 +258,7 @@ networks:
 volumes:
   postgres_data:
   nats_data:
+  valkey_data:
 
   # Observability volumes
   prometheus_data:

@@ -31,6 +31,9 @@ type cacheImpl struct {
 	missCount atomic.Int64
 }
 
+// Compile-time interface check.
+var _ Cache = (*cacheImpl)(nil)
+
 // resolveKey resolves a logical key to a fully qualified key.
 // If logicalKey already contains colons, parse as entityType:entityID and rebuild with namespace/agentID.
 // Returns ErrAgentIDMissing if agentID is not set.
@@ -107,7 +110,8 @@ func (c *cacheImpl) Get(ctx context.Context, key string) ([]byte, error) {
 	// Increment atomic counters
 	if hit {
 		c.hitCount.Add(1)
-	} else {
+	}
+	if !hit {
 		c.missCount.Add(1)
 	}
 
@@ -253,9 +257,12 @@ func (c *cacheImpl) GetOrFetch(ctx context.Context, key string, fetchFn FetchFun
 
 // getOrFetchWithStampede handles GetOrFetch with stampede protection.
 func (c *cacheImpl) getOrFetchWithStampede(ctx context.Context, resolvedKey string, fetchFn FetchFunc, opts []SetOption, start time.Time) ([]byte, error) {
-	result, err, _ := c.singleFlight.Do(resolvedKey, func() (interface{}, error) {
+	result, err, shared := c.singleFlight.Do(resolvedKey, func() (interface{}, error) {
 		return c.doGetOrFetch(ctx, resolvedKey, fetchFn, opts, start)
 	})
+	// shared indicates whether result was coalesced from another caller.
+	// Currently not needed for business logic but captured for observability.
+	_ = shared
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +425,8 @@ func (c *cacheImpl) GetMany(ctx context.Context, keys []string) (map[string][]by
 		// Increment atomic counters
 		if hit {
 			c.hitCount.Add(1)
-		} else {
+		}
+		if !hit {
 			c.missCount.Add(1)
 		}
 		c.observer.ObserveGet(ctx, c.namespace, key, hit, perKeyLatency)

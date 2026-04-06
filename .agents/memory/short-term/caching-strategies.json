@@ -2,10 +2,7 @@
   "unit": "caching-strategies",
   "current_phase": "backend",
   "status": "in_progress",
-  "pending_tasks": [
-    "Phase 10: Database Migration",
-    "Phase 11: Integration"
-  ],
+  "pending_tasks": [],
   "task_ids": {
     "planning": "ses_2e5804e9bffedaVVCGSgNnF5Wb",
     "research": "ses_2e03321e9ffeQ2N9KKnEubXASq",
@@ -116,7 +113,17 @@
       "phase": "backend-phase9",
       "notes": ["Phase 9 complete: warming.go with Warm, WarmOnStartup, TrackProgress. sync.Map for thread-safe progress, context.WithTimeout for deadlines, defensive copy in TrackProgress, Enabled field checks. 13 test cases. QA PASSED after fixing Enabled checks, mutable pointer, missing tests."],
       "timestamp": "2026-04-06T10:24:35Z"
+    },
+    {
+      "phase": "backend-phase10",
+      "notes": ["Phase 10 complete: Goose migration for version_stamps table, SQLC queries (GetVersionStamp, UpsertVersionStamp, DeleteVersionStamp), schema.sql for inference. versionStore interface deferred (no consumer yet). QA PASSED after removing dead code and redundant PK index."],
+      "timestamp": "2026-04-06T13:03:00Z"
+    },
+    {
+      "phase": "backend-phase11",
+      "notes": ["Phase 11 complete: 6 integration tests (FullLifecycle, GetOrFetch coalescing, TagIndex, BulkOps, Namespace/Agent isolation). Valkey added to dev/prod compose as hard dependency. Integration tests fail hard (t.Fatalf) without Valkey. Interface checks for Cache and SingleFlight. Prod compose .env path fixed. QA PASSED with zero issues."],
+      "timestamp": "2026-04-06T14:23:00Z"
     }
   ],
-  "last_updated": "2026-04-06T10:24:35Z"
+  "last_updated": "2026-04-06T14:23:00Z"
 }
