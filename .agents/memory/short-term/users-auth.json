@@ -1,13 +1,14 @@
 {
   "unit": "users-auth",
-  "current_phase": "planning-bsd",
+  "current_phase": "planning-fsd",
   "status": "in_progress",
   "pending_tasks": [
-    "user_stories.md"
+    "fsd.md"
   ],
   "completed_documents": [
     "problem_space.md",
-    "bsd.md"
+    "bsd.md",
+    "user_stories.md"
   ],
   "episodes": [
     {
@@ -28,10 +29,17 @@
       "phase": "bsd",
       "notes": [
         "bsd.md created - 17 FRs, 17 user stories, 20 business rules",
-        "QA passed - all 4 MEDIUM issues fixed"
+        "QA passed - PR #219 merged"
       ],
       "timestamp": "2026-04-09T00:00:00Z"
+    },
+    {
+      "phase": "user_stories",
+      "notes": [
+        "user_stories.md created - 17 detailed stories with Gherkin scenarios, ASCII flow diagrams"
+      ],
+      "timestamp": "2026-04-09T21:50:00Z"
     }
   ],
-  "last_updated": "2026-04-09T00:00:00Z"
+  "last_updated": "2026-04-09T21:50:00Z"
 }
