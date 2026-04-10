@@ -1,16 +1,15 @@
 {
   "unit": "users-auth",
-  "current_phase": "research-complete",
+  "current_phase": "implementation-planning-complete",
   "status": "in_progress",
-  "pending_tasks": [
-    "implementation.md"
-  ],
+  "pending_tasks": [],
   "completed_documents": [
     "problem_space.md",
     "bsd.md",
     "user_stories.md",
     "fsd.md",
-    "research.md"
+    "research.md",
+    "implementation.md"
   ],
   "episodes": [
     {
@@ -30,7 +29,7 @@
     {
       "phase": "bsd",
       "notes": [
-        "bsd.md created - 17 FRs, 17 user stories, 20 business rules",
+        "bsd.md created",
         "PR #219 merged"
       ],
       "timestamp": "2026-04-09T00:00:00Z"
@@ -38,7 +37,7 @@
     {
       "phase": "user_stories",
       "notes": [
-        "user_stories.md created - 17 detailed stories with Gherkin scenarios",
+        "user_stories.md created",
         "PR #220 merged"
       ],
       "timestamp": "2026-04-09T21:50:00Z"
@@ -46,7 +45,7 @@
     {
       "phase": "fsd",
       "notes": [
-        "fsd.md created - complete technical specification",
+        "fsd.md created",
         "PR #221 merged"
       ],
       "timestamp": "2026-04-09T22:00:00Z"
@@ -54,11 +53,19 @@
     {
       "phase": "research",
       "notes": [
-        "research.md created - technology recommendations for JWT, password hashing, email, CSRF, rate limiting",
-        "QA passed - all 6 issues fixed"
+        "research.md created",
+        "Scope simplified: removed OAuth, added magic links, RS256 everywhere",
+        "PR #222 merged"
       ],
       "timestamp": "2026-04-09T22:30:00Z"
+    },
+    {
+      "phase": "implementation",
+      "notes": [
+        "implementation.md created - 18 micro-PRs for execution"
+      ],
+      "timestamp": "2026-04-10T13:30:00Z"
     }
   ],
-  "last_updated": "2026-04-09T22:35:00Z"
+  "last_updated": "2026-04-10T13:30:00Z"
 }
