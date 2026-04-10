@@ -471,7 +471,7 @@ end
 |----------|-------|--------|--------|
 | `/auth/login` | 5 attempts | 15 minutes | Brute force protection |
 | `/auth/register` | 3 attempts | 15 minutes | Registration spam |
-| `/auth/password-reset` | 3 attempts | 15 minutes | Token enumeration |
+| `/auth/password/reset/request` | 3 attempts | 15 minutes | Token enumeration |
 | `/auth/refresh` | 10 attempts | 15 minutes | Token theft detection |
 | General API | 100 requests | 1 minute | Fair usage |
 
