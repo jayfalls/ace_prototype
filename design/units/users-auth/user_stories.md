@@ -14,11 +14,9 @@ Unit: users-auth
 1. [Authentication Flows](#1-authentication-flows)
    - [Registration Flow](#11-registration-flow)
    - [Login Flow](#12-login-flow)
-   - [SSO OAuth Flow](#13-sso-oauth-flow)
-   - [Password Reset Flow](#14-password-reset-flow)
-   - [Email Verification Flow](#15-email-verification-flow)
-   - [Token Refresh Flow](#16-token-refresh-flow)
-   - [Logout Flow](#17-logout-flow)
+   - [Magic Link Password Reset Flow](#13-magic-link-password-reset-flow)
+   - [Token Refresh Flow](#14-token-refresh-flow)
+   - [Logout Flow](#15-logout-flow)
 2. [Authorization Flows](#2-authorization-flows)
 3. [Admin Flows](#3-admin-flows)
 4. [User Stories (Detailed)](#4-user-stories-detailed)
@@ -32,12 +30,13 @@ Unit: users-auth
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        EMAIL/PASSWORD REGISTRATION FLOW                       │
+│                    EMAIL/PASSWORD REGISTRATION FLOW                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   User                      Frontend                      Backend
    │                            │                            │
    │  1. Fill registration form │                            │
+   │  {email, password}         │                            │
    │────────────────────────────>│                            │
    │                            │  2. POST /auth/register    │
    │                            │  {email, password}         │
@@ -51,24 +50,23 @@ Unit: users-auth
    │                            │  4. Hash password (Argon2id)│
    │                            │                            │
    │                            │  5. Create user record     │
-   │                            │  status: "pending_verification"│
+   │                            │  - status: "active"       │
+   │                            │    (or "pending_admin"    │
+   │                            │     if admin verification) │
    │                            │                            │
-   │                            │  6. Generate email token   │
-   │                            │  - UUID                    │
-   │                            │  - Hash stored in DB       │
-   │                            │  - Expiry: 24 hours        │
+   │                            │  6. Generate tokens        │
+   │                            │  - Access token (5-15 min) │
+   │                            │  - Refresh token (7 days) │
    │                            │                            │
    │                            │  7. Publish event          │
    │                            │  ace.auth.user_registered.event│
    │                            │                            │
-   │                            │  8. Send verification email │
-   │                            │  (via email service)       │
-   │                            │                            │
-   │  9. Success response       │                            │
-   │  {message: "Check email"}  │                            │
+   │  8. Return tokens         │                            │
+   │  {access_token,           │                            │
+   │   refresh_token,          │                            │
+   │   user_id}                │                            │
    │<────────────────────────────│                            │
    │                            │                            │
-   │                            │                            ▼
 ```
 
 **API Request/Response:**
@@ -86,7 +84,10 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "message": "Registration successful. Please check your email to verify your account.",
+  "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "rt_550e8400-e29b-41d4-a716-446655440001",
+  "token_type": "Bearer",
+  "expires_in": 900,
   "user_id": "550e8400-e29b-41d4-a716-446655440000"
 }
 ```
@@ -99,7 +100,7 @@ Content-Type: application/json
 | 400 | `WEAK_PASSWORD` | Password does not meet complexity requirements |
 | 409 | `EMAIL_EXISTS` | Email already registered |
 | 429 | `RATE_LIMITED` | Too many registration attempts |
-| 500 | `INTERNAL_ERROR` | Server error |
+| 403 | `REGISTRATION_DISABLED` | Registration disabled (single-user mode) |
 
 ---
 
@@ -127,9 +128,8 @@ Content-Type: application/json
    │                            │                            │
    │                            │  5. Check account status   │
    │                            │  - active: proceed         │
+   │                            │  - pending_admin: reject   │
    │                            │  - suspended: reject       │
-   │                            │  - pending_verification:   │
-   │                            │    reject                  │
    │                            │                            │
    │                            │  6. Verify password        │
    │                            │  - Argon2id compare        │
@@ -151,6 +151,70 @@ Content-Type: application/json
    │  {access_token,           │                            │
    │   refresh_token,          │                            │
    │   expires_in}              │                            │
+   │<────────────────────────────│                            │
+   │                            │                            │
+```
+
+**Magic Link Login Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            MAGIC LINK LOGIN FLOW                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  User                      Frontend                      Backend
+   │                            │                            │
+   │  1. Fill login form        │                            │
+   │  {email}                   │                            │
+   │  Click "Send Magic Link"  │                            │
+   │────────────────────────────>│                            │
+   │                            │                            │
+   │                            │  2. POST /auth/magic-link/request │
+   │                            │  {email}                   │
+   │                            │───────────────────────────>│
+   │                            │                            │
+   │                            │  3. Check rate limit       │
+   │                            │  - 3 requests/hour/email   │
+   │                            │                            │
+   │                            │  4. Find user by email     │
+   │                            │  - Always return success   │
+   │                            │    (prevents enumeration)  │
+   │                            │                            │
+   │                            │  5. Generate magic token  │
+   │                            │  - UUID                    │
+   │                            │  - Hash stored in DB       │
+   │                            │  - Expiry: 15 minutes     │
+   │                            │                            │
+   │                            │  6. IF SMTP configured:   │
+   │                            │     Send email with link   │
+   │                            │     OR                    │
+   │                            │     Log token to console   │
+   │                            │                            │
+   │  7. "Check your email"    │                            │
+   │     or "Token: xxx"       │                            │
+   │     (dev mode)             │                            │
+   │<────────────────────────────│                            │
+   │                            │                            │
+   │  8. Click magic link      │                            │
+   │  /auth/magic-link/verify   │                            │
+   │  confirm?token=xxx         │                            │
+   │────────────────────────────>│                            │
+   │                            │                            │
+   │                            │  9. Validate token         │
+   │                            │  - Check hash match        │
+   │                            │  - Check expiry           │
+   │                            │  - Check not used         │
+   │                            │                            │
+   │                            │  10. Generate tokens      │
+   │                            │  - Access + Refresh       │
+   │                            │                            │
+   │                            │  11. Mark token as used   │
+   │                            │                            │
+   │                            │  12. Publish event         │
+   │                            │  ace.auth.magic_link_login │
+   │                            │                            │
+   │  13. Return tokens        │                            │
+   │  {access_token, ...}       │                            │
    │<────────────────────────────│                            │
    │                            │                            │
 ```
@@ -201,108 +265,29 @@ Content-Type: application/json
 }
 ```
 
----
+```http
+POST /auth/magic-link/request
+Content-Type: application/json
 
-### 1.3 SSO OAuth Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           GOOGLE OAUTH FLOW                                  │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  User                      Frontend                      Backend
-   │                            │                            │
-   │  1. Click "Login with    │                            │
-   │     Google"               │                            │
-   │────────────────────────────>│                            │
-   │                            │                            │
-   │                            │  2. Generate state token  │
-   │                            │  - UUID + CSRF protection  │
-   │                            │  - Store in session/Valkey │
-   │                            │                            │
-   │  3. Redirect to Google     │                            │
-   │  /auth/oauth/google       │                            │
-   │<────────────────────────────│                            │
-   │                            │                            │
-   │  4. Google Login Page      │                            │
-   │  ─────────────────────────│                            │
-   │  User authenticates       │                            │
-   │  with Google              │                            │
-   │  ─────────────────────────│                            │
-   │                            │                            │
-   │  5. Callback to           │                            │
-   │  /auth/oauth/google/      │                            │
-   │  callback?code=xxx       │                            │
-   │  &state=yyy               │                            │
-   │────────────────────────────>│                            │
-   │                            │                            │
-   │                            │  6. Validate state         │
-   │                            │  - Prevent CSRF           │
-   │                            │                            │
-   │                            │  7. Exchange code for      │
-   │                            │     tokens (Google API)    │
-   │                            │                            │
-   │                            │  8. Get user info          │
-   │                            │  (email, name, picture)    │
-   │                            │                            │
-   │                            │  9. Check if user exists   │
-   │                            │  by Google ID or email     │
-   │                            │                            │
-   │                            │  10. If new user:          │
-   │                            │  - Create user account     │
-   │                            │  - Link oauth_provider     │
-   │                            │  - status: "active"       │
-   │                            │    (email pre-verified)    │
-   │                            │                            │
-   │                            │  11. If existing user:    │
-   │                            │  - Link oauth_provider     │
-   │                            │    if not already linked   │
-   │                            │                            │
-   │                            │  12. Generate tokens       │
-   │                            │  - Access + Refresh       │
-   │                            │                            │
-   │                            │  13. Publish event         │
-   │                            │  ace.auth.login.event      │
-   │                            │  {provider: "google"}     │
-   │                            │                            │
-   │  14. Redirect to app       │                            │
-   │  with tokens in URL or     │
-   │  set-cookie                │
-   │<────────────────────────────│                            │
-   │                            │                            │
+{
+  "email": "user@example.com"
+}
 ```
 
-**GitHub OAuth Flow:** Identical structure, substituting `google` with `github`.
-
-**State Parameter Security:**
-
-```
-┌────────────────────────────────────────────────┐
-│            STATE PARAMETER STRUCTURE          │
-├────────────────────────────────────────────────┤
-│  {                                            │
-│    "csrf_token": "uuid",                      │
-│    "redirect_url": "/dashboard",              │
-│    "timestamp": 1712600000,                  │
-│    "signature": "HMAC-SHA256(...)"            │
-│  }                                            │
-│  Base64URL encoded and passed to OAuth provider│
-│                                                │
-│  Validation:                                   │
-│  1. Decode state                              │
-│  2. Verify signature                          │
-│  3. Check timestamp (max 10 minutes)          │
-│  4. Verify CSRF token matches stored value   │
-└────────────────────────────────────────────────┘
+```json
+{
+  "success": true,
+  "message": "If an account exists with this email, a magic link has been sent."
+}
 ```
 
 ---
 
-### 1.4 Password Reset Flow
+### 1.3 Magic Link Password Reset Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                          PASSWORD RESET FLOW                                 │
+│                      MAGIC LINK PASSWORD RESET FLOW                         │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   User                      Frontend                      Backend
@@ -313,6 +298,7 @@ Content-Type: application/json
    │                            │                            │
    │  2. Enter email            │                            │
    │  {email}                   │                            │
+   │  Click "Reset Password"   │                            │
    │────────────────────────────>│                            │
    │                            │                            │
    │                            │  3. Check rate limit       │
@@ -328,10 +314,16 @@ Content-Type: application/json
    │                            │  - Expiry: 1 hour          │
    │                            │  - Single-use flag        │
    │                            │                            │
-   │                            │  6. Send reset email       │
-   │                            │  (via email service)       │
+   │                            │  6. IF SMTP configured:   │
+   │                            │     Send reset email       │
+   │                            │     with magic link        │
+   │                            │     OR                    │
+   │                            │     Log token to console   │
+   │                            │     "Magic link: ..."      │
    │                            │                            │
    │  7. "Check your email"     │                            │
+   │     or "Token: xxx"       │                            │
+   │     (dev mode)             │                            │
    │<────────────────────────────│                            │
    │                            │                            │
    │  8. Click reset link       │                            │
@@ -365,7 +357,7 @@ Content-Type: application/json
    │                            │    user's refresh tokens   │
    │                            │                            │
    │                            │  16. Publish event         │
-   │                            │  ace.auth.password_change │
+   │                            │  ace.auth.password_change  │
    │                            │  .event                    │
    │                            │                            │
    │  17. Success response      │                            │
@@ -412,64 +404,7 @@ Content-Type: application/json
 
 ---
 
-### 1.5 Email Verification Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                         EMAIL VERIFICATION FLOW                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-
-  User                      Frontend                      Backend
-   │                            │                            │
-   │  1. Click verification     │                            │
-   │  link in email             │                            │
-   │  /auth/email/verify?       │                            │
-   │  token=xxx                 │                            │
-   │────────────────────────────>│                            │
-   │                            │                            │
-   │                            │  2. Validate token          │
-   │                            │  - Check hash match        │
-   │                            │  - Check expiry           │
-   │                            │  - Check not used         │
-   │                            │                            │
-   │                            │  3. Update user status     │
-   │                            │  - email_verified: true    │
-   │                            │  - status: "active"        │
-   │                            │                            │
-   │                            │  4. Mark token as used     │
-   │                            │                            │
-   │                            │  5. Publish event          │
-   │                            │  ace.auth.email_verified   │
-   │                            │  .event                    │
-   │                            │                            │
-   │  6. Success page           │                            │
-   │  "Email verified!"         │                            │
-   │<────────────────────────────│                            │
-   │                            │                            │
-```
-
-**API Request/Response:**
-
-```http
-POST /auth/email/verify
-Content-Type: application/json
-
-{
-  "token": "550e8400-e29b-41d4-a716-446655440003"
-}
-```
-
-```json
-{
-  "success": true,
-  "message": "Email verified successfully. Your account is now active.",
-  "redirect_url": "/login"
-}
-```
-
----
-
-### 1.6 Token Refresh Flow
+### 1.4 Token Refresh Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -523,7 +458,7 @@ Content-Type: application/json
 │                                                              │
 │   BEFORE REFRESH:                                           │
 │   ┌─────────────┐                                           │
-│   │ Access Token│ (expires at T+5min)                       │
+│   │ Access Token│ (expires at T+5min)                        │
 │   ├─────────────┤                                           │
 │   │Refresh Token│ (stored in Valkey, expires at T+7days)   │
 │   └─────────────┘                                           │
@@ -568,11 +503,11 @@ Cookie: refresh_token=rt_550e8400-e29b-41d4-a716-446655440001
 
 ---
 
-### 1.7 Logout Flow
+### 1.5 Logout Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                             LOGOUT FLOW                                     │
+│                             LOGOUT FLOW                                      │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   User                      Frontend                      Backend
@@ -716,7 +651,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                   RESOURCE-LEVEL AUTHORIZATION FLOW                         │
+│                   RESOURCE-LEVEL AUTHORIZATION FLOW                          │
 └─────────────────────────────────────────────────────────────────────────────┘
 
   Request                      Auth                     Service
@@ -778,7 +713,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  PERMISSION CHECK SEQUENCE                 │
+│                  PERMISSION CHECK SEQUENCE                  │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌─────────┐    ┌──────────┐    ┌──────────────────────┐   │
@@ -921,7 +856,7 @@ Content-Type: application/json
    │                            │  - Schedule for deletion   │
    │                            │                            │
    │                            │  6. Publish event          │
-   │                            │  ace.auth.account_deleted │
+   │                            │  ace.auth.account_deleted  │
    │                            │  .event                    │
    │                            │                            │
    │  7. Success response       │                            │
@@ -950,7 +885,7 @@ Content-Type: application/json
    │                            │                            │
    │                            │  3. Verify admin role       │
    │                            │                            │
-   │                            │  4. Validate role          │
+   │                            │  4. Validate role           │
    │                            │  - Must be valid enum      │
    │                            │  - admin can't demote self │
    │                            │                            │
@@ -998,7 +933,7 @@ Content-Type: application/json
 
 ## 4. User Stories (Detailed)
 
-### US-1: User Registration with Email/Password
+### US-1: User Registration
 
 ```gherkin
 Feature: Email/Password Registration
@@ -1009,10 +944,19 @@ Feature: Email/Password Registration
     When the user submits registration with:
       | email | password |
       | newuser@example.com | SecureP@ss123 |
-    Then the system creates a new user account with status "pending_verification"
-    And sends a verification email to "newuser@example.com"
-    And returns success response with user_id
+    Then the system creates a new user account with status "active"
+    And returns access_token and refresh_token
     And publishes "ace.auth.user_registered.event"
+
+  Scenario: Registration with admin verification required
+    Given the system is configured with ADMIN_VERIFICATION_REQUIRED=true
+    And the user is on the registration page
+    When the user submits registration with:
+      | email | password |
+      | newuser@example.com | SecureP@ss123 |
+    Then the system creates a new user account with status "pending_admin"
+    And returns tokens are NOT issued
+    And publishes "ace.auth.user_registered.event" with pending status
 
   Scenario: Registration fails with weak password
     Given the user is on the registration page
@@ -1042,28 +986,28 @@ Feature: Email/Password Registration
 | Field | Value |
 |-------|-------|
 | **ID** | US-1 |
-| **Title** | User Registration with Email/Password |
+| **Title** | User Registration |
 | **User Persona** | New user (Hobbyist, SaaS User) |
 | **User Goal** | Create an account to access the platform |
 | **User Benefit** | Establish identity to save and access personal data |
 | **Pre-conditions** | User is not logged in; registration is enabled |
-| **Main Flow** | 1. User fills registration form → 2. System validates input → 3. Hash password → 4. Create user record → 5. Generate verification token → 6. Send verification email → 7. Return success |
-| **Alternative Flows** | Invalid email format; weak password; duplicate email; rate limited |
-| **Post-conditions** | User record created with pending_verification status; verification email sent |
+| **Main Flow** | 1. User fills registration form → 2. System validates input → 3. Hash password → 4. Create user record → 5. Return tokens |
+| **Alternative Flows** | Invalid email format; weak password; duplicate email; rate limited; admin verification required |
+| **Post-conditions** | User record created; tokens issued (unless admin verification required) |
 | **Priority** | Must have |
 | **Acceptance Criteria** | See Gherkin scenarios above |
 
 ---
 
-### US-2: User Login with Email/Password
+### US-2: User Login
 
 ```gherkin
-Feature: Email/Password Login
+Feature: User Login
 
   Background:
-    Given a verified user exists with email "user@example.com" and password "CorrectP@ss123"
+    Given a user exists with email "user@example.com" and password "CorrectP@ss123"
 
-  Scenario: Successful login with correct credentials
+  Scenario: Successful login with email/password
     Given the user is on the login page
     And no active session exists
     When the user submits login with:
@@ -1072,6 +1016,22 @@ Feature: Email/Password Login
     Then the system returns HTTP 200 with access_token and refresh_token
     And resets failed login attempts for this user
     And publishes "ace.auth.login.event" to NATS
+
+  Scenario: Successful login with magic link
+    Given the user is on the login page
+    And no active session exists
+    When the user submits email "user@example.com" and requests magic link
+    Then the system always returns success (prevents enumeration)
+    And if user exists, generates a magic token
+    And sends email (or logs token in dev mode)
+
+  Scenario: Magic link login with valid token
+    Given a user has a valid magic link token
+    When the user visits the magic link URL
+    Then the system validates the token
+    And returns access_token and refresh_token
+    And marks token as used
+    And publishes "ace.auth.magic_link_login.event"
 
   Scenario: Failed login with incorrect password
     Given the user is on the login page
@@ -1089,157 +1049,30 @@ Feature: Email/Password Login
     And locks the account for 15 minutes
     And publishes "ace.auth.account_locked.event" to NATS
 
-  Scenario: Login rejected for unverified email
-    Given a user exists with email "unverified@example.com" and status "pending_verification"
+  Scenario: Login rejected for pending admin verification
+    Given a user exists with email "pending@example.com" and status "pending_admin"
     When the user submits login with correct credentials
-    Then the system returns HTTP 403 with error "EMAIL_NOT_VERIFIED"
+    Then the system returns HTTP 403 with error "PENDING_ADMIN_VERIFICATION"
 ```
 
 **Story Details:**
 | Field | Value |
 |-------|-------|
 | **ID** | US-2 |
-| **Title** | User Login with Email/Password |
+| **Title** | User Login |
 | **User Persona** | Registered user (Hobbyist, SaaS User) |
 | **User Goal** | Access my account securely |
 | **User Benefit** | Access saved work, get personalized experience |
-| **Pre-conditions** | User has registered and verified email |
+| **Pre-conditions** | User has registered (and verified if required) |
 | **Main Flow** | 1. User enters credentials → 2. Rate limit check → 3. Validate credentials → 4. Generate tokens → 5. Store session → 6. Publish event → 7. Return tokens |
-| **Alternative Flows** | Invalid credentials; account locked; email not verified |
+| **Alternative Flows** | Invalid credentials; account locked; pending admin verification; magic link login |
 | **Post-conditions** | Valid JWT access token and refresh token issued |
 | **Priority** | Must have |
 | **Acceptance Criteria** | See Gherkin scenarios above |
 
 ---
 
-### US-3: SSO Login via Google
-
-```gherkin
-Feature: Google OAuth Login
-
-  Scenario: New user logs in with Google for the first time
-    Given the user clicks "Login with Google"
-    When the OAuth flow completes with Google user "user@gmail.com"
-    Then the system creates a new user with email "user@gmail.com"
-    And links Google OAuth provider to the account
-    And sets user status to "active" (email pre-verified by Google)
-    And returns tokens
-    And publishes "ace.auth.login.event" with provider "google"
-
-  Scenario: Existing email/password user links Google on login
-    Given a user exists with email "user@example.com" and password
-    And the user completes Google OAuth with email "user@example.com"
-    When the OAuth flow completes
-    Then the system links Google OAuth provider to existing account
-    And returns tokens
-    And does NOT create a new user
-
-  Scenario: Google login blocked due to OAuth state mismatch (CSRF)
-    Given the user initiates Google OAuth
-    When the OAuth callback has an invalid state parameter
-    Then the system returns HTTP 400 with error "INVALID_OAUTH_STATE"
-    And does not authenticate the user
-```
-
-**Story Details:**
-| Field | Value |
-|-------|-------|
-| **ID** | US-3 |
-| **Title** | SSO Login via Google |
-| **User Persona** | SaaS User, Developer |
-| **User Goal** | Log in without creating a new password |
-| **User Benefit** | Faster signup, no new credentials to remember |
-| **Pre-conditions** | Google OAuth configured; user has Google account |
-| **Main Flow** | 1. User clicks Google login → 2. Generate CSRF state → 3. Redirect to Google → 4. User authenticates → 5. OAuth callback → 6. Validate state → 7. Exchange code → 8. Create/link user → 9. Generate tokens |
-| **Alternative Flows** | CSRF attack detected; email already exists with different auth |
-| **Post-conditions** | User authenticated; Google provider linked to account |
-| **Priority** | Must have |
-| **Acceptance Criteria** | See Gherkin scenarios above |
-
----
-
-### US-4: SSO Login via GitHub
-
-```gherkin
-Feature: GitHub OAuth Login
-
-  Scenario: Developer logs in with GitHub for the first time
-    Given the user clicks "Login with GitHub"
-    When the OAuth flow completes with GitHub user
-    Then the system creates a new user
-    And links GitHub OAuth provider to the account
-    And returns tokens
-    And publishes "ace.auth.login.event" with provider "github"
-```
-
-**Story Details:**
-| Field | Value |
-|-------|-------|
-| **ID** | US-4 |
-| **Title** | SSO Login via GitHub |
-| **User Persona** | Developer User |
-| **User Goal** | Log in using existing GitHub identity |
-| **User Benefit** | Single sign-on; potential GitHub API integration |
-| **Pre-conditions** | GitHub OAuth configured; user has GitHub account |
-| **Main Flow** | Same as Google OAuth (US-3) |
-| **Alternative Flows** | Same as Google OAuth (US-3) |
-| **Post-conditions** | User authenticated; GitHub provider linked |
-| **Priority** | Must have |
-| **Acceptance Criteria** | See Gherkin scenarios above |
-
----
-
-### US-5: Link Multiple OAuth Providers
-
-```gherkin
-Feature: Multiple OAuth Provider Linking
-
-  Background:
-    Given a user is logged in with email "user@example.com"
-    And the user has linked Google OAuth to their account
-
-  Scenario: Link GitHub to existing account
-    Given the user is on account settings page
-    And GitHub OAuth is not linked
-    When the user initiates GitHub OAuth linking
-    And completes the OAuth flow
-    Then GitHub OAuth is linked to the account
-    And the user can now log in with either Google or GitHub
-
-  Scenario: Unlink OAuth provider
-    Given the user is on account settings page
-    And Google OAuth is linked
-    And the account has at least one other auth method (password)
-    When the user unlinks Google OAuth
-    Then Google OAuth is unlinked from the account
-    And the user cannot login with Google anymore
-
-  Scenario: Cannot unlink last auth method
-    Given the user is on account settings page
-    And Google OAuth is the only linked auth method
-    And the account has no password
-    When the user attempts to unlink Google OAuth
-    Then the system returns HTTP 400 with error "CANNOT_REMOVE_LAST_AUTH_METHOD"
-```
-
-**Story Details:**
-| Field | Value |
-|-------|-------|
-| **ID** | US-5 |
-| **Title** | Link Multiple OAuth Providers |
-| **User Persona** | SaaS User |
-| **User Goal** | Use multiple login methods interchangeably |
-| **User Benefit** | Flexibility; backup login method |
-| **Pre-conditions** | User is authenticated |
-| **Main Flow** | 1. User goes to settings → 2. Initiates OAuth linking → 3. Completes OAuth → 4. Provider linked |
-| **Alternative Flows** | Attempting to remove last auth method |
-| **Post-conditions** | Multiple OAuth providers linked |
-| **Priority** | Should have |
-| **Acceptance Criteria** | See Gherkin scenarios above |
-
----
-
-### US-6: User Logout
+### US-3: User Logout
 
 ```gherkin
 Feature: User Logout
@@ -1262,7 +1095,7 @@ Feature: User Logout
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-6 |
+| **ID** | US-3 |
 | **Title** | User Logout |
 | **User Persona** | Any authenticated user |
 | **User Goal** | Secure my account on shared devices |
@@ -1276,7 +1109,7 @@ Feature: User Logout
 
 ---
 
-### US-7: Password Reset
+### US-4: Password Reset
 
 ```gherkin
 Feature: Password Reset
@@ -1286,22 +1119,28 @@ Feature: Password Reset
     And the user is on the password reset page
     When the user submits email "user@example.com"
     Then the system always returns success (prevents email enumeration)
-    And if user exists, generates a reset token
-    And sends reset email with the token
+    And if user exists, generates a magic reset token
+    And sends email with magic link (or logs token in dev mode)
 
-  Scenario: Reset password with valid token
-    Given a user has a valid password reset token
-    When the user submits new password "NewSecureP@ss456" with the token
+  Scenario: Reset password with valid magic link
+    Given a user has a valid magic reset token
+    When the user visits the reset link and submits new password "NewSecureP@ss456"
     Then the system updates the password hash
     And invalidates the reset token
     And invalidates all user sessions
     And publishes "ace.auth.password_change.event"
 
   Scenario: Reset password with expired token
-    Given a user has an expired password reset token
-    When the user submits new password with the token
-    Then the system returns HTTP 400 with error "TOKEN_EXPIRED"
-    And does not update password
+    Given a user has an expired magic reset token
+    When the user visits the reset link
+    Then the system returns error "TOKEN_EXPIRED"
+    And does not allow password update
+
+  Scenario: Reset password with already-used token
+    Given a user has an already-used magic reset token
+    When the user visits the reset link
+    Then the system returns error "TOKEN_ALREADY_USED"
+    And does not allow password update
 
   Scenario: Reset password rate limited
     Given the user has requested 3 password resets in the last hour for email "user@example.com"
@@ -1312,59 +1151,21 @@ Feature: Password Reset
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-7 |
+| **ID** | US-4 |
 | **Title** | Password Reset |
 | **User Persona** | User who forgot password |
 | **User Goal** | Regain access to my account |
 | **User Benefit** | Recover account without losing access |
 | **Pre-conditions** | User account exists with valid email |
-| **Main Flow** | 1. User submits email → 2. System generates reset token → 3. Email sent → 4. User clicks link → 5. Submits new password → 6. Password updated → 7. Sessions invalidated |
-| **Alternative Flows** | Expired token; rate limited; invalid token |
+| **Main Flow** | 1. User submits email → 2. System generates magic reset token → 3. Email sent or token logged → 4. User clicks link → 5. Validates token → 6. Submits new password → 7. Password updated → 8. Sessions invalidated |
+| **Alternative Flows** | Expired token; already-used token; rate limited |
 | **Post-conditions** | New password set; all sessions invalidated |
 | **Priority** | Must have |
 | **Acceptance Criteria** | See Gherkin scenarios above |
 
 ---
 
-### US-8: Email Verification
-
-```gherkin
-Feature: Email Verification
-
-  Scenario: Verify email with valid token
-    Given a user exists with status "pending_verification"
-    And the user has a valid email verification token
-    When the user clicks the verification link
-    Then the system updates user status to "active"
-    And marks email as verified
-    And invalidates the verification token
-    And publishes "ace.auth.email_verified.event"
-
-  Scenario: Verify email with expired token
-    Given a user has an expired verification token
-    When the user clicks the verification link
-    Then the system returns HTTP 400 with error "TOKEN_EXPIRED"
-    And does not update user status
-```
-
-**Story Details:**
-| Field | Value |
-|-------|-------|
-| **ID** | US-8 |
-| **Title** | Email Verification |
-| **User Persona** | New registered user |
-| **User Goal** | Confirm my email address |
-| **User Benefit** | Unlocks full account features; enables password reset |
-| **Pre-conditions** | User registered but not verified |
-| **Main Flow** | 1. User clicks verification link → 2. Token validated → 3. Status updated to active |
-| **Alternative Flows** | Expired token; already verified |
-| **Post-conditions** | Email verified; account active |
-| **Priority** | Must have |
-| **Acceptance Criteria** | See Gherkin scenarios above |
-
----
-
-### US-9: Role-Based Access Control
+### US-5: Role-Based Access Control
 
 ```gherkin
 Feature: Role-Based Access Control
@@ -1395,7 +1196,7 @@ Feature: Role-Based Access Control
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-9 |
+| **ID** | US-5 |
 | **Title** | Role-Based Access Control |
 | **User Persona** | Platform Admin, Team Admin, User, Viewer |
 | **User Goal** | Control what users can do on the platform |
@@ -1409,7 +1210,7 @@ Feature: Role-Based Access Control
 
 ---
 
-### US-10: Resource-Level Authorization
+### US-6: Resource-Level Authorization
 
 ```gherkin
 Feature: Resource-Level Authorization
@@ -1444,7 +1245,7 @@ Feature: Resource-Level Authorization
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-10 |
+| **ID** | US-6 |
 | **Title** | Resource-Level Authorization |
 | **User Persona** | Any user who owns or shares resources |
 | **User Goal** | Control who can access my agents |
@@ -1458,7 +1259,7 @@ Feature: Resource-Level Authorization
 
 ---
 
-### US-11: View Shared Resources
+### US-7: View Shared Resources
 
 ```gherkin
 Feature: View Shared Resources
@@ -1482,7 +1283,7 @@ Feature: View Shared Resources
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-11 |
+| **ID** | US-7 |
 | **Title** | View Shared Resources |
 | **User Persona** | Viewer role, Team Member |
 | **User Goal** | Review shared work without modifying it |
@@ -1496,7 +1297,7 @@ Feature: View Shared Resources
 
 ---
 
-### US-12: Unauthenticated Access Rejection
+### US-8: Unauthenticated Access Rejection
 
 ```gherkin
 Feature: Unauthenticated Access Rejection
@@ -1527,7 +1328,7 @@ Feature: Unauthenticated Access Rejection
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-12 |
+| **ID** | US-8 |
 | **Title** | Unauthenticated Access Rejection |
 | **User Persona** | All users (security requirement) |
 | **User Goal** | Prevent unauthorized access to protected data |
@@ -1541,7 +1342,7 @@ Feature: Unauthenticated Access Rejection
 
 ---
 
-### US-13: Single-User Mode
+### US-9: Single-User Mode
 
 ```gherkin
 Feature: Single-User Mode
@@ -1563,7 +1364,7 @@ Feature: Single-User Mode
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-13 |
+| **ID** | US-9 |
 | **Title** | Single-User Mode |
 | **User Persona** | Hobbyist User |
 | **User Goal** | Use system without complex setup |
@@ -1577,7 +1378,7 @@ Feature: Single-User Mode
 
 ---
 
-### US-14: Multi-User Mode
+### US-10: Multi-User Mode
 
 ```gherkin
 Feature: Multi-User Mode
@@ -1599,7 +1400,7 @@ Feature: Multi-User Mode
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-14 |
+| **ID** | US-10 |
 | **Title** | Multi-User Mode |
 | **User Persona** | SaaS Operator |
 | **User Goal** | Support multiple independent users |
@@ -1613,7 +1414,7 @@ Feature: Multi-User Mode
 
 ---
 
-### US-15: Change Password
+### US-11: Change Password
 
 ```gherkin
 Feature: Change Password
@@ -1648,7 +1449,7 @@ Feature: Change Password
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-15 |
+| **ID** | US-11 |
 | **Title** | Change Password |
 | **User Persona** | Authenticated user |
 | **User Goal** | Maintain account security |
@@ -1662,7 +1463,7 @@ Feature: Change Password
 
 ---
 
-### US-16: Account Deletion
+### US-12: Account Deletion
 
 ```gherkin
 Feature: Account Deletion
@@ -1692,7 +1493,7 @@ Feature: Account Deletion
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-16 |
+| **ID** | US-12 |
 | **Title** | Account Deletion |
 | **User Persona** | Any user, Admin |
 | **User Goal** | Remove my data from the platform |
@@ -1706,7 +1507,7 @@ Feature: Account Deletion
 
 ---
 
-### US-16a: Account Suspension
+### US-13: Account Suspension
 
 ```gherkin
 Feature: Account Suspension
@@ -1741,7 +1542,7 @@ Feature: Account Suspension
 **Story Details:**
 | Field | Value |
 |-------|-------|
-| **ID** | US-16a |
+| **ID** | US-13 |
 | **Title** | Account Suspension |
 | **User Persona** | Platform Admin |
 | **User Goal** | Temporarily revoke access for policy violations |
@@ -1759,23 +1560,19 @@ Feature: Account Suspension
 
 | Story ID | Story Title | Acceptance Criteria | Test Priority | BSD Reference |
 |----------|-------------|---------------------|---------------|---------------|
-| US-1 | User Registration with Email/Password | Registration works with valid input; weak passwords rejected; duplicate emails handled; rate limiting active | Must have | AC-1 |
-| US-2 | User Login with Email/Password | Successful login returns tokens; failed logins tracked; account lockout works; events published | Must have | AC-2 |
-| US-3 | SSO Login via Google | OAuth flow completes; new users auto-registered; existing users can link; CSRF prevented | Must have | AC-3 |
-| US-4 | SSO Login via GitHub | OAuth flow completes; new users auto-registered; existing users can link; CSRF prevented | Must have | AC-4 |
-| US-5 | Link Multiple OAuth Providers | Users can link/unlink providers; at least one auth method required | Should have | AC-5 |
-| US-6 | User Logout | Session invalidated; event published; all devices logged out on password change | Must have | AC-6 |
-| US-7 | Password Reset | Reset email sent; valid tokens work; expired tokens rejected; rate limited | Must have | AC-7 |
-| US-8 | Email Verification | Valid tokens activate account; expired tokens rejected | Must have | AC-8 |
-| US-9 | Role-Based Access Control | Admin can access admin endpoints; regular users cannot; viewers have limited access | Must have | AC-9 |
-| US-10 | Resource-Level Authorization | Owner has full access; shared users have appropriate permissions; unauthorized access blocked | Must have | AC-10 |
-| US-11 | View Shared Resources | Viewers can list and read shared resources; cannot modify | Should have | AC-11 |
-| US-12 | Unauthenticated Access Rejection | Missing token returns 401; invalid token returns 401; insufficient permissions returns 403 | Must have | AC-12 |
-| US-13 | Single-User Mode | First user becomes admin; registration disabled after first user | Must have | AC-13 |
-| US-14 | Multi-User Mode | Open registration; users isolated by default | Must have | AC-14 |
-| US-15 | Change Password | Password changes successfully; all sessions invalidated; weak passwords rejected | Must have | AC-15 |
-| US-16 | Account Deletion | Soft delete works; data anonymized; sessions revoked; events published | Must have | AC-16 |
-| US-16a | Account Suspension | Admin can suspend users; suspended users cannot login; admin can restore | Should have | AC-16a |
+| US-1 | User Registration | Registration works with valid input; weak passwords rejected; duplicate emails handled; rate limiting active; admin verification optional | Must have | AC-1 |
+| US-2 | User Login | Successful login returns tokens; failed logins tracked; account lockout works; magic link login works; events published | Must have | AC-2 |
+| US-3 | User Logout | Session invalidated; event published; all devices logged out on password change | Must have | AC-6 |
+| US-4 | Password Reset | Reset token generated; emailed if SMTP configured, logged otherwise; valid tokens work; expired tokens rejected; rate limited | Must have | AC-7 |
+| US-5 | Role-Based Access Control | Admin can access admin endpoints; regular users cannot; viewers have limited access | Must have | AC-9 |
+| US-6 | Resource-Level Authorization | Owner has full access; shared users have appropriate permissions; unauthorized access blocked | Must have | AC-10 |
+| US-7 | View Shared Resources | Viewers can list and read shared resources; cannot modify | Should have | AC-11 |
+| US-8 | Unauthenticated Access Rejection | Missing token returns 401; invalid token returns 401; insufficient permissions returns 403 | Must have | AC-12 |
+| US-9 | Single-User Mode | First user becomes admin; registration disabled after first user | Must have | AC-13 |
+| US-10 | Multi-User Mode | Open registration; users isolated by default | Must have | AC-14 |
+| US-11 | Change Password | Password changes successfully; all sessions invalidated; weak passwords rejected | Must have | AC-15 |
+| US-12 | Account Deletion | Soft delete works; data anonymized; sessions revoked; events published | Must have | AC-16 |
+| US-13 | Account Suspension | Admin can suspend users; suspended users cannot login; admin can restore | Should have | AC-16a |
 
 ---
 
@@ -1821,7 +1618,15 @@ Feature: Account Suspension
 
 ---
 
-**Document Version:** 1.0  
+**Document Version:** 2.0  
 **Unit:** users-auth  
-**Status:** Draft  
-**Created:** 2026-04-09
+**Status:** Active  
+**Created:** 2026-04-09  
+**Updated:** 2026-04-10
+
+## Change Log
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 2.0 | 2026-04-10 | Removed OAuth flows (US-3, US-4, US-5). Removed email verification (US-8). Updated US-1 to immediate login. Updated US-2 with magic link login. Updated US-4/US-7 to magic link password reset. Renumbered all stories. |
+| 1.0 | 2026-04-09 | Initial version with OAuth, email verification |

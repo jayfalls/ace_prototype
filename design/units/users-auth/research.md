@@ -118,43 +118,40 @@ Value: "1"
 TTL: remaining token lifetime (max 15 minutes)
 ```
 
-### 1.6 RS256 vs HS256 for JWT Signing
+### 1.6 RS256 for JWT Signing
+
+**Algorithm:** Use **RS256 (RSA)** for all environments — development and production alike.
 
 | Algorithm | Key Management | Use Case | Recommendation |
 |-----------|---------------|----------|----------------|
-| **RS256 (RSA)** | Private key signs, public key verifies | Multiple services, microservices | **Recommended for production** |
-| HS256 (HMAC) | Shared secret, same key signs/verifies | Single service, simple deployments | Acceptable for local development only |
+| **RS256 (RSA)** | Private key signs, public key verifies | All environments | **Required — no exceptions** |
+| HS256 (HMAC) | Shared secret, same key signs/verifies | Legacy compatibility | Not used |
 
-**Recommendation:** 
-- **Production**: Use **RS256** because:
-  - The API service signs tokens; other services (cognitive engine, future microservices) can verify with the public key
-  - Compromised public key cannot forge tokens (only verify)
-  - Industry standard for OAuth/OIDC
-- **Development**: HS256 is acceptable for local development where simplicity is preferred
+**Rationale for RS256 everywhere:**
+- The API service signs tokens; other services (cognitive engine, future microservices) can verify with the public key
+- Compromised public key cannot forge tokens (only verify)
+- Industry standard for OAuth/OIDC
+- Dev and prod must be identical to avoid configuration drift
 
-**Key storage (RS256):**
-- Private key: Environment variable `AUTH_JWT_PRIVATE_KEY` or secrets manager (Vault, AWS Secrets Manager)
-- Public key: Environment variable `AUTH_JWT_PUBLIC_KEY` or derived from private key
+**Key storage:**
+- Private key: Environment variable `AUTH_JWT_PRIVATE_KEY`
+- Public key: Environment variable `AUTH_JWT_PUBLIC_KEY`
 - Keys should be in PEM format (PKCS#8 for private, SPKI for public)
 - Public key can also be exposed via JWKS endpoint `/auth/.well-known/jwks.json`
 
-**Example environment configuration:**
+**Environment configuration:**
 ```bash
-# RS256 key pair (production)
+# RS256 key pair (all environments)
 AUTH_JWT_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqh...\n-----END PRIVATE KEY-----"
 AUTH_JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqh...\n-----END PUBLIC KEY-----"
-
-# HS256 secret (development only)
-AUTH_JWT_SECRET="your-256-bit-secret-for-development-only"
 ```
 
 **Configuration pattern (matching existing config.go):**
 ```go
 type AuthConfig struct {
-    JWTAlgorithm   string // "RS256" or "HS256"
-    JWTPrivateKey  string // PEM-encoded private key (RS256) or secret (HS256)
-    JWTPublicKey   string // PEM-encoded public key (RS256) or empty (HS256)
-    JWTAccessTTL  time.Duration // 15 minutes
+    JWTPrivateKey string // PEM-encoded private key
+    JWTPublicKey  string // PEM-encoded public key
+    JWTAccessTTL time.Duration // 15 minutes
     JWTRefreshTTL time.Duration // 7 days
 }
 ```
@@ -176,18 +173,18 @@ type AuthConfig struct {
 
 ### 2.2 Go Library Selection
 
-| Library | Stars | Maintenance | API Style | Recommendation |
-|---------|-------|-------------|-----------|---------------|
-| **alexedwards/argon2id** | 626 | Active (Oct 2025) | bcrypt-like | **Recommended** |
-| golang.org/x/crypto/argon2 | Standard lib | Official Go team | Low-level | Use directly if needed |
-| sixcolors/argon2id | 3 | Active (Mar 2026) | bcrypt-like | Newer, less battle-tested |
-| andskur/argon2-hashing | 25 | Active (May 2025) | bcrypt-like | Alternative |
+| Library | Maintenance | API Style | Recommendation |
+|---------|-------------|-----------|----------------|
+| **golang.org/x/crypto/argon2** | Official Go team, stdlib | Low-level | **Required — standard library** |
+| alexedwards/argon2id | Active | bcrypt-like | Alternative if bcrypt-like API needed |
+| andskur/argon2-hashing | Active | bcrypt-like | Alternative |
 
-**Recommendation:** Use **`github.com/alexedwards/argon2id`** because:
-- 626 stars, widely used (~370 public GitHub files)
-- Simple bcrypt-like API: `GenerateFromPassword`, `ComparePasswordAndHash`
-- Active maintenance (Oct 2025)
-- Constant-time comparison built-in
+**Recommendation:** Use **`golang.org/x/crypto/argon2`** — it's the standard library, maintained by the Go team, no external dependencies.
+
+**Why not alexedwards/argon2id:**
+- Adds external dependency for convenience
+- Standard library provides all needed functionality
+- Consistency with Go ecosystem (no third-party deps for crypto)
 
 ### 2.3 Argon2id Parameters
 
@@ -201,12 +198,33 @@ type AuthConfig struct {
 
 **Recommendation parameters for production:**
 ```go
-params := &argon2id.Params{
-    Memory:      64 * 1024,  // 64 MB
-    Iterations:  3,
-    Parallelism: uint8(runtime.NumCPU()),
-    SaltLength:  16,
-    KeyLength:   32,
+import "golang.org/x/crypto/argon2"
+
+// Parameters for production
+const (
+    Argon2Memory     = 64 * 1024 // 64 MB
+    Argon2Iterations = 3
+    Argon2Parallelism = 4
+    Argon2SaltLength = 16
+    Argon2KeyLength  = 32
+)
+
+// HashPassword hashes a password using Argon2id
+func HashPassword(password string, salt []byte) ([]byte, error) {
+    return argon2.IDKey(
+        []byte(password),
+        salt,
+        Argon2Iterations,
+        Argon2Memory,
+        Argon2Parallelism,
+        Argon2KeyLength,
+    )
+}
+
+// VerifyPassword compares a password with a hash using constant-time comparison
+func VerifyPassword(password, hash []byte, salt []byte) bool {
+    expected := argon2.IDKey(password, salt, Argon2Iterations, Argon2Memory, Argon2Parallelism, Argon2KeyLength)
+    return subtle.ConstantTimeCompare(hash, expected) == 1
 }
 ```
 
@@ -214,69 +232,130 @@ params := &argon2id.Params{
 
 ---
 
-## 3. Email Delivery
+## 3. Magic Link Token Approach
 
-### 3.1 SMTP/Email Service Comparison
+### 3.1 Overview
 
-| Provider | Free Tier | Cost (100k/month) | Go SDK | Recommendation |
-|----------|-----------|-------------------|--------|----------------|
-| **Amazon SES** | 62k/year | ~$10 | aws-sdk-go-v2 | **Best value, AWS native** |
-| SendGrid | 100/day | ~$60 | sendgrid-go | Easy setup, good docs |
-| Mailgun | 5k/month | ~$75 | mailgun-go | Developer-friendly, good APIs |
-| Postmark | 100/month | ~$100 | postmark | Best deliverability, transactional |
+Instead of OAuth providers or complex email services, this system uses **magic link tokens** for authentication:
+- Tokens are generated, stored in the database, and sent to the user's email
+- If SMTP is configured, emails are sent automatically
+- If SMTP is not configured, tokens are logged to the console (dev mode) or returned in the API response
 
-**Recommendation:** Use **Amazon SES** because:
-- Lowest cost at scale ($0.10 per 1000 emails)
-- Native AWS integration (same VPC/network as other services)
-- Reliable deliverability (80-90% inbox placement)
-- Official Go SDK (aws-sdk-go-v2/services/ses)
+This approach works **completely offline** with no external dependencies for core authentication.
 
-**For development:** Use **Mailtrap** (mailtrap.io) — catches all emails, no accidental sends.
+### 3.2 Token Flow
 
-### 3.2 Email Template Approach
+**Registration / Login:**
+1. User submits email address
+2. System generates a cryptographically secure token (32 bytes, URL-safe)
+3. Token is stored in database with 15-minute expiry
+4. If SMTP configured: email sent with magic link
+5. If SMTP not configured: token logged to console / returned in API response
+6. User clicks link / submits token
+7. Token validated, user authenticated, tokens issued
 
-**Recommendation:** Store templates in the codebase (Go html/template or text/template).
+**Password Reset:**
+1. User submits email address
+2. System generates reset token (same pattern)
+3. Token sent via email or shown in console/dev response
+4. User clicks link with token
+5. Token validated, user can set new password
+6. Old refresh tokens are revoked (security measure)
 
-```go
-// templates/email.go
-package templates
+### 3.3 Token Storage Schema
 
-var EmailVerification = template.Must(template.New("email-verification").Parse(`
-<!DOCTYPE html>
-<html>
-<body>
-<p>Click the link to verify your email:</p>
-<a href="{{.VerifyURL}}">{{.VerifyURL}}</a>
-<p>This link expires in 24 hours.</p>
-</body>
-</html>
-`))
+```sql
+CREATE TABLE auth_tokens (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL,  -- SHA256 of token
+    token_type VARCHAR(20) NOT NULL,   -- 'magic_link', 'password_reset', 'email_verify'
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at    TIMESTAMPTZ,           -- NULL until consumed
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_auth_tokens_hash ON auth_tokens(token_hash);
+CREATE INDEX idx_auth_tokens_user_id ON auth_tokens(user_id);
+CREATE INDEX idx_auth_tokens_expires ON auth_tokens(expires_at);
 ```
 
-**Why not external services:**
-- Keep email logic self-contained
-- No external dependency for email rendering
-- Full control over content/branding
-- Can switch providers without changing templates
-
-### 3.3 Email Service Interface
-
-Define an interface for email delivery to allow provider swapping:
+### 3.4 Implementation Pattern
 
 ```go
-// EmailService defines the email delivery interface
-type EmailService interface {
-    SendVerificationEmail(ctx context.Context, to string, token string) error
-    SendPasswordResetEmail(ctx context.Context, to string, token string) error
-    SendWelcomeEmail(ctx context.Context, to string, name string) error
-}
+// GenerateMagicLinkToken creates a magic link token and returns the token + URL
+func (s *AuthService) GenerateMagicLinkToken(ctx context.Context, email string) (string, string, error) {
+    // Generate token
+    rawToken := make([]byte, 32)
+    if _, err := rand.Read(rawToken); err != nil {
+        return "", "", fmt.Errorf("generate token: %w", err)
+    }
+    token := base64.URLEncoding.EncodeToString(rawToken)
+    tokenHash := sha256.Sum256(rawToken)
 
-// SESEmailService implements EmailService using AWS SES
-type SESEmailService struct {
-    client *ses.Client
-    sender string
+    // Store token
+    expiresAt := time.Now().Add(15 * time.Minute)
+    _, err := s.db.Exec(ctx, `
+        INSERT INTO auth_tokens (user_id, token_hash, token_type, expires_at)
+        VALUES ($1, $2, 'magic_link', $3)
+    `, userID, hex.EncodeToString(tokenHash[:]), expiresAt)
+    if err != nil {
+        return "", "", fmt.Errorf("store token: %w", err)
+    }
+
+    // Build magic link URL
+    magicURL := fmt.Sprintf("%s/auth/verify?token=%s", s.config.BaseURL, token)
+
+    // Send via email or log
+    if s.config.SMTPEnabled {
+        go s.sendEmail(email, "Your Magic Link", magicURL)
+    } else {
+        // Dev mode: log to console
+        log.Printf("[DEV] Magic link for %s: %s", email, magicURL)
+    }
+
+    return token, magicURL, nil
 }
 ```
+
+### 3.5 SMTP Integration (Optional)
+
+SMTP is optional — the system works without it. When configured, use the standard library `net/smtp`:
+
+```go
+// SMTPConfig is optional and only needed if email delivery is required
+type SMTPConfig struct {
+    Enabled  bool
+    Host     string
+    Port     int
+    Username string
+    Password string
+    From     string
+}
+
+func (s *AuthService) sendEmail(to, subject, body string) error {
+    if !s.smtp.Enabled {
+        return nil
+    }
+
+    addr := fmt.Sprintf("%s:%d", s.smtp.Host, s.smtp.Port)
+    auth := smtp.PlainAuth("", s.smtp.Username, s.smtp.Password, s.smtp.Host)
+
+    msg := fmt.Sprintf("To: %s\r\nSubject: %s\r\n\r\n%s\r\n", to, subject, body)
+    return smtp.SendMail(addr, auth, s.smtp.From, []string{to}, []byte(msg))
+}
+```
+
+### 3.6 Why This Approach
+
+| Aspect | Magic Link Tokens | OAuth Providers |
+|--------|------------------|-----------------|
+| External dependencies | None (SMTP optional) | Google, GitHub APIs required |
+| Account linking | Email is the identity | Provider-specific accounts |
+| Offline deployment | Works fully offline | Requires internet for OAuth |
+| User friction | Click link, done | Redirect, approve, done |
+| Setup complexity | Zero (works without SMTP) | OAuth app registration |
+| Security | Token-based, time-limited | Provider-secured |
 
 ---
 
@@ -318,32 +397,19 @@ export default {
 
 **Recommendation:** Use `SameSite=Lax` for refresh tokens. This provides CSRF protection while allowing legitimate scenarios like clicking links from email.
 
-### 4.3 OAuth State Parameter Best Practices
+### 4.3 Magic Link Security
 
-**Recommendation:** Store OAuth state in a **signed cookie** (not localStorage) with 10-minute TTL.
+**Token security requirements:**
+- Minimum 32 bytes of cryptographically secure random data
+- URL-safe encoding (base64)
+- Single-use: consumed on first successful verification
+- Time-limited: 15-minute expiry
+- Stored as SHA256 hash in database (not plaintext)
 
-```go
-// Generate state
-state := base64.URLEncoding.EncodeToString(crypto_rand.Bytes(32))
-
-// Store in signed cookie
-cookie := &http.Cookie{
-    Name:     "oauth_state",
-    Value:    state,
-    HttpOnly: true,
-    Secure:   true,
-    SameSite: http.SameSiteLaxMode,
-    MaxAge:   600, // 10 minutes
-    Path:     "/auth/callback",
-}
-
-// Validate on callback: compare cookie value with query parameter
-```
-
-**Why signed cookie (not just httpOnly):**
-- The state needs to be readable by JavaScript to include in the callback URL
-- Signed with a secret to prevent forgery
-- Short TTL limits attack window
+**Rate limiting magic link requests:**
+- 3 requests per email address per 15 minutes
+- 5 requests per IP address per 15 minutes
+- Prevents token enumeration and spam
 
 ---
 
@@ -522,8 +588,7 @@ type AuthEvent struct {
     "user_agent": "Mozilla/5.0...",
     "timestamp": "2026-04-09T10:30:00Z",
     "metadata": {
-        "method": "password",
-        "provider": "email"
+        "method": "magic_link"
     }
 }
 ```
@@ -553,6 +618,14 @@ In single-user mode (Docker Compose hobbyist deployment), the system must handle
 
 ```go
 // cmd/seed/main.go
+import (
+    "crypto/rand"
+    "encoding/hex"
+
+    "golang.org/x/crypto/argon2"
+    "github.com/jackc/pgx/v5/pgxpool"
+)
+
 func runSeed(ctx context.Context, db *pgxpool.Pool) error {
     // Check if any users exist
     var count int
@@ -573,10 +646,12 @@ func runSeed(ctx context.Context, db *pgxpool.Pool) error {
         return fmt.Errorf("SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD required for first user")
     }
 
-    hash, err := argon2id.GenerateFromPassword(adminPassword, argon2id.DefaultParams)
-    if err != nil {
-        return fmt.Errorf("hash password: %w", err)
+    // Hash password using Argon2id (standard library)
+    salt := make([]byte, 16)
+    if _, err := rand.Read(salt); err != nil {
+        return fmt.Errorf("generate salt: %w", err)
     }
+    hash := argon2.IDKey([]byte(adminPassword), salt, 3, 64*1024, 4, 32)
 
     _, err = db.Exec(ctx, `
         INSERT INTO users (email, password_hash, role, email_verified, status)
@@ -621,6 +696,76 @@ type AuthConfig struct {
 
 The authentication system is designed to be MFA-compatible at a later stage without requiring architectural changes.
 
+### OAuth / SSO Providers
+
+**OAuth providers (Google, GitHub, etc.) are explicitly out of scope.** This unit uses magic link tokens only.
+
+Rationale:
+- No external API dependencies for authentication
+- Works completely offline (no Google/GitHub API calls)
+- Simpler deployment (no OAuth app registration)
+- Magic links work for any email provider
+
+---
+
+## 10. Deployment Simplicity
+
+This authentication system is designed for **easy local deployment** with zero external service dependencies for core functionality.
+
+### What Works Without Internet
+
+| Feature | Offline Support | Notes |
+|---------|---------------|-------|
+| User registration | ✅ | Magic link token generated |
+| User login | ✅ | Magic link token generated |
+| Password reset | ✅ | Token generated |
+| JWT authentication | ✅ | No external calls |
+| Token refresh | ✅ | No external calls |
+| Rate limiting | ✅ | Uses local Valkey |
+| Session revocation | ✅ | Uses local Valkey |
+
+### When SMTP is NOT Configured
+
+In development or offline mode, magic links are logged to the console:
+
+```
+[DEV] Magic link for user@example.com: https://localhost:5173/auth/verify?token=abc123...
+[DEV] Or use token directly: abc123...
+```
+
+Users can:
+1. Check server logs for the magic link URL
+2. Copy the token and paste it into the UI
+3. Use the development "copy token" button in the frontend
+
+### Required External Services
+
+| Service | Required | Purpose | Can Be Local |
+|---------|----------|---------|--------------|
+| PostgreSQL | ✅ Yes | User data, tokens | Docker Compose |
+| Valkey | ✅ Yes | Rate limiting, blacklist | Docker Compose |
+| NATS | ✅ Yes | Auth events | Docker Compose |
+| SMTP Server | ❌ No | Email delivery | Optional / Mailhog |
+| OAuth Providers | ❌ No | Authentication | Not used |
+
+### Docker Compose Example
+
+The system runs fully with Docker Compose using local services:
+
+```yaml
+services:
+  api:
+    environment:
+      - DATABASE_URL=postgres://user:pass@postgres:5432/ace
+      - VALKEY_URL=valkey:6379
+      - NATS_URL=nats://nats:4222
+      # SMTP optional - without it, magic links go to logs
+      # - SMTP_HOST=mailhog
+      # - SMTP_PORT=1025
+```
+
+This means **single-user hobbyist deployments work out of the box** without any external accounts or API keys.
+
 ---
 
 ## 10. Summary Table of Recommendations
@@ -628,22 +773,22 @@ The authentication system is designed to be MFA-compatible at a later stage with
 | Category | Decision | Recommendation | Library/Pattern |
 |----------|----------|----------------|-----------------|
 | **JWT Access Token** | Duration | 15 minutes | - |
-| **JWT Algorithm** | Signing | RS256 (production), HS256 (dev) | golang-jwt/jwt |
+| **JWT Algorithm** | Signing | RS256 everywhere | golang-jwt/jwt |
 | **JWT Key Storage** | Environment | `AUTH_JWT_PRIVATE_KEY`, `AUTH_JWT_PUBLIC_KEY` | PEM format |
 | **Refresh Token** | Rotation | Rotate on every use | PostgreSQL + Valkey |
 | **Token Storage** | Client-side | httpOnly cookies | SameSite=Lax, Secure |
 | **Token Refresh** | Endpoint | Dedicated `/auth/refresh` + cookie-based | Both approaches |
 | **Token Revocation** | Strategy | Valkey blacklist | TTL = remaining token life |
-| **Password Hashing** | Algorithm | Argon2id | alexedwards/argon2id |
+| **Password Hashing** | Algorithm | Argon2id | golang.org/x/crypto/argon2 |
 | **Hash Parameters** | Config | 64MB, 3 iterations | runtime.NumCPU() parallelism |
-| **Email Provider** | Service | Amazon SES | aws-sdk-go-v2 |
-| **Email Templates** | Storage | Go templates in codebase | html/template |
+| **Auth Method** | Approach | Magic link tokens | No external dependencies |
+| **Magic Link** | Storage | SHA256 hash in DB | 15-minute expiry |
 | **CSRF Protection** | Strategy | SvelteKit built-in + SameSite | checkOrigin: true |
-| **OAuth State** | Storage | Signed httpOnly cookie | 10-minute TTL |
 | **Rate Limiting** | Algorithm | Sliding window counter | Valkey Lua scripts |
 | **Session Storage** | Approach | Hybrid (JWT + DB refresh) | PostgreSQL + Valkey |
 | **Auto-Provisioning** | Single-user | Seed script on first startup | Checks if users exist |
 | **MFA** | Scope | Explicitly out of scope | Deferred to future work |
+| **OAuth/SSO** | Scope | Explicitly out of scope | Magic links only |
 
 ---
 
@@ -655,15 +800,8 @@ The authentication system is designed to be MFA-compatible at a later stage with
 // JWT handling
 github.com/golang-jwt/jwt/v5
 
-// Password hashing
-github.com/alexedwards/argon2id
-
-// OAuth2 client (for Google/GitHub)
-github.com/go-oauth2/oauth2/v4
-
-// AWS SDK (for SES)
-github.com/aws/aws-sdk-go-v2
-github.com/aws/aws-sdk-go-v2/service/ses
+// Password hashing (standard library)
+golang.org/x/crypto/argon2  // Standard library, no external deps
 
 // Validation
 github.com/go-playground/validator/v10
@@ -671,9 +809,13 @@ github.com/go-playground/validator/v10
 // UUID generation
 github.com/google/uuid
 
-// Crypto (for token hashing)
-golang.org/x/crypto/bcrypt  // backup option
+// SMTP (optional - standard library used if configured)
+net/smtp  // Standard library, optional
 ```
+
+**No external dependencies required for core authentication.** The system uses:
+- Standard library `net/smtp` for optional email
+- Standard library `golang.org/x/crypto/argon2` for password hashing
 
 ### SvelteKit Dependencies
 
