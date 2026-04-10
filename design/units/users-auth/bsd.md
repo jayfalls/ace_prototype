@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document defines the business requirements for the **Users-Auth** unit, which establishes the complete identity and access management foundation for the ACE Framework. The unit enables user account management, authentication flows (email/password and OAuth/SSO), JWT-based session management, role-based access control (RBAC), and resource-level authorization.
+This document defines the business requirements for the **Users-Auth** unit, which establishes the complete identity and access management foundation for the ACE Framework. The unit enables user account management, authentication flows (email/password and magic link), JWT-based session management, role-based access control (RBAC), and resource-level authorization.
 
 The ACE Framework currently has no authentication or authorization system—all API endpoints are public with no concept of user identity, access control, or resource isolation. This unit resolves these foundational gaps, enabling multi-user SaaS deployments, cost attribution, resource sharing, billing, and audit trails.
 
@@ -25,12 +25,12 @@ Without this unit, the system cannot support multi-user SaaS, protect agent data
 
 | Persona | Description | Primary Goals |
 |---------|-------------|---------------|
-| **Hobbyist User** | Single-user deployment, technical user | Simple signup/login, email verification, password management |
-| **SaaS User** | Multi-user organization member | SSO login (Google/GitHub), team collaboration, agent sharing |
+| **Hobbyist User** | Single-user deployment, technical user | Simple signup/login, password management, magic link login |
+| **SaaS User** | Multi-user organization member | Team collaboration, agent sharing, secure login |
 | **Team Admin** | Manages team members and shared resources | User role management, resource sharing permissions, team oversight |
 | **Platform Admin** | Platform operator managing the entire system | System-wide user management, role assignment, billing oversight |
 | **API Developer** | Integrates with ACE API programmatically | Clear auth patterns, token management, API key support for services |
-| **Frontend Developer** | Builds UI for authentication flows | OAuth redirect handling, token storage, secure session management |
+| **Frontend Developer** | Builds UI for authentication flows | Magic link flow handling, token storage, secure session management |
 
 ---
 
@@ -44,9 +44,7 @@ Without this unit, the system cannot support multi-user SaaS, protect agent data
 **Acceptance Criteria:**
 - [ ] User can submit registration form with email and password
 - [ ] Password must meet minimum complexity requirements (configurable, default: 8+ chars, mixed case, number)
-- [ ] System sends verification email to the provided address
-- [ ] Email verification token expires after configurable duration (default: 24 hours)
-- [ ] User account is in "pending_verification" status until email is verified
+- [ ] User account is created immediately upon registration
 - [ ] Duplicate email registration returns appropriate error
 - [ ] Password is hashed using secure algorithm (Argon2id preferred)
 
@@ -59,41 +57,21 @@ Without this unit, the system cannot support multi-user SaaS, protect agent data
 - [ ] Failed login after 5 attempts triggers temporary lockout (15 minutes)
 - [ ] Login emits `ace.auth.login.event` via NATS
 - [ ] Failed login attempt emits `ace.auth.failed_login.event` via NATS
-- [ ] Login from new device sends notification (if email verified)
 - [ ] Rate limiting prevents brute-force attacks (10 attempts per minute per IP)
 
-**US-3: SSO Login via Google**
-> As a **SaaS user**, I want to log in with my Google account, so that I can access the platform without creating a new password.
+**US-3: Magic Link Login**
+> As a **user**, I want to log in via a magic link sent to my email, so that I can access my account without remembering a password.
 
 **Acceptance Criteria:**
-- [ ] User can initiate login via Google OAuth flow
-- [ ] OAuth state parameter is validated to prevent CSRF attacks
-- [ ] New users are automatically registered upon first Google login
-- [ ] Existing email/password users can link Google OAuth to their account
-- [ ] Google OAuth tokens are stored for potential API access
+- [ ] User can request magic link by providing their email
+- [ ] System sends email with secure, single-use login token
+- [ ] Magic link token expires after configurable duration (default: 15 minutes)
+- [ ] Clicking valid magic link creates a new session and returns JWT tokens
+- [ ] Magic link tokens are single-use and invalidated after use
+- [ ] Rate limiting prevents magic link request spam (5 requests per hour per email)
 - [ ] Login emits `ace.auth.login.event` via NATS
 
-**US-4: SSO Login via GitHub**
-> As a **developer user**, I want to log in with my GitHub account, so that I can access the platform using my existing GitHub identity.
-
-**Acceptance Criteria:**
-- [ ] User can initiate login via GitHub OAuth flow
-- [ ] OAuth state parameter is validated to prevent CSRF attacks
-- [ ] New users are automatically registered upon first GitHub login
-- [ ] Existing email/password users can link GitHub OAuth to their account
-- [ ] GitHub OAuth tokens are stored for potential API access
-- [ ] Login emits `ace.auth.login.event` via NATS
-
-**US-5: Link Multiple OAuth Providers**
-> As a **user**, I want to link both Google and GitHub to my account, so that I can log in with either provider interchangeably.
-
-**Acceptance Criteria:**
-- [ ] User can link additional OAuth provider to existing authenticated session
-- [ ] Linking requires re-authentication with the new provider
-- [ ] Both providers can be used to log into the same account
-- [ ] User can unlink OAuth providers (must retain at least one auth method)
-
-**US-6: User Logout**
+**US-4: User Logout**
 > As a **logged-in user**, I want to log out, so that I can secure my account on shared devices.
 
 **Acceptance Criteria:**
@@ -112,15 +90,6 @@ Without this unit, the system cannot support multi-user SaaS, protect agent data
 - [ ] User can set new password using valid reset token
 - [ ] Successful reset invalidates all existing sessions and emits `ace.auth.password_change.event`
 - [ ] Rate limiting prevents reset request spam (3 requests per hour per email)
-
-**US-8: Email Verification**
-> As a **new user**, I want to verify my email address, so that I can confirm my identity and unlock full account features.
-
-**Acceptance Criteria:**
-- [ ] User receives verification email with unique token upon registration
-- [ ] Clicking verification link activates the account
-- [ ] Verified email allows password reset and SSO linking
-- [ ] Unverified accounts have limited functionality until verification
 
 ### Authorization & Access Control
 
@@ -227,10 +196,10 @@ The following rules are **invariants** that must always hold true in the system:
 | **BR-2** | JWT access tokens MUST be validated on every protected request |
 | **BR-3** | Revoked tokens MUST be rejected immediately upon validation |
 | **BR-4** | Rate limiting MUST be enforced on all authentication endpoints |
-| **BR-5** | Email verification tokens MUST be single-use and time-limited |
+| **BR-5** | Magic link tokens MUST be single-use and time-limited |
 | **BR-6** | Password reset tokens MUST be single-use and time-limited |
-| **BR-7** | OAuth state parameters MUST be validated to prevent CSRF attacks |
-| **BR-8** | Failed login attempts MUST trigger temporary account lockout after threshold |
+| **BR-7** | Failed login attempts MUST trigger temporary account lockout after threshold |
+| **BR-8** | Magic link tokens MUST be random and cryptographically secure |
 
 ### Authorization Rules
 
@@ -239,7 +208,7 @@ The following rules are **invariants** that must always hold true in the system:
 | **BR-9** | Every protected resource MUST verify the user's identity before granting access |
 | **BR-10** | Every protected resource MUST verify the user's permissions for the requested action |
 | **BR-11** | Resource owners MUST always have full permissions to their own resources |
-| **BR-12** | Users MUST have at least one authentication method (email/password or OAuth) |
+| **BR-12** | Users MUST have at least one authentication method (email/password or magic link) |
 | **BR-13** | Admin role MUST be required for system-wide operations (user management, role assignment) |
 
 ### Data Integrity Rules
@@ -269,21 +238,18 @@ Each functional requirement maps to a specific user story and problem_space FR.
 |----|-------------|------------|---------------|
 | **FR-1** | The system SHALL allow user registration via email and password | US-1 | FR-1 |
 | **FR-2** | The system SHALL allow user login via email and password | US-2 | FR-2 |
-| **FR-3** | The system SHALL support OAuth/SSO login via Google and GitHub | US-3, US-4 | FR-3 |
-| **FR-4** | The system SHALL issue JWT access tokens for authenticated sessions with configurable lifetime (default 5-15 minutes) | US-2 | FR-4 |
+| **FR-3** | The system SHALL allow user login via magic link sent to email | US-3 | FR-3 |
+| **FR-4** | The system SHALL issue JWT access tokens for authenticated sessions with configurable lifetime (default 5-15 minutes) | US-2, US-3 | FR-4 |
 | **FR-5** | The system SHALL enforce RBAC with system-level roles (admin, user, viewer) | US-9 | FR-5 |
 | **FR-6** | The system SHALL allow resource-level authorization with permission levels | US-10 | FR-5, FR-6 |
 | **FR-7** | The system SHALL provide password reset via email with secure, time-limited tokens | US-7 | FR-7 |
-| **FR-8** | The system SHALL verify email addresses during registration | US-1, US-8 | FR-8 |
-| **FR-9** | The system SHALL support both multi-user SaaS and single-user deployment modes | US-13, US-14 | FR-9 |
-| **FR-10** | The system SHALL emit auth events via NATS with subject pattern `ace.auth.<event_type>.event` | US-2, US-6, US-9, US-15, US-16 | FR-10 |
-| **FR-11** | The system SHALL return 401 for unauthenticated requests and 403 for unauthorized requests | US-12 | FR-11 |
-| **FR-12** | The system SHALL rate-limit authentication endpoints | US-2, US-7 | FR-12 |
-| **FR-13** | The system SHALL allow linking multiple OAuth providers to a single account | US-5 | FR-13 |
-| **FR-14** | The system SHALL allow unlinking OAuth providers from an account | US-5 | FR-14 |
-| **FR-15** | The system SHALL invalidate all sessions upon password change | US-15 | FR-10 |
-| **FR-16** | The system SHALL support soft deletion of user accounts | US-16 | - |
-| **FR-17** | The system SHALL cache permission lookups in Valkey for performance | US-10 | - |
+| **FR-8** | The system SHALL support both multi-user SaaS and single-user deployment modes | US-13, US-14 | FR-8 |
+| **FR-9** | The system SHALL emit auth events via NATS with subject pattern `ace.auth.<event_type>.event` | US-2, US-3, US-4, US-9, US-15, US-16 | FR-9 |
+| **FR-10** | The system SHALL return 401 for unauthenticated requests and 403 for unauthorized requests | US-12 | FR-10 |
+| **FR-11** | The system SHALL rate-limit authentication endpoints | US-2, US-3, US-7 | FR-11 |
+| **FR-12** | The system SHALL invalidate all sessions upon password change | US-15 | FR-9 |
+| **FR-13** | The system SHALL support soft deletion of user accounts | US-16 | - |
+| **FR-14** | The system SHALL cache permission lookups in Valkey for performance | US-10 | - |
 
 ### API Endpoints
 
@@ -291,17 +257,12 @@ Each functional requirement maps to a specific user story and problem_space FR.
 |----------|--------|------|-------------|
 | `/auth/register` | POST | Public | Register new user with email/password |
 | `/auth/login` | POST | Public | Login with email/password |
+| `/auth/magic-link/request` | POST | Public | Request magic link email |
+| `/auth/magic-link/verify` | POST | Public | Verify magic link and login |
 | `/auth/logout` | POST | Required | Logout and invalidate tokens |
 | `/auth/refresh` | POST | Public | Refresh access token |
 | `/auth/password/reset/request` | POST | Public | Request password reset email |
 | `/auth/password/reset/confirm` | POST | Public | Reset password with token |
-| `/auth/email/verify` | POST | Public | Verify email address |
-| `/auth/oauth/google` | GET | Public | Initiate Google OAuth flow |
-| `/auth/oauth/google/callback` | GET | Public | Google OAuth callback |
-| `/auth/oauth/github` | GET | Public | Initiate GitHub OAuth flow |
-| `/auth/oauth/github/callback` | GET | Public | GitHub OAuth callback |
-| `/auth/oauth/link` | POST | Required | Link OAuth provider to account |
-| `/auth/oauth/unlink` | POST | Required | Unlink OAuth provider from account |
 | `/auth/password/change` | POST | Required | Change password (logged in) |
 | `/auth/me` | GET | Required | Get current user profile |
 | `/auth/me/sessions` | GET | Required | List active sessions |
@@ -338,7 +299,7 @@ Each functional requirement maps to a specific user story and problem_space FR.
 | **NFR-11** | Rate limit (password reset) | 3 requests/hour per email |
 | **NFR-12** | Account lockout | 15 minutes after 5 failed attempts |
 | **NFR-13** | Password minimum length | 8 characters |
-| **NFR-14** | CSRF protection | Validated OAuth state parameter |
+| **NFR-14** | Magic link token length | 32+ bytes, cryptographically random |
 | **NFR-15** | JWT signature algorithm | RS256 (asymmetric) for production |
 
 ### Scalability
@@ -373,9 +334,9 @@ The following items are explicitly **not** included in this unit:
 
 | Item | Reason for Exclusion |
 |------|---------------------|
+| **OAuth/SSO (Google, GitHub)** | Deferred to future unit |
 | **MFA (Multi-Factor Authentication)** | TOTP, SMS, hardware keys deferred to future unit |
 | **Email delivery infrastructure** | SMTP/email service selection deferred to research phase; interface defined only |
-| **OIDC-generic provider support** | Only Google and GitHub in scope initially |
 | **General auditing infrastructure** | Audit log tables, compliance reporting belong to Auditing unit; this unit only emits events |
 | **Billing integration** | Payment processing, subscriptions, invoicing deferred to future unit |
 | **Security hardening** | CSP, HSTS, certificate management belong to Security unit |
@@ -392,12 +353,10 @@ The following items are explicitly **not** included in this unit:
 
 | Dependency | Purpose | Required |
 |------------|---------|----------|
-| **PostgreSQL** | User accounts, OAuth provider records, roles, permissions, tokens | Yes |
+| **PostgreSQL** | User accounts, roles, permissions, tokens, magic link tokens | Yes |
 | **Valkey** | Token blacklists, rate limiting, session state, permission caching | Yes |
 | **NATS** | Auth event broadcasting via `shared/messaging` | Yes |
-| **Google OAuth** | SSO authentication | Yes (for Google login) |
-| **GitHub OAuth** | SSO authentication | Yes (for GitHub login) |
-| **Email Service** | Transactional email (verification, password reset) | Yes (interface only; provider deferred) |
+| **Email Service** | Transactional email (magic links, password reset) | Yes (interface only; provider deferred) |
 
 ### Internal Packages
 
@@ -429,18 +388,17 @@ The following assumptions are made for this unit:
 | **A-1** | PostgreSQL is available and accessible for user data storage |
 | **A-2** | Valkey is available for caching and token revocation |
 | **A-3** | NATS is available for event publishing |
-| **A-4** | OAuth credentials (Google, GitHub) are obtained during deployment |
-| **A-5** | Email service credentials are configured for transactional emails |
-| **A-6** | The `users` table schema includes: `id`, `email`, `password_hash`, `email_verified`, `status`, `deleted_at`, `created_at`, `updated_at` |
-| **A-7** | OAuth provider records are stored in a separate `oauth_providers` table |
-| **A-8** | Roles are stored as an enum with values: `admin`, `user`, `viewer` |
-| **A-9** | Resource-level permissions use a junction table `resource_permissions` |
-| **A-10** | All database queries use SQLC for type safety |
-| **A-11** | All migrations use Goose Go functions |
-| **A-12** | The SvelteKit frontend handles OAuth redirects and token storage |
-| **A-13** | Deployment mode is determined by environment variable `DEPLOYMENT_MODE` (single/multi) |
-| **A-14** | No `any` or `interface{}` types in auth code—explicit types throughout |
-| **A-15** | No else chains—early returns only for error handling |
+| **A-4** | Email service credentials are configured for transactional emails |
+| **A-5** | The `users` table schema includes: `id`, `email`, `password_hash`, `status`, `deleted_at`, `created_at`, `updated_at` |
+| **A-6** | Magic link tokens are stored in a `magic_link_tokens` table |
+| **A-7** | Roles are stored as an enum with values: `admin`, `user`, `viewer` |
+| **A-8** | Resource-level permissions use a junction table `resource_permissions` |
+| **A-9** | All database queries use SQLC for type safety |
+| **A-10** | All migrations use Goose Go functions |
+| **A-11** | The SvelteKit frontend handles magic link flows and token storage |
+| **A-12** | Deployment mode is determined by environment variable `DEPLOYMENT_MODE` (single/multi) |
+| **A-13** | No `any` or `interface{}` types in auth code—explicit types throughout |
+| **A-14** | No else chains—early returns only for error handling |
 
 ---
 
@@ -448,7 +406,7 @@ The following assumptions are made for this unit:
 
 | Metric | Target | Measurement |
 |--------|--------|-------------|
-| **SM-1: Registration completion rate** | > 80% of users complete email verification | Count: verified accounts / total registrations |
+| **SM-1: Registration rate** | > 80% of users complete registration | Count: registrations / total visits |
 | **SM-2: Login success rate** | > 99% of valid login attempts succeed | Count: successful logins / total login attempts |
 | **SM-3: Auth event delivery** | > 99.9% of events published to NATS | Count: published events / emitted events |
 | **SM-4: Token validation latency** | < 5ms p99 | OpenTelemetry trace histogram |
@@ -457,7 +415,6 @@ The following assumptions are made for this unit:
 | **SM-7: Session revocation effectiveness** | 100% of revoked tokens rejected | Security audit |
 | **SM-8: Rate limit effectiveness** | > 99% of brute-force attacks blocked | Security audit |
 | **SM-9: Deployment mode flexibility** | Both modes work with same codebase | Integration tests |
-| **SM-10: OAuth linking adoption** | > 30% of users link at least one OAuth provider | Count: users with OAuth / total users |
 
 ---
 
@@ -489,7 +446,7 @@ Auth events are published via NATS with subject pattern `ace.auth.<event_type>.e
   "metadata": {
     "ip_address": "string",
     "user_agent": "string",
-    "provider": "google|github|email",
+    "login_method": "password|magic_link",
     "session_id": "uuid",
     ...
   }
@@ -505,8 +462,7 @@ Auth events are published via NATS with subject pattern `ace.auth.<event_type>.e
 | Table | Purpose |
 |-------|---------|
 | `users` | User accounts with email, password_hash, status, roles |
-| `oauth_providers` | Linked OAuth accounts (Google, GitHub) |
-| `email_verification_tokens` | Email verification tokens |
+| `magic_link_tokens` | Magic link tokens for passwordless login |
 | `password_reset_tokens` | Password reset tokens |
 | `sessions` | Active user sessions (if stateful) |
 | `roles` | System roles (admin, user, viewer) |
@@ -518,8 +474,8 @@ Auth events are published via NATS with subject pattern `ace.auth.<event_type>.e
 |-------|-------|---------|
 | `users` | `email` (unique) | Login lookup |
 | `users` | `status` | Admin queries |
-| `oauth_providers` | `(user_id, provider)` | OAuth linking |
-| `oauth_providers` | `provider_id` | OAuth login |
+| `magic_link_tokens` | `token_hash` | Magic link validation |
+| `magic_link_tokens` | `user_id` | Token lookup |
 | `password_reset_tokens` | `token_hash` | Reset validation |
 | `sessions` | `user_id` | Session listing |
 

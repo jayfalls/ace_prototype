@@ -21,7 +21,7 @@ References:
 The **users-auth** unit establishes the complete identity and access management foundation for the ACE Framework. It enables:
 
 - User account management (registration, login, deletion)
-- Authentication flows (email/password and OAuth/SSO via Google and GitHub)
+- Authentication flows (email/password and magic link via email)
 - JWT-based session management with refresh token rotation
 - Role-based access control (RBAC) with system-level roles
 - Resource-level authorization for sharing agents, tools, and configurations
@@ -55,9 +55,9 @@ The **users-auth** unit establishes the complete identity and access management 
 │  │  Handler Layer  │  │  Service Layer   │  │ Repository Layer│          │
 │  │                 │  │                 │  │                 │          │
 │  │ AuthHandler     │  │ AuthService     │  │ UserRepository  │          │
-│  │ OAuthHandler   │  │ TokenService    │  │ SessionRepo     │          │
-│  │ AdminHandler   │  │ OAuthService    │  │ PermissionRepo  │          │
-│  │ SessionHandler │  │ PermissionSvc   │  │ TokenRepo       │          │
+│  │ MagicLinkHandler│  │ TokenService    │  │ SessionRepo     │          │
+│  │ AdminHandler   │  │ PermissionSvc │  │ TokenRepo       │          │
+│  │ SessionHandler │  │                │  │ PermissionRepo │          │
 │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘          │
 │           │                     │                      │                    │
 │           └────────────────────┼──────────────────────┘                    │
@@ -80,13 +80,15 @@ The **users-auth** unit establishes the complete identity and access management 
 ┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
 │    PostgreSQL    │   │     Valkey       │   │      NATS        │
 │                  │   │                  │   │                  │
+│           ▼                         ▼                         ▼
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+│    PostgreSQL    │   │     Valkey       │   │      NATS        │
+│                  │   │                  │   │                  │
 │ • users          │   │ • Token blacklist│   │ ace.auth.*.event │
-│ • oauth_providers│   │ • Rate limits    │   │                  │
-│ • sessions       │   │ • Permission cache│   │                  │
-│ • roles          │   │ • OAuth state    │   │                  │
+│ • sessions       │   │ • Rate limits    │   │                  │
+│ • roles          │   │ • Permission cache│   │                  │
 │ • permissions    │   │ • Session state   │   │                  │
-│ • reset_tokens   │   │                  │   │                  │
-│ • verify_tokens  │   │                  │   │                  │
+│ • auth_tokens    │   │ • Magic link cache│   │                  │
 └──────────────────┘   └──────────────────┘   └──────────────────┘
 ```
 
@@ -100,14 +102,14 @@ services/auth/
 ├── internal/
 │   ├── handler/
 │   │   ├── auth_handler.go         # Registration, login, logout
-│   │   ├── oauth_handler.go       # OAuth flows
+│   │   ├── magic_link_handler.go  # Magic link flows
 │   │   ├── password_handler.go    # Password reset, change
 │   │   ├── session_handler.go     # Session management
 │   │   └── admin_handler.go       # Admin user management
 │   ├── service/
 │   │   ├── auth_service.go        # Core auth logic
 │   │   ├── token_service.go       # JWT generation, validation
-│   │   ├── oauth_service.go       # OAuth provider logic
+│   │   ├── magic_link_service.go # Magic link token management
 │   │   ├── password_service.go    # Password hashing, validation
 │   │   ├── permission_service.go  # RBAC, resource permissions
 │   │   └── email_service.go      # Email sending (interface)
@@ -143,24 +145,21 @@ services/auth/
 
 | ID | Requirement | Priority | Notes |
 |----|-------------|----------|-------|
-| FR-1 | User registration via email/password | Must | Email verification required |
+| FR-1 | User registration via email/password | Must | Magic link verification |
 | FR-2 | User login via email/password | Must | JWT + refresh tokens |
-| FR-3 | OAuth login via Google | Must | State parameter validation |
-| FR-4 | OAuth login via GitHub | Must | State parameter validation |
+| FR-3 | Magic link login flow | Must | Email token → automatic login |
+| FR-4 | Magic link password reset | Must | Token → password change |
 | FR-5 | JWT access tokens with configurable lifetime | Must | Default 5-15 minutes |
 | FR-6 | Refresh token rotation | Must | Each refresh invalidates old token |
 | FR-7 | Token revocation via Valkey blacklist | Must | Immediate invalidation |
 | FR-8 | RBAC with admin, user, viewer roles | Must | Role-based middleware |
 | FR-9 | Resource-level permissions | Must | view, use, admin levels |
-| FR-10 | Password reset via email tokens | Must | Single-use, time-limited |
-| FR-11 | Email verification | Must | Single-use token |
-| FR-12 | Rate limiting on auth endpoints | Must | Per-IP and per-email |
-| FR-13 | Account lockout after failed attempts | Must | 5 attempts → 15 min lockout |
-| FR-14 | Auth event emission via NATS | Must | All auth operations |
-| FR-15 | Single-user mode auto-admin | Must | First user = admin |
-| FR-16 | Multi-user mode open registration | Must | Deployment config |
-| FR-17 | Account suspension | Should | Admin action |
-| FR-18 | OAuth provider linking | Should | Multiple providers per user |
+| FR-10 | Rate limiting on auth endpoints | Must | Per-IP and per-email |
+| FR-11 | Account lockout after failed attempts | Must | 5 attempts → 15 min lockout |
+| FR-12 | Auth event emission via NATS | Must | All auth operations |
+| FR-13 | Single-user mode auto-admin | Must | First user = admin |
+| FR-14 | Multi-user mode open registration | Must | Deployment config |
+| FR-15 | Account suspension | Should | Admin action |
 
 ### 2.2 Non-Functional Requirements
 
@@ -173,7 +172,7 @@ services/auth/
 | NFR-5 | Refresh token lifetime | 7 days |
 | NFR-6 | Rate limit (login) | 10 attempts/minute per IP |
 | NFR-7 | Rate limit (password reset) | 3 requests/hour per email |
-| NFR-8 | JWT algorithm | RS256 (production), HS256 (dev) |
+| NFR-8 | JWT algorithm | RS256 everywhere | Dev and prod identical |
 | NFR-9 | Auth event delivery | > 99.9% to NATS |
 | NFR-10 | Horizontal scaling | Stateless middleware |
 
@@ -190,45 +189,31 @@ services/auth/
 │     roles       │       │       users         │
 ├─────────────────┤       ├─────────────────────┤
 │ id (PK)         │       │ id (PK)             │
-│ name            │◄──────│ role_id (FK)        │
-│ permissions     │       │ email (UNIQUE)      │
-│ created_at      │       │ password_hash       │
-└─────────────────┘       │ email_verified     │
-                           │ status             │
-                           │ suspended_at       │
-                           │ suspended_reason   │
-                           │ deleted_at        │
-                           │ created_at        │
-                           │ updated_at        │
-                           └─────────┬──────────┘
-                                     │
-              ┌──────────────────────┼──────────────────────┐
-              │                      │                      │
-              ▼                      ▼                      ▼
+│ name            │       │ email (UNIQUE)      │
+│ permissions     │       │ password_hash       │
+│ created_at      │       │ status             │
+└─────────────────┘       │ suspended_at       │
+                         │ suspended_reason   │
+                         │ deleted_at        │
+                         │ created_at        │
+                         │ updated_at        │
+                         └─────────┬──────────┘
+                                   │
+             ┌─────────────────────┼─────────────────────┐
+             │                     │                     │
+             ▼                     ▼                     ▼
 ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
-│  oauth_providers    │  │      sessions        │  │  resource_permissions│
+│      sessions        │  │     auth_tokens    │  │  resource_permissions│
 ├─────────────────────┤  ├─────────────────────┤  ├─────────────────────┤
 │ id (PK)             │  │ id (PK)             │  │ id (PK)             │
 │ user_id (FK)        │  │ user_id (FK)        │  │ user_id (FK)        │
-│ provider            │  │ refresh_token_hash  │  │ resource_type       │
-│ provider_user_id   │  │ user_agent          │  │ resource_id         │
-│ access_token_enc   │  │ ip_address          │  │ permission_level    │
-│ refresh_token_enc  │  │ last_used_at        │  │ granted_by (FK)     │
-│ expires_at         │  │ expires_at          │  │ created_at          │
-│ created_at         │  │ created_at          │  └─────────────────────┘
-└─────────────────────┘  └─────────────────────┘
-              │
-              ▼
-┌─────────────────────────┐  ┌─────────────────────────┐
-│ email_verification_tokens│  │  password_reset_tokens  │
-├─────────────────────────┤  ├─────────────────────────┤
-│ id (PK)                 │  │ id (PK)                 │
-│ user_id (FK)            │  │ user_id (FK)            │
-│ token_hash              │  │ token_hash             │
-│ expires_at              │  │ expires_at             │
-│ used_at                 │  │ used_at                │
-│ created_at              │  │ created_at             │
-└─────────────────────────┘  └─────────────────────────┘
+│ refresh_token_hash  │  │ token_type         │  │ resource_type       │
+│ user_agent          │  │ token_hash         │  │ resource_id         │
+│ ip_address          │  │ expires_at         │  │ permission_level    │
+│ last_used_at        │  │ used_at            │  │ granted_by (FK)     │
+│ expires_at          │  │ created_at         │  │ created_at          │
+│ created_at         │  └─────────────────────┘  └─────────────────────┘
+└─────────────────────┘
 ```
 
 #### SQL Schema (Goose Migration)
@@ -253,34 +238,14 @@ func upCreateAuthTables(tx *sql.Tx) error {
             id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
             email           VARCHAR(255) NOT NULL,
             password_hash   VARCHAR(255),
-            email_verified  BOOLEAN     NOT NULL DEFAULT FALSE,
             role            VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user', 'viewer')),
-            status          VARCHAR(30) NOT NULL DEFAULT 'pending_verification' CHECK (status IN ('pending_verification', 'active', 'suspended')),
-            suspended_at    TIMESTAMPTZ,
+            status         VARCHAR(30) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'suspended')),
+            suspended_at   TIMESTAMPTZ,
             suspended_reason TEXT,
-            deleted_at      TIMESTAMPTZ,
-            created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-            updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            deleted_at     TIMESTAMPTZ,
+            created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+            updated_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
             CONSTRAINT users_email_unique UNIQUE (email)
-        );
-    `)
-    if err != nil {
-        return err
-    }
-
-    // Create oauth_providers table
-    _, err = tx.Exec(`
-        CREATE TABLE oauth_providers (
-            id                UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id           UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            provider          VARCHAR(50) NOT NULL,  -- 'google', 'github'
-            provider_user_id  VARCHAR(255) NOT NULL, -- OAuth subject ID
-            access_token_enc  TEXT,
-            refresh_token_enc TEXT,
-            expires_at        TIMESTAMPTZ,
-            created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            CONSTRAINT oauth_provider_unique UNIQUE (user_id, provider),
-            CONSTRAINT oauth_provider_id_unique UNIQUE (provider, provider_user_id)
         );
     `)
     if err != nil {
@@ -304,26 +269,12 @@ func upCreateAuthTables(tx *sql.Tx) error {
         return err
     }
 
-    // Create email_verification_tokens table
+    // Create auth_tokens table (for magic link tokens - login, verification, password reset)
     _, err = tx.Exec(`
-        CREATE TABLE email_verification_tokens (
+        CREATE TABLE auth_tokens (
             id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            token_hash  VARCHAR(255) NOT NULL,
-            expires_at  TIMESTAMPTZ NOT NULL,
-            used_at     TIMESTAMPTZ,
-            created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-    `)
-    if err != nil {
-        return err
-    }
-
-    // Create password_reset_tokens table
-    _, err = tx.Exec(`
-        CREATE TABLE password_reset_tokens (
-            id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            token_type  VARCHAR(50) NOT NULL,  -- 'login', 'verification', 'password_reset'
             token_hash  VARCHAR(255) NOT NULL,
             expires_at  TIMESTAMPTZ NOT NULL,
             used_at     TIMESTAMPTZ,
@@ -355,11 +306,9 @@ func upCreateAuthTables(tx *sql.Tx) error {
     _, err = tx.Exec(`
         CREATE INDEX idx_users_email ON users(email);
         CREATE INDEX idx_users_status ON users(status);
-        CREATE INDEX idx_oauth_providers_user_id ON oauth_providers(user_id);
-        CREATE INDEX idx_oauth_providers_provider_user_id ON oauth_providers(provider, provider_user_id);
         CREATE INDEX idx_sessions_user_id ON sessions(user_id);
-        CREATE INDEX idx_email_verification_tokens_user_id ON email_verification_tokens(user_id);
-        CREATE INDEX idx_password_reset_tokens_user_id ON password_reset_tokens(user_id);
+        CREATE INDEX idx_auth_tokens_user_id ON auth_tokens(user_id);
+        CREATE INDEX idx_auth_tokens_hash ON auth_tokens(token_hash);
         CREATE INDEX idx_resource_permissions_user_id ON resource_permissions(user_id);
         CREATE INDEX idx_resource_permissions_resource ON resource_permissions(resource_type, resource_id);
     `)
@@ -380,10 +329,8 @@ func upCreateAuthTables(tx *sql.Tx) error {
 func downCreateAuthTables(tx *sql.Tx) error {
     _, err := tx.Exec(`
         DROP TABLE IF EXISTS resource_permissions;
-        DROP TABLE IF EXISTS password_reset_tokens;
-        DROP TABLE IF EXISTS email_verification_tokens;
+        DROP TABLE IF EXISTS auth_tokens;
         DROP TABLE IF EXISTS sessions;
-        DROP TABLE IF EXISTS oauth_providers;
         DROP TABLE IF EXISTS users;
     `)
     return err
@@ -413,34 +360,22 @@ const (
 type UserStatus string
 
 const (
-    StatusPendingVerification UserStatus = "pending_verification"
-    StatusActive             UserStatus = "active"
-    StatusSuspended          UserStatus = "suspended"
+    StatusPending  UserStatus = "pending"
+    StatusActive   UserStatus = "active"
+    StatusSuspended UserStatus = "suspended"
 )
 
 type User struct {
-    ID            uuid.UUID  `json:"id"`
-    Email         string     `json:"email"`
+    ID             uuid.UUID  `json:"id"`
+    Email          string     `json:"email"`
     PasswordHash  *string    `json:"-"` // Never exposed in JSON
-    EmailVerified bool       `json:"email_verified"`
-    Role          UserRole   `json:"role"`
-    Status        UserStatus `json:"status"`
-    SuspendedAt   *time.Time `json:"suspended_at,omitempty"`
+    Role           UserRole   `json:"role"`
+    Status         UserStatus `json:"status"`
+    SuspendedAt    *time.Time `json:"suspended_at,omitempty"`
     SuspendedReason *string  `json:"suspended_reason,omitempty"`
-    DeletedAt     *time.Time `json:"deleted_at,omitempty"`
-    CreatedAt     time.Time  `json:"created_at"`
-    UpdatedAt     time.Time  `json:"updated_at"`
-}
-
-type OAuthProvider struct {
-    ID               uuid.UUID  `json:"id"`
-    UserID           uuid.UUID  `json:"user_id"`
-    Provider         string     `json:"provider"` // "google", "github"
-    ProviderUserID   string     `json:"provider_user_id"`
-    AccessTokenEnc   string     `json:"-"`
-    RefreshTokenEnc  *string    `json:"-"`
-    ExpiresAt        *time.Time `json:"expires_at,omitempty"`
-    CreatedAt        time.Time  `json:"created_at"`
+    DeletedAt      *time.Time `json:"deleted_at,omitempty"`
+    CreatedAt      time.Time  `json:"created_at"`
+    UpdatedAt      time.Time  `json:"updated_at"`
 }
 
 type Session struct {
@@ -472,22 +407,22 @@ type ResourcePermission struct {
     CreatedAt       time.Time       `json:"created_at"`
 }
 
-type EmailVerificationToken struct {
-    ID         uuid.UUID  `json:"id"`
-    UserID     uuid.UUID  `json:"user_id"`
-    TokenHash  string     `json:"-"`
-    ExpiresAt  time.Time  `json:"expires_at"`
-    UsedAt     *time.Time `json:"used_at,omitempty"`
-    CreatedAt  time.Time  `json:"created_at"`
-}
+type AuthTokenType string
 
-type PasswordResetToken struct {
-    ID         uuid.UUID  `json:"id"`
-    UserID     uuid.UUID  `json:"user_id"`
-    TokenHash  string     `json:"-"`
-    ExpiresAt  time.Time  `json:"expires_at"`
-    UsedAt     *time.Time `json:"used_at,omitempty"`
-    CreatedAt  time.Time  `json:"created_at"`
+const (
+    TokenTypeLogin          AuthTokenType = "login"
+    TokenTypeVerification    AuthTokenType = "verification"
+    TokenTypePasswordReset  AuthTokenType = "password_reset"
+)
+
+type AuthToken struct {
+    ID         uuid.UUID     `json:"id"`
+    UserID     uuid.UUID     `json:"user_id"`
+    TokenType  AuthTokenType `json:"token_type"`
+    TokenHash  string       `json:"-"`
+    ExpiresAt  time.Time     `json:"expires_at"`
+    UsedAt     *time.Time   `json:"used_at,omitempty"`
+    CreatedAt  time.Time    `json:"created_at"`
 }
 ```
 
@@ -499,7 +434,7 @@ type PasswordResetToken struct {
 
 #### POST /auth/register
 
-Register a new user with email and password.
+Register a new user with email and password. Sends a magic link for verification.
 
 **Security:** Public
 
@@ -517,7 +452,7 @@ Register a new user with email and password.
   "success": true,
   "data": {
     "user_id": "550e8400-e29b-41d4-a716-446655440000",
-    "message": "Registration successful. Please check your email to verify your account."
+    "message": "Registration successful. A verification link has been sent to your email."
   }
 }
 ```
@@ -625,7 +560,7 @@ Refresh access token using refresh token.
 
 #### POST /auth/password/reset/request
 
-Request password reset email.
+Request password reset magic link.
 
 **Security:** Public
 
@@ -655,7 +590,7 @@ Request password reset email.
 
 #### POST /auth/password/reset/confirm
 
-Reset password using token.
+Reset password using magic link token.
 
 **Security:** Public (token in body)
 
@@ -715,18 +650,18 @@ Change password while logged in.
 
 ---
 
-### 4.3 Email Verification Endpoints
+### 4.3 Magic Link Endpoints
 
-#### POST /auth/email/verify
+#### POST /auth/magic-link/request
 
-Verify email address with token.
+Request a magic link for passwordless login.
 
-**Security:** Public (token in body)
+**Security:** Public
 
 **Request:**
 ```json
 {
-  "token": "550e8400-e29b-41d4-a716-446655440003"
+  "email": "user@example.com"
 }
 ```
 
@@ -734,7 +669,42 @@ Verify email address with token.
 ```json
 {
   "success": true,
-  "message": "Email verified successfully. Your account is now active."
+  "message": "If an account exists with this email, a magic link has been sent."
+}
+```
+
+> Note: Always returns success to prevent email enumeration attacks.
+
+**Error Responses:**
+| Status | Code | Condition |
+|--------|------|-----------|
+| 429 | RATE_LIMITED | Too many requests |
+
+---
+
+#### POST /auth/magic-link/verify
+
+Verify magic link token and complete login/verification.
+
+**Security:** Public (token in body)
+
+**Request:**
+```json
+{
+  "token": "550e8400-e29b-41d4-a716-446655440002"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refresh_token": "rt_550e8400-e29b-41d4-a716-446655440001",
+    "token_type": "Bearer",
+    "expires_in": 900
+  }
 }
 ```
 
@@ -744,110 +714,6 @@ Verify email address with token.
 | 400 | INVALID_TOKEN | Token invalid |
 | 400 | TOKEN_EXPIRED | Token expired |
 | 400 | TOKEN_USED | Token already used |
-
----
-
-### 4.4 OAuth Endpoints
-
-#### GET /auth/oauth/google
-
-Initiate Google OAuth flow.
-
-**Security:** Public
-
-**Query Parameters:**
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| redirect_url | string | No | URL to redirect after OAuth |
-
-**Response:** 302 Redirect to Google OAuth
-
----
-
-#### GET /auth/oauth/google/callback
-
-Google OAuth callback.
-
-**Security:** Public
-
-**Query Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| code | string | OAuth authorization code |
-| state | string | CSRF state parameter |
-
-**Response:** 302 Redirect to frontend with tokens in URL fragment
-
----
-
-#### GET /auth/oauth/github
-
-Initiate GitHub OAuth flow.
-
-**Security:** Public
-
-**Response:** 302 Redirect to GitHub OAuth
-
----
-
-#### GET /auth/oauth/github/callback
-
-GitHub OAuth callback.
-
-**Security:** Public
-
-**Response:** 302 Redirect to frontend with tokens in URL fragment
-
----
-
-#### POST /auth/oauth/link
-
-Link OAuth provider to existing account.
-
-**Security:** Bearer Token Required
-
-**Request:**
-```json
-{
-  "provider": "google"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "OAuth provider linked successfully."
-}
-```
-
----
-
-#### POST /auth/oauth/unlink
-
-Unlink OAuth provider from account.
-
-**Security:** Bearer Token Required
-
-**Request:**
-```json
-{
-  "provider": "google"
-}
-```
-
-**Response (200 OK):**
-```json
-{
-  "success": true,
-  "message": "OAuth provider unlinked successfully."
-}
-```
-
-**Error Responses:**
-| Status | Code | Condition |
-|--------|------|-----------|
-| 400 | CANNOT_REMOVE_LAST_AUTH_METHOD | No other auth method available |
 
 ---
 
@@ -866,7 +732,6 @@ Get current user profile.
   "data": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "email": "user@example.com",
-    "email_verified": true,
     "role": "user",
     "status": "active",
     "created_at": "2024-01-15T10:30:00Z"
@@ -972,10 +837,8 @@ Get user details.
   "data": {
     "id": "uuid",
     "email": "user@example.com",
-    "email_verified": true,
     "role": "user",
     "status": "active",
-    "oauth_providers": ["google"],
     "sessions_count": 2,
     "created_at": "2024-01-15T10:30:00Z"
   }
@@ -1145,11 +1008,9 @@ type AuthConfig struct {
     AccessTokenTTL  time.Duration `env:"ACCESS_TOKEN_TTL" envdefault:"15m"`
     RefreshTokenTTL time.Duration `env:"REFRESH_TOKEN_TTL" envdefault:"168h"` // 7 days
     
-    // JWT Signing
-    JWTAlgorithm    string `env:"JWT_ALGORITHM" envdefault:"RS256"`
+    // JWT Signing (RS256 everywhere - dev and prod identical)
     JWTPrivateKey   string `env:"JWT_PRIVATE_KEY"` // PEM encoded for RS256
     JWTPublicKey    string `env:"JWT_PUBLIC_KEY"`  // PEM encoded for RS256
-    JWTSecret       string `env:"JWT_SECRET"`      // For HS256 (development only)
     
     // Rate Limiting
     LoginRateLimitPerIP     int `env:"LOGIN_RATE_LIMIT_PER_IP" envdefault:"10"`      // per minute
@@ -1171,12 +1032,6 @@ type AuthConfig struct {
     
     // Deployment
     DeploymentMode string `env:"DEPLOYMENT_MODE" envdefault:"multi"` // "single" or "multi"
-    
-    // OAuth
-    GoogleClientID     string `env:"GOOGLE_CLIENT_ID"`
-    GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET"`
-    GitHubClientID     string `env:"GITHUB_CLIENT_ID"`
-    GitHubClientSecret string `env:"GITHUB_CLIENT_SECRET"`
 }
 ```
 
@@ -1515,14 +1370,10 @@ Auth events use the subject pattern `ace.auth.<event_type>.event` and are publis
 | failed_login | `ace.auth.failed_login.event` | Invalid credentials |
 | account_locked | `ace.auth.account_locked.event` | Account locked after failures |
 | password_change | `ace.auth.password_change.event` | Password updated |
-| email_verified | `ace.auth.email_verified.event` | Email verification completed |
-| user_registered | `ace.auth.user_registered.event` | New user registration |
 | role_change | `ace.auth.role_change.event` | User role modified |
 | account_suspended | `ace.auth.account_suspended.event` | User account suspended |
 | account_restored | `ace.auth.account_restored.event` | User account restored |
 | account_deleted | `ace.auth.account_deleted.event` | User account soft-deleted |
-| oauth_linked | `ace.auth.oauth_linked.event` | OAuth provider linked |
-| oauth_unlinked | `ace.auth.oauth_unlinked.event` | OAuth provider unlinked |
 | token_revoked | `ace.auth.token_revoked.event` | Token/session revoked |
 
 #### Go Event Types
@@ -1540,20 +1391,17 @@ import (
 type AuthEventType string
 
 const (
-    EventLogin           AuthEventType = "login"
+    EventLogin            AuthEventType = "login"
     EventLogout          AuthEventType = "logout"
     EventFailedLogin     AuthEventType = "failed_login"
-    EventAccountLocked   AuthEventType = "account_locked"
+    EventAccountLocked  AuthEventType = "account_locked"
     EventPasswordChange  AuthEventType = "password_change"
-    EventEmailVerified   AuthEventType = "email_verified"
     EventUserRegistered  AuthEventType = "user_registered"
     EventRoleChange      AuthEventType = "role_change"
     EventAccountSuspended AuthEventType = "account_suspended"
     EventAccountRestored AuthEventType = "account_restored"
-    EventAccountDeleted  AuthEventType = "account_deleted"
-    EventOAuthLinked     AuthEventType = "oauth_linked"
-    EventOAuthUnlinked   AuthEventType = "oauth_unlinked"
-    EventTokenRevoked    AuthEventType = "token_revoked"
+    EventAccountDeleted AuthEventType = "account_deleted"
+    EventTokenRevoked   AuthEventType = "token_revoked"
 )
 
 type AuthEvent struct {
@@ -1571,7 +1419,6 @@ type AuthEventMetadata struct {
     SessionID   string  `json:"session_id,omitempty"`
     Role        string  `json:"role,omitempty"`
     Reason      string  `json:"reason,omitempty"`
-    OAuthProvider string `json:"oauth_provider,omitempty"`
     Attempts    int     `json:"attempts,omitempty"`
 }
 ```
@@ -1949,129 +1796,6 @@ func (r *RateLimiter) getIdentifier(req *http.Request) string {
 }
 ```
 
-### 9.3 CSRF Protection for OAuth
-
-```go
-// internal/service/oauth_state_service.go
-package service
-
-import (
-    "crypto/hmac"
-    "crypto/sha256"
-    "encoding/base64"
-    "encoding/json"
-    "errors"
-    "strconv"
-    "time"
-
-    "github.com/google/uuid"
-
-    "ace/shared/caching"
-)
-
-const (
-    OAuthStateTTL = 10 * time.Minute
-)
-
-type OAuthState struct {
-    CSRFToken   string `json:"csrf_token"`
-    RedirectURL string `json:"redirect_url"`
-    Timestamp   int64  `json:"timestamp"`
-    Signature   string `json:"signature"`
-}
-
-type OAuthStateService struct {
-    cache   *caching.Cache
-    secrets map[string]string // provider -> secret
-}
-
-func NewOAuthStateService(cache *caching.Cache, secrets map[string]string) *OAuthStateService {
-    return &OAuthStateService{
-        cache:   cache,
-        secrets: secrets,
-    }
-}
-
-// GenerateState creates a new OAuth state parameter
-func (s *OAuthStateService) GenerateState(provider, redirectURL string) (string, error) {
-    csrfToken := uuid.New().String()
-    timestamp := time.Now().Unix()
-
-    state := OAuthState{
-        CSRFToken:   csrfToken,
-        RedirectURL: redirectURL,
-        Timestamp:   timestamp,
-    }
-
-    // Sign the state
-    sigInput := csrfToken + redirectURL + strconv.FormatInt(timestamp, 10)
-    state.Signature = s.sign(provider, sigInput)
-
-    // Serialize and encode
-    data, err := json.Marshal(state)
-    if err != nil {
-        return "", err
-    }
-
-    stateString := base64.URLEncoding.EncodeToString(data)
-
-    // Store in cache for validation
-    cacheKey := "oauth_state:" + csrfToken
-    s.cache.Set(context.Background(), cacheKey, []byte(stateString), caching.WithTTL(OAuthStateTTL))
-
-    return stateString, nil
-}
-
-// ValidateState validates an OAuth state parameter
-func (s *OAuthStateService) ValidateState(provider, stateString string) (*OAuthState, error) {
-    // Decode
-    data, err := base64.URLEncoding.DecodeString(stateString)
-    if err != nil {
-        return nil, errors.New("invalid state encoding")
-    }
-
-    var state OAuthState
-    if err := json.Unmarshal(data, &state); err != nil {
-        return nil, errors.New("invalid state format")
-    }
-
-    // Check signature
-    sigInput := state.CSRFToken + state.RedirectURL + strconv.FormatInt(state.Timestamp, 10)
-    expectedSig := s.sign(provider, sigInput)
-    if state.Signature != expectedSig {
-        return nil, errors.New("invalid state signature")
-    }
-
-    // Check timestamp (max 10 minutes)
-    if time.Now().Unix()-state.Timestamp > 600 {
-        return nil, errors.New("state expired")
-    }
-
-    // Check cache for CSRF token
-    cacheKey := "oauth_state:" + state.CSRFToken
-    cached, err := s.cache.Get(context.Background(), cacheKey)
-    if err != nil || cached == nil {
-        return nil, errors.New("state already used")
-    }
-
-    // Delete from cache (single-use)
-    s.cache.Delete(context.Background(), cacheKey)
-
-    return &state, nil
-}
-
-func (s *OAuthStateService) sign(provider, data string) string {
-    secret := s.secrets[provider]
-    if secret == "" {
-        secret = s.secrets["default"]
-    }
-
-    h := hmac.New(sha256.New, []byte(secret))
-    h.Write([]byte(data))
-    return base64.URLEncoding.EncodeToString(h.Sum(nil))
-}
-```
-
 ---
 
 ## 10. Configuration
@@ -2112,15 +1836,6 @@ AUTH_RESET_TOKEN_TTL=1h
 # Deployment Mode
 AUTH_DEPLOYMENT_MODE=multi  # "single" or "multi"
 
-# OAuth Providers
-AUTH_GOOGLE_CLIENT_ID=your-google-client-id
-AUTH_GOOGLE_CLIENT_SECRET=your-google-client-secret
-AUTH_GITHUB_CLIENT_ID=your-github-client-id
-AUTH_GITHUB_CLIENT_SECRET=your-github-client-secret
-
-# OAuth Secrets (for state signing)
-AUTH_OAUTH_SECRET_DEFAULT=your-oauth-state-secret
-
 # Database
 DATABASE_URL=postgres://ace:password@postgres:5432/ace?sslmode=disable
 
@@ -2158,7 +1873,6 @@ type Config struct {
     NATS     NATSConfig     `koanf:"nats"`
     Service  ServiceConfig  `koanf:"service"`
     Auth     AuthConfig     `koanf:"auth"`
-    OAuth    OAuthConfig    `koanf:"oauth"`
 }
 
 type DatabaseConfig struct {
@@ -2204,13 +1918,6 @@ type AuthConfig struct {
     DeploymentMode string `koanf:"deployment_mode" env:"AUTH_DEPLOYMENT_MODE" envdefault:"multi"`
 }
 
-type OAuthConfig struct {
-    GoogleClientID     string `koanf:"google_client_id" env:"AUTH_GOOGLE_CLIENT_ID" envdefault:""`
-    GoogleClientSecret string `koanf:"google_client_secret" env:"AUTH_GOOGLE_CLIENT_SECRET" envdefault:""`
-    GitHubClientID     string `koanf:"github_client_id" env:"AUTH_GITHUB_CLIENT_ID" envdefault:""`
-    GitHubClientSecret string `koanf:"github_client_secret" env:"AUTH_GITHUB_CLIENT_SECRET" envdefault:""`
-}
-
 func Load() (*Config, error) {
     k := koanf.New(".")
 
@@ -2247,15 +1954,15 @@ func Load() (*Config, error) {
 | JWT validation | >95% | Valid/invalid/expired tokens, signature verification |
 | Rate limiting | >90% | Per-IP, per-email, sliding window |
 | Permission checking | >95% | Owner access, shared access, no access |
-| OAuth state | >95% | Generate, validate, CSRF prevention |
+| Magic link token | >95% | Generate, validate, expiry |
 
 ### 11.2 Integration Tests
 
 | Test | Description |
 |------|-------------|
-| Full login flow | Register → Email verify → Login → Token refresh → Logout |
-| OAuth flow | Initiate → Callback → Link account |
-| Password reset | Request → Email → Reset → Login with new password |
+| Full login flow | Register → Magic link verify → Login → Token refresh → Logout |
+| Magic link login | Request → Email link → Click → Auto login |
+| Password reset | Request → Email link → Reset → Login with new password |
 | Admin operations | Create user → Suspend → Restore → Delete |
 | Rate limit | Exceed limit → Verify 429 response |
 | Token revocation | Login multiple devices → Logout one → Verify others work |
@@ -2269,8 +1976,6 @@ func Load() (*Config, error) {
 | Login during lockout | Return 429 with lockout expiry | Check lockout before password verify |
 | Verify already-used token | Return 400 TOKEN_USED | Check used_at before accepting |
 | Reset with deleted user email | Silently succeed | Always return success to prevent enumeration |
-| Link already-linked OAuth | Return 409 CONFLICT | Check existing provider before linking |
-| Unlink last auth method | Return 400 CANNOT_REMOVE_LAST_AUTH_METHOD | Verify other methods exist |
 | Access after account deleted | Return 403 ACCOUNT_DELETED | Check deleted_at on every request |
 | Concurrent token refresh | Only first succeeds | Use database transaction with row lock |
 | Valkey unavailable | Allow request (graceful degradation) | Log error, skip cache operations |
@@ -2283,13 +1988,13 @@ func Load() (*Config, error) {
 ```sql
 -- sqlc/query.sql
 -- name: GetUserByEmail :one
-SELECT id, email, password_hash, email_verified, role, status, 
+SELECT id, email, password_hash, role, status, 
        suspended_at, suspended_reason, deleted_at, created_at, updated_at
 FROM users
 WHERE email = $1 AND deleted_at IS NULL;
 
 -- name: GetUserByID :one
-SELECT id, email, password_hash, email_verified, role, status,
+SELECT id, email, password_hash, role, status,
        suspended_at, suspended_reason, deleted_at, created_at, updated_at
 FROM users
 WHERE id = $1 AND deleted_at IS NULL;
@@ -2297,23 +2002,27 @@ WHERE id = $1 AND deleted_at IS NULL;
 -- name: CreateUser :one
 INSERT INTO users (email, password_hash, role, status)
 VALUES ($1, $2, $3, $4)
-RETURNING id, email, email_verified, role, status, created_at, updated_at;
+RETURNING id, email, role, status, created_at, updated_at;
 
 -- name: UpdateUserStatus :exec
 UPDATE users 
 SET status = $2, updated_at = NOW()
 WHERE id = $1;
 
--- name: GetOAuthProvider :one
-SELECT id, user_id, provider, provider_user_id, created_at
-FROM oauth_providers
-WHERE provider = $1 AND provider_user_id = $2;
+-- name: CreateAuthToken :one
+INSERT INTO auth_tokens (user_id, token_type, token_hash, expires_at)
+VALUES ($1, $2, $3, $4)
+RETURNING id, user_id, token_type, expires_at, created_at;
 
--- name: LinkOAuthProvider :exec
-INSERT INTO oauth_providers (user_id, provider, provider_user_id, access_token_enc, refresh_token_enc, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6)
-ON CONFLICT (user_id, provider) DO UPDATE
-SET provider_user_id = $3, access_token_enc = $4, refresh_token_enc = $5, expires_at = $6;
+-- name: GetAuthTokenByHash :one
+SELECT id, user_id, token_type, expires_at, used_at, created_at
+FROM auth_tokens
+WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW();
+
+-- name: MarkAuthTokenUsed :exec
+UPDATE auth_tokens
+SET used_at = NOW()
+WHERE token_hash = $1;
 
 -- name: CreateSession :one
 INSERT INTO sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
