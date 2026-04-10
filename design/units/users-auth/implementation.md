@@ -8,12 +8,28 @@ This document breaks down the implementation of the users-auth unit into micro-P
 
 Before starting implementation, ensure you have read:
 - `design/README.md` - ACE Framework architecture
-- `design/units/users-auth/` - All design documents:
-  - `problem_space.md` - Problem definition
-  - `bsd.md` - Business specification
-  - `user_stories.md` - User-facing behavior
-  - `fsd.md` - Technical implementation details
-  - `research.md` - Technical research and recommendations
+- `design/units/users-auth/` - All design documents (read in this order):
+  1. `problem_space.md` - Problem definition and scope
+  2. `bsd.md` - Business specification and functional requirements
+  3. `user_stories.md` - User-facing behavior and acceptance criteria
+  4. `fsd.md` - Technical implementation details, API schemas, data models
+  5. `research.md` - Technology research and recommendations
+  6. `architecture.md` - System integration and package structure
+  7. `security.md` - Security considerations, threat modeling, controls
+  8. `migration_and_rollback.md` - Database migration scripts and procedures
+
+## Cross-Document References
+
+| Implementation Task | Primary Doc | Supporting Docs |
+|--------------------|-------------|-----------------|
+| Database schema | `migration_and_rollback.md` | `fsd.md` (Section 3) |
+| Package structure | `architecture.md` (Section 4) | `fsd.md` (Section 2) |
+| API endpoints | `fsd.md` (Section 2) | `user_stories.md` |
+| JWT/Token strategy | `research.md` (Section 1) | `security.md` (Section 2) |
+| Password hashing | `research.md` (Section 2) | `security.md` (Section 4) |
+| Rate limiting | `research.md` (Section 6) | `security.md` (Section 6) |
+| Security controls | `security.md` | `research.md` |
+| Event schemas | `fsd.md` (Section 8) | `architecture.md` (Section 5.4) |
 
 ## Architecture Pattern
 
@@ -38,9 +54,14 @@ Handler → Service → Repository
 ### PR 1: Database Migration
 **Goal**: Create all auth-related database tables using Goose Go migrations
 
+**Reference Documents**:
+- `migration_and_rollback.md` - Complete migration scripts and rollback procedures
+
 **Files to create/modify**:
-- `backend/services/auth/migrations/20240401000001_create_auth_tables.go` - Main auth tables migration
-- `backend/services/auth/migrations/20240401000002_add_auth_indexes.go` - Additional indexes
+- `backend/services/api/migrations/20240401000001_create_users.go` - Users table
+- `backend/services/api/migrations/20240401000002_create_sessions.go` - Sessions table
+- `backend/services/api/migrations/20240401000003_create_auth_tokens.go` - Auth tokens table
+- `backend/services/api/migrations/20240401000004_create_resource_permissions.go` - Permissions table
 
 **Dependencies**: None (first PR)
 
@@ -63,12 +84,12 @@ Handler → Service → Repository
 **Goal**: Create Go domain models that mirror database tables
 
 **Files to create/modify**:
-- `backend/services/auth/internal/model/user.go` - User model with roles and status enums
-- `backend/services/auth/internal/model/session.go` - Session model
-- `backend/services/auth/internal/model/auth_token.go` - Auth token model (magic links, verification)
-- `backend/services/auth/internal/model/permission.go` - Resource permission model
-- `backend/services/auth/internal/model/token_claims.go` - JWT claims model
-- `backend/services/auth/internal/model/errors.go` - Auth-specific errors
+- `backend/services/api/internal/model/user.go` - User model with roles and status enums
+- `backend/services/api/internal/model/session.go` - Session model
+- `backend/services/api/internal/model/auth_token.go` - Auth token model (magic links, verification)
+- `backend/services/api/internal/model/permission.go` - Resource permission model
+- `backend/services/api/internal/model/token_claims.go` - JWT claims model
+- `backend/services/api/internal/model/errors.go` - Auth-specific errors
 
 **Dependencies**: PR 1 (migration)
 
@@ -91,11 +112,11 @@ Handler → Service → Repository
 **Goal**: Create type-safe database queries using SQLC
 
 **Files to create/modify**:
-- `backend/services/auth/sqlc.yaml` - SQLC configuration
-- `backend/services/auth/internal/repository/queries/users.sql` - User CRUD queries
-- `backend/services/auth/internal/repository/queries/sessions.sql` - Session queries
-- `backend/services/auth/internal/repository/queries/auth_tokens.sql` - Auth token queries
-- `backend/services/auth/internal/repository/queries/permissions.sql` - Permission queries
+- `backend/services/api/sqlc.yaml` - SQLC configuration (update existing)
+- `backend/services/api/internal/repository/queries/users.sql` - User CRUD queries
+- `backend/services/api/internal/repository/queries/sessions.sql` - Session queries
+- `backend/services/api/internal/repository/queries/auth_tokens.sql` - Auth token queries
+- `backend/services/api/internal/repository/queries/permissions.sql` - Permission queries
 
 **Dependencies**: PR 1 (tables exist)
 
@@ -119,7 +140,7 @@ Handler → Service → Repository
 **Goal**: Implement password hashing using Argon2id
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/password_service.go` - Password hashing/verification
+- `backend/services/api/internal/service/password_service.go` - Password hashing/verification
 
 **Dependencies**: PR 2 (models)
 
@@ -139,7 +160,7 @@ Handler → Service → Repository
 **Goal**: Implement JWT generation and validation with RS256
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/token_service.go` - JWT service
+- `backend/services/api/internal/service/token_service.go` - JWT service
 
 **Dependencies**: PR 2 (models)
 
@@ -162,7 +183,7 @@ Handler → Service → Repository
 **Goal**: Implement core authentication business logic
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/auth_service.go` - Main auth logic
+- `backend/services/api/internal/service/auth_service.go` - Main auth logic
 
 **Dependencies**: PR 3 (SQLC), PR 4 (password), PR 5 (tokens)
 
@@ -184,7 +205,7 @@ Handler → Service → Repository
 **Goal**: Implement magic link token generation and verification
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/magic_link_service.go` - Magic link handling
+- `backend/services/api/internal/service/magic_link_service.go` - Magic link handling
 
 **Dependencies**: PR 3 (SQLC), PR 5 (token service)
 
@@ -206,8 +227,8 @@ Handler → Service → Repository
 **Goal**: Implement RBAC and resource-level permissions
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/permission_service.go` - Permission checks
-- `backend/services/auth/internal/service/rate_limit_service.go` - Rate limiting
+- `backend/services/api/internal/service/permission_service.go` - Permission checks
+- `backend/services/api/internal/service/rate_limit_service.go` - Rate limiting
 
 **Dependencies**: PR 3 (SQLC), PR 2 (models)
 
@@ -232,9 +253,9 @@ Handler → Service → Repository
 **Goal**: Implement HTTP handlers for auth endpoints
 
 **Files to create/modify**:
-- `backend/services/auth/internal/handler/auth_handler.go` - Register, login, logout
-- `backend/services/auth/internal/handler/password_handler.go` - Password reset, change
-- `backend/services/auth/internal/handler/magic_link_handler.go` - Magic link request/verify
+- `backend/services/api/internal/handler/auth_handler.go` - Register, login, logout
+- `backend/services/api/internal/handler/password_handler.go` - Password reset, change
+- `backend/services/api/internal/handler/magic_link_handler.go` - Magic link request/verify
 
 **Dependencies**: PR 6 (auth service), PR 7 (magic link)
 
@@ -260,7 +281,7 @@ Handler → Service → Repository
 **Goal**: Implement session management endpoints
 
 **Files to create/modify**:
-- `backend/services/auth/internal/handler/session_handler.go` - Session management
+- `backend/services/api/internal/handler/session_handler.go` - Session management
 
 **Dependencies**: PR 6 (auth service), PR 9 (auth handlers)
 
@@ -278,7 +299,7 @@ Handler → Service → Repository
 **Goal**: Implement admin-only user management endpoints
 
 **Files to create/modify**:
-- `backend/services/auth/internal/handler/admin_handler.go` - Admin user management
+- `backend/services/api/internal/handler/admin_handler.go` - Admin user management
 
 **Dependencies**: PR 9 (auth handlers)
 
@@ -302,8 +323,8 @@ Handler → Service → Repository
 **Goal**: Implement JWT validation middleware
 
 **Files to create/modify**:
-- `backend/services/auth/internal/middleware/auth_middleware.go` - JWT validation
-- `backend/services/auth/internal/middleware/rbac_middleware.go` - Role checking
+- `backend/services/api/internal/middleware/auth_middleware.go` - JWT validation
+- `backend/services/api/internal/middleware/rbac_middleware.go` - Role checking
 
 **Dependencies**: PR 5 (token service), PR 11 (admin handlers)
 
@@ -324,7 +345,7 @@ Handler → Service → Repository
 **Goal**: Implement rate limiting middleware
 
 **Files to create/modify**:
-- `backend/services/auth/internal/middleware/rate_limit_middleware.go` - Rate limiting
+- `backend/services/api/internal/middleware/rate_limit_middleware.go` - Rate limiting
 
 **Dependencies**: PR 8 (permission service), PR 12 (auth middleware)
 
@@ -346,8 +367,8 @@ Handler → Service → Repository
 **Goal**: Implement NATS event publishing for auth operations
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/event_service.go` - Event publishing
-- `backend/services/auth/internal/model/events.go` - Event types
+- `backend/services/api/internal/service/event_service.go` - Event publishing
+- `backend/services/api/internal/model/events.go` - Event types
 
 **Dependencies**: PR 9 (auth handlers), PR 10 (session handlers)
 
@@ -372,7 +393,7 @@ Handler → Service → Repository
 **Goal**: Complete configuration loading for auth service
 
 **Files to create/modify**:
-- `backend/services/auth/internal/config/config.go` - Auth config struct
+- `backend/services/api/internal/config/config.go` - Auth config struct
 
 **Dependencies**: PR 1 (foundation)
 
@@ -393,8 +414,8 @@ Handler → Service → Repository
 **Goal**: Wire up HTTP server with all middleware and handlers
 
 **Files to create/modify**:
-- `backend/services/auth/cmd/main.go` - Server entry point
-- `backend/services/auth/internal/router/router.go` - Route configuration
+- `backend/services/api/cmd/main.go` - Server entry point (update existing)
+- `backend/services/api/internal/router/router.go` - Route configuration
 
 **Dependencies**: PR 12 (middleware), PR 9-11 (handlers)
 
@@ -415,9 +436,9 @@ Handler → Service → Repository
 **Goal**: Comprehensive unit tests for all services
 
 **Files to create/modify**:
-- `backend/services/auth/internal/service/*_test.go` - Service unit tests
-- `backend/services/auth/internal/handler/*_test.go` - Handler unit tests
-- `backend/services/auth/internal/middleware/*_test.go` - Middleware unit tests
+- `backend/services/api/internal/service/*_test.go` - Service unit tests
+- `backend/services/api/internal/handler/*_test.go` - Handler unit tests
+- `backend/services/api/internal/middleware/*_test.go` - Middleware unit tests
 
 **Dependencies**: PRs 4-16 (all implementation)
 
@@ -438,8 +459,8 @@ Handler → Service → Repository
 **Goal**: End-to-end tests for authentication flows
 
 **Files to create/modify**:
-- `backend/services/auth/internal/integration/auth_test.go` - Auth flow tests
-- `backend/services/auth/internal/integration/admin_test.go` - Admin flow tests
+- `backend/services/api/internal/integration/auth_test.go` - Auth flow tests
+- `backend/services/api/internal/integration/admin_test.go` - Admin flow tests
 
 **Dependencies**: PR 17 (unit tests)
 
@@ -483,32 +504,39 @@ Handler → Service → Repository
 
 ## Implementation Notes
 
-### Module Structure
-The auth service is a separate Go module:
+### Package Structure
+Auth is embedded in the API service as additional packages:
 ```
-backend/services/auth/
-├── cmd/server/main.go
+backend/services/api/
+├── cmd/main.go
 ├── internal/
 │   ├── handler/
+│   │   └── auth/              # NEW: Auth handlers (register, login, logout, etc.)
+│   │   └── admin/            # NEW: Admin handlers (user management)
 │   ├── service/
-│   ├── repository/
+│   │   └── auth/              # NEW: Auth services (password, token, magic link)
 │   ├── middleware/
+│   │   └── auth.go            # NEW: JWT validation, RBAC middleware
 │   ├── model/
+│   │   └── user.go            # NEW: User model
+│   ├── repository/
+│   │   └── user.go            # NEW: User queries
 │   └── config/
+│       └── config.go          # UPDATE: Add auth config fields
 ├── migrations/
-├── sqlc/
+│   └── *_create_auth_tables.go # NEW: Auth migrations
+├── sqlc.yaml                  # UPDATE: Add auth query paths
 └── go.mod
 ```
 
 ### Workspace Integration
-Add auth module to existing go.work:
+No new module needed - auth code is part of `services/api`:
 ```go
 go 1.26
 
 use (
-    "./services/api"
+    "./services/api"   // Auth is embedded here
     "./shared"
-    "./services/auth"  // New
 )
 ```
 
