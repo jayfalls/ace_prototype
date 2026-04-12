@@ -97,8 +97,7 @@ ACE transforms from a multi-container orchestration (10+ containers, 30+ second 
 
 ### 2.6 Development Flow
 
-- **BR-22**: `make ace` produces the single binary. No Docker/Podman required.
-- **BR-23**: `make ui` builds the SvelteKit frontend to static assets.
+- **BR-23**: `make ace` produces the single binary with embedded frontend. No Docker/Podman required.
 - **BR-24**: `make test` is the single source of truth for validation. It runs Go build, Go lint, Go tests (with `-short`), SQLC generate, docs generation, frontend lint, and frontend test.
 - **BR-25**: The git pre-commit hook calls `make test` exclusively.
 - **BR-26**: In development mode, the Go binary proxies frontend requests to `vite dev` server for HMR. In production mode, it serves embedded static assets.
