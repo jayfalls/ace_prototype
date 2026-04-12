@@ -3,7 +3,7 @@
   "current_phase": "implementation-pr1",
   "status": "in_progress",
   "pending_tasks": ["PR 1: Database Migration", "PR 2: Domain Models", "PR 3: SQLC Queries", "PR 4: Password Service", "PR 5: Token Service", "PR 6: Auth Service", "PR 7: Magic Link Service", "PR 8: Permission Service", "PR 9-11: HTTP Handlers", "PR 12-13: Middleware", "PR 14: Events", "PR 15-16: Config & Server", "PR 17-18: Testing"],
-  "current_pr": 8,
+  "current_pr": 11,
   "completed_documents": [
     "problem_space.md",
     "bsd.md",
@@ -127,10 +127,18 @@
       "phase": "implementation-pr8",
       "notes": [
         "PR 8: Permission Service - resource-level access control",
-        "PR #235 open"
+        "PR #235 merged"
       ],
       "timestamp": "2026-04-12T15:00:00Z"
+    },
+    {
+      "phase": "implementation-pr9-11",
+      "notes": [
+        "PR 9-11: HTTP Handlers - auth, session, admin endpoints",
+        "PR #236 open"
+      ],
+      "timestamp": "2026-04-12T15:27:00Z"
     }
   ],
-  "last_updated": "2026-04-12T15:00:00Z"
+  "last_updated": "2026-04-12T15:27:00Z"
 }
