@@ -10,3 +10,7 @@ This directory contains discrete pieces of work: features, components, refactors
 - [Database Design](database-design/README.md)
 - [Messaging Paradigm](messaging-paradigm/README.md)
 - [Observability](observability/README.md)
+
+## Developer Experience
+
+- [Deployment & DX](deployment-dx/README.md) - Status: Discovery
