@@ -481,19 +481,9 @@ This section tracks the completion status of each design unit. Units are complet
 | **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`shared/messaging`) |
 | **OpenCode Migration** | ✅ Complete | OpenCode integration and migration |
 | **Observability** | ✅ Complete | Observability primitives (`shared/telemetry`) |
-
-### In Progress Units
-
-| Unit | Status | Description |
-|------|--------|-------------|
 | **Database Design & API/DB Documentation** | ✅ Complete | Database design documentation and API/DB specification |
-
-### Planned Units — Foundation
-
-| Unit | Status | Description |
-|------|--------|-------------|
 | **Caching Strategies** | ✅ Complete | Valkey-backed cache with tag-based invalidation, stampede protection, warming |
-| **Users & Auth (JWT, SSO)** | 📋 Planned | Authentication and authorization system |
+| **Users & Auth (JWT, SSO)** | ✅ Complete | Authentication and authorization system (18 micro-PRs, all merged) |
 | **Auditing** | 📋 Planned | Audit logging and compliance tracking |
 | **Security (Certs, TLS, HTTPS, etc)** | 📋 Planned | Security infrastructure and encryption |
 | **CI/CD (PromptFoo)** | 📋 Planned | Continuous integration and deployment pipeline |
