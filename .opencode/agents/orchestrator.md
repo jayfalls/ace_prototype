@@ -23,7 +23,7 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 3. **Index:** Update `design/units/README.md` to show the new unit as `Status: Discovery`.
 
 ### Phase 2: Design (Delegate to Architect)
-1. Launch Architect for **one document at a time** (Problem Space -> BSD -> FSD -> Architecture -> Implementation Plan).
+1. Launch Architect for **one document at a time** (Problem Space -> Research -> BSD -> FSD -> Architecture -> Implementation Plan).
     - NEVER tell the Architect exactly what to research and what to look for(for eg. decide between these libraries or approaches), give it broad instructions and let the Architect figure it out, that's not your job.
 2. For each doc: Create PR -> Wait for Merge.
 
