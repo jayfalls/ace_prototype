@@ -101,7 +101,7 @@ ace main.go
   ├── Initialize HTTP server
   │     └── router.New(cfg) → *chi.Mux
   │           ├── /api/v1/*      → API handlers
-  │           ├── /api/v1/telemetry/* → Inspector handlers
+  │           ├── /telemetry/* → Inspector handlers
   │           └── /*              → SPA handler
   │
   └── Listen on :8080 (or configured port)
@@ -483,7 +483,7 @@ type Config struct {
 //   /health/*           → liveness/readiness
 //   /auth/*             → authentication endpoints
 //   /api/v1/*           → business logic (existing)
-//   /api/v1/telemetry/* → Inspector endpoints (NEW)
+//   /telemetry/* → Inspector endpoints (NEW)
 //   /*                  → SPA handler (NEW)
 ```
 
@@ -498,19 +498,19 @@ type TelemetryHandler struct {
 }
 
 // Spans returns recent trace spans.
-// GET /api/v1/telemetry/spans?limit=50&service=ace
+// GET /telemetry/spans?limit=50&service=ace
 func (h *TelemetryHandler) Spans(w http.ResponseWriter, r *http.Request)
 
 // Metrics returns metric summaries.
-// GET /api/v1/telemetry/metrics?name=http_requests&window=1h
+// GET /telemetry/metrics?name=http_requests&window=1h
 func (h *TelemetryHandler) Metrics(w http.ResponseWriter, r *http.Request)
 
 // Usage returns cost attribution data.
-// GET /api/v1/telemetry/usage?agent_id=xxx&from=2026-01-01
+// GET /telemetry/usage?agent_id=xxx&from=2026-01-01
 func (h *TelemetryHandler) Usage(w http.ResponseWriter, r *http.Request)
 
 // Health returns subsystem health status.
-// GET /api/v1/telemetry/health
+// GET /telemetry/health
 func (h *TelemetryHandler) Health(w http.ResponseWriter, r *http.Request)
 ```
 

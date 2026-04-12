@@ -68,8 +68,8 @@ Embed built frontend assets into Go binary using embed package.
 | Problem Space | Complete |
 | Research | Complete |
 | BSD | Complete |
-| FSD | Pending |
-| Architecture | Pending |
+| FSD | Complete |
+| Architecture | Complete |
 | Implementation Plan | Pending |
 
 ## Vertical Slices
