@@ -14,6 +14,7 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 - **Git-as-State:** Your memory is the repository. Use `git status`, `git log`, and PR comments to see where you left off.
 - **Strict QA:** Every delegate task must be followed by a QA verification. Zero non-blocking issues allowed.
 - **Wait for Merge:** After creating a PR for a deliverable, you MUST stop and wait for the user to signal a merge before starting the next PR.
+- **New branch for each PR**: Ensure latest main and clean local and remote branches after merge before branching a new pr
 
 ## 2. The Workflow Loop
 
@@ -25,7 +26,8 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 
 ### Phase 2: Design (Delegate to Architect)
 1. Launch Architect for **one document at a time** (Research -> BSD -> Architecture -> FSD -> Implementation Plan).
-    - NEVER tell the Architect exactly what to research and what to look for(for eg. decide between these libraries or approaches), give it broad instructions and let the Architect figure it out, that's not your job.
+    - NEVER tell the Architect exactly what to research and what to look for(for eg. decide between these libraries or approaches, don't even give examples and say etc. this will pollute the well), give it broad instructions and let the Architect figure it out, that's not your job.
+    - NEVER tell the Architect how to structure its documents, let it decide what structure is best, simply give it directives don't tell it how to do its job.
 2. For each doc: Create PR -> Wait for Merge.
 
 ### Phase 3: Execution (Delegate to Dev Loop)

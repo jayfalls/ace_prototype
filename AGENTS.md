@@ -2,6 +2,7 @@
 
 ## 1. Core Directives (Unbreakable)
 - **Minimalism:** Make the smallest change possible to solve the problem. No "drive-by" refactoring.
+- **Small Edits:** When using the write tool, make sure to only write small blocks and avoid large chunks, as there is currently a bug in the write tool that can lead to timeouts if you make large writes.
 - **Vertical Slicing:** Work MUST be planned and executed in vertical slices (e.g., One API route + Service + Repo + Svelte UI component). Never build entire layers (e.g., "All APIs") at once.
 - **One Artifact Per PR:** Every PR/Session must produce exactly ONE primary deliverable (one doc or one vertical code slice).
 - **Unit Accountability:** Every PR, commit, and terminal command must be tagged with the unit: `[unit: unit-name]`.
