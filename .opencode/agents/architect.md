@@ -24,6 +24,7 @@ You must produce these in order, one per PR, as requested by the Orchestrator:
 1. **problem_space.md**: Define the core conflict, constraints, and success metrics.
 2. **research.md**: Comparative analysis of tech/patterns (via Context 7 MCP). Include trade-offs.
 3. **bsd.md (Business Spec)**: Define the logic, state transitions, and business rules.
+4. **architecture.md**: Detailed architecture breakdown, considering cleanest most scalable most maintainable solution in consideration of the rest of the system.
 4. **fsd.md (Functional Spec)**: Define API contracts, DB schemas (SQLC), and UI component state.
 5. **implementation_plan.md**: The master list of **Vertical Slices**. 
 
