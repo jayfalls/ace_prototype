@@ -65,7 +65,7 @@ The core conflict: External dependencies provide battle-tested reliability but c
 - Replace external Valkey with internal caching
 - Replace external observability stack with custom telemetry
 - Embed frontend assets in Go binary
-- Simplify Makefile to `make ace`, `make ui`, `make test`
+- Simplify Makefile to `make ace`, `make test`
 - Create curl-based installation script
 - Update git hook to call `make test` efficiently
 - Remove devops/ folder and container orchestration

@@ -27,7 +27,7 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 ### Phase 2: Design (Delegate to Architect)
 1. Launch Architect for **one document at a time** (Research -> BSD -> Architecture -> FSD -> Implementation Plan).
     - NEVER tell the Architect exactly what to research and what to look for(for eg. decide between these libraries or approaches, don't even give examples and say etc. this will pollute the well), give it broad instructions and let the Architect figure it out, that's not your job.
-    - NEVER tell the Architect how to structure its documents, let it decide what structure is best, simply give it directives don't tell it how to do its job.
+    - NEVER tell the Architect how to structure its documents or what contents the documents should contain, let it decide what is best, simply give it directives don't tell it how to do its job.
 2. For each doc: Create PR -> Wait for Merge.
 
 ### Phase 3: Execution (Delegate to Dev Loop)
