@@ -1,6 +1,6 @@
 # Deployment & Developer Experience Unit
 
-**Status:** Research  
+**Status:** Design  
 **Goal:** Simplify deployment, development workflow, and end-user experience
 
 ## Overview
@@ -10,7 +10,7 @@ This unit transforms ACE from a complex multi-container orchestration into a sim
 ## Key Objectives
 
 1. **Single Go Binary**: Consolidate all backend services into one binary
-2. **Simplified Make Commands**: `make ace` (backend), `make ui` (frontend), `make test` (all tests)
+2. **Simplified Make Commands**: `make ace` (build binary with embedded frontend), `make test` (all tests)
 3. **Internal Systems**: Replace external dependencies with embedded/internal alternatives
 4. **Curl Install**: Single-command installation (`curl | sh`) with `ace` command
 5. **Embedded Frontend**: Bundle frontend into the Go binary
@@ -67,7 +67,7 @@ Embed built frontend assets into Go binary using embed package.
 |----------|--------|
 | Problem Space | Complete |
 | Research | Complete |
-| BSD | Pending |
+| BSD | Complete |
 | FSD | Pending |
 | Architecture | Pending |
 | Implementation Plan | Pending |
