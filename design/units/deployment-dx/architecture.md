@@ -317,14 +317,31 @@ type Config struct {
 Two files, selected by build tags:
 
 ```go
-// File: internal/platform/frontend/frontend_embed.go
-//go:build !dev
+// File: internal/platform/frontend/frontend.go
+// Default build: development mode with Vite proxy
 
 package frontend
 
 import "net/http"
 
-// Handler returns an http.Handler that serves embedded static assets
+// Handler returns an http.Handler that proxies to http://localhost:5173
+// for frontend requests, falling through to the Vite dev server.
+func Handler() http.Handler { /* ... */ }
+```
+
+```go
+// File: internal/platform/frontend/frontend_embed.go
+//go:build embed
+
+package frontend
+
+import "embed"
+import "net/http"
+
+//go:embed all:../../../frontend/build
+var assets embed.FS
+
+// Handler returns an http.Handler that serves embedded assets
 // with SPA fallback routing.
 func Handler() http.Handler { /* ... */ }
 ```
@@ -565,8 +582,8 @@ backend/
 │   │   │   ├── sqlite_queries.sql   # SQLC queries for telemetry tables
 │   │   │   └── inspector.go         # TelemetryHandler HTTP handlers
 │   │   ├── frontend/
-│   │   │   ├── frontend_embed.go   # //go:build !dev — go:embed static assets
-│   │   │   ├── frontend_dev.go      # //go:build dev — proxy to Vite dev server
+│   │   │   ├── frontend.go         # Default: proxy to Vite dev server
+│   │   │   ├── frontend_embed.go   # //go:build embed — go:embed static assets
 │   │   │   └── spa.go              # SPA routing logic (shared by both modes)
 │   │   └── paths.go                # XDG path resolution, Paths struct
 │   ├── api/
@@ -924,7 +941,13 @@ func TestAppStartupAndShutdown(t *testing.T) {
 ### 7.5 Makefile Targets
 
 ```makefile
+# Dev mode (default): Vite proxy for HMR
 ace:       go build -o bin/ace ./cmd/ace/
+
+# Production build: embedded frontend (used by GoReleaser)
+ace-prod:  cd frontend && npm run build && go build -tags embed -o bin/ace ./cmd/ace/
+
+# Full validation pipeline
 test:      go build ./... && go vet ./... && go test -short ./... && sqlc generate && (cd frontend && npm run lint && npm run test:run)
 ```
 
@@ -944,8 +967,8 @@ test:      go build ./... && go vet ./... && go test -short ./... && sqlc genera
 
 | Tag | Behavior |
 |-----|----------|
-| (default) | Embedded frontend, SQLite, production |
-| `dev` | Vite proxy, HMR, development |
+| (default) | Vite proxy, HMR, development |
+| `embed` | Embedded frontend, production mode |
 | `external_db` | PostgreSQL (future enterprise builds) |
 
 ### 8.2 GoReleaser
