@@ -944,12 +944,11 @@ func TestAppStartupAndShutdown(t *testing.T) {
 # Dev mode (default): Vite proxy for HMR
 ace:       go build -o bin/ace ./cmd/ace/
 
-# Production build: embedded frontend (used by GoReleaser)
-ace-prod:  cd frontend && npm run build && go build -tags embed -o bin/ace ./cmd/ace/
-
 # Full validation pipeline
 test:      go build ./... && go vet ./... && go test -short ./... && sqlc generate && (cd frontend && npm run lint && npm run test:run)
 ```
+
+**Production builds** are handled by GoReleaser (`.goreleaser.yml`) which builds with `-tags embed` for releases.
 
 ### 7.6 Test Performance Targets
 
