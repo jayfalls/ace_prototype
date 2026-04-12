@@ -919,32 +919,17 @@ Telemetry data is pruned on startup and every 6 hours:
 
 ```makefile
 # Primary targets
-ace:          Build the Go binary (development mode, no embedded frontend)
-ace-release:  Build the Go binary with embedded frontend (production)
-ui:           Build SvelteKit frontend (produces frontend/build/)
-test:         Full validation pipeline
+ace:          Build the Go binary (development mode with Vite proxy)
+test:         Full validation pipeline (build, lint, test, docs, git add)
 clean:        Remove build artifacts
-
-# Internal targets (called by test)
-test-go:      Go build, vet, test (with -short)
-test-fe:      Frontend lint and test
-sqlc-generate: Generate SQLC code
-docs-generate: Generate documentation
 ```
 
 **`make ace`** (development build):
 ```bash
 go build -o bin/ace ./cmd/ace/
-# No embed tag → frontend_dev.go is compiled
+# Default build (no tags) → frontend.go is compiled
 # Frontend requests proxy to http://localhost:5173 (Vite dev server)
-```
-
-**`make ace-release`** (production build):
-```bash
-cd frontend && npm run build
-go build -tags embed -o bin/ace ./cmd/ace/
-# With embed tag → frontend_embed.go is compiled
-# Frontend assets are embedded in the binary
+# Hot reload works via Vite HMR
 ```
 
 **`make test`** (full validation):
@@ -952,11 +937,13 @@ go build -tags embed -o bin/ace ./cmd/ace/
 go build ./...
 go vet ./...
 go test -short ./...
-cd backend && sqlc generate
+sqlc generate
 cd frontend && npm run lint && npm run test:run
-go run ./internal/tools/docs-gen/...
+go run ./scripts/docs-gen/...
 git add .
 ```
+
+**Production builds** are handled by GoReleaser (see 7.2), not Makefile.
 
 ### 7.2 GoReleaser Configuration
 
@@ -990,8 +977,8 @@ release:
 
 | Tag | Files Included | Behavior |
 |-----|---------------|----------|
-| (none, default) | `frontend_dev.go` | Proxies frontend to `http://localhost:5173`. No embedded assets. |
-| `embed` | `frontend_embed.go` | Embedded static assets. SPA handler serves from `go:embed`. |
+| (none, default) | `frontend.go` | Proxies frontend to `http://localhost:5173`. Development mode with HMR. |
+| `embed` | `frontend_embed.go` | Embedded static assets. Production mode serves from `go:embed`. |
 
 ### 7.4 SQLC Dialect Change
 
