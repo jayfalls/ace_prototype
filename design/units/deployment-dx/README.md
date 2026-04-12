@@ -1,6 +1,6 @@
 # Deployment & Developer Experience Unit
 
-**Status:** Research  
+**Status:** Design  
 **Goal:** Simplify deployment, development workflow, and end-user experience
 
 ## Overview
@@ -67,7 +67,7 @@ Embed built frontend assets into Go binary using embed package.
 |----------|--------|
 | Problem Space | Complete |
 | Research | Complete |
-| BSD | Pending |
+| BSD | Complete |
 | FSD | Pending |
 | Architecture | Pending |
 | Implementation Plan | Pending |
