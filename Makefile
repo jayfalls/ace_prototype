@@ -56,19 +56,10 @@ help: ## Show this help message
 
 ##@ Development Environment
 
-dev: ## Full dev setup: clone agency-agents, setup distrobox, install deps
+dev: ## Full dev setup: setup distrobox, install deps
 	@echo "$(BLUE)Setting up development environment...$(NC)"
 	@echo ""
-	@# Step 1: Clone/update agency-agents
-	@if [ -d "agency-agents" ]; then \
-		echo "Updating agency-agents..."; \
-		cd agency-agents && git pull; \
-	else \
-		echo "Cloning agency-agents..."; \
-		git clone https://github.com/msitarzewski/agency-agents.git; \
-	fi
-	@echo ""
-	@# Step 2: Check/create distrobox
+	@# Step 1: Check/create distrobox
 	@echo "$(BLUE)Checking distrobox...$(NC)"
 	@if ! command -v distrobox &> /dev/null; then \
 		echo "$(RED)Error: distrobox not installed. Install with: pipx install distrobox$(NC)"; \
@@ -83,7 +74,7 @@ dev: ## Full dev setup: clone agency-agents, setup distrobox, install deps
 	echo "Installing dependencies..."; \
 	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/distrobox-setup.sh"
 	@echo ""
-	@# Step 3: Setup pre-commit hook
+	@# Step 2: Setup pre-commit hook
 	@echo "$(BLUE)Setting up pre-commit hook...$(NC)"
 	@ln -sf "$(shell pwd)/.dev/pre-commit.sh" "$(shell pwd)/.git/hooks/pre-commit" 2>/dev/null || echo "Note: Could not create pre-commit hook"
 	@echo ""

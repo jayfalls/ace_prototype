@@ -1,0 +1,76 @@
+# Deployment & Developer Experience Unit
+
+**Status:** Discovery  
+**Goal:** Simplify deployment, development workflow, and end-user experience
+
+## Overview
+
+This unit transforms ACE from a complex multi-container orchestration into a simple, single-binary deployment model while maintaining extensibility for enterprise observability.
+
+## Key Objectives
+
+1. **Single Go Binary**: Consolidate all backend services into one binary
+2. **Simplified Make Commands**: `make ace` (backend), `make ui` (frontend), `make test` (all tests)
+3. **Internal Systems**: Replace external dependencies with embedded/internal alternatives
+4. **Curl Install**: Single-command installation (`curl | sh`) with `ace` command
+5. **Embedded Frontend**: Bundle frontend into the Go binary
+6. **Custom Telemetry**: Replace OTEL collectors with custom telemetry system
+
+## Clarifications
+
+### Database Strategy
+Research required on Go embedded database options (SQLite vs alternatives).
+
+### Messaging Replacement
+Architect to research and recommend after problem space analysis.
+
+### Cache Replacement
+Architect to research and recommend (in-memory with TTL vs alternatives).
+
+### Observability/Telemetry
+Custom-built telemetry system that:
+- Provides core tracing for usage tracking, cost analysis, self-improvement loops
+- Can optionally hook into enterprise observability stacks
+- Replaces external collectors (Prometheus, Grafana, Loki, Tempo, OTEL)
+
+### Installation Path
+Research industry standards for CLI tool installation.
+
+### Data Directory
+Research industry standards for application data storage.
+
+### Frontend Strategy
+Embed built frontend assets into Go binary using embed package.
+
+## Dependencies to Remove
+
+- Docker/Podman containers (dev/prod)
+- PostgreSQL container → embedded DB
+- NATS server → internal messaging
+- Valkey/Redis → internal cache
+- Prometheus/Grafana/Loki/Tempo → custom telemetry
+- OTEL Collector → custom telemetry
+- changelogs/ folder
+
+## Design Documents
+
+- [Problem Space](problem_space.md) - Problem mapping, constraints, success metrics
+- [Research](research.md) - Technology evaluation and options analysis (Architect)
+- [BSD](bsd.md) - Business/System Design
+- [FSD](fsd.md) - Functional Specification
+- [Architecture](architecture.md) - Technical architecture
+- [Implementation Plan](implementation.md) - Vertical slices
+
+## Progress
+
+| Document | Status |
+|----------|--------|
+| Problem Space | In Progress |
+| BSD | Pending |
+| FSD | Pending |
+| Architecture | Pending |
+| Implementation Plan | Pending |
+
+## Vertical Slices
+
+To be defined after architecture is complete.
