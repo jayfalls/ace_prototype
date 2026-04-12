@@ -3,17 +3,16 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/netip"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -22,26 +21,26 @@ import (
 
 // MockSessionQueries is a mock implementation of db.Queries for session testing.
 type MockSessionQueries struct {
-	GetUserByIDFunc             func(ctx context.Context, id pgtype.UUID) (*db.User, error)
-	GetSessionByIDFunc          func(ctx context.Context, id pgtype.UUID) (*db.Session, error)
-	GetSessionByUserIDFunc      func(ctx context.Context, userID pgtype.UUID) ([]db.Session, error)
+	GetUserByIDFunc             func(ctx context.Context, id string) (*db.User, error)
+	GetSessionByIDFunc          func(ctx context.Context, id string) (*db.Session, error)
+	GetSessionByUserIDFunc      func(ctx context.Context, params db.GetSessionByUserIDParams) ([]*db.Session, error)
 	GetSessionByIDAndUserIDFunc func(ctx context.Context, params db.GetSessionByIDAndUserIDParams) (*db.Session, error)
-	DeleteSessionFunc           func(ctx context.Context, id pgtype.UUID) error
+	DeleteSessionFunc           func(ctx context.Context, id string) error
 }
 
 // GetUserByID calls the mock function.
-func (q *MockSessionQueries) GetUserByID(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+func (q *MockSessionQueries) GetUserByID(ctx context.Context, id string) (*db.User, error) {
 	return q.GetUserByIDFunc(ctx, id)
 }
 
 // GetSessionByID calls the mock function.
-func (q *MockSessionQueries) GetSessionByID(ctx context.Context, id pgtype.UUID) (*db.Session, error) {
+func (q *MockSessionQueries) GetSessionByID(ctx context.Context, id string) (*db.Session, error) {
 	return q.GetSessionByIDFunc(ctx, id)
 }
 
 // GetSessionByUserID calls the mock function.
-func (q *MockSessionQueries) GetSessionByUserID(ctx context.Context, userID pgtype.UUID) ([]db.Session, error) {
-	return q.GetSessionByUserIDFunc(ctx, userID)
+func (q *MockSessionQueries) GetSessionByUserID(ctx context.Context, params db.GetSessionByUserIDParams) ([]*db.Session, error) {
+	return q.GetSessionByUserIDFunc(ctx, params)
 }
 
 // GetSessionByIDAndUserID calls the mock function.
@@ -50,7 +49,7 @@ func (q *MockSessionQueries) GetSessionByIDAndUserID(ctx context.Context, params
 }
 
 // DeleteSession calls the mock function.
-func (q *MockSessionQueries) DeleteSession(ctx context.Context, id pgtype.UUID) error {
+func (q *MockSessionQueries) DeleteSession(ctx context.Context, id string) error {
 	return q.DeleteSessionFunc(ctx, id)
 }
 
@@ -78,19 +77,23 @@ func (h *TestableSessionHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := h.queries.GetUserByID(r.Context(), pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true})
+	dbUser, err := h.queries.GetUserByID(r.Context(), userID.(uuid.UUID).String())
 	if err != nil {
 		response.NotFound(w, "User not found")
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := UserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }
@@ -107,7 +110,11 @@ func (h *TestableSessionHandler) ListSessions(w http.ResponseWriter, r *http.Req
 	page, limit := parsePaginationParams(r)
 
 	// Get sessions for user
-	dbSessions, err := h.queries.GetSessionByUserID(r.Context(), pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true})
+	now := time.Now().Format(time.RFC3339)
+	dbSessions, err := h.queries.GetSessionByUserID(r.Context(), db.GetSessionByUserIDParams{
+		UserID:    userID.(uuid.UUID).String(),
+		ExpiresAt: now,
+	})
 	if err != nil {
 		response.InternalError(w, "Failed to get sessions")
 		return
@@ -116,18 +123,20 @@ func (h *TestableSessionHandler) ListSessions(w http.ResponseWriter, r *http.Req
 	// Convert to response format
 	sessions := make([]SessionResponse, len(dbSessions))
 	for i, s := range dbSessions {
-		ipStr := ""
-		if s.IpAddress != nil {
-			ipStr = s.IpAddress.String()
-		}
+		sessionID, _ := uuid.Parse(s.ID)
+		sessionUserID, _ := uuid.Parse(s.UserID)
+		lastUsedAt, _ := time.Parse(time.RFC3339, s.LastUsedAt)
+		expiresAt, _ := time.Parse(time.RFC3339, s.ExpiresAt)
+		createdAt, _ := time.Parse(time.RFC3339, s.CreatedAt)
+
 		sessions[i] = SessionResponse{
-			ID:         s.ID.Bytes,
-			UserID:     s.UserID.Bytes,
+			ID:         sessionID,
+			UserID:     sessionUserID,
 			UserAgent:  s.UserAgent.String,
-			IPAddress:  ipStr,
-			LastUsedAt: s.LastUsedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			ExpiresAt:  s.ExpiresAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:  s.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			IPAddress:  s.IpAddress.String,
+			LastUsedAt: lastUsedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:  expiresAt.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt:  createdAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
 
@@ -156,9 +165,11 @@ func (h *TestableSessionHandler) RevokeSession(w http.ResponseWriter, r *http.Re
 	}
 
 	// Verify session belongs to user
+	now := time.Now().Format(time.RFC3339)
 	_, err = h.queries.GetSessionByIDAndUserID(r.Context(), db.GetSessionByIDAndUserIDParams{
-		ID:     pgtype.UUID{Bytes: sessionID, Valid: true},
-		UserID: pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true},
+		ID:        sessionID.String(),
+		UserID:    userID.(uuid.UUID).String(),
+		ExpiresAt: now,
 	})
 	if err != nil {
 		response.NotFound(w, "Session not found")
@@ -166,7 +177,7 @@ func (h *TestableSessionHandler) RevokeSession(w http.ResponseWriter, r *http.Re
 	}
 
 	// Delete session
-	err = h.queries.DeleteSession(r.Context(), pgtype.UUID{Bytes: sessionID, Valid: true})
+	err = h.queries.DeleteSession(r.Context(), sessionID.String())
 	if err != nil {
 		response.InternalError(w, "Failed to revoke session")
 		return
@@ -181,30 +192,29 @@ func createContextWithUserID(userID uuid.UUID) context.Context {
 }
 
 // Helper function to create test user.
-func createTestUserWithID(email string, id uuid.UUID) *db.User {
+func createSessionTestUser(email string, id uuid.UUID) *db.User {
 	return &db.User{
-		ID:           pgtype.UUID{Bytes: id, Valid: true},
+		ID:           id.String(),
 		Email:        email,
 		PasswordHash: "hashed_password",
 		Role:         "user",
 		Status:       "active",
-		CreatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		UpdatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		UpdatedAt:    time.Now().Format(time.RFC3339),
 	}
 }
 
 // Helper function to create test session.
-func createTestSessionWithID(userID uuid.UUID, sessionID uuid.UUID) *db.Session {
-	ipAddr, _ := netip.ParseAddr("127.0.0.1")
+func createSessionTestSession(userID uuid.UUID, sessionID uuid.UUID) *db.Session {
 	return &db.Session{
-		ID:               pgtype.UUID{Bytes: sessionID, Valid: true},
-		UserID:           pgtype.UUID{Bytes: userID, Valid: true},
+		ID:               sessionID.String(),
+		UserID:           userID.String(),
 		RefreshTokenHash: "refresh_hash",
-		UserAgent:        pgtype.Text{String: "Test Agent", Valid: true},
-		IpAddress:        &ipAddr,
-		LastUsedAt:       pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		ExpiresAt:        pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
-		CreatedAt:        pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		UserAgent:        sql.NullString{String: "Test Agent", Valid: true},
+		IpAddress:        sql.NullString{String: "127.0.0.1", Valid: true},
+		LastUsedAt:       time.Now().Format(time.RFC3339),
+		ExpiresAt:        time.Now().Add(time.Hour).Format(time.RFC3339),
+		CreatedAt:        time.Now().Format(time.RFC3339),
 	}
 }
 
@@ -212,10 +222,10 @@ func createTestSessionWithID(userID uuid.UUID, sessionID uuid.UUID) *db.Session 
 
 func TestMe_Success(t *testing.T) {
 	userID := uuid.New()
-	testUser := createTestUserWithID("test@example.com", userID)
+	testUser := createSessionTestUser("test@example.com", userID)
 
 	mockQueries := &MockSessionQueries{
-		GetUserByIDFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		GetUserByIDFunc: func(ctx context.Context, id string) (*db.User, error) {
 			return testUser, nil
 		},
 	}
@@ -267,7 +277,7 @@ func TestMe_UserNotFound(t *testing.T) {
 	userID := uuid.New()
 
 	mockQueries := &MockSessionQueries{
-		GetUserByIDFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		GetUserByIDFunc: func(ctx context.Context, id string) (*db.User, error) {
 			return nil, errors.New("not found")
 		},
 	}
@@ -295,8 +305,8 @@ func TestListSessions_Success(t *testing.T) {
 	sessionID := uuid.New()
 
 	mockQueries := &MockSessionQueries{
-		GetSessionByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]db.Session, error) {
-			return []db.Session{*createTestSessionWithID(userID.Bytes, sessionID)}, nil
+		GetSessionByUserIDFunc: func(ctx context.Context, params db.GetSessionByUserIDParams) ([]*db.Session, error) {
+			return []*db.Session{createSessionTestSession(userID, sessionID)}, nil
 		},
 	}
 
@@ -347,8 +357,8 @@ func TestListSessions_DefaultPagination(t *testing.T) {
 	userID := uuid.New()
 
 	mockQueries := &MockSessionQueries{
-		GetSessionByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) ([]db.Session, error) {
-			return []db.Session{}, nil
+		GetSessionByUserIDFunc: func(ctx context.Context, params db.GetSessionByUserIDParams) ([]*db.Session, error) {
+			return []*db.Session{}, nil
 		},
 	}
 
@@ -376,9 +386,9 @@ func TestRevokeSession_Success(t *testing.T) {
 
 	mockQueries := &MockSessionQueries{
 		GetSessionByIDAndUserIDFunc: func(ctx context.Context, params db.GetSessionByIDAndUserIDParams) (*db.Session, error) {
-			return createTestSessionWithID(userID, sessionID), nil
+			return createSessionTestSession(userID, sessionID), nil
 		},
-		DeleteSessionFunc: func(ctx context.Context, id pgtype.UUID) error {
+		DeleteSessionFunc: func(ctx context.Context, id string) error {
 			return nil
 		},
 	}

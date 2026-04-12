@@ -312,13 +312,13 @@ func TestValidateConfig_InvalidModeValues(t *testing.T) {
 }
 
 func TestResolveAndValidate_Integration(t *testing.T) {
-	// Test that resolve + validate works correctly
+	// Test that resolve + validate works correctly for a valid config
 	os.Setenv("ACE_JWT_SECRET", "this-is-a-valid-secret-that-is-at-least-32-chars")
 	defer os.Unsetenv("ACE_JWT_SECRET")
 
-	// CLI config with invalid port (0)
+	// CLI config with port 0 (zero value, won't override defaults)
 	cliCfg := &Config{
-		Port: 0, // Invalid port - should trigger validation error
+		Port: 0, // Zero value, will use default 8080
 	}
 	cfg, err := ResolveConfig(cliCfg)
 	if err != nil {
@@ -326,14 +326,16 @@ func TestResolveAndValidate_Integration(t *testing.T) {
 	}
 
 	// Port 0 is the zero value, so it won't override the default 8080
-	// So the resolved config will have port=8080 (the default)
-	// This test checks that validation fails even when resolve succeeds
-	err = ValidateConfig(cfg)
-	if err == nil {
-		t.Fatal("ValidateConfig expected error, got nil")
+	// The resolved config should have port=8080 (the default) which is valid
+	if cfg.Port != 8080 {
+		t.Errorf("expected port 8080 after resolve, got %d", cfg.Port)
 	}
-	// The resolved config has default port=8080 which is valid, so this won't fail
-	// Let's instead test with a config that has an explicitly invalid port
+
+	// ValidateConfig should pass for a valid resolved config
+	err = ValidateConfig(cfg)
+	if err != nil {
+		t.Fatalf("ValidateConfig failed for valid resolved config: %v", err)
+	}
 }
 
 func TestResolveAndValidate_InvalidPort(t *testing.T) {
