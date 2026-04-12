@@ -313,10 +313,10 @@ shared/telemetry (existing package)
 ├── Meter (OTel)              — stays, exports to local SQLite metrics table
 ├── Usage (existing)          — stays, writes to SQLite usage_events table
 └── Inspector (new)           — HTTP handlers for querying telemetry data
-    ├── GET /api/v1/telemetry/spans      — trace inspection
-    ├── GET /api/v1/telemetry/metrics    — metric introspection
-    ├── GET /api/v1/telemetry/usage      — cost attribution
-    └── GET /api/v1/telemetry/health     — system health
+    ├── GET /telemetry/spans      — trace inspection
+    ├── GET /telemetry/metrics    — metric introspection
+    ├── GET /telemetry/usage      — cost attribution
+    └── GET /telemetry/health     — system health
 ```
 
 ### Key Design Decisions
