@@ -921,7 +921,6 @@ Telemetry data is pruned on startup and every 6 hours:
 # Primary targets
 ace:          Build the Go binary (development mode with Vite proxy)
 test:         Full validation pipeline (build, lint, test, docs, git add)
-clean:        Remove build artifacts
 ```
 
 **`make ace`** (development build):
