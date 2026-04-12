@@ -7,27 +7,26 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const deleteVersionStamp = `-- name: DeleteVersionStamp :exec
-DELETE FROM version_stamps WHERE key = $1
+DELETE FROM version_stamps WHERE key = ?
 `
 
 func (q *Queries) DeleteVersionStamp(ctx context.Context, key string) error {
-	_, err := q.db.Exec(ctx, deleteVersionStamp, key)
+	_, err := q.db.ExecContext(ctx, deleteVersionStamp, key)
 	return err
 }
 
 const getVersionStamp = `-- name: GetVersionStamp :one
 SELECT key, version, source_hash, updated_at, updated_by
 FROM version_stamps
-WHERE key = $1
+WHERE key = ?
 `
 
 func (q *Queries) GetVersionStamp(ctx context.Context, key string) (*VersionStamp, error) {
-	row := q.db.QueryRow(ctx, getVersionStamp, key)
+	row := q.db.QueryRowContext(ctx, getVersionStamp, key)
 	var i VersionStamp
 	err := row.Scan(
 		&i.Key,
@@ -41,26 +40,28 @@ func (q *Queries) GetVersionStamp(ctx context.Context, key string) (*VersionStam
 
 const upsertVersionStamp = `-- name: UpsertVersionStamp :exec
 INSERT INTO version_stamps (key, version, source_hash, updated_at, updated_by)
-VALUES ($1, $2, $3, NOW(), $4)
-ON CONFLICT (key) DO UPDATE SET
-    version = EXCLUDED.version,
-    source_hash = EXCLUDED.source_hash,
-    updated_at = NOW(),
-    updated_by = EXCLUDED.updated_by
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(key) DO UPDATE SET
+    version = excluded.version,
+    source_hash = excluded.source_hash,
+    updated_at = excluded.updated_at,
+    updated_by = excluded.updated_by
 `
 
 type UpsertVersionStampParams struct {
-	Key        string      `json:"key"`
-	Version    string      `json:"version"`
-	SourceHash pgtype.Text `json:"source_hash"`
-	UpdatedBy  pgtype.Text `json:"updated_by"`
+	Key        string         `json:"key"`
+	Version    string         `json:"version"`
+	SourceHash sql.NullString `json:"source_hash"`
+	UpdatedAt  string         `json:"updated_at"`
+	UpdatedBy  sql.NullString `json:"updated_by"`
 }
 
 func (q *Queries) UpsertVersionStamp(ctx context.Context, arg UpsertVersionStampParams) error {
-	_, err := q.db.Exec(ctx, upsertVersionStamp,
+	_, err := q.db.ExecContext(ctx, upsertVersionStamp,
 		arg.Key,
 		arg.Version,
 		arg.SourceHash,
+		arg.UpdatedAt,
 		arg.UpdatedBy,
 	)
 	return err

@@ -10,22 +10,13 @@ INSERT INTO sessions (
     expires_at,
     created_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    $3,
-    $4,
-    NOW(),
-    $5,
-    NOW()
-)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at;
@@ -37,12 +28,12 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE id = $1;
+WHERE id = ?;
 
 -- name: GetSessionByUserID :many
 -- Gets all sessions for a user.
@@ -51,13 +42,13 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE user_id = $1
-  AND expires_at > NOW()
+WHERE user_id = ?
+  AND expires_at > ?
 ORDER BY last_used_at DESC;
 
 -- name: GetSessionByRefreshTokenHash :one
@@ -67,25 +58,25 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE refresh_token_hash = $1
-  AND expires_at > NOW();
+WHERE refresh_token_hash = ?
+  AND expires_at > ?;
 
 -- name: UpdateSessionLastUsed :one
 -- Updates the last_used_at timestamp for a session.
 UPDATE sessions
-SET last_used_at = NOW()
-WHERE id = $1
+SET last_used_at = ?
+WHERE id = ?
 RETURNING
     id,
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at;
@@ -93,29 +84,29 @@ RETURNING
 -- name: DeleteSession :exec
 -- Deletes a specific session by ID.
 DELETE FROM sessions
-WHERE id = $1;
+WHERE id = ?;
 
 -- name: DeleteSessionByRefreshTokenHash :exec
 -- Deletes a session by refresh token hash.
 DELETE FROM sessions
-WHERE refresh_token_hash = $1;
+WHERE refresh_token_hash = ?;
 
 -- name: DeleteAllSessionsByUserID :exec
 -- Deletes all sessions for a user (used when revoking all sessions).
 DELETE FROM sessions
-WHERE user_id = $1;
+WHERE user_id = ?;
 
 -- name: DeleteExpiredSessions :exec
 -- Deletes all expired sessions (cleanup job).
 DELETE FROM sessions
-WHERE expires_at < NOW();
+WHERE expires_at < ?;
 
 -- name: CountSessionsByUserID :one
 -- Counts active sessions for a user.
 SELECT COUNT(*) AS count
 FROM sessions
-WHERE user_id = $1
-  AND expires_at > NOW();
+WHERE user_id = ?
+  AND expires_at > ?;
 
 -- name: GetSessionByIDAndUserID :one
 -- Gets a session by ID and user ID (for verification).
@@ -124,11 +115,11 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE id = $1
-  AND user_id = $2
-  AND expires_at > NOW();
+WHERE id = ?
+  AND user_id = ?
+  AND expires_at > ?;

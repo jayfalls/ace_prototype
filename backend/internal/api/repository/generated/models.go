@@ -5,59 +5,96 @@
 package db
 
 import (
-	"net/netip"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 type AuthToken struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
-	TokenType string             `json:"token_type"`
-	TokenHash string             `json:"token_hash"`
-	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
-	UsedAt    pgtype.Timestamptz `json:"used_at"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID        string         `json:"id"`
+	UserID    string         `json:"user_id"`
+	TokenType string         `json:"token_type"`
+	TokenHash string         `json:"token_hash"`
+	ExpiresAt string         `json:"expires_at"`
+	UsedAt    sql.NullString `json:"used_at"`
+	CreatedAt string         `json:"created_at"`
+}
+
+type OttMetric struct {
+	ID        int64          `json:"id"`
+	Name      string         `json:"name"`
+	Type      string         `json:"type"`
+	Labels    sql.NullString `json:"labels"`
+	Value     float64        `json:"value"`
+	Timestamp string         `json:"timestamp"`
+	CreatedAt string         `json:"created_at"`
+}
+
+type OttSpan struct {
+	ID            int64          `json:"id"`
+	TraceID       string         `json:"trace_id"`
+	SpanID        string         `json:"span_id"`
+	ParentSpanID  sql.NullString `json:"parent_span_id"`
+	OperationName string         `json:"operation_name"`
+	ServiceName   string         `json:"service_name"`
+	StartTime     string         `json:"start_time"`
+	EndTime       string         `json:"end_time"`
+	DurationMs    int64          `json:"duration_ms"`
+	Status        string         `json:"status"`
+	Attributes    sql.NullString `json:"attributes"`
+	CreatedAt     string         `json:"created_at"`
 }
 
 type ResourcePermission struct {
-	ID              pgtype.UUID        `json:"id"`
-	UserID          pgtype.UUID        `json:"user_id"`
-	ResourceType    string             `json:"resource_type"`
-	ResourceID      pgtype.UUID        `json:"resource_id"`
-	PermissionLevel string             `json:"permission_level"`
-	GrantedBy       pgtype.UUID        `json:"granted_by"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ID              string         `json:"id"`
+	UserID          string         `json:"user_id"`
+	ResourceType    string         `json:"resource_type"`
+	ResourceID      string         `json:"resource_id"`
+	PermissionLevel string         `json:"permission_level"`
+	GrantedBy       sql.NullString `json:"granted_by"`
+	CreatedAt       string         `json:"created_at"`
 }
 
 type Session struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        *netip.Addr        `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ID               string         `json:"id"`
+	UserID           string         `json:"user_id"`
+	RefreshTokenHash string         `json:"refresh_token_hash"`
+	UserAgent        sql.NullString `json:"user_agent"`
+	IpAddress        sql.NullString `json:"ip_address"`
+	LastUsedAt       string         `json:"last_used_at"`
+	ExpiresAt        string         `json:"expires_at"`
+	CreatedAt        string         `json:"created_at"`
+}
+
+type UsageEvent struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	SessionID    string          `json:"session_id"`
+	EventType    string          `json:"event_type"`
+	Model        sql.NullString  `json:"model"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	CostUsd      sql.NullFloat64 `json:"cost_usd"`
+	DurationMs   sql.NullInt64   `json:"duration_ms"`
+	Metadata     sql.NullString  `json:"metadata"`
+	CreatedAt    string          `json:"created_at"`
 }
 
 type User struct {
-	ID              pgtype.UUID        `json:"id"`
-	Email           string             `json:"email"`
-	PasswordHash    string             `json:"password_hash"`
-	Role            string             `json:"role"`
-	Status          string             `json:"status"`
-	SuspendedAt     pgtype.Timestamptz `json:"suspended_at"`
-	SuspendedReason pgtype.Text        `json:"suspended_reason"`
-	DeletedAt       pgtype.Timestamptz `json:"deleted_at"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ID              string         `json:"id"`
+	Email           string         `json:"email"`
+	PasswordHash    string         `json:"password_hash"`
+	Role            string         `json:"role"`
+	Status          string         `json:"status"`
+	SuspendedAt     sql.NullString `json:"suspended_at"`
+	SuspendedReason sql.NullString `json:"suspended_reason"`
+	DeletedAt       sql.NullString `json:"deleted_at"`
+	CreatedAt       string         `json:"created_at"`
+	UpdatedAt       string         `json:"updated_at"`
 }
 
 type VersionStamp struct {
-	Key        string             `json:"key"`
-	Version    string             `json:"version"`
-	SourceHash pgtype.Text        `json:"source_hash"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	UpdatedBy  pgtype.Text        `json:"updated_by"`
+	Key        string         `json:"key"`
+	Version    string         `json:"version"`
+	SourceHash sql.NullString `json:"source_hash"`
+	UpdatedAt  string         `json:"updated_at"`
+	UpdatedBy  sql.NullString `json:"updated_by"`
 }
