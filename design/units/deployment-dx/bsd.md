@@ -16,7 +16,7 @@ ACE transforms from a multi-container orchestration (10+ containers, 30+ second 
 
 | Actor | Interaction |
 |-------|-------------|
-| **Developer** | Builds, tests, and runs ACE locally. Uses `make ace`, `make ui`, `make test`. Expects fast feedback loops. |
+| **Developer** | Builds, tests, and runs ACE locally. Uses `make ace`, `make test`. Expects fast feedback loops. |
 | **End User** | Installs ACE via `curl \| sh`, runs `ace` command, interacts via browser at `localhost:8080`. |
 | **Enterprise Operator** | Deploys ACE with external dependencies (PostgreSQL, NATS cluster, OTLP collector) via configuration flags. |
 
@@ -184,7 +184,7 @@ ace [flags]
   ├─ 7. Initialize Services (wire dependencies via constructor injection)
   ├─ 8. Initialize HTTP Server
   │     ├─ /api/v1/*     → API handlers
-  │     ├─ /debug/*       → Telemetry Inspector (spans, metrics, usage)
+  │     ├─ /api/v1/telemetry/* → Telemetry Inspector (spans, metrics, usage)
   │     └─ /*            → SPA handler (embedded assets or vite proxy)
   └─ 9. Serve until shutdown signal
 ```
@@ -273,16 +273,16 @@ The embedded telemetry subsystem replaces the external observability stack:
 | **Metrics** | OTLP → Prometheus | OTel SDK → SQLite `ott_metrics` table |
 | **Logs** | Structured → Loki | Structured → stdout (JSON) + local file |
 | **Usage Events** | NATS → processed | Direct write → SQLite `usage_events` table |
-| **Dashboards** | Grafana | `/debug/telemetry/*` JSON endpoints |
+| **Dashboards** | Grafana | `/api/v1/telemetry/*` JSON endpoints |
 
 **Inspector endpoints** (product-facing, on main API port):
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `GET` | `/debug/telemetry/spans` | Query recent traces |
-| `GET` | `/debug/telemetry/metrics` | Query metric summaries |
-| `GET` | `/debug/telemetry/usage` | Query cost attribution data |
-| `GET` | `/debug/telemetry/health` | System health (DB, NATS, cache status) |
+| `GET` | `/api/v1/telemetry/spans` | Query recent traces |
+| `GET` | `/api/v1/telemetry/metrics` | Query metric summaries |
+| `GET` | `/api/v1/telemetry/usage` | Query cost attribution data |
+| `GET` | `/api/v1/telemetry/health` | System health (DB, NATS, cache status) |
 
 **Data retention**: SQLite tables for telemetry data use time-based cleanup. Spans older than 7 days and metrics older than 24 hours are pruned on startup and every 6 hours.
 
@@ -360,7 +360,7 @@ The Go binary exposes a single HTTP server on `--port` (default 8080):
 | Route Group | Prefix | Handler | Mode |
 |-------------|--------|---------|------|
 | **API** | `/api/v1/*` | Business logic handlers | Always |
-| **Debug/Telemetry** | `/debug/telemetry/*` | Inspector handlers | Always |
+| **Telemetry API** | `/api/v1/telemetry/*` | Inspector handlers | Always |
 | **SPA** | `/*` (catch-all) | Embedded FS or Vite proxy | Production: embedded / Dev: proxy |
 
 ### 5.3 Build System Interface
@@ -445,7 +445,7 @@ The following are removed entirely as part of this unit:
 | PostgreSQL container | Embedded SQLite (modernc.org/sqlite) | Driver switch in config. SQLC dialect changes. |
 | NATS container | Embedded NATS server | No client changes. Connection switches to in-process. |
 | Valkey container | Ristretto in-process backend | New `InProcessBackend` implements existing `CacheBackend` interface. |
-| Grafana/Prometheus/Loki/Tempo stack | SQLite-backed OTel exporters + `/debug/` endpoints | New telemetry Inspector replaces dashboard access. |
+| Grafana/Prometheus/Loki/Tempo stack | SQLite-backed OTel exporters + `/api/v1/telemetry/` endpoints | New telemetry Inspector replaces dashboard access. |
 | SvelteKit adapter-node | SvelteKit adapter-static | Build output changes to static files. No runtime Node.js. |
 | `go.work` multi-module | Single `go.mod` with `internal/` | Import paths change. No functional changes. |
 
