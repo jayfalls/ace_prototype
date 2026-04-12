@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -121,10 +120,12 @@ func (s *MagicLinkService) GenerateMagicLink(ctx context.Context, email, tokenTy
 
 	// Store token in database
 	_, err = s.queries.CreateAuthToken(ctx, db.CreateAuthTokenParams{
+		ID:        uuid.New().String(),
 		UserID:    dbUser.ID,
 		TokenType: tokenType,
 		TokenHash: tokenHash,
-		ExpiresAt: pgtype.Timestamptz{Time: expiresAt, Valid: true},
+		ExpiresAt: expiresAt.Format(time.RFC3339),
+		CreatedAt: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
 		return "", fmt.Errorf("store token: %w", err)
@@ -161,7 +162,11 @@ func (s *MagicLinkService) ValidateMagicLink(ctx context.Context, token, tokenTy
 	tokenHash := hashToken(token)
 
 	// Look up token in database
-	dbToken, err := s.queries.GetAuthTokenByHash(ctx, tokenHash)
+	now := time.Now().Format(time.RFC3339)
+	dbToken, err := s.queries.GetAuthTokenByHash(ctx, db.GetAuthTokenByHashParams{
+		TokenHash: tokenHash,
+		ExpiresAt: now,
+	})
 	if err != nil {
 		return uuid.Nil, ErrInvalidToken
 	}
@@ -172,7 +177,8 @@ func (s *MagicLinkService) ValidateMagicLink(ctx context.Context, token, tokenTy
 	}
 
 	// Verify token hasn't expired (query already checks this, but double-check)
-	if dbToken.ExpiresAt.Time.Before(time.Now()) {
+	expiresAt, _ := time.Parse(time.RFC3339, dbToken.ExpiresAt)
+	if expiresAt.Before(time.Now()) {
 		return uuid.Nil, ErrTokenExpired
 	}
 
@@ -182,13 +188,18 @@ func (s *MagicLinkService) ValidateMagicLink(ctx context.Context, token, tokenTy
 	}
 
 	// Mark token as used
-	_, err = s.queries.MarkAuthTokenUsed(ctx, dbToken.ID)
+	_, err = s.queries.MarkAuthTokenUsed(ctx, db.MarkAuthTokenUsedParams{
+		UsedAt:    dbToken.UsedAt,
+		ID:        dbToken.ID,
+		ExpiresAt: now,
+	})
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("mark token used: %w", err)
 	}
 
 	// Return user ID
-	return dbToken.UserID.Bytes, nil
+	userID, _ := uuid.Parse(dbToken.UserID)
+	return userID, nil
 }
 
 // ResetPassword validates a password reset token and updates the user's password.
@@ -233,28 +244,33 @@ func (s *MagicLinkService) ResetPassword(ctx context.Context, token, newPassword
 
 	// Update user's password in database using UpdateUser with password_hash
 	_, err = s.queries.UpdateUser(ctx, db.UpdateUserParams{
-		ID:           pgtype.UUID{Bytes: userID, Valid: true},
+		ID:           userID.String(),
 		PasswordHash: passwordHash,
+		UpdatedAt:    time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update password: %w", err)
 	}
 
 	// Get updated user
-	dbUser, err := s.queries.GetUserByID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := s.queries.GetUserByID(ctx, userID.String())
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	// Convert to model user
+	userIDModel, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	user := &model.User{
-		ID:           dbUser.ID.Bytes,
+		ID:           userIDModel,
 		Email:        dbUser.Email,
 		PasswordHash: nil, // Never return password hash
 		Role:         model.UserRole(dbUser.Role),
 		Status:       model.UserStatus(dbUser.Status),
-		CreatedAt:    dbUser.CreatedAt.Time,
-		UpdatedAt:    dbUser.UpdatedAt.Time,
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
 	}
 
 	return user, nil
@@ -273,7 +289,7 @@ func (s *MagicLinkService) CleanupExpiredTokens(ctx context.Context) error {
 		return errors.New("context is required")
 	}
 
-	err := s.queries.DeleteExpiredAuthTokens(ctx)
+	err := s.queries.DeleteExpiredAuthTokens(ctx, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("delete expired tokens: %w", err)
 	}

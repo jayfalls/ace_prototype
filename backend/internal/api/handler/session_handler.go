@@ -5,10 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -74,19 +74,23 @@ func (h *SessionHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := h.queries.GetUserByID(r.Context(), pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true})
+	dbUser, err := h.queries.GetUserByID(r.Context(), userID.(uuid.UUID).String())
 	if err != nil {
 		response.NotFound(w, "User not found")
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := UserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }
@@ -111,7 +115,11 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePaginationParams(r)
 
 	// Get sessions for user
-	dbSessions, err := h.queries.GetSessionByUserID(r.Context(), pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true})
+	now := time.Now().Format(time.RFC3339)
+	dbSessions, err := h.queries.GetSessionByUserID(r.Context(), db.GetSessionByUserIDParams{
+		UserID:    userID.(uuid.UUID).String(),
+		ExpiresAt: now,
+	})
 	if err != nil {
 		response.InternalError(w, "Failed to get sessions")
 		return
@@ -120,14 +128,20 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 	// Convert to response format
 	sessions := make([]SessionResponse, len(dbSessions))
 	for i, s := range dbSessions {
+		sessionID, _ := uuid.Parse(s.ID)
+		sessionUserID, _ := uuid.Parse(s.UserID)
+		lastUsedAt, _ := time.Parse(time.RFC3339, s.LastUsedAt)
+		expiresAt, _ := time.Parse(time.RFC3339, s.ExpiresAt)
+		createdAt, _ := time.Parse(time.RFC3339, s.CreatedAt)
+
 		sessions[i] = SessionResponse{
-			ID:         s.ID.Bytes,
-			UserID:     s.UserID.Bytes,
+			ID:         sessionID,
+			UserID:     sessionUserID,
 			UserAgent:  s.UserAgent.String,
-			IPAddress:  s.IpAddress,
-			LastUsedAt: s.LastUsedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			ExpiresAt:  s.ExpiresAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			CreatedAt:  s.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			IPAddress:  s.IpAddress.String,
+			LastUsedAt: lastUsedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ExpiresAt:  expiresAt.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt:  createdAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
 
@@ -164,9 +178,11 @@ func (h *SessionHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify session belongs to user
+	now := time.Now().Format(time.RFC3339)
 	_, err = h.queries.GetSessionByIDAndUserID(r.Context(), db.GetSessionByIDAndUserIDParams{
-		ID:     pgtype.UUID{Bytes: sessionID, Valid: true},
-		UserID: pgtype.UUID{Bytes: userID.(uuid.UUID), Valid: true},
+		ID:        sessionID.String(),
+		UserID:    userID.(uuid.UUID).String(),
+		ExpiresAt: now,
 	})
 	if err != nil {
 		response.NotFound(w, "Session not found")
@@ -174,7 +190,7 @@ func (h *SessionHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Delete session
-	err = h.queries.DeleteSession(r.Context(), pgtype.UUID{Bytes: sessionID, Valid: true})
+	err = h.queries.DeleteSession(r.Context(), sessionID.String())
 	if err != nil {
 		response.InternalError(w, "Failed to revoke session")
 		return
