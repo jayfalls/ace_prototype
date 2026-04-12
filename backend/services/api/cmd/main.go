@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	"github.com/AxelTahmid/annot8"
@@ -22,14 +21,14 @@ import (
 	"ace/api/internal/config"
 	"ace/api/internal/handler"
 	"ace/api/internal/middleware"
-	"ace/api/internal/repository"
+	db "ace/api/internal/repository/generated"
+	"ace/api/internal/router"
+	"ace/api/internal/service"
 	_ "ace/api/migrations"
 	"ace/shared/messaging"
 	"ace/shared/telemetry"
 	_ "ace/shared/telemetry/migrations"
 )
-
-// NOTE: Commented out code to be enabled once needed
 
 // migrate runs all pending database migrations using Goose.
 // It is called during server startup before any HTTP traffic is served.
@@ -48,16 +47,56 @@ func migrate(databaseURL string) error {
 	return nil
 }
 
-func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, tel *telemetry.Telemetry) *chi.Mux {
+// newRouter creates the main HTTP router with all services and handlers.
+func newRouter(cfg *config.Config, pool *pgxpool.Pool, natsClient messaging.Client, tel *telemetry.Telemetry) *chi.Mux {
 	// Create SQLC queries instance
-	// queries := queries.New(pool)
+	queries := db.New(pool)
 
-	// Service layers
+	// Initialize TokenService
+	tokenSvc, err := service.NewTokenService(&service.TokenConfig{
+		Issuer:          "ace-auth",
+		Audience:        "ace-api",
+		AccessTokenTTL:  15 * time.Minute,
+		RefreshTokenTTL: 7 * 24 * time.Hour,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create token service: %v", err)
+	}
 
-	// Handlers
-	healthHandler := handler.NewHealthHandler(pool, nats, tel)
+	// Initialize AuthService (uses password functions from password_service.go internally)
+	authSvc, err := service.NewAuthService(queries, tokenSvc)
+	if err != nil {
+		log.Fatalf("Failed to create auth service: %v", err)
+	}
+
+	// Initialize MagicLinkService (uses password functions from password_service.go internally)
+	magicLinkSvc, err := service.NewMagicLinkService(queries, nil)
+	if err != nil {
+		log.Fatalf("Failed to create magic link service: %v", err)
+	}
+
+	// Create router config
+	routerCfg := &router.Config{
+		App:              cfg,
+		Queries:          queries,
+		AuthService:      authSvc,
+		TokenService:     tokenSvc,
+		MagicLinkService: magicLinkSvc,
+	}
+
+	// Create the router from internal/router/router.go
+	apiRouter, err := router.New(routerCfg)
+	if err != nil {
+		log.Fatalf("Failed to create router: %v", err)
+	}
+
+	// Create health handler
+	healthHandler := handler.NewHealthHandler(pool, natsClient, tel)
+
+	// Create example handler
 	exampleHandler := handler.NewExampleHandler()
 
+	// Create main router with global middleware
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recovery)
@@ -76,17 +115,14 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 
 	r.Get("/health/live", healthHandler.Live)
 	r.Get("/health/ready", healthHandler.Ready)
-	r.Get("/health/exporters", healthHandler.Exporters)
-
-	// Metrics endpoint for Prometheus scraping
 	r.Handle("/metrics", telemetry.RegisterMetrics())
 
-	// OpenAPI spec endpoint (generated from handler annotations via Annot8)
+	// OpenAPI spec endpoint
 	r.Get("/openapi.json", func(w http.ResponseWriter, req *http.Request) {
 		gen := annot8.NewGenerator()
-		spec := gen.GenerateSpec(r, annot8.Config{
+		spec := gen.GenerateSpec(apiRouter, annot8.Config{
 			Title:       "ACE API",
-			Description: "ACE Framework API — automated OpenAPI 3.1 spec from handler annotations",
+			Description: "ACE Framework API",
 			Version:     "0.1.0",
 		})
 		w.Header().Set("Content-Type", "application/json")
@@ -96,7 +132,7 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 		w.Write(data)
 	})
 
-	// Interactive API documentation (Swagger UI)
+	// Swagger UI
 	r.Get("/docs", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
@@ -110,7 +146,10 @@ func newRouter(cfg *config.Config, pool *pgxpool.Pool, nats messaging.Client, te
 </body></html>`)
 	})
 
-	// Example routes demonstrating validation
+	// Mount API routes at /api
+	r.Mount("/api", apiRouter)
+
+	// Example routes
 	r.Route("/examples", func(r chi.Router) {
 		r.Post("/", exampleHandler.Create)
 		r.Get("/{id}", exampleHandler.Get)
@@ -136,7 +175,7 @@ func serve(host, port string, handler http.Handler) {
 	}()
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(quit, os.Interrupt)
 	<-quit
 
 	log.Println("Shutting down server...")
@@ -159,11 +198,11 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	db, err := repository.NewDB(cfg.DatabaseURL)
+	dbPool, err := setupDatabase(cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("Failed to create database connection: %v", err)
+		log.Fatalf("Failed to setup database: %v", err)
 	}
-	defer db.Close()
+	defer dbPool.Close()
 
 	// Run database migrations
 	if err := migrate(cfg.DatabaseURL); err != nil {
@@ -179,9 +218,12 @@ func main() {
 		ReconnectWait: 2 * time.Second,
 	})
 	if err != nil {
-		log.Fatalf("Failed to create NATS client: %v", err)
+		log.Printf("Warning: Failed to create NATS client: %v (running without messaging)", err)
+		natsClient = nil
 	}
-	defer natsClient.Close()
+	if natsClient != nil {
+		defer natsClient.Close()
+	}
 
 	// Initialize telemetry
 	tel, err := telemetry.Init(ctx, telemetry.Config{
@@ -192,8 +234,30 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: Failed to initialize telemetry: %v", err)
 	}
-	defer tel.Shutdown(ctx)
+	if tel != nil {
+		defer tel.Shutdown(ctx)
+	}
 
-	router := newRouter(cfg, db.Pool, natsClient, tel)
+	router := newRouter(cfg, dbPool, natsClient, tel)
 	serve(cfg.APIHost, cfg.APIPort, router)
+}
+
+// setupDatabase creates a database connection pool.
+func setupDatabase(databaseURL string) (*pgxpool.Pool, error) {
+	cfg, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("parse database config: %w", err)
+	}
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create database pool: %w", err)
+	}
+
+	// Verify connection
+	if err := pool.Ping(context.Background()); err != nil {
+		return nil, fmt.Errorf("ping database: %w", err)
+	}
+
+	return pool, nil
 }
