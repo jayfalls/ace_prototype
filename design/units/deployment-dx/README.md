@@ -54,7 +54,8 @@ Embed built frontend assets into Go binary using embed package.
 
 ## Design Documents
 
-- [Problem Space](problem_space.md) - Research and constraints
+- [Problem Space](problem_space.md) - Problem mapping, constraints, success metrics
+- [Research](research.md) - Technology evaluation and options analysis (Architect)
 - [BSD](bsd.md) - Business/System Design
 - [FSD](fsd.md) - Functional Specification
 - [Architecture](architecture.md) - Technical architecture
