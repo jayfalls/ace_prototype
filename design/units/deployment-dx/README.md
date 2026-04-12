@@ -70,8 +70,22 @@ Embed built frontend assets into Go binary using embed package.
 | BSD | Complete |
 | FSD | Complete |
 | Architecture | Complete |
-| Implementation Plan | Pending |
+| Implementation Plan | Complete |
 
 ## Vertical Slices
 
-To be defined after architecture is complete.
+13 slices defined in [implementation.md](implementation.md). Key ordering:
+
+1. **Module consolidation** (high risk — all imports depend on this)
+2. **XDG paths + config + CLI** (foundation for subsystem wiring)
+3. **Embedded database** (high risk — data layer)
+4. **Embedded NATS** (medium risk — well-documented)
+5. **In-process cache** (medium risk — new CacheBackend impl)
+6. **Custom telemetry** (medium risk — OTel SDK customization)
+7. **Git hook + test optimization** (low risk — independent)
+8. **App lifecycle + server** (high risk — integration point)
+9. **Frontend embedding** (medium risk — SPA routing + build tags)
+10. **Inspector API** (low risk — CRUD endpoints)
+11. **Build system** (low risk — tooling)
+12. **Install scripts** (low risk — shell scripting)
+13. **Cleanup** (low risk — deletions only)
