@@ -1,91 +1,29 @@
 # Observability
 
-The ACE Framework includes a comprehensive observability stack for monitoring traces, logs, and metrics. This document explains how to set up and use the observability features.
+The ACE Framework includes built-in observability features for tracing, logging, and metrics. This document explains the observability capabilities and optional external stack.
 
-## Overview
+## Built-in Observability
 
-The observability stack consists of:
+ACE includes telemetry built into the binary:
 
-| Component | Purpose | Port |
-|-----------|---------|------|
-| **Prometheus** | Metrics collection and storage | 9090 |
-| **Grafana** | Visualization and dashboards | 3000 |
-| **Loki** | Log aggregation | 3100 |
-| **Tempo** | Distributed tracing | 4314, 4315, 4316 |
-| **OTel Collector** | Telemetry collection and processing | 4317, 4318, 8888, 8889 |
+- **Structured Logging**: JSON logs to stdout
+- **Metrics**: Prometheus-compatible `/metrics` endpoint
+- **Tracing**: OpenTelemetry traces via OTLP
 
-## Quick Start
+### Quick Start
 
-### Starting the Observability Stack
-
-Run the following command to start all observability services:
+Run ACE and access built-in endpoints:
 
 ```bash
-cd devops/dev
-docker compose up -d prometheus otel-collector loki tempo grafana
+make ace
 ```
 
-Or start the entire stack:
+### Built-in Endpoints
 
-```bash
-cd devops/dev
-docker compose up -d
-```
-
-### Accessing the UIs
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Grafana | http://localhost:3000 | Anonymous (Admin) |
-| Prometheus | http://localhost:9090 | N/A |
-| Loki | http://localhost:3100 | N/A |
-| Tempo | http://localhost:4314 | N/A |
-
-## Configuring Services
-
-### OTel Collector Configuration
-
-The OTel Collector configuration is located at `devops/otel-collector-config.yaml`. It includes:
-
-- **Receivers**: OTLP (gRPC/HTTP), Filelog
-- **Exporters**: Loki (logs), Tempo (traces), Prometheus (metrics)
-- **Processors**: batch, memory_limiter, resource
-
-To modify the configuration, edit `devops/otel-collector-config.yaml` and restart the OTel Collector:
-
-```bash
-docker compose restart otel-collector
-```
-
-### Prometheus Configuration
-
-The Prometheus configuration is located at `devops/dev/prometheus.yml`. It includes scrape targets for:
-
-- Prometheus itself
-- OTel Collector
-- ACE API service
-- Loki
-- Tempo
-
-## Viewing Logs
-
-### Using Grafana
-
-1. Open Grafana at http://localhost:3000
-2. Navigate to **Explore** (compass icon)
-3. Select **Loki** as the data source
-4. Run a log query, for example:
-   - `{job="ace_api"}` - All logs from the API service
-   - `{container_name="ace_api"}` - Container-specific logs
-   - `level="error"` - Error logs only
-
-### Using Loki Directly
-
-```bash
-# Query logs using Loki API
-curl -G "http://localhost:3100/loki/api/v1/query" \
-  --data-urlencode 'query={job="ace_api"}'
-```
+| Endpoint | Description |
+|----------|-------------|
+| `GET /healthz` | Health check |
+| `GET /metrics` | Prometheus metrics |
 
 ### Log Format
 
@@ -102,66 +40,7 @@ All services output JSON logs with the following structure:
 }
 ```
 
-## Viewing Traces
-
-### Using Grafana
-
-1. Open Grafana at http://localhost:3000
-2. Navigate to **Explore** (compass icon)
-3. Select **Tempo** as the data source
-4. Search for traces by:
-   - Service name
-   - Trace ID
-   - Span name
-   - Time range
-
-### Using Tempo Directly
-
-```bash
-# Search traces
-curl -G "http://localhost:4315/api/search" \
-  --data-urlencode 'q={service.name="api"}'
-
-# Get trace by ID
-curl "http://localhost:4315/api/traces/<trace_id>"
-```
-
-### Trace Context Propagation
-
-Traces automatically propagate across services using W3C Trace Context. To view a complete trace:
-
-1. Find a trace ID from logs (look for `trace_id` field)
-2. Search in Tempo to see the full trace
-3. Click on spans to see detailed timing and attributes
-
-## Viewing Metrics
-
-### Using Prometheus
-
-1. Open Prometheus at http://localhost:9090
-2. Navigate to **Graph** or use the table view
-3. Enter a metric name, for example:
-   - `http_request_duration_seconds` - Request latency
-   - `http_requests_total` - Request count
-   - `http_active_requests` - Active requests
-
-### Using Grafana
-
-1. Open Grafana at http://localhost:3000
-2. Navigate to **Dashboards**
-3. Import or create dashboards using Prometheus as the data source
-
 ### Available Metrics
-
-The observability stack supports two metrics collection methods:
-
-#### Method 1: OTLP Push (via OTel Collector)
-Services push metrics to OTel Collector using OTLP protocol, then OTel Collector forwards to Prometheus.
-
-#### Method 2: Prometheus Pull (Direct Scraping)
-Prometheus directly scrapes metrics from service `/metrics` endpoints.
-
-#### HTTP Metrics
 
 | Metric | Type | Description |
 |--------|------|-------------|
@@ -171,13 +50,31 @@ Prometheus directly scrapes metrics from service `/metrics` endpoints.
 
 Labels: `service_name`, `method`, `path`, `status_code`
 
-#### OTel Collector Metrics
+## Optional Observability Stack
 
-| Metric | Type | Description |
-|--------|------|-------------|
-| `otelcol_exporter_sent_spans` | Counter | Number of spans exported |
-| `otelcol_exporter_sent_metric_points` | Counter | Number of metric points exported |
-| `otelcol_receiver_accepted_spans` | Counter | Number of spans received |
+For advanced monitoring, an optional external stack can be deployed separately:
+
+```bash
+cd devops/dev
+docker compose up -d prometheus otel-collector loki tempo grafana
+```
+
+| Component | Purpose | Port |
+|-----------|---------|------|
+| **Prometheus** | Metrics collection and storage | 9090 |
+| **Grafana** | Visualization and dashboards | 3000 |
+| **Loki** | Log aggregation | 3100 |
+| **Tempo** | Distributed tracing | 4314, 4315, 4316 |
+| **OTel Collector** | Telemetry collection and processing | 4317, 4318, 8888, 8889 |
+
+### Accessing UIs
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Grafana | http://localhost:3000 | Anonymous (Admin) |
+| Prometheus | http://localhost:9090 | N/A |
+| Loki | http://localhost:3100 | N/A |
+| Tempo | http://localhost:4314 | N/A |
 
 ## Application Integration
 

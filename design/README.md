@@ -31,18 +31,19 @@ This is the most important section. Misunderstanding it will cause you to build 
 ### System Topology
 
 ```
-                                        ┌──────────┴──────────┐
-                                        │                     │
-                                 ┌───────▼──────┐   ┌──────────▼──────┐   ┌───────────────┐
-                                 │    ace_db    │   │   ace_broker    │   │   ace_valkey  │
-                                 │ Postgres 18  │   │ NATS 2.12 + JS  │   │  Valkey 8     │
-                                 │   :5432      │   │    :4222        │   │   :6379       │
-                                 └──────────────┘   └─────────────────┘   └───────────────┘
+                    ┌─────────────────────────────────────────────────────────────┐
+                    │                         ace                                   │
+                    │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+                    │  │   SQLite    │  │ embedded    │  │      Ristretto       │  │
+                    │  │  (database) │  │   NATS      │  │      (cache)         │  │
+                    │  │   :5432     │  │  (broker)   │  │                     │  │
+                    │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+                    └─────────────────────────────────────────────────────────────┘
 ```
 
-The API is the only service today. All future services communicate exclusively via NATS — never through a shared database connection or direct HTTP calls to each other. This constraint exists because services must be independently deployable and independently scalable. In a Kubernetes swarm, cognitive engine pods scale horizontally while the API remains a single entry point, and that independence requires a clean boundary.
+ACE is delivered as a **single binary** with all infrastructure embedded: SQLite for persistence, an embedded NATS server for messaging, and Ristretto for in-process caching. This eliminates external service dependencies and enables frictionless local development and single-node production deployments. All cognitive engine components run within the same process, communicating via the internal bus rather than over the network.
 
-The observability pipeline runs alongside all services: OTel Collector ingests traces via OTLP gRPC, metrics via Prometheus scrape, and logs via filelog from Docker stdout, routing them to Tempo, Prometheus, and Loki. Observability here is not just ops tooling — it directly powers user-facing product features. The Layer Inspector, cost dashboards, and reliability indicators all query the same pipeline. This is why the observability contracts (UsageEvent shape, span attribute names, log field names) are as stable as the API contracts.
+The observability stack is SQLite-backed: traces, metrics, and logs are written to a local SQLite database rather than routed through an external pipeline. This simplifies operations while maintaining full observability for the Layer Inspector, cost dashboards, and reliability indicators. The observability contracts (UsageEvent shape, span attribute names, log field names) remain as stable as the API contracts.
 
 ### Agent Swarm Architecture
 
@@ -262,15 +263,13 @@ router.Use(telemetry.LoggerMiddleware(cfg.ServiceName)) // logs HTTP requests
 ### `shared/caching`
 
 ```go
-// Create backend and cache on service startup
-backend, err := caching.NewValkeyBackend(caching.ValkeyConfig{
-    Addr: "ace_valkey:6379",
+// Create cache on service startup using Ristretto (in-process)
+cache := caching.NewCache(caching.RistrettoConfig{
+    MaxCost:     1 << 30, // 1GB max cost
+    Metrics:     true,
+    AgentID:     agentID,
+    DefaultTTL:  5 * time.Minute,
 })
-cache := caching.NewCache(backend,
-    caching.WithNamespace("my-namespace"),
-    caching.WithAgentID(agentID),
-    caching.WithDefaultTTL(5*time.Minute),
-)
 
 // Core operations
 cache.Set(ctx, "user:123", value, caching.WithTags("user"))
@@ -298,8 +297,6 @@ stats, _ := cache.Stats(ctx)  // HitCount, MissCount, HitRate
 **Get returns `(nil, nil)` on cache miss**, not an error.
 
 **Bare `"*"` patterns are rejected** by `DeletePattern` — must include agentId prefix.
-
-**Integration tests** are tagged `//go:build integration` and fail hard without Valkey. Run via `make test-integration`.
 
 Full documentation: [documentation/caching.md](../documentation/caching.md)
 
@@ -381,62 +378,34 @@ All development tasks are driven through the Makefile. The Makefile is the singl
 
 | Target | Description | Usage |
 |--------|-------------|-------|
-| `make dev` | Full dev setup: clone agency-agents, setup distrobox, install deps | First-time setup |
-| `make agent` | Enter distrobox and run OpenCode interactively | Start AI agent |
-| `make agent-stop` | Stop OpenCode in distrobox | Stop AI agent |
-| `make up` | Start all services in development mode | Start development |
-| `make down` | Stop all services | Stop development |
-| `make restart` | Restart all services | Restart services |
-| `make build` | Build all service images | Build containers |
-| `make test` | Run all tests and validate documentation | Run tests |
-| `make logs` | View logs for all services | View logs |
-| `make clean` | Remove all containers and volumes | Clean up |
-| `make ps` | Show running containers | Check status |
+| `make dev` | Setup distrobox for OpenCode | First-time setup |
+| `make agent` | Run OpenCode agent | Start AI agent |
+| `make agent-stop` | Stop OpenCode agent | Stop AI agent |
+| `make ace` | Run ACE with hot reload (backend + frontend) | Start development |
+| `make test` | Run full validation pipeline | Run tests |
 | `make help` | Show help message | Get help |
-
-### Environment Variables
-
-The Makefile supports two environment variables:
-
-- **ENVIRONMENT**: `dev` or `prod` (default: `dev`)
-- **CONTAINER_ORCHESTRATOR**: `docker` or `podman` (default: `docker`)
-
-Example usage:
-```bash
-make up ENVIRONMENT=prod CONTAINER_ORCHESTRATOR=podman
-```
 
 ### Development Environment
 
 The development environment uses:
-- **Docker Compose**: Local development with all services
+- **Single binary**: ACE with embedded SQLite, NATS, and Ristretto
 - **Distrobox**: Isolated development environment for OpenCode
 - **Pre-commit hooks**: Automated quality gates before commits
 
-Services accessible after `make up`:
-- Frontend: http://localhost:5173
+Services accessible after `make ace`:
+- Frontend: http://localhost:5173 (Vite dev server)
 - API: http://localhost:8080
-- API Docs: http://localhost:8080/docs (Swagger UI, auto-generated by Annot8)
-- PostgreSQL: localhost:5432
-- NATS: localhost:4222
-- Valkey: localhost:6379
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000
-- Loki: http://localhost:3100
-- Tempo: http://localhost:3200
-- OTel Collector: http://localhost:4317 (gRPC), http://localhost:4318 (HTTP)
+- API Docs: http://localhost:8080/swagger/index.html
 
 ### Testing
 
 Tests are run via `make test`, which executes:
-- Go integration tests in the API container
+- Go unit tests
+- Go integration tests with embedded services
 - Documentation validation (schema vs live DB, drift detection)
-- Frontend tests in the Frontend container
 
 The pre-commit hook runs quality gates including:
 - Go build, lint, and unit tests
-- Frontend lint and tests
-- Docker Compose validation
 - Makefile validation
 - Documentation validation (skips if no DB — flags for agent)
 
@@ -482,8 +451,9 @@ This section tracks the completion status of each design unit. Units are complet
 | **OpenCode Migration** | ✅ Complete | OpenCode integration and migration |
 | **Observability** | ✅ Complete | Observability primitives (`shared/telemetry`) |
 | **Database Design & API/DB Documentation** | ✅ Complete | Database design documentation and API/DB specification |
-| **Caching Strategies** | ✅ Complete | Valkey-backed cache with tag-based invalidation, stampede protection, warming |
+| **Caching Strategies** | ✅ Complete | Ristretto-backed in-process cache with tag-based invalidation, stampede protection, warming |
 | **Users & Auth (JWT, SSO)** | ✅ Complete | Authentication and authorization system (18 micro-PRs, all merged) |
+| **Deployment & Developer Experience (deployment-dx)** | ✅ Complete | Single binary with embedded SQLite, NATS, and Ristretto |
 | **Auditing** | 📋 Planned | Audit logging and compliance tracking |
 | **Security (Certs, TLS, HTTPS, etc)** | 📋 Planned | Security infrastructure and encryption |
 | **CI/CD (PromptFoo)** | 📋 Planned | Continuous integration and deployment pipeline |

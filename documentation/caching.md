@@ -1,6 +1,6 @@
 # Caching
 
-The ACE Framework uses a Valkey-backed cache library at `backend/shared/caching/`. It provides tag-based invalidation, versioned invalidation, stampede protection, bulk operations, cache warming, and observability.
+The ACE Framework uses an in-memory cache library at `backend/shared/caching/`. It provides tag-based invalidation, versioned invalidation, stampede protection, bulk operations, cache warming, and observability.
 
 ## Architecture
 
@@ -16,14 +16,11 @@ The ACE Framework uses a Valkey-backed cache library at `backend/shared/caching/
 │ (stampede)   │  (observability) │ (cache warming)   │
 ├──────────────┴──────────────────┴───────────────────┤
 │                  CacheBackend                        │
-│              (valkeyBackend)                         │
-├─────────────────────────────────────────────────────┤
-│                   Valkey / Redis                     │
-│              (ace_valkey :6379)                      │
+│              (memoryBackend)                        │
 └─────────────────────────────────────────────────────┘
 ```
 
-The `Cache` interface is the only thing services import. `CacheBackend` is an internal implementation detail — currently Valkey-only, but the interface allows future backends.
+The `Cache` interface is the only thing services import. `CacheBackend` is an internal implementation detail — currently in-memory only.
 
 ## Quick Start
 
@@ -31,13 +28,7 @@ The `Cache` interface is the only thing services import. `CacheBackend` is an in
 import "ace/shared/caching"
 
 // Create backend
-backend, err := caching.NewValkeyBackend(caching.ValkeyConfig{
-    Addr: "ace_valkey:6379",
-})
-if err != nil {
-    log.Fatal(err)
-}
-defer backend.Close()
+backend := caching.NewMemoryBackend()
 
 // Create cache
 cache := caching.NewCache(backend,
@@ -126,7 +117,7 @@ err := cache.Set(ctx, "user:123", value,
 **Constraints:**
 - Value must not be nil
 - Value size must not exceed `MaxSize` (default 1MB)
-- Tags populate the tag index (Valkey sets) for later bulk invalidation
+- Tags populate the tag index for later bulk invalidation
 
 ### Delete
 
@@ -195,19 +186,19 @@ This is the most powerful invalidation method — it deletes every key that was 
 
 ## Tag Index
 
-When you `Set` a key with tags, a bidirectional index is maintained in Valkey:
+When you `Set` a key with tags, a bidirectional index is maintained:
 
 **Forward index** (tag → keys):
 - Key: `_tags:{namespace}:{agentId}:{tag}`
-- Type: Valkey set
-- On `Set`: `SADD resolvedKey` to each tag's set
-- On `DeleteByTag`: `SMEMBERS` all keys, `DEL` each key, then `DEL` the tag set
+- Type: in-memory set
+- On `Set`: add resolvedKey to each tag's set
+- On `DeleteByTag`: get all keys, delete each key, then delete the tag set
 
 **Reverse index** (key → tags):
 - Key: `_keytags:{resolvedKey}`
-- Type: Valkey set
-- On `Set`: `SADD` all tags to this set
-- On `Delete`: `SMEMBERS` tags, `SREM` key from each tag set, `DEL` the reverse lookup
+- Type: in-memory set
+- On `Set`: add all tags to this set
+- On `Delete`: get tags, remove key from each tag set, delete the reverse lookup
 
 This ensures that when a key is deleted individually, it is removed from all tag sets it belongs to — preventing stale references.
 
@@ -254,7 +245,7 @@ taggedCache := cache.WithDefaultTags("user", "active")
 ```go
 stats, err := cache.Stats(ctx)
 // stats.HitCount, stats.MissCount, stats.HitRate
-// stats.EntryCount and stats.TotalSize are 0 (requires direct Valkey access)
+// stats.EntryCount and stats.TotalSize
 // stats.EvictionCount and stats.AvgLatencyMs are also available
 ```
 
@@ -336,7 +327,7 @@ if err != nil {
 
 **Available sentinel errors:**
 - `ErrCacheMiss` — key not found
-- `ErrBackendUnavailable` — Valkey connection failed
+- `ErrBackendUnavailable` — memory backend error
 - `ErrAgentIDMissing` — agentID required but not provided
 - `ErrInvalidKey` — key validation failed
 - `ErrTTLExpired` — TTL has expired
@@ -348,24 +339,8 @@ if err != nil {
 - `ErrSerializationFailed` — value is nil
 - `ErrPatternInvalid` — pattern is `"*"` or empty
 - `ErrTagNotFound` — tag is empty
-- `ErrNATSDisconnected` — NATS connection lost
 
 ## Configuration Reference
-
-### ValkeyConfig
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `URL` | — | Parse from URL (overrides Addr, Password, DB) |
-| `Addr` | `localhost:6379` | Valkey address |
-| `Password` | — | Authentication password |
-| `DB` | `0` | Database number |
-| `MaxRetries` | `3` | Maximum retries |
-| `DialTimeout` | `5s` | Connection timeout |
-| `ReadTimeout` | `3s` | Read timeout |
-| `WriteTimeout` | `3s` | Write timeout |
-| `PoolSize` | `100` | Connection pool size |
-| `MinIdleConns` | `10` | Minimum idle connections |
 
 ### Cache Defaults
 
@@ -376,22 +351,12 @@ if err != nil {
 | `StampedeProtection` | Enabled |
 | `InvalidationStrategy` | TTL |
 
-## Integration Tests
-
-Integration tests require a running Valkey instance and are tagged with `//go:build integration`:
+## Unit Tests
 
 ```bash
-# Run unit tests only (no Valkey needed)
+# Run unit tests only
 go test ./backend/shared/caching/... -v
-
-# Run integration tests (requires Valkey at localhost:6379)
-go test ./backend/shared/caching/... -tags=integration -v -race
-
-# Override Valkey address
-VALKEY_ADDR=valkey:6379 go test ./backend/shared/caching/... -tags=integration -v
 ```
-
-Integration tests fail hard (`t.Fatalf`) if Valkey is unavailable — they are not skipped.
 
 ## Constraints
 

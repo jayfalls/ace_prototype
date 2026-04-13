@@ -1,4 +1,4 @@
-# Getting Started
+# Development Guide
 
 ## Prerequisites
 
@@ -14,6 +14,11 @@
 make dev
 ```
 
+- Run ACE with hot reload
+```bash
+make ace
+```
+
 - Run the opencode agent
 ```bash
 make agent
@@ -23,15 +28,16 @@ make agent
 
 | Command | Description |
 |---------|-------------|
+| `make ace` | Run ACE with hot reload (backend + frontend) |
 | `make dev` | Setup dev environment (distrobox + agency-agents + git hooks) |
 | `make agent` | Start OpenCode in distrobox |
-| `make test` | Run all tests (API + Frontend) |
+| `make test` | Run full validation pipeline |
 | `make help` | Show available commands |
 
 ## Health Check
 
-Check API and database health:
+Check API health:
 ```bash
-curl http://localhost:8080/health/ready
-# Returns: {"checks":{<individual-component-checks>},"status":"ok"}
+curl http://localhost:8080/healthz
+# Returns: {"status":"ok"}
 ```
