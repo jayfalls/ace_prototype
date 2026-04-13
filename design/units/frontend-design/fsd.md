@@ -776,3 +776,864 @@ Every API response flows through `client.ts`'s error normalization:
 | 429 | `rate_limit_exceeded` | Show "Too many requests. Please wait." toast |
 | 500 | `internal_error` | Show "Something went wrong. Please try again." toast |
 | Network error | N/A | Show "Unable to connect. Please check your connection." toast |
+
+---
+
+## 5. State Management Files
+
+All stores use Svelte 5 rune-based classes in `.svelte.ts` modules. Stores are the single source of truth for their domain. Components never call API client directly — they call store methods.
+
+### 5.1 `$lib/stores/auth.svelte.ts`
+
+**Purpose**: Authentication state, token lifecycle, login/logout/refresh.
+
+```typescript
+export class AuthStore {
+  // Reactive state
+  user = $state<User | null>(null);
+  accessToken = $state<string>('');
+  refreshToken = $state<string>('');
+  expiresAt = $state<number>(0);
+  isLoading = $state<boolean>(false);
+  error = $state<string | null>(null);
+
+  // Derived state
+  isAuthenticated = $derived(this.user !== null && this.accessToken !== '');
+
+  // Methods
+  init(): void;
+  // Load tokens from localStorage. If expired, attempt refresh. If refresh fails, clear.
+
+  async login(email: string, password: string): Promise<void>;
+  // Call authApi.login → store tokens + user → redirect to /
+
+  async register(email: string, password: string): Promise<void>;
+  // Call authApi.register → auto-login → redirect to /
+
+  async logout(): Promise<void>;
+  // Call authApi.logout → clear localStorage → reset state → redirect to /login
+
+  async refreshTokens(): Promise<void>;
+  // Call authApi.refresh → update tokens + expiry. Refresh mutex: single in-flight promise.
+
+  ensureValidToken(): Promise<void>;
+  // If token expires in <30s, call refreshTokens(). Called by APIClient before each request.
+
+  clear(): void;
+  // Reset all state to defaults. Clear localStorage keys: access_token, refresh_token, ace-theme.
+}
+
+export const authStore = new AuthStore();
+```
+
+**LocalStorage keys**:
+- `ace_access_token` — JWT access token
+- `ace_refresh_token` — JWT refresh token
+- `ace_expires_at` — Token expiry timestamp (ms since epoch)
+
+**State transitions**:
+```
+[Unauthenticated] ──login/register/magic-link──> [Authenticated]
+[Authenticated] ──token expiry <30s──> [Refreshing] ──success──> [Authenticated]
+[Refreshing] ──failure──> [Unauthenticated] (redirect /login)
+[Authenticated] ──logout──> [Unauthenticated] (clear storage, redirect /login)
+```
+
+### 5.2 `$lib/stores/ui.svelte.ts`
+
+**Purpose**: Global UI preferences — theme, sidebar state.
+
+```typescript
+export class UIStore {
+  // Theme state
+  theme = $state<string>('one-dark');        // Current theme preset name
+  mode = $state<'dark' | 'light'>('dark');   // Current mode
+  sidebarCollapsed = $state<boolean>(false);  // Sidebar collapsed state
+
+  // Derived: CSS class to apply to <html>
+  themeClass = $derived(`${this.theme}-${this.mode}`);
+
+  // Methods
+  setTheme(preset: string): void;
+  // Update theme preset, persist to localStorage, apply to DOM
+
+  toggleMode(): void;
+  // Toggle dark/light mode, persist, apply
+
+  toggleSidebar(): void;
+  // Toggle sidebar collapsed state, persist
+
+  setSidebarCollapsed(collapsed: boolean): void;
+  // Set sidebar to specific state (used by responsive breakpoint handler)
+
+  private apply(): void;
+  // Remove all theme classes from <html>, add current themeClass
+
+  private persist(): void;
+  // Write { theme, mode, sidebarCollapsed } to localStorage key 'ace-ui'
+
+  init(): void;
+  // Load from localStorage, apply. Defaults: one-dark, dark, expanded.
+}
+
+export const uiStore = new UIStore();
+```
+
+**LocalStorage keys**:
+- `ace-ui` — JSON `{ theme, mode, sidebarCollapsed }`
+
+**Responsive behavior**: On window resize <768px, `setSidebarCollapsed(true)`. On resize ≥768px, restore persisted preference.
+
+### 5.3 `$lib/stores/notifications.svelte.ts`
+
+**Purpose**: Toast notification system for success/error/warning/info messages.
+
+```typescript
+export interface Toast {
+  id: string;
+  variant: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  description?: string;
+  duration: number;     // ms, 0 = manual dismiss
+  createdAt: number;
+}
+
+export class NotificationStore {
+  toasts = $state<Toast[]>([]);
+
+  add(title: string, variant: Toast['variant'] = 'info', description?: string, duration: number = 5000): string;
+  // Create toast, push to array, return id. Auto-dismiss after duration (if > 0).
+
+  dismiss(id: string): void;
+  // Remove toast by id.
+
+  success(title: string, description?: string): string;
+  // Shorthand: add(title, 'success', description)
+
+  error(title: string, description?: string): string;
+  // Shorthand: add(title, 'error', description, 8000) — longer duration for errors
+
+  warning(title: string, description?: string): string;
+  // Shorthand: add(title, 'warning', description)
+
+  info(title: string, description?: string): string;
+  // Shorthand: add(title, 'info', description)
+}
+
+export const notificationStore = new NotificationStore();
+```
+
+**Usage**: `<Toaster />` component reads from `notificationStore.toasts` and renders the toast stack. Auto-dismiss is handled via `setTimeout` in `add()`.
+
+---
+
+## 6. Utility Modules
+
+### 6.1 `$lib/utils/cn.ts`
+
+Class name merger. Combines `clsx` for conditional classes with `tailwind-merge` for conflict resolution.
+
+```typescript
+import { clsx } from 'clsx';
+import type { ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(...inputs));
+}
+```
+
+**Usage**: Every component accepts an optional `class` prop and merges it via `cn(cssModuleClasses, className)`.
+
+### 6.2 `$lib/utils/form.svelte.ts`
+
+Reusable form composable built on Svelte 5 runes + Zod. Used by every form page.
+
+```typescript
+import { ZodSchema } from 'zod';
+
+export function useForm<T extends Record<string, unknown>>(
+  initialValues: T,
+  schema: ZodSchema<T>
+) {
+  const values = $state(initialValues);
+  const errors = $state<Partial<Record<keyof T, string>>>({});
+  const touched = $state<Partial<Record<keyof T, boolean>>>({});
+  const isSubmitting = $state(false);
+
+  const isValid = $derived(Object.values(errors).every(e => !e));
+  const isDirty = $derived(
+    JSON.stringify(values) !== JSON.stringify(initialValues)
+  );
+
+  // Validate all fields against Zod schema. Returns boolean.
+  function validate(): boolean;
+
+  // Validate a single field. Called on blur.
+  function validateField(field: keyof T): void;
+
+  // Reset form to initial values and clear errors/touched.
+  function reset(): void;
+
+  // Validate, then call submit handler. Sets isSubmitting during async call.
+  async function handleSubmit(fn: (values: T) => Promise<void>): Promise<void>;
+
+  // Map API validation errors (FieldError[]) to form fields.
+  function setFieldErrors(fieldErrors: FieldError[]): void;
+
+  return {
+    values, errors, touched, isSubmitting,
+    isValid, isDirty,
+    validate, validateField, reset, handleSubmit, setFieldErrors
+  };
+}
+```
+
+**Usage pattern**:
+```svelte
+<script>
+  import { useForm } from '$lib/utils/form.svelte';
+  import { loginSchema } from '$lib/validation/schemas';
+  import { authStore } from '$lib/stores/auth.svelte';
+
+  const form = useForm({ email: '', password: '' }, loginSchema);
+</script>
+
+<form on:submit|preventDefault={() => form.handleSubmit(authStore.login)}>
+  <Input bind:value={form.values.email} error={form.errors.email} />
+  <Input type="password" bind:value={form.values.password} error={form.errors.password} />
+  <Button type="submit" disabled={!form.isValid || form.isSubmitting}>
+    {form.isSubmitting ? 'Signing in...' : 'Sign in'}
+  </Button>
+</form>
+```
+
+### 6.3 `$lib/utils/formatter.ts`
+
+Display formatting utilities. Pure functions, no side effects.
+
+```typescript
+// Date formatting
+export function formatDate(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "Mar 15, 2024"
+
+export function formatDateTime(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "Mar 15, 2024, 10:30 AM"
+
+export function formatRelativeTime(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "2 hours ago", "3 days ago", etc.
+
+// Duration formatting
+export function formatDuration(ms: number): string;
+// 1500 → "1.5s", 65000 → "1m 5s", 250 → "250ms"
+
+// Cost formatting
+export function formatCost(usd: number): string;
+// 0.001234 → "$0.0012", 12.5 → "$12.50"
+
+// Number formatting
+export function formatNumber(n: number): string;
+// 1234 → "1,234", 1000000 → "1.0M"
+
+// User agent parsing (simplified)
+export function parseUserAgent(ua: string): { browser: string; os: string; device: string };
+// "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ..." → { browser: "Chrome", os: "macOS", device: "Desktop" }
+
+// Role badge color mapping
+export function roleBadgeVariant(role: UserRole): 'default' | 'success' | 'warning' | 'error';
+// admin → error, user → success, viewer → default
+
+// Status badge color mapping
+export function statusBadgeVariant(status: UserStatus): 'default' | 'success' | 'warning' | 'error';
+// active → success, pending → warning, suspended → error
+```
+
+### 6.4 `$lib/utils/constants.ts`
+
+Application-wide constants. Single source of truth for route paths, breakpoints, and defaults.
+
+```typescript
+// Route paths — prevents hardcoded strings across components
+export const ROUTES = {
+  HOME: '/',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
+  MAGIC_LINK: '/magic-link',
+  PROFILE: '/profile',
+  ADMIN_USERS: '/admin/users',
+  ADMIN_USER_DETAIL: '/admin/users',  // + `/${id}`
+  TELEMETRY: '/telemetry',
+  TELEMETRY_SPANS: '/telemetry/spans',
+  TELEMETRY_METRICS: '/telemetry/metrics',
+  TELEMETRY_USAGE: '/telemetry/usage',
+  SETTINGS: '/settings',
+} as const;
+
+// Responsive breakpoints (matching Tailwind defaults)
+export const BREAKPOINTS = {
+  MOBILE: 768,    // <768px: mobile
+  TABLET: 1024,   // 768–1024px: tablet
+  DESKTOP: 1024,  // >1024px: desktop
+} as const;
+
+// Sidebar dimensions
+export const SIDEBAR = {
+  EXPANDED_WIDTH: 256,  // px
+  COLLAPSED_WIDTH: 64,  // px
+  MOBILE_BREAKPOINT: 768,
+} as const;
+
+// Pagination defaults
+export const PAGINATION = {
+  DEFAULT_PAGE: 1,
+  DEFAULT_LIMIT: 20,
+  ADMIN_USERS_LIMIT: 20,
+  SPANS_LIMIT: 50,
+  METRICS_LIMIT: 50,
+  USAGE_LIMIT: 100,
+} as const;
+
+// Token refresh timing
+export const AUTH = {
+  REFRESH_THRESHOLD_MS: 30_000,  // Refresh if token expires in <30s
+  LOCALSTORAGE_ACCESS_TOKEN: 'ace_access_token',
+  LOCALSTORAGE_REFRESH_TOKEN: 'ace_refresh_token',
+  LOCALSTORAGE_EXPIRES_AT: 'ace_expires_at',
+} as const;
+
+// Theme defaults
+export const THEME = {
+  DEFAULT_PRESET: 'one-dark',
+  DEFAULT_MODE: 'dark' as const,
+  LOCALSTORAGE_KEY: 'ace-ui',
+  LOCALSTORAGE_THEME_KEY: 'ace-theme',
+} as const;
+```
+
+---
+
+## 7. Validation Schemas (`$lib/validation/schemas.ts`)
+
+Zod schemas matching backend validation rules. Used by `useForm` composable for client-side validation. Server validation errors override client-side validation.
+
+```typescript
+import { z } from 'zod';
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email format'),
+});
+
+export const resetPasswordSchema = z.object({
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+
+export const suspendUserSchema = z.object({
+  reason: z.string().max(500, 'Reason must be at most 500 characters').optional(),
+});
+
+export const updateUserRoleSchema = z.object({
+  role: z.enum(['admin', 'user', 'viewer']),
+});
+```
+
+---
+
+## 8. Theme System Specification
+
+### 8.1 CSS Token Hierarchy
+
+Theme tokens are CSS custom properties applied to `<html>` via a class. Tailwind v4's CSS-first configuration maps these tokens to utility classes (`bg-background`, `text-foreground`, `border-border`, etc.).
+
+**Token set (applied per theme in `$lib/themes/*.css`)**:
+
+```css
+@layer base {
+  .{theme-preset}-{mode} {
+    --color-background: <r g b>;
+    --color-foreground: <r g b>;
+    --color-card: <r g b>;
+    --color-card-foreground: <r g b>;
+    --color-primary: <r g b>;
+    --color-primary-foreground: <r g b>;
+    --color-secondary: <r g b>;
+    --color-secondary-foreground: <r g b>;
+    --color-muted: <r g b>;
+    --color-muted-foreground: <r g b>;
+    --color-accent: <r g b>;
+    --color-accent-foreground: <r g b>;
+    --color-destructive: <r g b>;
+    --color-destructive-foreground: <r g b>;
+    --color-border: <r g b>;
+    --color-input: <r g b>;
+    --color-ring: <r g b>;
+    --radius-sm: <value>;
+    --radius-md: <value>;
+    --radius-lg: <value>;
+    --font-sans: <value>;
+    --font-mono: <value>;
+  }
+}
+```
+
+### 8.2 Theme Preset Definitions
+
+Each theme preset is a `.css` file in `$lib/themes/` defining both dark and light variants in a single file (or paired files). The theme registry (`$lib/themes/index.ts`) maps preset names to their CSS class names.
+
+**Presets:**
+
+| Preset Name | Dark Class | Light Class | Description |
+|-------------|-----------|-------------|-------------|
+| `one-dark` | `.one-dark-dark` | `.one-dark-light` | Atom One Dark-inspired. Warm tones, high contrast. **Default.** |
+| `one-light` | `.one-light-dark` | `.one-light-light` | Atom One Light-inspired. Clean, warm whites. |
+| `catppuccin-mocha` | `.catppuccin-mocha-dark` | `.catppuccin-mocha-light` | Pastel dark theme. Soft contrast, cozy. |
+| `catppuccin-latte` | `.catppuccin-latte-dark` | `.catppuccin-latte-light` | Pastel light theme. Warm tones. |
+| `nord` | `.nord-dark` | `.nord-light` | Arctic blue-grey palette. Cool, calm. |
+| `monokai` | `.monokai-dark` | `.monokai-light` | Vibrant syntax highlighter palette. High contrast color pops. |
+
+### 8.3 Theme Registry (`$lib/themes/index.ts`)
+
+```typescript
+export interface ThemePreset {
+  name: string;
+  label: string;
+  darkClass: string;
+  lightClass: string;
+}
+
+export const themePresets: ThemePreset[] = [
+  { name: 'one-dark',        label: 'One Dark',         darkClass: 'one-dark-dark',        lightClass: 'one-dark-light' },
+  { name: 'one-light',       label: 'One Light',        darkClass: 'one-light-dark',       lightClass: 'one-light-light' },
+  { name: 'catppuccin-mocha', label: 'Catppuccin Mocha', darkClass: 'catppuccin-mocha-dark', lightClass: 'catppuccin-mocha-light' },
+  { name: 'catppuccin-latte', label: 'Catppuccin Latte', darkClass: 'catppuccin-latte-dark', lightClass: 'catppuccin-latte-light' },
+  { name: 'nord',            label: 'Nord',             darkClass: 'nord-dark',            lightClass: 'nord-light' },
+  { name: 'monokai',        label: 'Monokai',          darkClass: 'monokai-dark',          lightClass: 'monokai-light' },
+];
+
+export function getThemeClass(preset: string, mode: 'dark' | 'light'): string {
+  const theme = themePresets.find(t => t.name === preset);
+  if (!theme) return 'one-dark-dark'; // fallback
+  return mode === 'dark' ? theme.darkClass : theme.lightClass;
+}
+```
+
+### 8.4 Theme Application Flow
+
+1. **`app.html`**: Inline `<script>` in `<head>` reads `ace-theme` from localStorage, applies class to `<html>` before first paint to prevent flash of unstyled content (FOUC).
+2. **`+layout.svelte` (root)**: Calls `uiStore.init()` on mount, which reads localStorage, sets reactive state, applies class.
+3. **Settings page**: Theme selector grid → `uiStore.setTheme(preset)` → updates state, persists, applies.
+4. **Mode toggle**: `uiStore.toggleMode()` → switches dark/light variant of current preset.
+
+### 8.5 WCAG 2.1 AA Contrast Requirements
+
+Every theme preset must meet:
+- Normal text (<18pt): ≥ 4.5:1 contrast ratio against background
+- Large text (≥18pt or ≥14pt bold): ≥ 3:1 contrast ratio
+- UI components and graphical objects: ≥ 3:1
+
+Each preset file includes comment documentation of contrast ratios for `foreground`/`background`, `primary`/`primary-foreground`, `destructive`/`destructive-foreground`, and `muted-foreground`/`background` pairs.
+
+---
+
+## 9. Route Guard Specification
+
+### 9.1 Auth Route Groups
+
+| Group | Path Pattern | Layout | Auth Check | Sidebar | Redirect |
+|-------|-------------|--------|-----------|---------|----------|
+| `(auth)` | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/magic-link` | Centered card | If authenticated → redirect to `/` | No | Authenticated users leave |
+| `(app)` | `/`, `/profile`, `/admin/*`, `/telemetry/*`, `/settings` | App shell | If not authenticated → redirect to `/login` | Yes | Unauthenticated users leave |
+| `(errors)` | `/404` | Centered message | No | No | None |
+
+### 9.2 Role-Based Access
+
+| Route | Required Role | Fallback |
+|-------|--------------|----------|
+| `/admin/users` | `admin` | Show 403 Forbidden message |
+| `/admin/users/[id]` | `admin` | Show 403 Forbidden message |
+| All other routes | Any authenticated user | N/A |
+
+Role check is cosmetic only (sidebar item visibility + route guard message). Backend enforces RBAC on all admin endpoints.
+
+---
+
+## 10. SvelteKit Configuration
+
+### 10.1 `+layout.ts` Files
+
+**`(app)/+layout.ts`**:
+```typescript
+export const ssr = false;
+export const prerender = false;
+```
+
+All app pages are client-rendered only. No SSR, no prerendering.
+
+**`(auth)/+layout.ts`**: Not needed — auth pages work without disabling SSR, but they also function client-side.
+
+### 10.2 Vite Proxy (`vite.config.ts`)
+
+```typescript
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: false,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/health': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+Development: frontend (`localhost:5173`) proxies `/api` and `/health` to backend (`localhost:8080`). Production: both served from Go binary — no proxy needed.
+
+### 10.3 `app.html`
+
+The HTML shell includes a blocking script in `<head>` to prevent FOUC:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <script>
+      // Prevent FOUC: apply saved theme before page renders
+      try {
+        const ui = JSON.parse(localStorage.getItem('ace-ui') || '{}');
+        const theme = ui.theme || 'one-dark';
+        const mode = ui.mode || 'dark';
+        const themeClass = theme + '-' + mode;
+        document.documentElement.classList.add(themeClass);
+      } catch (e) {
+        document.documentElement.classList.add('one-dark-dark');
+      }
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>
+```
+
+### 10.4 `app.css`
+
+```css
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    /* Default tokens — overridden by theme classes */
+    --color-background: 255 255 255;
+    --color-foreground: 15 15 15;
+    --color-card: 255 255 255;
+    --color-card-foreground: 15 15 15;
+    --color-primary: 59 130 246;
+    --color-primary-foreground: 255 255 255;
+    --color-secondary: 241 245 249;
+    --color-secondary-foreground: 15 15 15;
+    --color-muted: 241 245 249;
+    --color-muted-foreground: 107 114 128;
+    --color-accent: 241 245 249;
+    --color-accent-foreground: 15 15 15;
+    --color-destructive: 239 68 68;
+    --color-destructive-foreground: 255 255 255;
+    --color-border: 229 231 235;
+    --color-input: 229 231 235;
+    --color-ring: 59 130 246;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+}
+```
+
+---
+
+## 11. Testing File Specification
+
+### 11.1 Test File Locations
+
+Tests are co-located with their source files using the `.test.ts` or `.svelte.test.ts` suffix.
+
+```
+frontend/src/
+├── lib/
+│   ├── api/
+│   │   ├── client.test.ts                  # APIClient: token injection, refresh, error normalization
+│   │   ├── auth.test.ts                    # Auth API functions mocked
+│   │   ├── sessions.test.ts                # Session API functions mocked
+│   │   ├── admin.test.ts                   # Admin API functions mocked
+│   │   └── telemetry.test.ts               # Telemetry API functions mocked
+│   ├── stores/
+│   │   ├── auth.svelte.test.ts             # AuthStore: login, logout, refresh, token lifecycle
+│   │   ├── ui.svelte.test.ts               # UIStore: theme switching, persistence
+│   │   └── notifications.svelte.test.ts    # NotificationStore: add, dismiss, auto-dismiss
+│   ├── utils/
+│   │   ├── cn.test.ts                      # cn() class merger
+│   │   ├── form.svelte.test.ts             # useForm: validate, handleSubmit, setFieldErrors
+│   │   ├── formatter.test.ts               # formatDate, formatDuration, formatCost, etc.
+│   │   └── constants.test.ts               # Route paths, breakpoint values
+│   ├── validation/
+│   │   └── schemas.test.ts                 # Zod schemas: valid/invalid inputs
+│   └── components/
+│       ├── ui/button/Button.test.ts        # Button renders, click handling, variants
+│       ├── ui/input/Input.test.ts          # Input renders, typing, validation error display
+│       ├── ui/dialog/Dialog.test.ts        # Dialog open/close, focus trap
+│       ├── ui/select/Select.test.ts        # Select options, keyboard nav
+│       ├── ui/badge/Badge.test.ts          # Badge variants
+│       ├── layout/Sidebar.test.ts          # Sidebar collapse, nav items, mobile overlay
+│       ├── layout/Header.test.ts           # Breadcrumbs, user menu
+│       └── shared/DataState.test.ts        # Loading/error/empty states
+├── test/
+│   ├── setup.ts                            # Vitest setup (jsdom, global mocks)
+│   └── integration/
+│       ├── auth.test.ts                    # Full login → redirect flow
+│       └── admin.test.ts                   # Admin user management flow
+```
+
+### 11.2 Test Conventions
+
+- **Unit tests** (stores, utils, API client): Test pure TypeScript classes/functions. Mock fetch. No DOM rendering.
+- **Component tests** (UI primitives, layout): Use `@testing-library/svelte` `render()` and `screen`. Test user-visible behavior, not implementation details.
+- **Integration tests**: Test full flows across stores and API client. Mock fetch at the network level.
+- **No E2E tests** in scope for this unit (future Playwright unit).
+
+### 11.3 Vitest Configuration
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { sveltekit } from '@sveltejs/kit/vite';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+    },
+  },
+});
+```
+
+---
+
+## 12. Dependency Summary
+
+### Production Dependencies (to add)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `bits-ui` | ^0.22 | Headless UI primitives (Dialog, Select, Dropdown, Tabs, etc.) |
+| `tailwindcss` | ^4.0 | Utility CSS framework |
+| `clsx` | ^2.1 | Conditional class name utility |
+| `tailwind-merge` | ^2.2 | Tailwind class conflict resolution |
+| `zod` | ^3.22 | Schema validation |
+| `lucide-svelte` | ^0.400 | Icon library |
+
+### Development Dependencies (to add)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@tailwindcss/vite` | ^4.0 | Tailwind v4 Vite plugin |
+
+### Existing Dependencies (already installed)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@sveltejs/adapter-static` | ^3.0 | SPA static build |
+| `@sveltejs/kit` | ^2.15 | Framework |
+| `svelte` | ^5.19 | Compiler (runes) |
+| `vite` | ^6.0 | Build tool |
+| `vitest` | ^2.1 | Testing |
+| `@testing-library/svelte` | ^5.2 | Component testing |
+| `jsdom` | ^25.0 | DOM environment for tests |
+| `@opentelemetry/*` | various | OpenTelemetry client (existing) |
+
+---
+
+## 5. State Management Files
+
+All stores use Svelte 5 rune-based classes in `.svelte.ts` modules. Stores are the single source of truth for their domain. Components never call API client directly — they call store methods.
+
+### 5.1 `$lib/stores/auth.svelte.ts`
+
+**Purpose**: Authentication state, token lifecycle, login/logout/refresh.
+
+```typescript
+export class AuthStore {
+  // Reactive state
+  user = $state<User | null>(null);
+  accessToken = $state<string>('');
+  refreshToken = $state<string>('');
+  expiresAt = $state<number>(0);
+  isLoading = $state<boolean>(false);
+  error = $state<string | null>(null);
+
+  // Derived state
+  isAuthenticated = $derived(this.user !== null && this.accessToken !== '');
+
+  // Methods
+  init(): void;
+  // Load tokens from localStorage. If expired, attempt refresh. If refresh fails, clear.
+
+  async login(email: string, password: string): Promise<void>;
+  // Call authApi.login → store tokens + user → redirect to /
+
+  async register(email: string, password: string): Promise<void>;
+  // Call authApi.register → auto-login → redirect to /
+
+  async logout(): Promise<void>;
+  // Call authApi.logout → clear localStorage → reset state → redirect to /login
+
+  async refreshTokens(): Promise<void>;
+  // Call authApi.refresh → update tokens + expiry. Refresh mutex: single in-flight promise.
+
+  ensureValidToken(): Promise<void>;
+  // If token expires in <30s, call refreshTokens(). Called by APIClient before each request.
+
+  clear(): void;
+  // Reset all state to defaults. Clear localStorage keys: access_token, refresh_token, ace-theme.
+}
+
+export const authStore = new AuthStore();
+```
+
+**LocalStorage keys**:
+- `ace_access_token` — JWT access token
+- `ace_refresh_token` — JWT refresh token
+- `ace_expires_at` — Token expiry timestamp (ms since epoch)
+
+**State transitions**:
+```
+[Unauthenticated] ──login/register/magic-link──> [Authenticated]
+[Authenticated] ──token expiry <30s──> [Refreshing] ──success──> [Authenticated]
+[Refreshing] ──failure──> [Unauthenticated] (redirect /login)
+[Authenticated] ──logout──> [Unauthenticated] (clear storage, redirect /login)
+```
+
+### 5.2 `$lib/stores/ui.svelte.ts`
+
+**Purpose**: Global UI preferences — theme, sidebar state.
+
+```typescript
+export class UIStore {
+  // Theme state
+  theme = $state<string>('one-dark');        // Current theme preset name
+  mode = $state<'dark' | 'light'>('dark');   // Current mode
+  sidebarCollapsed = $state<boolean>(false);  // Sidebar collapsed state
+
+  // Derived: CSS class to apply to <html>
+  themeClass = $derived(`${this.theme}-${this.mode}`);
+
+  // Methods
+  setTheme(preset: string): void;
+  // Update theme preset, persist to localStorage, apply to DOM
+
+  toggleMode(): void;
+  // Toggle dark/light mode, persist, apply
+
+  toggleSidebar(): void;
+  // Toggle sidebar collapsed state, persist
+
+  setSidebarCollapsed(collapsed: boolean): void;
+  // Set sidebar to specific state (used by responsive breakpoint handler)
+
+  private apply(): void;
+  // Remove all theme classes from <html>, add current themeClass
+
+  private persist(): void;
+  // Write { theme, mode, sidebarCollapsed } to localStorage key 'ace-ui'
+
+  init(): void;
+  // Load from localStorage, apply. Defaults: one-dark, dark, expanded.
+}
+
+export const uiStore = new UIStore();
+```
+
+**LocalStorage keys**:
+- `ace-ui` — JSON `{ theme, mode, sidebarCollapsed }`
+
+**Responsive behavior**: On window resize <768px, `setSidebarCollapsed(true)`. On resize ≥768px, restore persisted preference.
+
+### 5.3 `$lib/stores/notifications.svelte.ts`
+
+**Purpose**: Toast notification system for success/error/warning/info messages.
+
+```typescript
+export interface Toast {
+  id: string;
+  variant: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  description?: string;
+  duration: number;     // ms, 0 = manual dismiss
+  createdAt: number;
+}
+
+export class NotificationStore {
+  toasts = $state<Toast[]>([]);
+
+  add(title: string, variant: Toast['variant'] = 'info', description?: string, duration: number = 5000): string;
+  // Create toast, push to array, return id. Auto-dismiss after duration (if > 0).
+
+  dismiss(id: string): void;
+  // Remove toast by id.
+
+  success(title: string, description?: string): string;
+  // Shorthand: add(title, 'success', description)
+
+  error(title: string, description?: string): string;
+  // Shorthand: add(title, 'error', description, 8000) — longer duration for errors
+
+  warning(title: string, description?: string): string;
+  // Shorthand: add(title, 'warning', description)
+
+  info(title: string, description?: string): string;
+  // Shorthand: add(title, 'info', description)
+}
+
+export const notificationStore = new NotificationStore();
+```
+
+**Usage in components**: `<Toaster />` component reads from `notificationStore.toasts` and renders the toast stack. Auto-dismiss is handled via `setTimeout` in `add()`.
