@@ -1,9 +1,6 @@
 # Local
 tmp/
 
-# Mac
-.DS_Store
-
 # C extensions
 *.so
 
@@ -66,3 +63,10 @@ pnpm-debug.log*
 # Logs
 logs/
 .log
+.DS_Store
+
+# Generated binaries
+backend/bin/
+backend/tmp/
+backend/docs-gen
+

@@ -1,4 +1,10 @@
 // Package main is the entry point for the ACE binary.
+//
+//	@title		ACE - Agent Configuration Engine
+//	@version	0.1.0
+//	@description	Agent Configuration Engine - A secure, embedded database for managing users, sessions, and permissions
+//	@host		localhost:8080
+//	@basePath	/
 package main
 
 import (
@@ -10,7 +16,9 @@ import (
 	"ace/internal/app"
 	"ace/internal/platform"
 	"ace/internal/platform/database"
+	"ace/internal/platform/telemetry"
 
+	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
 
@@ -25,6 +33,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
+
 }
 
 func run(args []string) error {
@@ -77,6 +86,12 @@ var (
 )
 
 func runServer() error {
+	// Create logger for CLI startup messages
+	logger, err := telemetry.NewLoggerWithStdout("ace", "development")
+	if err != nil {
+		return fmt.Errorf("create logger: %w", err)
+	}
+
 	// Build CLI config from flags
 	cliCfg := &app.Config{
 		DataDir:       *dataDir,
@@ -98,22 +113,41 @@ func runServer() error {
 	// Resolve configuration
 	cfg, err := app.ResolveConfig(cliCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve config: %w", err)
 	}
 
 	// Validate configuration for server startup
 	if err := app.ValidateConfig(cfg); err != nil {
-		return err
+		return fmt.Errorf("validate config: %w", err)
 	}
+
+	logger.Info("starting ACE",
+		zap.String("version", version),
+		zap.String("commit", commit),
+		zap.String("build_date", buildDate),
+	)
 
 	// Create app
 	ace, err := app.New(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("create app: %w", err)
 	}
 
-	// Start server
-	return ace.Serve()
+	// Start HTTP server
+	if err := ace.Serve(); err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+
+	// Wait for shutdown signal
+	sig := app.WaitForSignal()
+	logger.Info("received signal", zap.Stringer("signal", sig))
+
+	// Graceful shutdown
+	if err := ace.Shutdown(); err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+
+	return nil
 }
 
 func runPaths() error {

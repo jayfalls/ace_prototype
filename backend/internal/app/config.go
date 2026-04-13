@@ -5,12 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"ace/internal/platform/telemetry"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -166,6 +167,12 @@ func defaultConfig() *Config {
 func ResolveConfig(cliConfig *Config) (*Config, error) {
 	cfg := defaultConfig()
 
+	// Create logger for config resolution (before app logger is available)
+	configLogger, err := telemetry.NewLoggerWithStdout("ace", "development")
+	if err != nil {
+		return nil, fmt.Errorf("create config logger: %w", err)
+	}
+
 	// 1. Load config file if specified
 	configFilePath := cliConfig.ConfigFile
 	if configFilePath == "" {
@@ -191,12 +198,12 @@ func ResolveConfig(cliConfig *Config) (*Config, error) {
 			return nil, fmt.Errorf("config: failed to generate JWT secret: %w", err)
 		}
 		cfg.Auth.JWTSecret = generatedSecret
-		log.Printf("[WARNING] JWT secret was auto-generated. For production, set jwt_secret in config file or ACE_JWT_SECRET env var")
+		configLogger.Warn("JWT secret was auto-generated - for production, set jwt_secret in config file or ACE_JWT_SECRET env var")
 
 		// Store the generated secret in config file for persistence
 		if configFilePath != "" {
 			if err := saveJWTSecretToFile(configFilePath, generatedSecret); err != nil {
-				log.Printf("[WARNING] Failed to persist generated JWT secret to config file: %v", err)
+				configLogger.Warn("failed to persist generated JWT secret to config file", zap.Error(err))
 			}
 		}
 	}

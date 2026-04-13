@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/adrg/xdg"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
@@ -21,42 +23,49 @@ func main() {
 
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
-		dsn = "postgres://postgres:postgres@localhost:5432/ace?sslmode=disable"
+		xdgDataHome := xdg.DataHome
+		dbPath := filepath.Join(xdgDataHome, "ace", "ace.db")
+		dsn = fmt.Sprintf("file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(1)", dbPath)
 	}
 
 	ctx := context.Background()
-	conn, err := pgx.Connect(ctx, dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to connect to database: %v\n", err)
-		fmt.Fprintln(os.Stderr, "Hint: Set DATABASE_URL environment variable or ensure PostgreSQL is running.")
+		fmt.Fprintf(os.Stderr, "Error: opening database: %v\n", err)
 		os.Exit(1)
 	}
-	defer conn.Close(ctx)
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: failed to connect to database: %v\n", err)
+		fmt.Fprintln(os.Stderr, "Hint: Set DATABASE_URL environment variable or ensure SQLite database exists.")
+		os.Exit(1)
+	}
 
 	fmt.Println("--- Schema Documentation ---")
-	if err := generateSchemaDocs(ctx, conn, repoRoot); err != nil {
+	if err := generateSchemaDocs(ctx, db, repoRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating schema docs: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println()
 
 	fmt.Println("--- ERD Generation ---")
-	if err := generateERD(ctx, conn, repoRoot); err != nil {
+	if err := generateERD(ctx, db, repoRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error generating ERD: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println()
 
 	fmt.Println("--- Documentation Validation ---")
-	if err := validateDocs(ctx, conn, repoRoot); err != nil {
+	if err := validateDocs(ctx, db, repoRoot); err != nil {
 		fmt.Fprintf(os.Stderr, "Error validating docs: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println()
 
 	fmt.Println("--- OpenAPI Generation ---")
-	if err := generateOpenAPI(ctx, conn, repoRoot); err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating OpenAPI spec: %v\n", err)
+	if err := generateOpenAPI(ctx, db, repoRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating OpenAPI: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println()

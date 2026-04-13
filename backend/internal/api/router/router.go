@@ -3,19 +3,29 @@ package router
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
+	httpSwagger "github.com/swaggo/http-swagger"
 
-	"ace/internal/api/config"
+	"ace/docs"
 	"ace/internal/api/handler"
 	mw "ace/internal/api/middleware"
 	db "ace/internal/api/repository/generated"
 	"ace/internal/api/service"
+	"ace/internal/caching"
 )
+
+// GetOpenAPISpec returns the OpenAPI spec as bytes using swaggo.
+func GetOpenAPISpec() ([]byte, error) {
+	return []byte(docs.SwaggerInfo.ReadDoc()), nil
+}
 
 // Error definitions for router validation.
 var (
@@ -26,13 +36,35 @@ var (
 	ErrMagicLinkServiceRequired = errors.New("magic link service is required")
 )
 
+// SubsystemHealth holds health status for a subsystem.
+type SubsystemHealth struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// HealthStatus holds the overall health status and individual checks.
+type HealthStatus struct {
+	Status string                     `json:"status"`
+	Checks map[string]SubsystemHealth `json:"checks"`
+}
+
 // Config holds all dependencies needed to create the router.
 type Config struct {
-	App              *config.Config
+	App              *AppConfig
 	Queries          *db.Queries
 	AuthService      *service.AuthService
 	TokenService     *service.TokenService
 	MagicLinkService *service.MagicLinkService
+	DB               *sql.DB
+	NATSConn         *nats.Conn
+	Cache            caching.CacheBackend
+}
+
+// AppConfig holds the basic app configuration needed for the router.
+type AppConfig struct {
+	Host               string
+	Port               int
+	CORSAllowedOrigins []string
 }
 
 // New creates a new chi router with all routes and middleware configured.
@@ -58,7 +90,7 @@ func New(cfg *Config) (*chi.Mux, error) {
 		return nil, ErrMagicLinkServiceRequired
 	}
 
-	// Create handlers
+	// Create handlers - these must be available
 	authHandler, err := handler.NewAuthHandler(
 		cfg.Queries,
 		cfg.AuthService,
@@ -93,7 +125,17 @@ func New(cfg *Config) (*chi.Mux, error) {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(mw.CORS(cfg.App.CORSAllowedOrigins))
+
+	// Set CORS if origins are provided
+	if len(cfg.App.CORSAllowedOrigins) > 0 {
+		r.Use(mw.CORS(cfg.App.CORSAllowedOrigins))
+	}
+
+	// OpenAPI spec endpoint
+	r.Get("/openapi.json", openAPIHandler())
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	// Health check routes (no auth required)
 	r.Group(func(r chi.Router) {
@@ -134,6 +176,14 @@ func New(cfg *Config) (*chi.Mux, error) {
 		r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
 	})
 
+	// Telemetry routes (stubs for now)
+	r.Route("/telemetry", func(r chi.Router) {
+		// TODO: Wire up telemetry inspector endpoints in Slice 10
+		r.Get("/health", func(w http.ResponseWriter, t *http.Request) {
+			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		})
+	})
+
 	return r, nil
 }
 
@@ -142,7 +192,21 @@ func healthLiveHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}
+}
+
+// openAPIHandler returns the OpenAPI specification as JSON.
+func openAPIHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		spec, err := GetOpenAPISpec()
+		if err != nil {
+			http.Error(w, "failed to read OpenAPI spec", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(spec)
 	}
 }
 
@@ -150,8 +214,46 @@ func healthLiveHandler() http.HandlerFunc {
 func healthReadyHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","checks":{"database":{"status":"ok"},"nats":{"status":"ok"}}}`))
+
+		status := HealthStatus{
+			Status: "ok",
+			Checks: make(map[string]SubsystemHealth),
+		}
+
+		// Check database
+		if cfg.DB != nil {
+			if err := cfg.DB.PingContext(r.Context()); err != nil {
+				status.Checks["database"] = SubsystemHealth{Status: "fail", Reason: err.Error()}
+				status.Status = "degraded"
+			} else {
+				status.Checks["database"] = SubsystemHealth{Status: "ok"}
+			}
+		} else {
+			status.Checks["database"] = SubsystemHealth{Status: "not_initialized"}
+		}
+
+		// Check NATS
+		if cfg.NATSConn != nil && cfg.NATSConn.IsConnected() {
+			status.Checks["nats"] = SubsystemHealth{Status: "ok"}
+		} else {
+			status.Checks["nats"] = SubsystemHealth{Status: "not_connected"}
+			status.Status = "degraded"
+		}
+
+		// Check cache
+		if cfg.Cache != nil {
+			status.Checks["cache"] = SubsystemHealth{Status: "ok"}
+		} else {
+			status.Checks["cache"] = SubsystemHealth{Status: "not_initialized"}
+		}
+
+		httpStatus := http.StatusOK
+		if status.Status == "degraded" {
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		w.WriteHeader(httpStatus)
+		json.NewEncoder(w).Encode(status)
 	}
 }
 

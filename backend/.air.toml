@@ -1,0 +1,43 @@
+# Air Configuration for ACE Backend
+# https://github.com/air-verse/air
+
+[build]
+  bin = "./bin/ace"
+  cmd = "go build -o ./bin/ace ./cmd/ace/"
+  delay = 1000
+  exclude_dir = ["vendor", "bin", "tmp"]
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  include_dir = ["internal", "cmd", "migrations"]
+  include_ext = ["go", "sql"]
+  kill_delay = "0s"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = false
+  stop_on_error = false
+
+[run]
+  args = []
+  env_block = ""
+  env_files = [".env"]
+  exec = ""
+  log = "air-run.log"
+  runtime = "go"
+  send_interrupt = false
+
+[log]
+  main_only = false
+  time = false
+
+[misc]
+  clean_on_exit = true
+  dairy = false
+  use_color = true
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = false

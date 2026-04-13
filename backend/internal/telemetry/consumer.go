@@ -70,22 +70,18 @@ func (c *UsageConsumer) handleMessage(msg *nats.Msg) {
 	// Parse the usage event from JSON
 	var event UsageEvent
 	if err := json.Unmarshal(msg.Data, &event); err != nil {
-		if c.logger != nil {
-			c.logger.Debug("failed to parse usage event",
-				zap.Error(err),
-				zap.ByteString("data", msg.Data))
-		}
+		c.logger.Debug("failed to parse usage event",
+			zap.Error(err),
+			zap.ByteString("data", msg.Data))
 		return
 	}
 
 	// Insert into database
 	if err := c.insertUsageEvent(ctx, event); err != nil {
-		if c.logger != nil {
-			c.logger.Debug("failed to insert usage event",
-				zap.Error(err),
-				zap.String("agent_id", event.AgentID),
-				zap.String("cycle_id", event.CycleID))
-		}
+		c.logger.Debug("failed to insert usage event",
+			zap.Error(err),
+			zap.String("agent_id", event.AgentID),
+			zap.String("cycle_id", event.CycleID))
 		return
 	}
 

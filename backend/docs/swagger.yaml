@@ -1,0 +1,805 @@
+basePath: /
+definitions:
+  handler.AdminUserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        $ref: '#/definitions/model.UserStatus'
+      suspended_at:
+        type: string
+      suspended_reason:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  handler.CreateExampleRequest:
+    properties:
+      email:
+        type: string
+      name:
+        maxLength: 100
+        minLength: 1
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  handler.ExampleResponse:
+    properties:
+      email:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+    type: object
+  handler.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handler.LogoutRequest:
+    properties:
+      session_id:
+        type: string
+    required:
+    - session_id
+    type: object
+  handler.MagicLinkRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  handler.MagicLinkResponse:
+    properties:
+      message:
+        type: string
+    type: object
+  handler.MagicLinkVerifyRequest:
+    properties:
+      token:
+        type: string
+    required:
+    - token
+    type: object
+  handler.PasswordResetConfirmRequest:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
+    type: object
+  handler.PasswordResetRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  handler.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  handler.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        minLength: 8
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  handler.SessionResponse:
+    properties:
+      created_at:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      ip_address:
+        type: string
+      last_used_at:
+        type: string
+      user_agent:
+        type: string
+      user_id:
+        type: string
+    type: object
+  handler.SessionsListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      sessions:
+        items:
+          $ref: '#/definitions/handler.SessionResponse'
+        type: array
+      total:
+        type: integer
+    type: object
+  handler.SuspendUserRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  handler.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+    type: object
+  handler.UpdateRoleRequest:
+    properties:
+      role:
+        enum:
+        - user
+        - admin
+        - viewer
+        type: string
+    required:
+    - role
+    type: object
+  handler.UserListItem:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        $ref: '#/definitions/model.UserStatus'
+      updated_at:
+        type: string
+    type: object
+  handler.UserResponse:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        $ref: '#/definitions/model.UserStatus'
+      updated_at:
+        type: string
+    type: object
+  handler.UsersListResponse:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/handler.UserListItem'
+        type: array
+    type: object
+  model.User:
+    properties:
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        $ref: '#/definitions/model.UserStatus'
+      suspended_at:
+        type: string
+      suspended_reason:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  model.UserRole:
+    enum:
+    - admin
+    - user
+    - viewer
+    type: string
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+    - RoleViewer
+  model.UserStatus:
+    enum:
+    - pending
+    - active
+    - suspended
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusActive
+    - StatusSuspended
+  response.APIError:
+    properties:
+      code:
+        type: string
+      details:
+        items:
+          $ref: '#/definitions/response.FieldError'
+        type: array
+      message:
+        type: string
+    type: object
+  response.FieldError:
+    properties:
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Agent Configuration Engine - A secure, embedded database for managing
+    users, sessions, and permissions
+  title: ACE - Agent Configuration Engine
+  version: 0.1.0
+paths:
+  /admin/users:
+    get:
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.UsersListResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: List all users (paginated)
+      tags:
+      - admin
+  /admin/users/{id}:
+    get:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AdminUserResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Get user details
+      tags:
+      - admin
+  /admin/users/{id}/restore:
+    post:
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AdminUserResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Restore a suspended user
+      tags:
+      - admin
+  /admin/users/{id}/role:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New role
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.UpdateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AdminUserResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Update user role
+      tags:
+      - admin
+  /admin/users/{id}/suspend:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Suspension reason
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.SuspendUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.AdminUserResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Suspend a user
+      tags:
+      - admin
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Login with email and password
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Session ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LogoutRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Logout current session
+      tags:
+      - auth
+  /auth/magic-link/request:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.MagicLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.MagicLinkResponse'
+      summary: Request magic link
+      tags:
+      - auth
+  /auth/magic-link/verify:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Magic link token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.MagicLinkVerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Verify magic link
+      tags:
+      - auth
+  /auth/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.UserResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Get current user profile
+      tags:
+      - session
+  /auth/me/sessions:
+    get:
+      parameters:
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.SessionsListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: List user's active sessions
+      tags:
+      - session
+  /auth/me/sessions/{id}:
+    delete:
+      parameters:
+      - description: Session ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Revoke a specific session
+      tags:
+      - session
+  /auth/password/reset/confirm:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Reset token and new password
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.PasswordResetConfirmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Confirm password reset
+      tags:
+      - auth
+  /auth/password/reset/request:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Email address
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.PasswordResetRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.MagicLinkResponse'
+      summary: Request password reset
+      tags:
+      - auth
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Refresh access token
+      tags:
+      - auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: User registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.TokenResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Register a new user
+      tags:
+      - auth
+  /examples/:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Example data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateExampleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.ExampleResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Create example (validation demo)
+      tags:
+      - examples
+  /examples/{id}:
+    get:
+      parameters:
+      - description: Example ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ExampleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.APIError'
+      summary: Get example by ID
+      tags:
+      - examples
+  /health/exporters:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Exporter health status
+      tags:
+      - health
+  /health/live:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Liveness probe
+      tags:
+      - health
+  /health/ready:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Readiness probe (includes DB and NATS checks)
+      tags:
+      - health
+swagger: "2.0"

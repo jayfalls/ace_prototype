@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 
 	"ace/internal/api/model"
 )
@@ -44,7 +45,8 @@ func (m *MockEventPublisher) Publish(ctx context.Context, subject, correlationID
 
 func TestNewEventService(t *testing.T) {
 	t.Run("creates service with nil publisher (stub mode)", func(t *testing.T) {
-		svc := NewEventService(nil)
+		logger := zap.NewNop()
+		svc := NewEventService(nil, logger)
 		if svc == nil {
 			t.Fatal("expected non-nil service")
 		}
@@ -54,8 +56,9 @@ func TestNewEventService(t *testing.T) {
 	})
 
 	t.Run("creates service with publisher", func(t *testing.T) {
+		logger := zap.NewNop()
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 		if svc == nil {
 			t.Fatal("expected non-nil service")
 		}
@@ -66,8 +69,10 @@ func TestNewEventService(t *testing.T) {
 }
 
 func TestPublishLoginEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes login event in stub mode", func(t *testing.T) {
-		svc := NewEventService(nil)
+		svc := NewEventService(nil, logger)
 		event := model.LoginEvent{
 			UserID:    uuid.New(),
 			Email:     "test@example.com",
@@ -84,7 +89,7 @@ func TestPublishLoginEvent(t *testing.T) {
 
 	t.Run("publishes login event via publisher", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		event := model.LoginEvent{
@@ -115,7 +120,7 @@ func TestPublishLoginEvent(t *testing.T) {
 
 	t.Run("handles publisher error", func(t *testing.T) {
 		mock := &MockEventPublisher{ErrToReturn: errors.New("publish failed")}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		event := model.LoginEvent{
 			UserID:    uuid.New(),
@@ -131,8 +136,10 @@ func TestPublishLoginEvent(t *testing.T) {
 }
 
 func TestPublishLogoutEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes logout event in stub mode", func(t *testing.T) {
-		svc := NewEventService(nil)
+		svc := NewEventService(nil, logger)
 		event := model.LogoutEvent{
 			UserID:    uuid.New(),
 			SessionID: "session-123",
@@ -147,7 +154,7 @@ func TestPublishLogoutEvent(t *testing.T) {
 
 	t.Run("publishes logout event via publisher", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		event := model.LogoutEvent{
@@ -172,9 +179,11 @@ func TestPublishLogoutEvent(t *testing.T) {
 }
 
 func TestPublishFailedLoginEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes failed login event", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		event := model.FailedLoginEvent{
 			Email:     "test@example.com",
@@ -204,9 +213,11 @@ func TestPublishFailedLoginEvent(t *testing.T) {
 }
 
 func TestPublishPasswordChangeEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes password change event", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		event := model.PasswordChangeEvent{
@@ -230,9 +241,11 @@ func TestPublishPasswordChangeEvent(t *testing.T) {
 }
 
 func TestPublishRoleChangeEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes role change event", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		changedBy := uuid.New()
@@ -260,9 +273,11 @@ func TestPublishRoleChangeEvent(t *testing.T) {
 }
 
 func TestPublishAccountSuspendedEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes account suspended event", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		suspendedBy := uuid.New()
@@ -289,9 +304,11 @@ func TestPublishAccountSuspendedEvent(t *testing.T) {
 }
 
 func TestPublishAccountDeletedEvent(t *testing.T) {
+	logger := zap.NewNop()
+
 	t.Run("publishes account deleted event", func(t *testing.T) {
 		mock := &MockEventPublisher{}
-		svc := NewEventService(mock)
+		svc := NewEventService(mock, logger)
 
 		userID := uuid.New()
 		deletedBy := uuid.New()
