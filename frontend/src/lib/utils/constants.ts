@@ -2,10 +2,7 @@
 export const ROUTES = {
 	HOME: '/',
 	LOGIN: '/login',
-	REGISTER: '/register',
-	FORGOT_PASSWORD: '/forgot-password',
-	RESET_PASSWORD: '/reset-password',
-	MAGIC_LINK: '/magic-link',
+	SETUP: '/setup',
 	PROFILE: '/profile',
 	ADMIN_USERS: '/admin/users',
 	ADMIN_USER_DETAIL: '/admin/users',

@@ -246,3 +246,96 @@ func isValidBase64(s string) bool {
 // PasswordRegex returns a compiled regex for additional client-side validation
 // This is read-only validation that checks format only, not strength
 var PasswordRegex = regexp.MustCompile(`^[a-zA-Z0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]+$`)
+
+// PIN configuration - 4-6 digits
+const (
+	MinPINLength = 4
+	MaxPINLength = 6
+)
+
+// ValidatePIN checks if a PIN meets the requirements (4-6 digits).
+func ValidatePIN(pin string) error {
+	if len(pin) < MinPINLength || len(pin) > MaxPINLength {
+		return &ValidatePasswordError{
+			Message: "PIN must be 4-6 digits",
+		}
+	}
+	for _, ch := range pin {
+		if ch < '0' || ch > '9' {
+			return &ValidatePasswordError{
+				Message: "PIN must contain only digits",
+			}
+		}
+	}
+	return nil
+}
+
+// HashPIN creates a secure hash of the PIN.
+// Uses Argon2id but with a smaller memory footprint suitable for PINs.
+func HashPIN(pin string) (string, error) {
+	if err := ValidatePIN(pin); err != nil {
+		return "", err
+	}
+
+	// Generate cryptographically random salt
+	salt := make([]byte, Argon2SaltLength)
+	if _, err := rand.Read(salt); err != nil {
+		return "", errors.New("generate salt: failed to read random bytes")
+	}
+
+	// Hash PIN using Argon2id - same as password hashing for security
+	hash := argon2.IDKey(
+		[]byte(pin),
+		salt,
+		Argon2Iterations,
+		Argon2Memory,
+		Argon2Parallelism,
+		Argon2KeyLength,
+	)
+
+	// Encode salt + hash as base64 for storage
+	encoded := base64.StdEncoding.EncodeToString(salt) + ":" + base64.StdEncoding.EncodeToString(hash)
+
+	return encoded, nil
+}
+
+// VerifyPIN compares a PIN against a stored hash using constant-time comparison.
+func VerifyPIN(hash, pin string) (bool, error) {
+	if hash == "" || pin == "" {
+		return false, errors.New("hash and PIN are required")
+	}
+
+	// Validate PIN format
+	if err := ValidatePIN(pin); err != nil {
+		return false, err
+	}
+
+	// Use the same splitHash function as passwords
+	parts := splitHash(hash)
+	if len(parts) != 2 {
+		return false, errors.New("invalid hash format")
+	}
+
+	salt, err := base64.StdEncoding.DecodeString(parts[0])
+	if err != nil {
+		return false, errors.New("decode salt: invalid base64")
+	}
+
+	storedHash, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return false, errors.New("decode hash: invalid base64")
+	}
+
+	// Compute hash of provided PIN with same salt
+	computedHash := argon2.IDKey(
+		[]byte(pin),
+		salt,
+		Argon2Iterations,
+		Argon2Memory,
+		Argon2Parallelism,
+		Argon2KeyLength,
+	)
+
+	// Use constant-time comparison to prevent timing attacks
+	return subtle.ConstantTimeCompare(computedHash, storedHash) == 1, nil
+}

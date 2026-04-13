@@ -7,16 +7,22 @@
 	interface Props {
 		variant?: ButtonVariant;
 		size?: ButtonSize;
+		type?: 'button' | 'submit' | 'reset';
 		class?: string;
-		onclick?: (e: MouseEvent) => void;
+		disabled?: boolean;
+		'onclick'?: (e: MouseEvent) => void;
+		'aria-label'?: string;
 		children?: import('svelte').Snippet;
 	}
 
 	let {
 		variant = 'default',
 		size = 'default',
+		type = 'button',
 		class: className = '',
+		disabled = false,
 		onclick,
+		'aria-label': ariaLabel,
 		children
 	}: Props = $props();
 
@@ -38,6 +44,8 @@
 </script>
 
 <button
+	{type}
+	{disabled}
 	class={cn(
 		'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
 		variants[variant],
@@ -45,6 +53,7 @@
 		className
 	)}
 	{onclick}
+	aria-label={ariaLabel}
 >
 	{#if children}
 		{@render children()}

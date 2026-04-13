@@ -2,27 +2,28 @@ import { z } from 'zod';
 
 export const loginSchema = z
 	.object({
-		email: z.string().email('Invalid email format'),
-		password: z.string().min(8, 'Password must be at least 8 characters'),
+		username: z.string().min(1, 'Username is required'),
+		pin: z.string().min(4, 'PIN must be at least 4 digits').max(6, 'PIN must be at most 6 digits').regex(/^\d+$/, 'PIN must contain only digits'),
 	})
-	.refine((data) => data.password.trim().length > 0, {
-		message: 'Password cannot be empty or whitespace only',
-		path: ['password'],
+	.refine((data) => data.username.trim().length > 0, {
+		message: 'Username cannot be empty or whitespace only',
+		path: ['username'],
 	});
 
 export const registerSchema = z
 	.object({
+		username: z.string().min(3, 'Username must be at least 3 characters').max(20, 'Username must be at most 20 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+		pin: z.string().min(4, 'PIN must be at least 4 digits').max(6, 'PIN must be at most 6 digits').regex(/^\d+$/, 'PIN must contain only digits'),
+		confirmPin: z.string().min(4, 'PIN must be at least 4 digits').max(6, 'PIN must be at most 6 digits'),
 		email: z.string().email('Invalid email format'),
-		password: z.string().min(8, 'Password must be at least 8 characters'),
-		confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
 	})
-	.refine((data) => data.password === data.confirmPassword, {
-		message: 'Passwords do not match',
-		path: ['confirmPassword'],
+	.refine((data) => data.pin === data.confirmPin, {
+		message: 'PINs do not match',
+		path: ['confirmPin'],
 	})
-	.refine((data) => data.password.trim().length > 0, {
-		message: 'Password cannot be empty or whitespace only',
-		path: ['password'],
+	.refine((data) => data.username.trim().length > 0, {
+		message: 'Username cannot be empty or whitespace only',
+		path: ['username'],
 	});
 
 export const forgotPasswordSchema = z.object({

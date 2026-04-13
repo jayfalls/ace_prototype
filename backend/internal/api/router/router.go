@@ -149,52 +149,58 @@ func New(cfg *Config) (*chi.Mux, error) {
 	// Swagger UI
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
-	// Health check routes (no auth required)
+	// Health check routes (no auth required, no /api prefix)
 	r.Group(func(r chi.Router) {
 		r.Get("/health/live", healthLiveHandler())
 		r.Get("/health/ready", healthReadyHandler(cfg))
 	})
 
-	// Auth routes (no auth required)
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
-		r.Post("/logout", authHandler.Logout)
-		r.Post("/refresh", authHandler.Refresh)
-		r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
-		r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
-		r.Post("/magic-link/request", authHandler.MagicLinkRequest)
-		r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
-	})
+	// API routes group (all under /api prefix)
+	r.Route("/api", func(r chi.Router) {
+		// Public user listing for login screen (no auth required)
+		r.Get("/users", authHandler.ListUsers)
 
-	// Protected routes (auth required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
+		// Auth routes (no auth required)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.RegisterWithPIN)
+			r.Post("/login", authHandler.LoginWithPIN)
+			r.Post("/logout", authHandler.Logout)
+			r.Post("/refresh", authHandler.Refresh)
+			r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
+			r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
+			r.Post("/magic-link/request", authHandler.MagicLinkRequest)
+			r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
+		})
 
-		r.Get("/auth/me", sessionHandler.Me)
-		r.Get("/auth/me/sessions", sessionHandler.ListSessions)
-		r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
-	})
+		// Protected routes (auth required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
 
-	// Admin routes (auth + admin role required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
-		r.Use(rbacMw.RequireAdmin())
+			r.Get("/auth/me", sessionHandler.Me)
+			r.Get("/auth/me/sessions", sessionHandler.ListSessions)
+			r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
+		})
 
-		r.Get("/admin/users", adminHandler.ListUsers)
-		r.Get("/admin/users/{id}", adminHandler.GetUser)
-		r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
-		r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
-		r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
-	})
+		// Admin routes (auth + admin role required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Use(rbacMw.RequireAdmin())
 
-	// Telemetry routes (auth required)
-	r.Route("/telemetry", func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
-		r.Get("/spans", telemetryHandler.Spans)
-		r.Get("/metrics", telemetryHandler.Metrics)
-		r.Get("/usage", telemetryHandler.Usage)
-		r.Get("/health", telemetryHandler.Health)
+			r.Get("/admin/users", adminHandler.ListUsers)
+			r.Get("/admin/users/{id}", adminHandler.GetUser)
+			r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
+			r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
+			r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
+		})
+
+		// Telemetry routes (auth required)
+		r.Route("/telemetry", func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Get("/spans", telemetryHandler.Spans)
+			r.Get("/metrics", telemetryHandler.Metrics)
+			r.Get("/usage", telemetryHandler.Usage)
+			r.Get("/health", telemetryHandler.Health)
+		})
 	})
 
 	// SPA catch-all route - must be last to not intercept API routes

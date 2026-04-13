@@ -69,10 +69,28 @@ type RegisterRequest struct {
 	Password string `json:"password" validate:"required,min=8"`
 }
 
+// RegisterWithPINRequest represents the request body for PIN-based registration.
+type RegisterWithPINRequest struct {
+	Username string `json:"username" validate:"required"`
+	PIN      string `json:"pin" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+}
+
 // LoginRequest represents the request body for user login.
 type LoginRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required"`
+}
+
+// LoginWithPINRequest represents the request body for PIN-based login.
+type LoginWithPINRequest struct {
+	Username string `json:"username" validate:"required"`
+	PIN      string `json:"pin" validate:"required"`
+}
+
+// LoginUsersResponse represents the response for listing users on login screen.
+type LoginUsersResponse struct {
+	Users []model.UserListItem `json:"users"`
 }
 
 // TokenResponse represents the response for token-based operations.
@@ -210,6 +228,115 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		TokenType:    tokens.TokenType,
 	}
 	response.Success(w, resp)
+}
+
+// @Summary Register with username and PIN (OS-style)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body RegisterWithPINRequest true "User registration data"
+// @Success 201 {object} TokenResponse
+// @Failure 400 {object} response.APIError
+// @Failure 409 {object} response.APIError
+// @Router /auth/register [post]
+// RegisterWithPIN handles POST /auth/register - Creates user with username/PIN, returns tokens
+func (h *AuthHandler) RegisterWithPIN(w http.ResponseWriter, r *http.Request) {
+	var req RegisterWithPINRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "invalid_request", "Invalid request body")
+		return
+	}
+
+	if req.Username == "" || req.PIN == "" {
+		response.BadRequest(w, "invalid_request", "Username and PIN are required")
+		return
+	}
+
+	user, tokens, err := h.authSvc.RegisterWithPIN(r.Context(), req.Username, req.PIN, req.Email)
+	if err != nil {
+		if errors.Is(err, model.ErrUserAlreadyExists) {
+			response.Error(w, "user_exists", "User with this username already exists", http.StatusConflict)
+			return
+		}
+		if errors.Is(err, model.ErrWeakPassword) {
+			response.BadRequest(w, "weak_password", err.Error())
+			return
+		}
+		response.InternalError(w, "Failed to register user")
+		return
+	}
+
+	resp := TokenResponse{
+		User:         user,
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresIn:    tokens.ExpiresIn,
+		TokenType:    tokens.TokenType,
+	}
+	response.Created(w, resp)
+}
+
+// @Summary Login with username and PIN (OS-style)
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param request body LoginWithPINRequest true "User credentials"
+// @Success 200 {object} TokenResponse
+// @Failure 400 {object} response.APIError
+// @Failure 401 {object} response.APIError
+// @Router /auth/login [post]
+// LoginWithPIN handles POST /auth/login - Validates username/PIN, returns tokens
+func (h *AuthHandler) LoginWithPIN(w http.ResponseWriter, r *http.Request) {
+	var req LoginWithPINRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.BadRequest(w, "invalid_request", "Invalid request body")
+		return
+	}
+
+	if req.Username == "" || req.PIN == "" {
+		response.BadRequest(w, "invalid_request", "Username and PIN are required")
+		return
+	}
+
+	user, tokens, err := h.authSvc.LoginWithPIN(r.Context(), req.Username, req.PIN)
+	if err != nil {
+		if errors.Is(err, model.ErrInvalidCredentials) {
+			response.Unauthorized(w, "Invalid username or PIN")
+			return
+		}
+		if errors.Is(err, model.ErrAccountSuspended) {
+			response.Forbidden(w, "Account has been suspended")
+			return
+		}
+		response.InternalError(w, "Failed to login")
+		return
+	}
+
+	resp := TokenResponse{
+		User:         user,
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		ExpiresIn:    tokens.ExpiresIn,
+		TokenType:    tokens.TokenType,
+	}
+	response.Success(w, resp)
+}
+
+// @Summary List users for login screen
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} LoginUsersResponse
+// @Router /users [get]
+// ListUsers handles GET /users - Returns list of users for login screen
+func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.authSvc.ListUsersForLogin(r.Context())
+	if err != nil {
+		response.InternalError(w, "Failed to list users")
+		return
+	}
+
+	response.Success(w, LoginUsersResponse{Users: users})
 }
 
 // @Summary Logout current session

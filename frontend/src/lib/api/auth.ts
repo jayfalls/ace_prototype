@@ -5,23 +5,25 @@ import type {
 	TokenResponse,
 	User,
 	ResetPasswordRequest,
-	MagicLinkVerifyRequest
+	MagicLinkVerifyRequest,
+	MagicLinkRequestResponse,
+	UserListItem
 } from './types';
 
-export async function login(email: string, password: string): Promise<TokenResponse> {
+export async function login(username: string, pin: string): Promise<TokenResponse> {
 	return apiClient.request<TokenResponse>({
 		method: 'POST',
 		path: '/auth/login',
-		body: { email, password } satisfies LoginRequest,
+		body: { username, pin } satisfies LoginRequest,
 		requiresAuth: false
 	});
 }
 
-export async function register(email: string, password: string): Promise<TokenResponse> {
+export async function register(username: string, pin: string, email: string): Promise<TokenResponse> {
 	return apiClient.request<TokenResponse>({
 		method: 'POST',
 		path: '/auth/register',
-		body: { email, password } satisfies RegisterRequest,
+		body: { username, pin, email } satisfies RegisterRequest,
 		requiresAuth: false
 	});
 }
@@ -50,6 +52,14 @@ export async function me(): Promise<User> {
 	});
 }
 
+export async function listUsers(): Promise<UserListItem[]> {
+	return apiClient.request<UserListItem[]>({
+		method: 'GET',
+		path: '/users',
+		requiresAuth: false
+	});
+}
+
 export async function resetPasswordRequest(email: string): Promise<void> {
 	return apiClient.request<void>({
 		method: 'POST',
@@ -68,8 +78,8 @@ export async function resetPasswordConfirm(token: string, newPassword: string): 
 	});
 }
 
-export async function magicLinkRequest(email: string): Promise<void> {
-	return apiClient.request<void>({
+export async function magicLinkRequest(email: string): Promise<MagicLinkRequestResponse> {
+	return apiClient.request<MagicLinkRequestResponse>({
 		method: 'POST',
 		path: '/auth/magic-link/request',
 		body: { email },

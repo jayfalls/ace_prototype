@@ -255,7 +255,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Login with email and password",
+                "summary": "Login with username and PIN (OS-style)",
                 "parameters": [
                     {
                         "description": "User credentials",
@@ -263,7 +263,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.LoginRequest"
+                            "$ref": "#/definitions/handler.LoginWithPINRequest"
                         }
                     }
                 ],
@@ -638,7 +638,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Register a new user",
+                "summary": "Register with username and PIN (OS-style)",
                 "parameters": [
                     {
                         "description": "User registration data",
@@ -646,7 +646,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/handler.RegisterRequest"
+                            "$ref": "#/definitions/handler.RegisterWithPINRequest"
                         }
                     }
                 ],
@@ -820,6 +820,28 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/users": {
+            "get": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "List users for login screen",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.LoginUsersResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -894,6 +916,32 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LoginUsersResponse": {
+            "type": "object",
+            "properties": {
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.UserListItem"
+                    }
+                }
+            }
+        },
+        "handler.LoginWithPINRequest": {
+            "type": "object",
+            "required": [
+                "pin",
+                "username"
+            ],
+            "properties": {
+                "pin": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }
@@ -990,6 +1038,25 @@ const docTemplate = `{
                 "password": {
                     "type": "string",
                     "minLength": 8
+                }
+            }
+        },
+        "handler.RegisterWithPINRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "pin",
+                "username"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "pin": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
@@ -1177,6 +1244,35 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.UserListItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.UserRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.UserStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

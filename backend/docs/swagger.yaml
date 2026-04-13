@@ -50,6 +50,23 @@ definitions:
     - email
     - password
     type: object
+  handler.LoginUsersResponse:
+    properties:
+      users:
+        items:
+          $ref: '#/definitions/model.UserListItem'
+        type: array
+    type: object
+  handler.LoginWithPINRequest:
+    properties:
+      pin:
+        type: string
+      username:
+        type: string
+    required:
+    - pin
+    - username
+    type: object
   handler.LogoutRequest:
     properties:
       session_id:
@@ -111,6 +128,19 @@ definitions:
     required:
     - email
     - password
+    type: object
+  handler.RegisterWithPINRequest:
+    properties:
+      email:
+        type: string
+      pin:
+        type: string
+      username:
+        type: string
+    required:
+    - email
+    - pin
+    - username
     type: object
   handler.SessionResponse:
     properties:
@@ -233,6 +263,25 @@ definitions:
       suspended_reason:
         type: string
       updated_at:
+        type: string
+      username:
+        type: string
+    type: object
+  model.UserListItem:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      role:
+        $ref: '#/definitions/model.UserRole'
+      status:
+        $ref: '#/definitions/model.UserStatus'
+      updated_at:
+        type: string
+      username:
         type: string
     type: object
   model.UserRole:
@@ -440,7 +489,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.LoginRequest'
+          $ref: '#/definitions/handler.LoginWithPINRequest'
       produces:
       - application/json
       responses:
@@ -456,7 +505,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/response.APIError'
-      summary: Login with email and password
+      summary: Login with username and PIN (OS-style)
       tags:
       - auth
   /auth/logout:
@@ -686,7 +735,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/handler.RegisterRequest'
+          $ref: '#/definitions/handler.RegisterWithPINRequest'
       produces:
       - application/json
       responses:
@@ -702,7 +751,7 @@ paths:
           description: Conflict
           schema:
             $ref: '#/definitions/response.APIError'
-      summary: Register a new user
+      summary: Register with username and PIN (OS-style)
       tags:
       - auth
   /examples/:
@@ -802,4 +851,18 @@ paths:
       summary: Readiness probe (includes DB and NATS checks)
       tags:
       - health
+  /users:
+    get:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoginUsersResponse'
+      summary: List users for login screen
+      tags:
+      - auth
 swagger: "2.0"

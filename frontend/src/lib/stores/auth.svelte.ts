@@ -74,11 +74,11 @@ class AuthStore {
 			});
 	}
 
-	async login(email: string, password: string): Promise<void> {
+	async login(username: string, pin: string): Promise<void> {
 		this.isLoading = true;
 		this.error = null;
 		try {
-			const response = await authApi.login(email, password);
+			const response = await authApi.login(username, pin);
 			this.handleTokenResponse(response);
 		} catch (err) {
 			this.error = err instanceof Error ? err.message : 'Login failed';
@@ -88,11 +88,11 @@ class AuthStore {
 		}
 	}
 
-	async register(email: string, password: string): Promise<void> {
+	async register(username: string, pin: string, email: string): Promise<void> {
 		this.isLoading = true;
 		this.error = null;
 		try {
-			const response = await authApi.register(email, password);
+			const response = await authApi.register(username, pin, email);
 			this.handleTokenResponse(response);
 		} catch (err) {
 			this.error = err instanceof Error ? err.message : 'Registration failed';

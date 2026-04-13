@@ -3,17 +3,21 @@
 INSERT INTO users (
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     created_at,
     updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -27,7 +31,9 @@ RETURNING
 SELECT
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -44,7 +50,9 @@ WHERE id = ?
 SELECT
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -56,12 +64,33 @@ FROM users
 WHERE email = ?
   AND deleted_at IS NULL;
 
+-- name: GetUserByUsername :one
+-- Gets a user by username, excluding soft-deleted users.
+SELECT
+    id,
+    email,
+    username,
+    password_hash,
+    pin_hash,
+    role,
+    status,
+    suspended_at,
+    suspended_reason,
+    deleted_at,
+    created_at,
+    updated_at
+FROM users
+WHERE username = ?
+  AND deleted_at IS NULL;
+
 -- name: UpdateUser :one
--- Updates user fields (email, password_hash, role, status).
+-- Updates user fields (email, username, password_hash, pin_hash, role, status).
 UPDATE users
 SET
     email = COALESCE(?, email),
+    username = COALESCE(?, username),
     password_hash = COALESCE(?, password_hash),
+    pin_hash = COALESCE(?, pin_hash),
     role = COALESCE(?, role),
     status = COALESCE(?, status),
     updated_at = ?
@@ -70,7 +99,9 @@ WHERE id = ?
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -90,7 +121,9 @@ WHERE id = ?
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -104,7 +137,9 @@ RETURNING
 SELECT
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -136,7 +171,9 @@ WHERE id = ?
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -158,7 +195,9 @@ WHERE id = ?
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -181,7 +220,9 @@ WHERE id = ?
 RETURNING
     id,
     email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,

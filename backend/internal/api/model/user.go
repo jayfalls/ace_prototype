@@ -28,7 +28,9 @@ const (
 type User struct {
 	ID              uuid.UUID  `json:"id"`
 	Email           string     `json:"email"`
+	Username        string     `json:"username"`
 	PasswordHash    *string    `json:"-"`
+	PinHash         *string    `json:"-"`
 	Role            UserRole   `json:"role"`
 	Status          UserStatus `json:"status"`
 	SuspendedAt     *time.Time `json:"suspended_at,omitempty"`
@@ -56,4 +58,15 @@ func (u *User) IsDeleted() bool {
 // CanLogin returns true if the user can log in (active and not deleted/suspended).
 func (u *User) CanLogin() bool {
 	return u.IsActive() && !u.IsDeleted() && !u.IsSuspended()
+}
+
+// UserListItem represents a user in the login screen list.
+type UserListItem struct {
+	ID        uuid.UUID  `json:"id"`
+	Username  string     `json:"username"`
+	Email     string     `json:"email"`
+	Role      UserRole   `json:"role"`
+	Status    UserStatus `json:"status"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }

@@ -89,6 +89,8 @@ type User struct {
 	DeletedAt       sql.NullString `json:"deleted_at"`
 	CreatedAt       string         `json:"created_at"`
 	UpdatedAt       string         `json:"updated_at"`
+	Username        sql.NullString `json:"username"`
+	PinHash         sql.NullString `json:"pin_hash"`
 }
 
 type VersionStamp struct {

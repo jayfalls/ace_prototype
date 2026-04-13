@@ -26,13 +26,14 @@ export interface PaginatedResponse<T> {
 
 // --- Auth ---
 export interface LoginRequest {
-	email: string;
-	password: string;
+	username: string;
+	pin: string;
 }
 
 export interface RegisterRequest {
+	username: string;
+	pin: string;
 	email: string;
-	password: string;
 }
 
 export interface TokenResponse {
@@ -55,6 +56,11 @@ export interface MagicLinkVerifyRequest {
 	token: string;
 }
 
+export interface MagicLinkRequestResponse {
+	token: string;
+	expires_at: string;
+}
+
 // --- User ---
 export type UserRole = 'admin' | 'user' | 'viewer';
 export type UserStatus = 'pending' | 'active' | 'suspended';
@@ -62,6 +68,7 @@ export type UserStatus = 'pending' | 'active' | 'suspended';
 export interface User {
 	id: string;
 	email: string;
+	username: string;
 	role: UserRole;
 	status: UserStatus;
 	suspended_at?: string;
@@ -72,6 +79,7 @@ export interface User {
 
 export interface UserListItem {
 	id: string;
+	username: string;
 	email: string;
 	role: UserRole;
 	status: UserStatus;

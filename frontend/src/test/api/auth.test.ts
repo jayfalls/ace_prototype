@@ -13,23 +13,23 @@ describe('Auth API', () => {
 	});
 
 	describe('login', () => {
-		it('calls POST /auth/login with email and password', async () => {
+		it('calls POST /auth/login with username and pin', async () => {
 			const { apiClient } = await import('$lib/api/client');
 			const { login } = await import('$lib/api/auth');
 
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
-			const result = await login('test@test.com', 'password123');
+			const result = await login('testuser', '123456');
 
 			expect(apiClient.request).toHaveBeenCalledWith({
 				method: 'POST',
 				path: '/auth/login',
-				body: { email: 'test@test.com', password: 'password123' },
+				body: { username: 'testuser', pin: '123456' },
 				requiresAuth: false
 			});
 			expect(result.access_token).toBe('token');
@@ -37,26 +37,26 @@ describe('Auth API', () => {
 	});
 
 	describe('register', () => {
-		it('calls POST /auth/register with email and password', async () => {
+		it('calls POST /auth/register with username, pin, and email', async () => {
 			const { apiClient } = await import('$lib/api/client');
 			const { register } = await import('$lib/api/auth');
 
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'new@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'newuser', email: 'new@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
-			const result = await register('new@test.com', 'password123');
+			const result = await register('newuser', '123456', 'new@test.com');
 
 			expect(apiClient.request).toHaveBeenCalledWith({
 				method: 'POST',
 				path: '/auth/register',
-				body: { email: 'new@test.com', password: 'password123' },
+				body: { username: 'newuser', pin: '123456', email: 'new@test.com' },
 				requiresAuth: false
 			});
-			expect(result.user.email).toBe('new@test.com');
+			expect(result.user.username).toBe('newuser');
 		});
 	});
 
@@ -85,7 +85,7 @@ describe('Auth API', () => {
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'new-token',
 				refresh_token: 'new-refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
@@ -108,6 +108,7 @@ describe('Auth API', () => {
 
 			const mockUser = {
 				id: '1',
+				username: 'testuser',
 				email: 'test@test.com',
 				role: 'user' as const,
 				status: 'active' as const,
@@ -122,7 +123,30 @@ describe('Auth API', () => {
 				method: 'GET',
 				path: '/auth/me'
 			});
-			expect(result.email).toBe('test@test.com');
+			expect(result.username).toBe('testuser');
+		});
+	});
+
+	describe('listUsers', () => {
+		it('calls GET /users', async () => {
+			const { apiClient } = await import('$lib/api/client');
+			const { listUsers } = await import('$lib/api/auth');
+
+			const mockUsers = [
+				{ id: '1', username: 'user1', email: 'user1@test.com', role: 'user' as const, status: 'active' as const },
+				{ id: '2', username: 'user2', email: 'user2@test.com', role: 'admin' as const, status: 'active' as const }
+			];
+			vi.mocked(apiClient.request).mockResolvedValue(mockUsers);
+
+			const result = await listUsers();
+
+			expect(apiClient.request).toHaveBeenCalledWith({
+				method: 'GET',
+				path: '/users',
+				requiresAuth: false
+			});
+			expect(result).toHaveLength(2);
+			expect(result[0].username).toBe('user1');
 		});
 	});
 
@@ -152,7 +176,7 @@ describe('Auth API', () => {
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
@@ -194,7 +218,7 @@ describe('Auth API', () => {
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
