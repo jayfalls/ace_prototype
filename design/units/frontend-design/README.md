@@ -1,6 +1,6 @@
 # Frontend Design
 
-**Status**: Discovery  
+**Status**: Design  
 **Unit ID**: frontend-design
 
 ## Overview
@@ -12,10 +12,11 @@ Building the complete frontend design system, component library, and all pages f
 | Document | Status | Description |
 |----------|--------|-------------|
 | [Problem Space](problem_space.md) | ✅ Complete | Core conflict, constraints, and success metrics |
-| [BSD](BSD.md) | 🔄 Pending | Bounded Specification Document - research-driven decisions |
-| [Architecture](ARCHITECTURE.md) | ⏳ Pending | Technical architecture and patterns |
-| [FSD](FSD.md) | ⏳ Pending | File-level specification |
-| [Implementation Plan](IMPLEMENTATION_PLAN.md) | ⏳ Pending | Vertical slices and execution order |
+| [Research](research.md) | ✅ Complete | Technology research and options analysis |
+| [BSD](bsd.md) | ✅ Complete | Business Specification Document |
+| [Architecture](architecture.md) | ⏳ Pending | Technical architecture and patterns |
+| [FSD](fsd.md) | ⏳ Pending | File-level specification |
+| [Implementation Plan](implementation_plan.md) | ⏳ Pending | Vertical slices and execution order |
 
 ## Quick Links
 
@@ -44,13 +45,14 @@ Building the complete frontend design system, component library, and all pages f
 - Internationalization (i18n)
 - PWA/offline capabilities
 
-## Key Decisions (TBD via Research)
+## Key Decisions (Completed)
 
-1. Component library choice (shadcn-svelte vs alternatives)
-2. Theme engine implementation approach
-3. State management pattern (Svelte 5 runes vs stores)
-4. API client generation tool
-5. Form handling library
+See [research.md](research.md) and [bsd.md](bsd.md) for detailed decisions:
+- **Component Library**: Custom on Bits UI + Tailwind v4
+- **State Management**: Svelte 5 rune-based classes
+- **API Client**: Custom typed fetch wrapper
+- **Form Handling**: Custom runes composables + Zod
+- **Rendering**: SPA with `adapter-static`
 
 ## Success Criteria
 
