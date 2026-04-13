@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -475,7 +475,7 @@ func (h *AuthHandler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user by ID
-	dbUser, err := h.queries.GetUserByID(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := h.queries.GetUserByID(r.Context(), userID.String())
 	if err != nil {
 		response.InternalError(w, "Failed to get user")
 		return
@@ -487,14 +487,18 @@ func (h *AuthHandler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	// Generate tokens for user
 	user := &model.User{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time,
-		UpdatedAt: dbUser.UpdatedAt.Time,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
 	}
 
 	tokens, err := h.authSvc.RefreshSession(r.Context(), req.Token)

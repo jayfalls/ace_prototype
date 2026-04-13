@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -18,7 +18,7 @@ type mockPermissionQueries struct {
 	upsertPermissionFn          func(ctx context.Context, arg db.UpsertPermissionParams) (*db.ResourcePermission, error)
 	getPermissionFn             func(ctx context.Context, arg db.GetPermissionParams) (*db.ResourcePermission, error)
 	deletePermissionFn          func(ctx context.Context, arg db.DeletePermissionParams) error
-	listPermissionsByUserFn     func(ctx context.Context, userID pgtype.UUID) ([]*db.ResourcePermission, error)
+	listPermissionsByUserFn     func(ctx context.Context, userID string) ([]*db.ResourcePermission, error)
 	listPermissionsByResourceFn func(ctx context.Context, arg db.ListPermissionsByResourceParams) ([]*db.ResourcePermission, error)
 }
 
@@ -43,7 +43,7 @@ func (m *mockPermissionQueries) DeletePermission(ctx context.Context, arg db.Del
 	return nil
 }
 
-func (m *mockPermissionQueries) ListPermissionsByUser(ctx context.Context, userID pgtype.UUID) ([]*db.ResourcePermission, error) {
+func (m *mockPermissionQueries) ListPermissionsByUser(ctx context.Context, userID string) ([]*db.ResourcePermission, error) {
 	if m.listPermissionsByUserFn != nil {
 		return m.listPermissionsByUserFn(ctx, userID)
 	}
@@ -281,13 +281,13 @@ func TestPermissionService_dbToModel(t *testing.T) {
 	t.Run("converts db model to domain model", func(t *testing.T) {
 		svc := &PermissionService{}
 		dbPerm := &db.ResourcePermission{
-			ID:              pgtype.UUID{Bytes: uuid.New(), Valid: true},
-			UserID:          pgtype.UUID{Bytes: uuid.New(), Valid: true},
+			ID:              uuid.New().String(),
+			UserID:          uuid.New().String(),
 			ResourceType:    "agent",
-			ResourceID:      pgtype.UUID{Bytes: uuid.New(), Valid: true},
+			ResourceID:      uuid.New().String(),
 			PermissionLevel: "view",
-			GrantedBy:       pgtype.UUID{Bytes: uuid.New(), Valid: true},
-			CreatedAt:       pgtype.Timestamptz{Time: time.Now(), Valid: true},
+			GrantedBy:       sql.NullString{String: uuid.New().String(), Valid: true},
+			CreatedAt:       time.Now().Format(time.RFC3339),
 		}
 
 		result := svc.dbToModel(dbPerm)

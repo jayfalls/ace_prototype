@@ -3,12 +3,12 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -63,11 +63,13 @@ func (s *PermissionService) GrantPermission(
 
 	// Upsert permission (creates or updates)
 	dbPerm, err := s.queries.UpsertPermission(ctx, db.UpsertPermissionParams{
-		UserID:          pgtype.UUID{Bytes: userID, Valid: true},
+		ID:              uuid.New().String(),
+		UserID:          userID.String(),
 		ResourceType:    string(resourceType),
-		ResourceID:      pgtype.UUID{Bytes: resourceID, Valid: true},
+		ResourceID:      resourceID.String(),
 		PermissionLevel: string(permissionLevel),
-		GrantedBy:       pgtype.UUID{Bytes: grantedBy, Valid: true},
+		GrantedBy:       sql.NullString{String: grantedBy.String(), Valid: true},
+		CreatedAt:       "",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("upsert permission: %w", err)
@@ -94,9 +96,9 @@ func (s *PermissionService) RevokePermission(
 	}
 
 	err := s.queries.DeletePermission(ctx, db.DeletePermissionParams{
-		UserID:       pgtype.UUID{Bytes: userID, Valid: true},
+		UserID:       userID.String(),
 		ResourceType: string(resourceType),
-		ResourceID:   pgtype.UUID{Bytes: resourceID, Valid: true},
+		ResourceID:   resourceID.String(),
 	})
 	if err != nil {
 		return fmt.Errorf("delete permission: %w", err)
@@ -129,12 +131,12 @@ func (s *PermissionService) CheckPermission(
 	}
 
 	dbPerm, err := s.queries.GetPermission(ctx, db.GetPermissionParams{
-		UserID:       pgtype.UUID{Bytes: userID, Valid: true},
+		UserID:       userID.String(),
 		ResourceType: string(resourceType),
-		ResourceID:   pgtype.UUID{Bytes: resourceID, Valid: true},
+		ResourceID:   resourceID.String(),
 	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			// No permission exists
 			return false, nil
 		}
@@ -155,7 +157,7 @@ func (s *PermissionService) ListUserPermissions(ctx context.Context, userID uuid
 		return nil, errors.New("user ID is required")
 	}
 
-	dbPerms, err := s.queries.ListPermissionsByUser(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	dbPerms, err := s.queries.ListPermissionsByUser(ctx, userID.String())
 	if err != nil {
 		return nil, fmt.Errorf("list permissions: %w", err)
 	}
@@ -183,7 +185,7 @@ func (s *PermissionService) ListResourcePermissions(
 
 	dbPerms, err := s.queries.ListPermissionsByResource(ctx, db.ListPermissionsByResourceParams{
 		ResourceType: string(resourceType),
-		ResourceID:   pgtype.UUID{Bytes: resourceID, Valid: true},
+		ResourceID:   resourceID.String(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list permissions: %w", err)
@@ -198,14 +200,20 @@ func (s *PermissionService) dbToModel(dbPerm *db.ResourcePermission) *model.Reso
 		return nil
 	}
 
+	id, _ := uuid.Parse(dbPerm.ID)
+	userID, _ := uuid.Parse(dbPerm.UserID)
+	resourceID, _ := uuid.Parse(dbPerm.ResourceID)
+	grantedBy, _ := uuid.Parse(dbPerm.GrantedBy.String)
+	createdAt, _ := time.Parse(time.RFC3339, dbPerm.CreatedAt)
+
 	return &model.ResourcePermission{
-		ID:              dbPerm.ID.Bytes,
-		UserID:          dbPerm.UserID.Bytes,
+		ID:              id,
+		UserID:          userID,
 		ResourceType:    model.ResourceType(dbPerm.ResourceType),
-		ResourceID:      dbPerm.ResourceID.Bytes,
+		ResourceID:      resourceID,
 		PermissionLevel: model.PermissionLevel(dbPerm.PermissionLevel),
-		GrantedBy:       dbPerm.GrantedBy.Bytes,
-		CreatedAt:       dbPerm.CreatedAt.Time,
+		GrantedBy:       grantedBy,
+		CreatedAt:       createdAt,
 	}
 }
 

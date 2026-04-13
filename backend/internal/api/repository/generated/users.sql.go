@@ -7,8 +7,7 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -19,7 +18,7 @@ WHERE deleted_at IS NULL
 
 // Counts total active (non-deleted) users.
 func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsers)
+	row := q.db.QueryRowContext(ctx, countUsers)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -39,7 +38,7 @@ type CountUsersByStatusRow struct {
 
 // Counts users by status (excluding deleted).
 func (q *Queries) CountUsersByStatus(ctx context.Context) (*CountUsersByStatusRow, error) {
-	row := q.db.QueryRow(ctx, countUsersByStatus)
+	row := q.db.QueryRowContext(ctx, countUsersByStatus)
 	var i CountUsersByStatusRow
 	err := row.Scan(&i.Status, &i.Count)
 	return &i, err
@@ -55,15 +54,7 @@ INSERT INTO users (
     created_at,
     updated_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    COALESCE($3, 'user'::VARCHAR),
-    COALESCE($4, 'pending'::VARCHAR),
-    NOW(),
-    NOW()
-)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     email,
@@ -78,19 +69,25 @@ RETURNING
 `
 
 type CreateUserParams struct {
-	Email        string      `json:"email"`
-	PasswordHash string      `json:"password_hash"`
-	Column3      interface{} `json:"column_3"`
-	Column4      interface{} `json:"column_4"`
+	ID           string `json:"id"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"password_hash"`
+	Role         string `json:"role"`
+	Status       string `json:"status"`
+	CreatedAt    string `json:"created_at"`
+	UpdatedAt    string `json:"updated_at"`
 }
 
 // Creates a new user account.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*User, error) {
-	row := q.db.QueryRow(ctx, createUser,
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.ID,
 		arg.Email,
 		arg.PasswordHash,
-		arg.Column3,
-		arg.Column4,
+		arg.Role,
+		arg.Status,
+		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	var i User
 	err := row.Scan(
@@ -112,12 +109,12 @@ const getActiveUserCount = `-- name: GetActiveUserCount :one
 SELECT COUNT(*) AS count
 FROM users
 WHERE deleted_at IS NULL
-  AND status != 'suspended'::VARCHAR
+  AND status != 'suspended'
 `
 
 // Gets the count of non-deleted, non-suspended users.
 func (q *Queries) GetActiveUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, getActiveUserCount)
+	row := q.db.QueryRowContext(ctx, getActiveUserCount)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -136,13 +133,13 @@ SELECT
     created_at,
     updated_at
 FROM users
-WHERE email = $1
+WHERE email = ?
   AND deleted_at IS NULL
 `
 
 // Gets a user by email, excluding soft-deleted users.
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, email)
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -172,13 +169,13 @@ SELECT
     created_at,
     updated_at
 FROM users
-WHERE id = $1
+WHERE id = ?
   AND deleted_at IS NULL
 `
 
 // Gets a user by ID, excluding soft-deleted users.
-func (q *Queries) GetUserByID(ctx context.Context, id pgtype.UUID) (*User, error) {
-	row := q.db.QueryRow(ctx, getUserByID, id)
+func (q *Queries) GetUserByID(ctx context.Context, id string) (*User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -209,20 +206,26 @@ SELECT
     updated_at
 FROM users
 WHERE deleted_at IS NULL
-  AND ($1::VARCHAR IS NULL OR status = $1::VARCHAR)
+  AND (? IS NULL OR status = ?)
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT ? OFFSET ?
 `
 
 type ListUsersParams struct {
-	Column1 string `json:"column_1"`
-	Limit   int32  `json:"limit"`
-	Offset  int32  `json:"offset"`
+	Column1 interface{} `json:"column_1"`
+	Status  string      `json:"status"`
+	Limit   int64       `json:"limit"`
+	Offset  int64       `json:"offset"`
 }
 
 // Lists users with optional status filter and pagination.
 func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.Column1, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listUsers,
+		arg.Column1,
+		arg.Status,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +249,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, 
 		}
 		items = append(items, &i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -256,12 +262,17 @@ const listUsersCount = `-- name: ListUsersCount :one
 SELECT COUNT(*) AS count
 FROM users
 WHERE deleted_at IS NULL
-  AND ($1::VARCHAR IS NULL OR status = $1::VARCHAR)
+  AND (? IS NULL OR status = ?)
 `
 
+type ListUsersCountParams struct {
+	Column1 interface{} `json:"column_1"`
+	Status  string      `json:"status"`
+}
+
 // Counts users with optional status filter.
-func (q *Queries) ListUsersCount(ctx context.Context, dollar_1 string) (int64, error) {
-	row := q.db.QueryRow(ctx, listUsersCount, dollar_1)
+func (q *Queries) ListUsersCount(ctx context.Context, arg ListUsersCountParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, listUsersCount, arg.Column1, arg.Status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -270,13 +281,13 @@ func (q *Queries) ListUsersCount(ctx context.Context, dollar_1 string) (int64, e
 const restoreUser = `-- name: RestoreUser :one
 UPDATE users
 SET
-    status = 'active'::VARCHAR,
+    status = 'active',
     suspended_at = NULL,
     suspended_reason = NULL,
-    updated_at = NOW()
-WHERE id = $1
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
-  AND status = 'suspended'::VARCHAR
+  AND status = 'suspended'
 RETURNING
     id,
     email,
@@ -290,9 +301,14 @@ RETURNING
     updated_at
 `
 
+type RestoreUserParams struct {
+	UpdatedAt string `json:"updated_at"`
+	ID        string `json:"id"`
+}
+
 // Restores a suspended user account.
-func (q *Queries) RestoreUser(ctx context.Context, id pgtype.UUID) (*User, error) {
-	row := q.db.QueryRow(ctx, restoreUser, id)
+func (q *Queries) RestoreUser(ctx context.Context, arg RestoreUserParams) (*User, error) {
+	row := q.db.QueryRowContext(ctx, restoreUser, arg.UpdatedAt, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -312,9 +328,9 @@ func (q *Queries) RestoreUser(ctx context.Context, id pgtype.UUID) (*User, error
 const softDeleteUser = `-- name: SoftDeleteUser :one
 UPDATE users
 SET
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE id = $1
+    deleted_at = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -329,9 +345,15 @@ RETURNING
     updated_at
 `
 
+type SoftDeleteUserParams struct {
+	DeletedAt sql.NullString `json:"deleted_at"`
+	UpdatedAt string         `json:"updated_at"`
+	ID        string         `json:"id"`
+}
+
 // Soft-deletes a user by setting deleted_at timestamp.
-func (q *Queries) SoftDeleteUser(ctx context.Context, id pgtype.UUID) (*User, error) {
-	row := q.db.QueryRow(ctx, softDeleteUser, id)
+func (q *Queries) SoftDeleteUser(ctx context.Context, arg SoftDeleteUserParams) (*User, error) {
+	row := q.db.QueryRowContext(ctx, softDeleteUser, arg.DeletedAt, arg.UpdatedAt, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -351,11 +373,11 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, id pgtype.UUID) (*User, er
 const suspendUser = `-- name: SuspendUser :one
 UPDATE users
 SET
-    status = 'suspended'::VARCHAR,
-    suspended_at = NOW(),
-    suspended_reason = $2,
-    updated_at = NOW()
-WHERE id = $1
+    status = 'suspended',
+    suspended_at = ?,
+    suspended_reason = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -371,13 +393,20 @@ RETURNING
 `
 
 type SuspendUserParams struct {
-	ID              pgtype.UUID `json:"id"`
-	SuspendedReason pgtype.Text `json:"suspended_reason"`
+	SuspendedAt     sql.NullString `json:"suspended_at"`
+	SuspendedReason sql.NullString `json:"suspended_reason"`
+	UpdatedAt       string         `json:"updated_at"`
+	ID              string         `json:"id"`
 }
 
 // Suspends a user account with reason.
 func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*User, error) {
-	row := q.db.QueryRow(ctx, suspendUser, arg.ID, arg.SuspendedReason)
+	row := q.db.QueryRowContext(ctx, suspendUser,
+		arg.SuspendedAt,
+		arg.SuspendedReason,
+		arg.UpdatedAt,
+		arg.ID,
+	)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -397,12 +426,12 @@ func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*User
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
-    email = COALESCE($2, email),
-    password_hash = COALESCE($3, password_hash),
-    role = COALESCE($4, role),
-    status = COALESCE($5, status),
-    updated_at = NOW()
-WHERE id = $1
+    email = COALESCE(?, email),
+    password_hash = COALESCE(?, password_hash),
+    role = COALESCE(?, role),
+    status = COALESCE(?, status),
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -418,21 +447,23 @@ RETURNING
 `
 
 type UpdateUserParams struct {
-	ID           pgtype.UUID `json:"id"`
-	Email        string      `json:"email"`
-	PasswordHash string      `json:"password_hash"`
-	Role         string      `json:"role"`
-	Status       string      `json:"status"`
+	Email        string `json:"email"`
+	PasswordHash string `json:"password_hash"`
+	Role         string `json:"role"`
+	Status       string `json:"status"`
+	UpdatedAt    string `json:"updated_at"`
+	ID           string `json:"id"`
 }
 
 // Updates user fields (email, password_hash, role, status).
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, error) {
-	row := q.db.QueryRow(ctx, updateUser,
-		arg.ID,
+	row := q.db.QueryRowContext(ctx, updateUser,
 		arg.Email,
 		arg.PasswordHash,
 		arg.Role,
 		arg.Status,
+		arg.UpdatedAt,
+		arg.ID,
 	)
 	var i User
 	err := row.Scan(
@@ -453,9 +484,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, 
 const updateUserRole = `-- name: UpdateUserRole :one
 UPDATE users
 SET
-    role = $2,
-    updated_at = NOW()
-WHERE id = $1
+    role = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -471,13 +502,14 @@ RETURNING
 `
 
 type UpdateUserRoleParams struct {
-	ID   pgtype.UUID `json:"id"`
-	Role string      `json:"role"`
+	Role      string `json:"role"`
+	UpdatedAt string `json:"updated_at"`
+	ID        string `json:"id"`
 }
 
 // Updates only the role field for a user.
 func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*User, error) {
-	row := q.db.QueryRow(ctx, updateUserRole, arg.ID, arg.Role)
+	row := q.db.QueryRowContext(ctx, updateUserRole, arg.Role, arg.UpdatedAt, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

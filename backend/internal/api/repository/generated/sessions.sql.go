@@ -7,21 +7,24 @@ package db
 
 import (
 	"context"
-	"net/netip"
-
-	"github.com/jackc/pgx/v5/pgtype"
+	"database/sql"
 )
 
 const countSessionsByUserID = `-- name: CountSessionsByUserID :one
 SELECT COUNT(*) AS count
 FROM sessions
-WHERE user_id = $1
-  AND expires_at > NOW()
+WHERE user_id = ?
+  AND expires_at > ?
 `
 
+type CountSessionsByUserIDParams struct {
+	UserID    string `json:"user_id"`
+	ExpiresAt string `json:"expires_at"`
+}
+
 // Counts active sessions for a user.
-func (q *Queries) CountSessionsByUserID(ctx context.Context, userID pgtype.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countSessionsByUserID, userID)
+func (q *Queries) CountSessionsByUserID(ctx context.Context, arg CountSessionsByUserIDParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countSessionsByUserID, arg.UserID, arg.ExpiresAt)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -38,56 +41,42 @@ INSERT INTO sessions (
     expires_at,
     created_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    $3,
-    $4,
-    NOW(),
-    $5,
-    NOW()
-)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 `
 
 type CreateSessionParams struct {
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        *netip.Addr        `json:"ip_address"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-}
-
-type CreateSessionRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ID               string         `json:"id"`
+	UserID           string         `json:"user_id"`
+	RefreshTokenHash string         `json:"refresh_token_hash"`
+	UserAgent        sql.NullString `json:"user_agent"`
+	IpAddress        sql.NullString `json:"ip_address"`
+	LastUsedAt       string         `json:"last_used_at"`
+	ExpiresAt        string         `json:"expires_at"`
+	CreatedAt        string         `json:"created_at"`
 }
 
 // Creates a new session for a user.
-func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (*CreateSessionRow, error) {
-	row := q.db.QueryRow(ctx, createSession,
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, createSession,
+		arg.ID,
 		arg.UserID,
 		arg.RefreshTokenHash,
 		arg.UserAgent,
 		arg.IpAddress,
+		arg.LastUsedAt,
 		arg.ExpiresAt,
+		arg.CreatedAt,
 	)
-	var i CreateSessionRow
+	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -103,45 +92,45 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (*
 
 const deleteAllSessionsByUserID = `-- name: DeleteAllSessionsByUserID :exec
 DELETE FROM sessions
-WHERE user_id = $1
+WHERE user_id = ?
 `
 
 // Deletes all sessions for a user (used when revoking all sessions).
-func (q *Queries) DeleteAllSessionsByUserID(ctx context.Context, userID pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteAllSessionsByUserID, userID)
+func (q *Queries) DeleteAllSessionsByUserID(ctx context.Context, userID string) error {
+	_, err := q.db.ExecContext(ctx, deleteAllSessionsByUserID, userID)
 	return err
 }
 
 const deleteExpiredSessions = `-- name: DeleteExpiredSessions :exec
 DELETE FROM sessions
-WHERE expires_at < NOW()
+WHERE expires_at < ?
 `
 
 // Deletes all expired sessions (cleanup job).
-func (q *Queries) DeleteExpiredSessions(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteExpiredSessions)
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, expiresAt string) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredSessions, expiresAt)
 	return err
 }
 
 const deleteSession = `-- name: DeleteSession :exec
 DELETE FROM sessions
-WHERE id = $1
+WHERE id = ?
 `
 
 // Deletes a specific session by ID.
-func (q *Queries) DeleteSession(ctx context.Context, id pgtype.UUID) error {
-	_, err := q.db.Exec(ctx, deleteSession, id)
+func (q *Queries) DeleteSession(ctx context.Context, id string) error {
+	_, err := q.db.ExecContext(ctx, deleteSession, id)
 	return err
 }
 
 const deleteSessionByRefreshTokenHash = `-- name: DeleteSessionByRefreshTokenHash :exec
 DELETE FROM sessions
-WHERE refresh_token_hash = $1
+WHERE refresh_token_hash = ?
 `
 
 // Deletes a session by refresh token hash.
 func (q *Queries) DeleteSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) error {
-	_, err := q.db.Exec(ctx, deleteSessionByRefreshTokenHash, refreshTokenHash)
+	_, err := q.db.ExecContext(ctx, deleteSessionByRefreshTokenHash, refreshTokenHash)
 	return err
 }
 
@@ -151,29 +140,18 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE id = $1
+WHERE id = ?
 `
 
-type GetSessionByIDRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-}
-
 // Gets a session by ID.
-func (q *Queries) GetSessionByID(ctx context.Context, id pgtype.UUID) (*GetSessionByIDRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByID, id)
-	var i GetSessionByIDRow
+func (q *Queries) GetSessionByID(ctx context.Context, id string) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByID, id)
+	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -193,36 +171,26 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE id = $1
-  AND user_id = $2
-  AND expires_at > NOW()
+WHERE id = ?
+  AND user_id = ?
+  AND expires_at > ?
 `
 
 type GetSessionByIDAndUserIDParams struct {
-	ID     pgtype.UUID `json:"id"`
-	UserID pgtype.UUID `json:"user_id"`
-}
-
-type GetSessionByIDAndUserIDRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	ID        string `json:"id"`
+	UserID    string `json:"user_id"`
+	ExpiresAt string `json:"expires_at"`
 }
 
 // Gets a session by ID and user ID (for verification).
-func (q *Queries) GetSessionByIDAndUserID(ctx context.Context, arg GetSessionByIDAndUserIDParams) (*GetSessionByIDAndUserIDRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByIDAndUserID, arg.ID, arg.UserID)
-	var i GetSessionByIDAndUserIDRow
+func (q *Queries) GetSessionByIDAndUserID(ctx context.Context, arg GetSessionByIDAndUserIDParams) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByIDAndUserID, arg.ID, arg.UserID, arg.ExpiresAt)
+	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -242,30 +210,24 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE refresh_token_hash = $1
-  AND expires_at > NOW()
+WHERE refresh_token_hash = ?
+  AND expires_at > ?
 `
 
-type GetSessionByRefreshTokenHashRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+type GetSessionByRefreshTokenHashParams struct {
+	RefreshTokenHash string `json:"refresh_token_hash"`
+	ExpiresAt        string `json:"expires_at"`
 }
 
 // Gets a session by refresh token hash.
-func (q *Queries) GetSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*GetSessionByRefreshTokenHashRow, error) {
-	row := q.db.QueryRow(ctx, getSessionByRefreshTokenHash, refreshTokenHash)
-	var i GetSessionByRefreshTokenHashRow
+func (q *Queries) GetSessionByRefreshTokenHash(ctx context.Context, arg GetSessionByRefreshTokenHashParams) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, getSessionByRefreshTokenHash, arg.RefreshTokenHash, arg.ExpiresAt)
+	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
@@ -285,37 +247,31 @@ SELECT
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 FROM sessions
-WHERE user_id = $1
-  AND expires_at > NOW()
+WHERE user_id = ?
+  AND expires_at > ?
 ORDER BY last_used_at DESC
 `
 
-type GetSessionByUserIDRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+type GetSessionByUserIDParams struct {
+	UserID    string `json:"user_id"`
+	ExpiresAt string `json:"expires_at"`
 }
 
 // Gets all sessions for a user.
-func (q *Queries) GetSessionByUserID(ctx context.Context, userID pgtype.UUID) ([]*GetSessionByUserIDRow, error) {
-	rows, err := q.db.Query(ctx, getSessionByUserID, userID)
+func (q *Queries) GetSessionByUserID(ctx context.Context, arg GetSessionByUserIDParams) ([]*Session, error) {
+	rows, err := q.db.QueryContext(ctx, getSessionByUserID, arg.UserID, arg.ExpiresAt)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*GetSessionByUserIDRow
+	var items []*Session
 	for rows.Next() {
-		var i GetSessionByUserIDRow
+		var i Session
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -330,6 +286,9 @@ func (q *Queries) GetSessionByUserID(ctx context.Context, userID pgtype.UUID) ([
 		}
 		items = append(items, &i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -338,34 +297,28 @@ func (q *Queries) GetSessionByUserID(ctx context.Context, userID pgtype.UUID) ([
 
 const updateSessionLastUsed = `-- name: UpdateSessionLastUsed :one
 UPDATE sessions
-SET last_used_at = NOW()
-WHERE id = $1
+SET last_used_at = ?
+WHERE id = ?
 RETURNING
     id,
     user_id,
     refresh_token_hash,
     user_agent,
-    ip_address::VARCHAR,
+    ip_address,
     last_used_at,
     expires_at,
     created_at
 `
 
-type UpdateSessionLastUsedRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	UserID           pgtype.UUID        `json:"user_id"`
-	RefreshTokenHash string             `json:"refresh_token_hash"`
-	UserAgent        pgtype.Text        `json:"user_agent"`
-	IpAddress        string             `json:"ip_address"`
-	LastUsedAt       pgtype.Timestamptz `json:"last_used_at"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+type UpdateSessionLastUsedParams struct {
+	LastUsedAt string `json:"last_used_at"`
+	ID         string `json:"id"`
 }
 
 // Updates the last_used_at timestamp for a session.
-func (q *Queries) UpdateSessionLastUsed(ctx context.Context, id pgtype.UUID) (*UpdateSessionLastUsedRow, error) {
-	row := q.db.QueryRow(ctx, updateSessionLastUsed, id)
-	var i UpdateSessionLastUsedRow
+func (q *Queries) UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLastUsedParams) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, updateSessionLastUsed, arg.LastUsedAt, arg.ID)
+	var i Session
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,

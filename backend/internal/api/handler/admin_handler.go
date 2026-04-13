@@ -2,14 +2,15 @@
 package handler
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -99,16 +100,16 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	page, limit := parsePaginationParamsAdmin(r)
 
 	// Parse status filter
-	var statusFilter string
+	var statusFilter *string
 	if status := r.URL.Query().Get("status"); status != "" {
-		statusFilter = status
+		statusFilter = &status
 	}
 
 	// Get users list
 	dbUsers, err := h.queries.ListUsers(r.Context(), db.ListUsersParams{
 		Column1: statusFilter,
-		Limit:   limit,
-		Offset:  (page - 1) * limit,
+		Limit:   int64(limit),
+		Offset:  int64((page - 1) * limit),
 	})
 	if err != nil {
 		response.InternalError(w, "Failed to get users")
@@ -117,8 +118,11 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	// Get total count
 	var total int64
-	if statusFilter != "" {
-		total, err = h.queries.ListUsersCount(r.Context(), statusFilter)
+	if statusFilter != nil {
+		total, err = h.queries.ListUsersCount(r.Context(), db.ListUsersCountParams{
+			Column1: statusFilter,
+			Status:  *statusFilter,
+		})
 	} else {
 		total, err = h.queries.CountUsers(r.Context())
 	}
@@ -130,13 +134,16 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	// Convert to response format
 	users := make([]UserListItem, len(dbUsers))
 	for i, u := range dbUsers {
+		id, _ := uuid.Parse(u.ID)
+		createdAt, _ := time.Parse(time.RFC3339, u.CreatedAt)
+		updatedAt, _ := time.Parse(time.RFC3339, u.UpdatedAt)
 		users[i] = UserListItem{
-			ID:        u.ID.Bytes,
+			ID:        id,
 			Email:     u.Email,
 			Role:      model.UserRole(u.Role),
 			Status:    model.UserStatus(u.Status),
-			CreatedAt: u.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: u.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
 
@@ -173,25 +180,30 @@ func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := h.queries.GetUserByID(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := h.queries.GetUserByID(r.Context(), userID.String())
 	if err != nil {
 		response.NotFound(w, "User not found")
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	// Build response
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if dbUser.SuspendedAt.Valid {
-		suspendedAt := dbUser.SuspendedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-		resp.SuspendedAt = &suspendedAt
+		suspendedAt, _ := time.Parse(time.RFC3339, dbUser.SuspendedAt.String)
+		suspendedAtStr := suspendedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.SuspendedAt = &suspendedAtStr
 	}
 
 	if dbUser.SuspendedReason.Valid {
@@ -246,7 +258,7 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 
 	// Update user role
 	dbUser, err := h.queries.UpdateUserRole(r.Context(), db.UpdateUserRoleParams{
-		ID:   pgtype.UUID{Bytes: userID, Valid: true},
+		ID:   userID.String(),
 		Role: req.Role,
 	})
 	if err != nil {
@@ -254,13 +266,17 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }
@@ -299,8 +315,9 @@ func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 
 	// Suspend user in database
 	dbUser, err := h.queries.SuspendUser(r.Context(), db.SuspendUserParams{
-		ID:              pgtype.UUID{Bytes: userID, Valid: true},
-		SuspendedReason: pgtype.Text{String: req.Reason, Valid: req.Reason != ""},
+		ID:              userID.String(),
+		SuspendedAt:     sql.NullString{String: time.Now().Format(time.RFC3339), Valid: true},
+		SuspendedReason: sql.NullString{String: req.Reason, Valid: req.Reason != ""},
 	})
 	if err != nil {
 		response.InternalError(w, "Failed to suspend user")
@@ -308,26 +325,31 @@ func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Revoke all user sessions
-	err = h.queries.DeleteAllSessionsByUserID(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	err = h.queries.DeleteAllSessionsByUserID(r.Context(), userID.String())
 	if err != nil {
 		// Log error but don't fail the request
 		// In production, you would log this
 		_ = err
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:              dbUser.ID.Bytes,
+		ID:              id,
 		Email:           dbUser.Email,
 		Role:            model.UserRole(dbUser.Role),
 		Status:          model.UserStatus(dbUser.Status),
 		SuspendedReason: &dbUser.SuspendedReason.String,
-		CreatedAt:       dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:       dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:       createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if dbUser.SuspendedAt.Valid {
-		suspendedAt := dbUser.SuspendedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-		resp.SuspendedAt = &suspendedAt
+		suspendedAt, _ := time.Parse(time.RFC3339, dbUser.SuspendedAt.String)
+		suspendedAtStr := suspendedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.SuspendedAt = &suspendedAtStr
 	}
 
 	response.Success(w, resp)
@@ -358,19 +380,26 @@ func (h *AdminHandler) RestoreUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Restore user in database
-	dbUser, err := h.queries.RestoreUser(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := h.queries.RestoreUser(r.Context(), db.RestoreUserParams{
+		ID:        userID.String(),
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
 	if err != nil {
 		response.InternalError(w, "Failed to restore user")
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }

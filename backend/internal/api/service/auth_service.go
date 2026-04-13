@@ -3,13 +3,12 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -67,7 +66,7 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (*mo
 
 	// Check if user already exists
 	existingUser, err := s.queries.GetUserByEmail(ctx, email)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, nil, fmt.Errorf("check existing user: %w", err)
 	}
 	if existingUser != nil {
@@ -75,9 +74,15 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (*mo
 	}
 
 	// Create user in database
+	now := time.Now().Format(time.RFC3339)
 	dbUser, err := s.queries.CreateUser(ctx, db.CreateUserParams{
+		ID:           uuid.New().String(),
 		Email:        email,
 		PasswordHash: passwordHash,
+		Role:         string(model.RoleUser),
+		Status:       string(model.StatusActive),
+		CreatedAt:    now,
+		UpdatedAt:    now,
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("create user: %w", err)
@@ -112,7 +117,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 	// Get user by email
 	dbUser, err := s.queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, model.ErrInvalidCredentials
 		}
 		return nil, nil, fmt.Errorf("get user: %w", err)
@@ -160,7 +165,7 @@ func (s *AuthService) Logout(ctx context.Context, sessionID uuid.UUID) error {
 	}
 
 	// Delete session from database
-	err := s.queries.DeleteSession(ctx, pgtype.UUID{Bytes: sessionID, Valid: true})
+	err := s.queries.DeleteSession(ctx, sessionID.String())
 	if err != nil {
 		return fmt.Errorf("delete session: %w", err)
 	}
@@ -189,16 +194,23 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 
 	// Get session to verify it's still valid
 	refreshTokenHash := HashRefreshToken(refreshToken)
-	session, err := s.queries.GetSessionByRefreshTokenHash(ctx, refreshTokenHash)
+	now := time.Now().Format(time.RFC3339)
+	session, err := s.queries.GetSessionByRefreshTokenHash(ctx, db.GetSessionByRefreshTokenHashParams{
+		RefreshTokenHash: refreshTokenHash,
+		ExpiresAt:        now,
+	})
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrRefreshTokenInvalid
 		}
 		return nil, fmt.Errorf("get session: %w", err)
 	}
 
 	// Update session last used timestamp
-	_, err = s.queries.UpdateSessionLastUsed(ctx, session.ID)
+	_, err = s.queries.UpdateSessionLastUsed(ctx, db.UpdateSessionLastUsedParams{
+		LastUsedAt: time.Now().Format(time.RFC3339),
+		ID:         session.ID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("update session: %w", err)
 	}
@@ -223,7 +235,7 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 	// Generate new token pair using the session ID from token data
 	sessionID := tokenData.SessionID
 	if sessionID == uuid.Nil {
-		sessionID = session.ID.Bytes
+		sessionID, _ = uuid.Parse(session.ID)
 	}
 
 	tokens, err := s.tokenSvc.GenerateTokenPair(s.userWithoutPassword(user), sessionID)
@@ -244,9 +256,9 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*mo
 		return nil, errors.New("user ID is required")
 	}
 
-	dbUser, err := s.queries.GetUserByID(ctx, pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := s.queries.GetUserByID(ctx, userID.String())
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, model.ErrUserNotFound
 		}
 		return nil, fmt.Errorf("get user: %w", err)
@@ -274,26 +286,33 @@ func (s *AuthService) generateTokensForUser(ctx context.Context, user *model.Use
 	// Create session in database
 	refreshTokenHash := HashRefreshToken(tokens.RefreshToken)
 	expiresAt := time.Now().Add(s.tokenSvc.GetRefreshTokenTTL())
+	now := time.Now().Format(time.RFC3339)
 
 	session, err := s.queries.CreateSession(ctx, db.CreateSessionParams{
-		UserID:           pgtype.UUID{Bytes: user.ID, Valid: true},
+		ID:               uuid.New().String(),
+		UserID:           user.ID.String(),
 		RefreshTokenHash: refreshTokenHash,
-		UserAgent:        pgtype.Text{Valid: false},
-		IpAddress:        nil,
-		ExpiresAt:        pgtype.Timestamptz{Time: expiresAt, Valid: true},
+		UserAgent:        sql.NullString{},
+		IpAddress:        sql.NullString{Valid: false},
+		ExpiresAt:        expiresAt.Format(time.RFC3339),
+		CreatedAt:        now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
 	// Regenerate tokens with actual session ID
-	tokens, err = s.tokenSvc.GenerateTokenPair(s.userWithoutPassword(user), session.ID.Bytes)
+	sessionUUID, _ := uuid.Parse(session.ID)
+	tokens, err = s.tokenSvc.GenerateTokenPair(s.userWithoutPassword(user), sessionUUID)
 	if err != nil {
 		return nil, fmt.Errorf("regenerate token pair: %w", err)
 	}
 
 	// Update session last used timestamp
-	_, err = s.queries.UpdateSessionLastUsed(ctx, session.ID)
+	_, err = s.queries.UpdateSessionLastUsed(ctx, db.UpdateSessionLastUsedParams{
+		LastUsedAt: now,
+		ID:         session.ID,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("update session: %w", err)
 	}
@@ -326,18 +345,23 @@ func (s *AuthService) dbUserToModel(dbUser *db.User) *model.User {
 		return nil
 	}
 
+	userID, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	user := &model.User{
-		ID:           dbUser.ID.Bytes,
+		ID:           userID,
 		Email:        dbUser.Email,
 		PasswordHash: &dbUser.PasswordHash,
 		Role:         model.UserRole(dbUser.Role),
 		Status:       model.UserStatus(dbUser.Status),
-		CreatedAt:    dbUser.CreatedAt.Time,
-		UpdatedAt:    dbUser.UpdatedAt.Time,
+		CreatedAt:    createdAt,
+		UpdatedAt:    updatedAt,
 	}
 
 	if dbUser.SuspendedAt.Valid {
-		user.SuspendedAt = &dbUser.SuspendedAt.Time
+		suspendedAt, _ := time.Parse(time.RFC3339, dbUser.SuspendedAt.String)
+		user.SuspendedAt = &suspendedAt
 	}
 
 	if dbUser.SuspendedReason.Valid {
@@ -345,7 +369,8 @@ func (s *AuthService) dbUserToModel(dbUser *db.User) *model.User {
 	}
 
 	if dbUser.DeletedAt.Valid {
-		user.DeletedAt = &dbUser.DeletedAt.Time
+		deletedAt, _ := time.Parse(time.RFC3339, dbUser.DeletedAt.String)
+		user.DeletedAt = &deletedAt
 	}
 
 	return user

@@ -2,12 +2,16 @@
 package main
 
 import (
+	"database/sql"
 	"flag"
 	"fmt"
 	"os"
 
 	"ace/internal/app"
 	"ace/internal/platform"
+	"ace/internal/platform/database"
+
+	_ "modernc.org/sqlite"
 )
 
 var (
@@ -73,7 +77,6 @@ var (
 )
 
 func runServer() error {
-
 	// Build CLI config from flags
 	cliCfg := &app.Config{
 		DataDir:       *dataDir,
@@ -114,7 +117,6 @@ func runServer() error {
 }
 
 func runPaths() error {
-
 	// Resolve paths directly - paths command doesn't need full config validation
 	// CLI flag --data-dir takes priority, then env var, then XDG default
 	dataDirOverride := *dataDir
@@ -140,23 +142,59 @@ func runVersion() error {
 }
 
 func runMigrate() error {
-
-	// Build CLI config
-	cliCfg := &app.Config{
-		DataDir: *dataDir,
-	}
-
-	// Resolve configuration
-	_, err := app.ResolveConfig(cliCfg)
-	if err != nil {
-		return err
-	}
-
-	// TODO: Implement actual migration in Slice 3
-	_ = cliCfg // TODO: pass cfg to migration runner in Slice 3
 	fmt.Println("Running migrations...")
-	fmt.Println("Migrations complete: 0 applied, 0 pending.")
+
+	// Resolve paths to get data directory
+	dataDirOverride := *dataDir
+	if dataDirOverride == "" {
+		dataDirOverride = os.Getenv("ACE_DATA_DIR")
+	}
+
+	paths, err := platform.ResolvePaths(dataDirOverride)
+	if err != nil {
+		return fmt.Errorf("resolve paths: %w", err)
+	}
+
+	// Open database
+	dbCfg := &database.Config{
+		Mode:    "embedded",
+		DataDir: paths.DataDir,
+	}
+
+	// If db-mode flag was provided, use it
+	if *dbMode != "" {
+		dbCfg.Mode = *dbMode
+		dbCfg.URL = *dbURL
+	}
+
+	db, err := database.Open(dbCfg)
+	if err != nil {
+		return fmt.Errorf("open database: %w", err)
+	}
+	defer db.Close()
+
+	// Run migrations
+	if err := database.Migrate(db); err != nil {
+		return fmt.Errorf("migrate database: %w", err)
+	}
+
+	// Count applied migrations
+	count, err := countMigrations(db)
+	if err != nil {
+		return fmt.Errorf("count migrations: %w", err)
+	}
+
+	fmt.Printf("Migrations complete: %d applied, 0 pending.\n", count)
 	return nil
+}
+
+func countMigrations(db *sql.DB) (int, error) {
+	var count int
+	err := db.QueryRow("SELECT COUNT(*) FROM goose_db_version").Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func runHelp() error {

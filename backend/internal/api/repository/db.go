@@ -3,15 +3,14 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // DB represents a database connection wrapper with connection pool.
 type DB struct {
-	Pool *pgxpool.Pool
+	Pool *sql.DB
 }
 
 // NewDB creates a new database connection with connection pool.
@@ -19,12 +18,17 @@ func NewDB(databaseURL string) (*DB, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, databaseURL)
+	pool, err := sql.Open("sqlite", databaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if err := pool.Ping(ctx); err != nil {
+	// Configure connection pool
+	pool.SetMaxOpenConns(25)
+	pool.SetMaxIdleConns(5)
+	pool.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := pool.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -32,8 +36,9 @@ func NewDB(databaseURL string) (*DB, error) {
 }
 
 // Close closes the database connection pool.
-func (db *DB) Close() {
+func (db *DB) Close() error {
 	if db.Pool != nil {
-		db.Pool.Close()
+		return db.Pool.Close()
 	}
+	return nil
 }

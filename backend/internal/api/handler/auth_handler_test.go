@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -69,21 +68,21 @@ type MockMagicLinkService struct {
 
 // MockQueries is a mock implementation of db.Queries for testing.
 type MockQueries struct {
-	GetUserByIDFunc               func(ctx context.Context, id pgtype.UUID) (*db.User, error)
+	GetUserByIDFunc               func(ctx context.Context, id string) (*db.User, error)
 	GetUserByEmailFunc            func(ctx context.Context, email string) (*db.User, error)
-	GetSessionByIDFunc            func(ctx context.Context, id pgtype.UUID) (*db.Session, error)
-	GetSessionByUserIDFunc        func(ctx context.Context, userID pgtype.UUID) ([]db.Session, error)
+	GetSessionByIDFunc            func(ctx context.Context, id string) (*db.Session, error)
+	GetSessionByUserIDFunc        func(ctx context.Context, params db.GetSessionByUserIDParams) ([]*db.Session, error)
 	GetSessionByIDAndUserIDFunc   func(ctx context.Context, params db.GetSessionByIDAndUserIDParams) (*db.Session, error)
-	DeleteSessionFunc             func(ctx context.Context, id pgtype.UUID) error
-	ListUsersFunc                 func(ctx context.Context, params db.ListUsersParams) ([]db.User, error)
-	ListUsersCountFunc            func(ctx context.Context, status string) (int64, error)
+	DeleteSessionFunc             func(ctx context.Context, id string) error
+	ListUsersFunc                 func(ctx context.Context, params db.ListUsersParams) ([]*db.User, error)
+	ListUsersCountFunc            func(ctx context.Context, arg db.ListUsersCountParams) (int64, error)
 	CountUsersFunc                func(ctx context.Context) (int64, error)
 	CreateUserFunc                func(ctx context.Context, params db.CreateUserParams) (*db.User, error)
 	CreateSessionFunc             func(ctx context.Context, params db.CreateSessionParams) (*db.Session, error)
 	UpdateUserRoleFunc            func(ctx context.Context, params db.UpdateUserRoleParams) (*db.User, error)
 	SuspendUserFunc               func(ctx context.Context, params db.SuspendUserParams) (*db.User, error)
-	RestoreUserFunc               func(ctx context.Context, id pgtype.UUID) (*db.User, error)
-	DeleteAllSessionsByUserIDFunc func(ctx context.Context, userID pgtype.UUID) error
+	RestoreUserFunc               func(ctx context.Context, params db.RestoreUserParams) (*db.User, error)
+	DeleteAllSessionsByUserIDFunc func(ctx context.Context, userID string) error
 }
 
 // TestableAuthHandler is a handler that can be injected with mocks for testing.
@@ -238,19 +237,6 @@ func createTestTokens() *model.TokenPair {
 		RefreshToken: "refresh_token_test",
 		ExpiresIn:    3600,
 		TokenType:    "Bearer",
-	}
-}
-
-func createTestDBUser(email string) *db.User {
-	userID := uuid.New()
-	return &db.User{
-		ID:           pgtype.UUID{Bytes: userID, Valid: true},
-		Email:        email,
-		PasswordHash: "hashed_password",
-		Role:         "user",
-		Status:       "active",
-		CreatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		UpdatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 }
 

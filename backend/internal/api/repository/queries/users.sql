@@ -9,15 +9,7 @@ INSERT INTO users (
     created_at,
     updated_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    COALESCE($3, 'user'::VARCHAR),
-    COALESCE($4, 'pending'::VARCHAR),
-    NOW(),
-    NOW()
-)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     email,
@@ -44,7 +36,7 @@ SELECT
     created_at,
     updated_at
 FROM users
-WHERE id = $1
+WHERE id = ?
   AND deleted_at IS NULL;
 
 -- name: GetUserByEmail :one
@@ -61,19 +53,19 @@ SELECT
     created_at,
     updated_at
 FROM users
-WHERE email = $1
+WHERE email = ?
   AND deleted_at IS NULL;
 
 -- name: UpdateUser :one
 -- Updates user fields (email, password_hash, role, status).
 UPDATE users
 SET
-    email = COALESCE($2, email),
-    password_hash = COALESCE($3, password_hash),
-    role = COALESCE($4, role),
-    status = COALESCE($5, status),
-    updated_at = NOW()
-WHERE id = $1
+    email = COALESCE(?, email),
+    password_hash = COALESCE(?, password_hash),
+    role = COALESCE(?, role),
+    status = COALESCE(?, status),
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -91,9 +83,9 @@ RETURNING
 -- Soft-deletes a user by setting deleted_at timestamp.
 UPDATE users
 SET
-    deleted_at = NOW(),
-    updated_at = NOW()
-WHERE id = $1
+    deleted_at = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -122,24 +114,24 @@ SELECT
     updated_at
 FROM users
 WHERE deleted_at IS NULL
-  AND ($1::VARCHAR IS NULL OR status = $1::VARCHAR)
+  AND (? IS NULL OR status = ?)
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3;
+LIMIT ? OFFSET ?;
 
 -- name: ListUsersCount :one
 -- Counts users with optional status filter.
 SELECT COUNT(*) AS count
 FROM users
 WHERE deleted_at IS NULL
-  AND ($1::VARCHAR IS NULL OR status = $1::VARCHAR);
+  AND (? IS NULL OR status = ?);
 
 -- name: UpdateUserRole :one
 -- Updates only the role field for a user.
 UPDATE users
 SET
-    role = $2,
-    updated_at = NOW()
-WHERE id = $1
+    role = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -157,11 +149,11 @@ RETURNING
 -- Suspends a user account with reason.
 UPDATE users
 SET
-    status = 'suspended'::VARCHAR,
-    suspended_at = NOW(),
-    suspended_reason = $2,
-    updated_at = NOW()
-WHERE id = $1
+    status = 'suspended',
+    suspended_at = ?,
+    suspended_reason = ?,
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
@@ -179,13 +171,13 @@ RETURNING
 -- Restores a suspended user account.
 UPDATE users
 SET
-    status = 'active'::VARCHAR,
+    status = 'active',
     suspended_at = NULL,
     suspended_reason = NULL,
-    updated_at = NOW()
-WHERE id = $1
+    updated_at = ?
+WHERE id = ?
   AND deleted_at IS NULL
-  AND status = 'suspended'::VARCHAR
+  AND status = 'suspended'
 RETURNING
     id,
     email,
@@ -216,4 +208,4 @@ GROUP BY status;
 SELECT COUNT(*) AS count
 FROM users
 WHERE deleted_at IS NULL
-  AND status != 'suspended'::VARCHAR;
+  AND status != 'suspended';

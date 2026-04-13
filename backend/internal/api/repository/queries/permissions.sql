@@ -9,15 +9,7 @@ INSERT INTO resource_permissions (
     granted_by,
     created_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    NOW()
-)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
     user_id,
@@ -38,18 +30,10 @@ INSERT INTO resource_permissions (
     granted_by,
     created_at
 )
-VALUES (
-    gen_random_uuid(),
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    NOW()
-)
-ON CONFLICT (user_id, resource_type, resource_id) DO UPDATE SET
-    permission_level = EXCLUDED.permission_level,
-    granted_by = EXCLUDED.granted_by
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(user_id, resource_type, resource_id) DO UPDATE SET
+    permission_level = excluded.permission_level,
+    granted_by = excluded.granted_by
 RETURNING
     id,
     user_id,
@@ -70,9 +54,9 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE user_id = $1
-  AND resource_type = $2
-  AND resource_id = $3;
+WHERE user_id = ?
+  AND resource_type = ?
+  AND resource_id = ?;
 
 -- name: GetPermissionByID :one
 -- Gets a permission by its ID.
@@ -85,19 +69,19 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE id = $1;
+WHERE id = ?;
 
 -- name: DeletePermission :exec
 -- Deletes a permission by user, resource type, and resource ID.
 DELETE FROM resource_permissions
-WHERE user_id = $1
-  AND resource_type = $2
-  AND resource_id = $3;
+WHERE user_id = ?
+  AND resource_type = ?
+  AND resource_id = ?;
 
 -- name: DeletePermissionByID :exec
 -- Deletes a permission by its ID.
 DELETE FROM resource_permissions
-WHERE id = $1;
+WHERE id = ?;
 
 -- name: ListPermissionsByUser :many
 -- Lists all permissions for a user.
@@ -110,7 +94,7 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE user_id = $1
+WHERE user_id = ?
 ORDER BY resource_type, created_at DESC;
 
 -- name: ListPermissionsByUserAndType :many
@@ -124,8 +108,8 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE user_id = $1
-  AND resource_type = $2
+WHERE user_id = ?
+  AND resource_type = ?
 ORDER BY created_at DESC;
 
 -- name: ListPermissionsByResource :many
@@ -139,8 +123,8 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE resource_type = $1
-  AND resource_id = $2;
+WHERE resource_type = ?
+  AND resource_id = ?;
 
 -- name: ListPermissionsByResourceType :many
 -- Lists all permissions for a specific resource type.
@@ -153,16 +137,16 @@ SELECT
     granted_by,
     created_at
 FROM resource_permissions
-WHERE resource_type = $1
+WHERE resource_type = ?
 ORDER BY created_at DESC;
 
 -- name: UpdatePermission :one
 -- Updates the permission level for an existing permission.
 UPDATE resource_permissions
-SET permission_level = $4
-WHERE user_id = $1
-  AND resource_type = $2
-  AND resource_id = $3
+SET permission_level = ?
+WHERE user_id = ?
+  AND resource_type = ?
+  AND resource_id = ?
 RETURNING
     id,
     user_id,
@@ -175,8 +159,8 @@ RETURNING
 -- name: UpdatePermissionByID :one
 -- Updates the permission level by permission ID.
 UPDATE resource_permissions
-SET permission_level = $2
-WHERE id = $1
+SET permission_level = ?
+WHERE id = ?
 RETURNING
     id,
     user_id,
@@ -190,34 +174,34 @@ RETURNING
 -- Checks if a permission exists for a user on a resource.
 SELECT EXISTS(
     SELECT 1 FROM resource_permissions
-    WHERE user_id = $1
-      AND resource_type = $2
-      AND resource_id = $3
-) AS exists;
+    WHERE user_id = ?
+      AND resource_type = ?
+      AND resource_id = ?
+) AS permission_exists;
 
 -- name: CountPermissionsByUser :one
 -- Counts all permissions for a user.
 SELECT COUNT(*) AS count
 FROM resource_permissions
-WHERE user_id = $1;
+WHERE user_id = ?;
 
 -- name: CountPermissionsByResource :one
 -- Counts all permissions for a specific resource.
 SELECT COUNT(*) AS count
 FROM resource_permissions
-WHERE resource_type = $1
-  AND resource_id = $2;
+WHERE resource_type = ?
+  AND resource_id = ?;
 
 -- name: DeleteAllPermissionsByUser :exec
 -- Deletes all permissions for a user (e.g., when user is deleted).
 DELETE FROM resource_permissions
-WHERE user_id = $1;
+WHERE user_id = ?;
 
 -- name: DeleteAllPermissionsByResource :exec
 -- Deletes all permissions for a resource (e.g., when resource is deleted).
 DELETE FROM resource_permissions
-WHERE resource_type = $1
-  AND resource_id = $2;
+WHERE resource_type = ?
+  AND resource_id = ?;
 
 -- name: GetUsersWithResourceAccess :many
 -- Gets all users with any permission on a resource.
@@ -228,6 +212,6 @@ SELECT DISTINCT
     rp.permission_level,
     rp.created_at
 FROM resource_permissions rp
-WHERE rp.resource_type = $1
-  AND rp.resource_id = $2
+WHERE rp.resource_type = ?
+  AND rp.resource_id = ?
 ORDER BY rp.created_at DESC;

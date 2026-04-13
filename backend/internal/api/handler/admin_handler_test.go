@@ -4,6 +4,7 @@ package handler
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
@@ -22,29 +22,29 @@ import (
 
 // MockAdminQueries is a mock implementation of db.Queries for admin testing.
 type MockAdminQueries struct {
-	GetUserByIDFunc               func(ctx context.Context, id pgtype.UUID) (*db.User, error)
-	ListUsersFunc                 func(ctx context.Context, params db.ListUsersParams) ([]db.User, error)
-	ListUsersCountFunc            func(ctx context.Context, status string) (int64, error)
+	GetUserByIDFunc               func(ctx context.Context, id string) (*db.User, error)
+	ListUsersFunc                 func(ctx context.Context, params db.ListUsersParams) ([]*db.User, error)
+	ListUsersCountFunc            func(ctx context.Context, arg db.ListUsersCountParams) (int64, error)
 	CountUsersFunc                func(ctx context.Context) (int64, error)
 	UpdateUserRoleFunc            func(ctx context.Context, params db.UpdateUserRoleParams) (*db.User, error)
 	SuspendUserFunc               func(ctx context.Context, params db.SuspendUserParams) (*db.User, error)
-	RestoreUserFunc               func(ctx context.Context, id pgtype.UUID) (*db.User, error)
-	DeleteAllSessionsByUserIDFunc func(ctx context.Context, userID pgtype.UUID) error
+	RestoreUserFunc               func(ctx context.Context, params db.RestoreUserParams) (*db.User, error)
+	DeleteAllSessionsByUserIDFunc func(ctx context.Context, userID string) error
 }
 
 // GetUserByID calls the mock function.
-func (q *MockAdminQueries) GetUserByID(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+func (q *MockAdminQueries) GetUserByID(ctx context.Context, id string) (*db.User, error) {
 	return q.GetUserByIDFunc(ctx, id)
 }
 
 // ListUsers calls the mock function.
-func (q *MockAdminQueries) ListUsers(ctx context.Context, params db.ListUsersParams) ([]db.User, error) {
+func (q *MockAdminQueries) ListUsers(ctx context.Context, params db.ListUsersParams) ([]*db.User, error) {
 	return q.ListUsersFunc(ctx, params)
 }
 
 // ListUsersCount calls the mock function.
-func (q *MockAdminQueries) ListUsersCount(ctx context.Context, status string) (int64, error) {
-	return q.ListUsersCountFunc(ctx, status)
+func (q *MockAdminQueries) ListUsersCount(ctx context.Context, arg db.ListUsersCountParams) (int64, error) {
+	return q.ListUsersCountFunc(ctx, arg)
 }
 
 // CountUsers calls the mock function.
@@ -63,12 +63,12 @@ func (q *MockAdminQueries) SuspendUser(ctx context.Context, params db.SuspendUse
 }
 
 // RestoreUser calls the mock function.
-func (q *MockAdminQueries) RestoreUser(ctx context.Context, id pgtype.UUID) (*db.User, error) {
-	return q.RestoreUserFunc(ctx, id)
+func (q *MockAdminQueries) RestoreUser(ctx context.Context, params db.RestoreUserParams) (*db.User, error) {
+	return q.RestoreUserFunc(ctx, params)
 }
 
 // DeleteAllSessionsByUserID calls the mock function.
-func (q *MockAdminQueries) DeleteAllSessionsByUserID(ctx context.Context, userID pgtype.UUID) error {
+func (q *MockAdminQueries) DeleteAllSessionsByUserID(ctx context.Context, userID string) error {
 	return q.DeleteAllSessionsByUserIDFunc(ctx, userID)
 }
 
@@ -101,16 +101,16 @@ func (h *TestableAdminHandler) ListUsers(w http.ResponseWriter, r *http.Request)
 	page, limit := parsePaginationParamsAdmin(r)
 
 	// Parse status filter
-	var statusFilter string
+	var statusFilter *string
 	if status := r.URL.Query().Get("status"); status != "" {
-		statusFilter = status
+		statusFilter = &status
 	}
 
 	// Get users list
 	dbUsers, err := h.queries.ListUsers(r.Context(), db.ListUsersParams{
 		Column1: statusFilter,
-		Limit:   limit,
-		Offset:  (page - 1) * limit,
+		Limit:   int64(limit),
+		Offset:  int64((page - 1) * limit),
 	})
 	if err != nil {
 		response.InternalError(w, "Failed to get users")
@@ -119,8 +119,11 @@ func (h *TestableAdminHandler) ListUsers(w http.ResponseWriter, r *http.Request)
 
 	// Get total count
 	var total int64
-	if statusFilter != "" {
-		total, err = h.queries.ListUsersCount(r.Context(), statusFilter)
+	if statusFilter != nil {
+		total, err = h.queries.ListUsersCount(r.Context(), db.ListUsersCountParams{
+			Column1: statusFilter,
+			Status:  *statusFilter,
+		})
 	} else {
 		total, err = h.queries.CountUsers(r.Context())
 	}
@@ -129,16 +132,19 @@ func (h *TestableAdminHandler) ListUsers(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Convert to response format
+	// Convert to response format - same as real handler
 	users := make([]UserListItem, len(dbUsers))
 	for i, u := range dbUsers {
+		id, _ := uuid.Parse(u.ID)
+		createdAt, _ := time.Parse(time.RFC3339, u.CreatedAt)
+		updatedAt, _ := time.Parse(time.RFC3339, u.UpdatedAt)
 		users[i] = UserListItem{
-			ID:        u.ID.Bytes,
+			ID:        id,
 			Email:     u.Email,
 			Role:      model.UserRole(u.Role),
 			Status:    model.UserStatus(u.Status),
-			CreatedAt: u.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: u.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		}
 	}
 
@@ -167,25 +173,30 @@ func (h *TestableAdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dbUser, err := h.queries.GetUserByID(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := h.queries.GetUserByID(r.Context(), userID.String())
 	if err != nil {
 		response.NotFound(w, "User not found")
 		return
 	}
 
-	// Build response
+	// Build response - same conversion as real handler
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if dbUser.SuspendedAt.Valid {
-		suspendedAt := dbUser.SuspendedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-		resp.SuspendedAt = &suspendedAt
+		suspendedAt, _ := time.Parse(time.RFC3339, dbUser.SuspendedAt.String)
+		suspendedAtStr := suspendedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.SuspendedAt = &suspendedAtStr
 	}
 
 	if dbUser.SuspendedReason.Valid {
@@ -230,7 +241,7 @@ func (h *TestableAdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Req
 
 	// Update user role
 	dbUser, err := h.queries.UpdateUserRole(r.Context(), db.UpdateUserRoleParams{
-		ID:   pgtype.UUID{Bytes: userID, Valid: true},
+		ID:   userID.String(),
 		Role: req.Role,
 	})
 	if err != nil {
@@ -238,13 +249,17 @@ func (h *TestableAdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }
@@ -273,8 +288,9 @@ func (h *TestableAdminHandler) SuspendUser(w http.ResponseWriter, r *http.Reques
 
 	// Suspend user in database
 	dbUser, err := h.queries.SuspendUser(r.Context(), db.SuspendUserParams{
-		ID:              pgtype.UUID{Bytes: userID, Valid: true},
-		SuspendedReason: pgtype.Text{String: req.Reason, Valid: req.Reason != ""},
+		ID:              userID.String(),
+		SuspendedAt:     sql.NullString{String: time.Now().Format(time.RFC3339), Valid: true},
+		SuspendedReason: sql.NullString{String: req.Reason, Valid: req.Reason != ""},
 	})
 	if err != nil {
 		response.InternalError(w, "Failed to suspend user")
@@ -282,24 +298,29 @@ func (h *TestableAdminHandler) SuspendUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Revoke all user sessions
-	err = h.queries.DeleteAllSessionsByUserID(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	err = h.queries.DeleteAllSessionsByUserID(r.Context(), userID.String())
 	if err != nil {
 		_ = err // Log in production
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:              dbUser.ID.Bytes,
+		ID:              id,
 		Email:           dbUser.Email,
 		Role:            model.UserRole(dbUser.Role),
 		Status:          model.UserStatus(dbUser.Status),
 		SuspendedReason: &dbUser.SuspendedReason.String,
-		CreatedAt:       dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:       dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:       createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 
 	if dbUser.SuspendedAt.Valid {
-		suspendedAt := dbUser.SuspendedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-		resp.SuspendedAt = &suspendedAt
+		suspendedAt, _ := time.Parse(time.RFC3339, dbUser.SuspendedAt.String)
+		suspendedAtStr := suspendedAt.Format("2006-01-02T15:04:05Z07:00")
+		resp.SuspendedAt = &suspendedAtStr
 	}
 
 	response.Success(w, resp)
@@ -322,19 +343,26 @@ func (h *TestableAdminHandler) RestoreUser(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Restore user in database
-	dbUser, err := h.queries.RestoreUser(r.Context(), pgtype.UUID{Bytes: userID, Valid: true})
+	dbUser, err := h.queries.RestoreUser(r.Context(), db.RestoreUserParams{
+		ID:        userID.String(),
+		UpdatedAt: time.Now().Format(time.RFC3339),
+	})
 	if err != nil {
 		response.InternalError(w, "Failed to restore user")
 		return
 	}
 
+	id, _ := uuid.Parse(dbUser.ID)
+	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
+	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
+
 	resp := AdminUserResponse{
-		ID:        dbUser.ID.Bytes,
+		ID:        id,
 		Email:     dbUser.Email,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: dbUser.CreatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: dbUser.UpdatedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: updatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	response.Success(w, resp)
 }
@@ -353,13 +381,14 @@ func createContextWithUserRole() context.Context {
 func createAdminTestUser(email string) *db.User {
 	userID := uuid.New()
 	return &db.User{
-		ID:           pgtype.UUID{Bytes: userID, Valid: true},
+		ID:           userID.String(),
 		Email:        email,
 		PasswordHash: "hashed_password",
 		Role:         "user",
 		Status:       "active",
-		CreatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
-		UpdatedAt:    pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		SuspendedAt:  sql.NullString{},
+		CreatedAt:    time.Now().Format(time.RFC3339),
+		UpdatedAt:    time.Now().Format(time.RFC3339),
 	}
 }
 
@@ -367,8 +396,8 @@ func createAdminTestUser(email string) *db.User {
 
 func TestListUsers_Success(t *testing.T) {
 	mockQueries := &MockAdminQueries{
-		ListUsersFunc: func(ctx context.Context, params db.ListUsersParams) ([]db.User, error) {
-			return []db.User{*createAdminTestUser("user@example.com")}, nil
+		ListUsersFunc: func(ctx context.Context, params db.ListUsersParams) ([]*db.User, error) {
+			return []*db.User{createAdminTestUser("user@example.com")}, nil
 		},
 		CountUsersFunc: func(ctx context.Context) (int64, error) {
 			return 1, nil
@@ -443,7 +472,7 @@ func TestGetUser_Success(t *testing.T) {
 	testUser := createAdminTestUser("user@example.com")
 
 	mockQueries := &MockAdminQueries{
-		GetUserByIDFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		GetUserByIDFunc: func(ctx context.Context, id string) (*db.User, error) {
 			return testUser, nil
 		},
 	}
@@ -492,7 +521,7 @@ func TestGetUser_Unauthorized(t *testing.T) {
 
 func TestGetUser_UserNotFound(t *testing.T) {
 	mockQueries := &MockAdminQueries{
-		GetUserByIDFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		GetUserByIDFunc: func(ctx context.Context, id string) (*db.User, error) {
 			return nil, errors.New("not found")
 		},
 	}
@@ -641,7 +670,7 @@ func TestSuspendUser_Success(t *testing.T) {
 		SuspendUserFunc: func(ctx context.Context, params db.SuspendUserParams) (*db.User, error) {
 			return testUser, nil
 		},
-		DeleteAllSessionsByUserIDFunc: func(ctx context.Context, userID pgtype.UUID) error {
+		DeleteAllSessionsByUserIDFunc: func(ctx context.Context, userID string) error {
 			return nil
 		},
 	}
@@ -701,7 +730,7 @@ func TestRestoreUser_Success(t *testing.T) {
 	testUser.Status = "active"
 
 	mockQueries := &MockAdminQueries{
-		RestoreUserFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		RestoreUserFunc: func(ctx context.Context, params db.RestoreUserParams) (*db.User, error) {
 			return testUser, nil
 		},
 	}
@@ -750,7 +779,7 @@ func TestRestoreUser_Unauthorized(t *testing.T) {
 
 func TestRestoreUser_UserNotFound(t *testing.T) {
 	mockQueries := &MockAdminQueries{
-		RestoreUserFunc: func(ctx context.Context, id pgtype.UUID) (*db.User, error) {
+		RestoreUserFunc: func(ctx context.Context, params db.RestoreUserParams) (*db.User, error) {
 			return nil, errors.New("not found")
 		},
 	}

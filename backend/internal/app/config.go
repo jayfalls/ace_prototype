@@ -2,7 +2,10 @@
 package app
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -164,20 +167,14 @@ func ResolveConfig(cliConfig *Config) (*Config, error) {
 	cfg := defaultConfig()
 
 	// 1. Load config file if specified
-	if cliConfig.ConfigFile != "" {
-		fileCfg, err := loadConfigFile(cliConfig.ConfigFile)
-		if err != nil {
-			return nil, fmt.Errorf("config: failed to parse config file: %w", err)
-		}
-		applyFileConfig(cfg, fileCfg)
-	} else {
-		// Try default config file location
-		defaultConfigPath := getDefaultConfigPath()
-		if defaultConfigPath != "" {
-			fileCfg, err := loadConfigFile(defaultConfigPath)
-			if err == nil {
-				applyFileConfig(cfg, fileCfg)
-			}
+	configFilePath := cliConfig.ConfigFile
+	if configFilePath == "" {
+		configFilePath = getDefaultConfigPath()
+	}
+	if configFilePath != "" {
+		fileCfg, err := loadConfigFile(configFilePath)
+		if err == nil {
+			applyFileConfig(cfg, fileCfg)
 		}
 	}
 
@@ -186,6 +183,23 @@ func ResolveConfig(cliConfig *Config) (*Config, error) {
 
 	// 3. Apply CLI flag overrides (only non-zero/non-empty values override)
 	applyCLIConfig(cfg, cliConfig)
+
+	// 4. Auto-generate JWT secret if not provided
+	if cfg.Auth.JWTSecret == "" {
+		generatedSecret, err := generateJWTSecret()
+		if err != nil {
+			return nil, fmt.Errorf("config: failed to generate JWT secret: %w", err)
+		}
+		cfg.Auth.JWTSecret = generatedSecret
+		log.Printf("[WARNING] JWT secret was auto-generated. For production, set jwt_secret in config file or ACE_JWT_SECRET env var")
+
+		// Store the generated secret in config file for persistence
+		if configFilePath != "" {
+			if err := saveJWTSecretToFile(configFilePath, generatedSecret); err != nil {
+				log.Printf("[WARNING] Failed to persist generated JWT secret to config file: %v", err)
+			}
+		}
+	}
 
 	return cfg, nil
 }
@@ -453,4 +467,44 @@ func validateConfig(cfg *Config) error {
 func parseBool(v string) bool {
 	v = strings.ToLower(v)
 	return v == "true" || v == "1" || v == "yes"
+}
+
+// generateJWTSecret generates a cryptographically secure random string for JWT signing.
+func generateJWTSecret() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("read random bytes: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+// saveJWTSecretToFile saves the JWT secret to the config file.
+func saveJWTSecretToFile(configPath, secret string) error {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		// Config file might not exist yet, create it
+		data = []byte{}
+	}
+
+	var cfg configFile
+	if len(data) > 0 {
+		if err := yaml.Unmarshal(data, &cfg); err != nil {
+			return fmt.Errorf("parse existing config: %w", err)
+		}
+	}
+
+	// Set the JWT secret
+	cfg.Auth.JWTSecret = secret
+
+	// Marshal back to YAML
+	updatedData, err := yaml.Marshal(&cfg)
+	if err != nil {
+		return fmt.Errorf("marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(configPath, updatedData, 0600); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+
+	return nil
 }
