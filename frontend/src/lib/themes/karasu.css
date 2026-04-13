@@ -1,0 +1,102 @@
+/* Karasu Theme */
+@layer base {
+	.karasu-dark-dark {
+		--color-background: oklch(0.12 0.02 30);
+		--color-foreground: oklch(0.92 0.01 40);
+		--color-card: oklch(0.16 0.02 30);
+		--color-card-foreground: oklch(0.92 0.01 40);
+		--color-primary: oklch(0.65 0.18 350);
+		--color-primary-foreground: oklch(0.15 0 0);
+		--color-secondary: oklch(0.20 0.02 30);
+		--color-secondary-foreground: oklch(0.92 0.01 40);
+		--color-muted: oklch(0.20 0.02 30);
+		--color-muted-foreground: oklch(0.55 0.01 40);
+		--color-accent: oklch(0.25 0.02 30);
+		--color-accent-foreground: oklch(0.92 0.01 40);
+		--color-destructive: oklch(0.60 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.28 0.02 30);
+		--color-input: oklch(0.28 0.02 30);
+		--color-ring: oklch(0.65 0.18 350);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+
+	.karasu-dark-light {
+		--color-background: oklch(0.96 0.01 40);
+		--color-foreground: oklch(0.18 0.02 30);
+		--color-card: oklch(0.92 0.01 40);
+		--color-card-foreground: oklch(0.18 0.02 30);
+		--color-primary: oklch(0.55 0.18 350);
+		--color-primary-foreground: oklch(0.98 0 0);
+		--color-secondary: oklch(0.88 0.01 40);
+		--color-secondary-foreground: oklch(0.22 0.02 30);
+		--color-muted: oklch(0.88 0.01 40);
+		--color-muted-foreground: oklch(0.48 0.01 30);
+		--color-accent: oklch(0.85 0.01 40);
+		--color-accent-foreground: oklch(0.22 0.02 30);
+		--color-destructive: oklch(0.55 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.80 0.01 40);
+		--color-input: oklch(0.80 0.01 40);
+		--color-ring: oklch(0.55 0.18 350);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+
+	.karasu-light-dark {
+		--color-background: oklch(0.90 0.02 40);
+		--color-foreground: oklch(0.18 0.02 30);
+		--color-card: oklch(0.86 0.02 40);
+		--color-card-foreground: oklch(0.18 0.02 30);
+		--color-primary: oklch(0.55 0.18 350);
+		--color-primary-foreground: oklch(0.98 0 0);
+		--color-secondary: oklch(0.84 0.02 40);
+		--color-secondary-foreground: oklch(0.22 0.02 30);
+		--color-muted: oklch(0.84 0.02 40);
+		--color-muted-foreground: oklch(0.45 0.01 30);
+		--color-accent: oklch(0.80 0.02 40);
+		--color-accent-foreground: oklch(0.22 0.02 30);
+		--color-destructive: oklch(0.55 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.78 0.02 40);
+		--color-input: oklch(0.78 0.02 40);
+		--color-ring: oklch(0.55 0.18 350);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+
+	.karasu-light-light {
+		--color-background: oklch(0.98 0.01 40);
+		--color-foreground: oklch(0.18 0.02 30);
+		--color-card: oklch(0.94 0.01 40);
+		--color-card-foreground: oklch(0.18 0.02 30);
+		--color-primary: oklch(0.58 0.18 350);
+		--color-primary-foreground: oklch(0.15 0 0);
+		--color-secondary: oklch(0.90 0.01 40);
+		--color-secondary-foreground: oklch(0.22 0.02 30);
+		--color-muted: oklch(0.90 0.01 40);
+		--color-muted-foreground: oklch(0.48 0.01 30);
+		--color-accent: oklch(0.86 0.01 40);
+		--color-accent-foreground: oklch(0.22 0.02 30);
+		--color-destructive: oklch(0.55 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.82 0.01 40);
+		--color-input: oklch(0.82 0.01 40);
+		--color-ring: oklch(0.58 0.18 350);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+}

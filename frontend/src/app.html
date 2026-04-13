@@ -4,6 +4,20 @@
 		<meta charset="utf-8" />
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<script>
+			// FOUC prevention: apply theme before first paint
+			(function() {
+				try {
+					var stored = localStorage.getItem('ace-ui');
+					if (stored) {
+						var parsed = JSON.parse(stored);
+						if (parsed && parsed.theme) {
+							document.documentElement.classList.add(parsed.theme + '-' + (parsed.mode || 'dark'));
+						}
+					}
+				} catch (e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
