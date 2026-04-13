@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
+	httpSwagger "github.com/swaggo/http-swagger"
 
 	"ace/docs"
 	"ace/internal/api/handler"
@@ -132,6 +133,9 @@ func New(cfg *Config) (*chi.Mux, error) {
 
 	// OpenAPI spec endpoint
 	r.Get("/openapi.json", openAPIHandler())
+
+	// Swagger UI
+	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
 	// Health check routes (no auth required)
 	r.Group(func(r chi.Router) {
