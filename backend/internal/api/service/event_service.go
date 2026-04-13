@@ -30,9 +30,7 @@ type EventService struct {
 // If publisher is nil, events will be logged but not published (development mode).
 func NewEventService(publisher EventPublisher, logger *zap.Logger) *EventService {
 	if publisher == nil {
-		if logger != nil {
-			logger.Warn("no publisher configured, running in stub mode - events will be logged only")
-		}
+		logger.Warn("no publisher configured, running in stub mode - events will be logged only")
 		return &EventService{
 			publisher: nil,
 			enabled:   false,
@@ -127,35 +125,29 @@ func (s *EventService) PublishAccountDeletedEvent(ctx context.Context, event mod
 // publish sends an event to the message broker or logs it in stub mode.
 func (s *EventService) publish(ctx context.Context, subject, agentID string, payload []byte) error {
 	if !s.enabled || s.publisher == nil {
-		if s.logger != nil {
-			s.logger.Debug("stub event",
-				zap.String("subject", subject),
-				zap.String("agent_id", agentID),
-				zap.String("payload", string(payload)),
-			)
-		}
+		s.logger.Debug("stub event",
+			zap.String("subject", subject),
+			zap.String("agent_id", agentID),
+			zap.String("payload", string(payload)),
+		)
 		return nil
 	}
 
 	correlationID := uuid.New().String()
 	err := s.publisher.Publish(ctx, subject, correlationID, agentID, "", "auth-service", payload)
 	if err != nil {
-		if s.logger != nil {
-			s.logger.Error("failed to publish event",
-				zap.String("subject", subject),
-				zap.Error(err),
-			)
-		}
+		s.logger.Error("failed to publish event",
+			zap.String("subject", subject),
+			zap.Error(err),
+		)
 		return err
 	}
 
-	if s.logger != nil {
-		s.logger.Info("event published",
-			zap.String("subject", subject),
-			zap.String("correlation_id", correlationID),
-			zap.String("agent_id", agentID),
-		)
-	}
+	s.logger.Info("event published",
+		zap.String("subject", subject),
+		zap.String("correlation_id", correlationID),
+		zap.String("agent_id", agentID),
+	)
 	return nil
 }
 
