@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -43,23 +44,35 @@ const (
 	ResourceTypeMessaging = "messaging"
 )
 
-// UsagePublisher publishes usage events to NATS
+// UsagePublisher publishes usage events to NATS or directly to DB
 type UsagePublisher struct {
 	nc *nats.Conn
+	db *sql.DB
 }
 
-// NewUsagePublisher creates a new usage event publisher
+// NewUsagePublisher creates a new usage event publisher (NATS mode)
 func NewUsagePublisher(nc *nats.Conn) *UsagePublisher {
 	return &UsagePublisher{nc: nc}
 }
 
-// Publish emits a usage event to NATS
+// NewDBUsagePublisher creates a usage event publisher that writes directly to DB
+func NewDBUsagePublisher(db *sql.DB) *UsagePublisher {
+	return &UsagePublisher{db: db}
+}
+
+// Publish emits a usage event to NATS or DB depending on configuration
 func (p *UsagePublisher) Publish(ctx context.Context, event UsageEvent) error {
+	event.Timestamp = time.Now().UTC()
+
+	// If DB is configured, write directly to DB (embedded mode)
+	if p.db != nil {
+		return p.publishToDB(ctx, event)
+	}
+
+	// Otherwise publish to NATS (external mode)
 	if p.nc == nil {
 		return ErrNATSNotConnected
 	}
-
-	event.Timestamp = time.Now().UTC()
 
 	data, err := json.Marshal(event)
 	if err != nil {
@@ -71,10 +84,36 @@ func (p *UsagePublisher) Publish(ctx context.Context, event UsageEvent) error {
 		Data:    data,
 	}
 
-	// Inject trace context if available
 	InjectTraceContext(ctx, msg)
 
 	return p.nc.PublishMsg(msg)
+}
+
+// publishToDB writes the usage event directly to the database
+func (p *UsagePublisher) publishToDB(ctx context.Context, event UsageEvent) error {
+	metadataJSON, err := json.Marshal(event.Metadata)
+	if err != nil {
+		metadataJSON = []byte("{}")
+	}
+
+	_, err = p.db.ExecContext(ctx, `
+		INSERT INTO usage_events (
+			agent_id, session_id, event_type, model,
+			input_tokens, output_tokens, cost_usd, duration_ms, metadata
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`,
+		event.AgentID,
+		event.SessionID,
+		event.OperationType,
+		"", // model - not set in this event type
+		event.TokenCount,
+		0, // output tokens not tracked here
+		event.CostUSD,
+		event.DurationMs,
+		string(metadataJSON),
+	)
+
+	return err
 }
 
 // LLMCall publishes an LLM call usage event

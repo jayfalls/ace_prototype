@@ -2,17 +2,20 @@
 package app
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"ace/internal/caching"
 	"ace/internal/platform"
 	"ace/internal/platform/cache"
 	"ace/internal/platform/database"
 	"ace/internal/platform/messaging"
+	"ace/internal/platform/telemetry"
 
 	"github.com/nats-io/nats.go"
 )
@@ -25,11 +28,14 @@ type App struct {
 	NATSConn    *nats.Conn
 	natsCleanup func() error
 	Cache       caching.CacheBackend
+	Telemetry   *telemetry.Telemetry
 }
 
 // New creates a new App instance with the given configuration.
 // It resolves paths, creates necessary directories, and opens the database.
 func New(cfg *Config) (*App, error) {
+	ctx := context.Background()
+
 	// Resolve filesystem paths
 	paths, err := platform.ResolvePaths(cfg.DataDir)
 	if err != nil {
@@ -88,6 +94,23 @@ func New(cfg *Config) (*App, error) {
 		return nil, fmt.Errorf("init cache: %w", err)
 	}
 
+	// Initialize telemetry
+	telemetryCfg := &telemetry.Config{
+		Mode:          cfg.TelemetryMode,
+		OTLPEndpoint:  cfg.OTLPEndpoint,
+		ServiceName:   "ace",
+		Environment:   "development",
+		LogDir:        paths.LogDir,
+		PruneInterval: 6 * time.Hour,
+	}
+	appTelemetry, err := telemetry.Init(ctx, telemetryCfg, db)
+	if err != nil {
+		cacheBackend.Close()
+		nc.Close()
+		db.Close()
+		return nil, fmt.Errorf("init telemetry: %w", err)
+	}
+
 	return &App{
 		Config:      cfg,
 		Paths:       &paths,
@@ -95,6 +118,7 @@ func New(cfg *Config) (*App, error) {
 		NATSConn:    nc,
 		natsCleanup: natsCleanup,
 		Cache:       cacheBackend,
+		Telemetry:   appTelemetry,
 	}, nil
 }
 
@@ -108,27 +132,48 @@ func (a *App) Serve() error {
 
 // Shutdown gracefully shuts down the application.
 func (a *App) Shutdown() error {
+	var errs []error
+
+	// Stop pruning goroutine
+	if a.Telemetry != nil && a.Telemetry.PruneStop != nil {
+		a.Telemetry.PruneStop()
+	}
+
+	// Flush and shutdown telemetry
+	if a.Telemetry != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := a.Telemetry.Shutdown(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("shutdown telemetry: %w", err))
+		}
+	}
+
 	// Close cache
 	if a.Cache != nil {
 		if err := a.Cache.Close(); err != nil {
-			return fmt.Errorf("close cache: %w", err)
+			errs = append(errs, fmt.Errorf("close cache: %w", err))
 		}
 	}
 
 	// Cleanup NATS (drain client then shutdown server)
 	if a.natsCleanup != nil {
 		if err := a.natsCleanup(); err != nil {
-			return fmt.Errorf("cleanup messaging: %w", err)
+			errs = append(errs, fmt.Errorf("cleanup messaging: %w", err))
 		}
 	}
 
 	// Close database connection
 	if a.DB != nil {
 		if err := a.DB.Close(); err != nil {
-			return fmt.Errorf("close database: %w", err)
+			errs = append(errs, fmt.Errorf("close database: %w", err))
 		}
 	}
+
 	fmt.Println("shutting down")
+
+	if len(errs) > 0 {
+		return fmt.Errorf("shutdown errors: %v", errs)
+	}
 	return nil
 }
 
