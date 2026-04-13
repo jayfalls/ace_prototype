@@ -3,18 +3,21 @@ package router
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 
-	"ace/internal/api/config"
 	"ace/internal/api/handler"
 	mw "ace/internal/api/middleware"
 	db "ace/internal/api/repository/generated"
 	"ace/internal/api/service"
+	"ace/internal/caching"
 )
 
 // Error definitions for router validation.
@@ -26,13 +29,35 @@ var (
 	ErrMagicLinkServiceRequired = errors.New("magic link service is required")
 )
 
+// SubsystemHealth holds health status for a subsystem.
+type SubsystemHealth struct {
+	Status string `json:"status"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// HealthStatus holds the overall health status and individual checks.
+type HealthStatus struct {
+	Status string                     `json:"status"`
+	Checks map[string]SubsystemHealth `json:"checks"`
+}
+
 // Config holds all dependencies needed to create the router.
 type Config struct {
-	App              *config.Config
+	App              *AppConfig
 	Queries          *db.Queries
 	AuthService      *service.AuthService
 	TokenService     *service.TokenService
 	MagicLinkService *service.MagicLinkService
+	DB               *sql.DB
+	NATSConn         *nats.Conn
+	Cache            caching.CacheBackend
+}
+
+// AppConfig holds the basic app configuration needed for the router.
+type AppConfig struct {
+	Host               string
+	Port               int
+	CORSAllowedOrigins []string
 }
 
 // New creates a new chi router with all routes and middleware configured.
@@ -45,42 +70,40 @@ func New(cfg *Config) (*chi.Mux, error) {
 	if cfg.App == nil {
 		return nil, ErrConfigRequired
 	}
-	if cfg.Queries == nil {
-		return nil, ErrQueriesRequired
-	}
-	if cfg.AuthService == nil {
-		return nil, ErrAuthServiceRequired
-	}
-	if cfg.TokenService == nil {
-		return nil, ErrTokenServiceRequired
-	}
-	if cfg.MagicLinkService == nil {
-		return nil, ErrMagicLinkServiceRequired
+
+	// Create handlers only if dependencies are provided
+	var authHandler *handler.AuthHandler
+	var sessionHandler *handler.SessionHandler
+	var adminHandler *handler.AdminHandler
+
+	if cfg.Queries != nil && cfg.AuthService != nil && cfg.TokenService != nil && cfg.MagicLinkService != nil {
+		var err error
+		authHandler, err = handler.NewAuthHandler(
+			cfg.Queries,
+			cfg.AuthService,
+			cfg.TokenService,
+			cfg.MagicLinkService,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		sessionHandler, err = handler.NewSessionHandler(cfg.Queries)
+		if err != nil {
+			return nil, err
+		}
+
+		adminHandler, err = handler.NewAdminHandler(cfg.Queries)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Create handlers
-	authHandler, err := handler.NewAuthHandler(
-		cfg.Queries,
-		cfg.AuthService,
-		cfg.TokenService,
-		cfg.MagicLinkService,
-	)
-	if err != nil {
-		return nil, err
+	// Create auth middleware if token service is available
+	var authMw *mw.AuthMiddleware
+	if cfg.TokenService != nil {
+		authMw = mw.NewAuthMiddleware(cfg.TokenService)
 	}
-
-	sessionHandler, err := handler.NewSessionHandler(cfg.Queries)
-	if err != nil {
-		return nil, err
-	}
-
-	adminHandler, err := handler.NewAdminHandler(cfg.Queries)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create auth middleware
-	authMw := mw.NewAuthMiddleware(cfg.TokenService)
 
 	// Create RBAC middleware
 	rbacMw := mw.NewRBACMiddleware()
@@ -93,7 +116,11 @@ func New(cfg *Config) (*chi.Mux, error) {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(mw.CORS(cfg.App.CORSAllowedOrigins))
+
+	// Set CORS if origins are provided
+	if len(cfg.App.CORSAllowedOrigins) > 0 {
+		r.Use(mw.CORS(cfg.App.CORSAllowedOrigins))
+	}
 
 	// Health check routes (no auth required)
 	r.Group(func(r chi.Router) {
@@ -101,37 +128,48 @@ func New(cfg *Config) (*chi.Mux, error) {
 		r.Get("/health/ready", healthReadyHandler(cfg))
 	})
 
-	// Auth routes (no auth required)
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
-		r.Post("/logout", authHandler.Logout)
-		r.Post("/refresh", authHandler.Refresh)
-		r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
-		r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
-		r.Post("/magic-link/request", authHandler.MagicLinkRequest)
-		r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
-	})
+	// Mount API routes only if handlers are available
+	if authHandler != nil && sessionHandler != nil && adminHandler != nil && authMw != nil {
+		// Auth routes (no auth required)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.Register)
+			r.Post("/login", authHandler.Login)
+			r.Post("/logout", authHandler.Logout)
+			r.Post("/refresh", authHandler.Refresh)
+			r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
+			r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
+			r.Post("/magic-link/request", authHandler.MagicLinkRequest)
+			r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
+		})
 
-	// Protected routes (auth required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
+		// Protected routes (auth required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
 
-		r.Get("/auth/me", sessionHandler.Me)
-		r.Get("/auth/me/sessions", sessionHandler.ListSessions)
-		r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
-	})
+			r.Get("/auth/me", sessionHandler.Me)
+			r.Get("/auth/me/sessions", sessionHandler.ListSessions)
+			r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
+		})
 
-	// Admin routes (auth + admin role required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
-		r.Use(rbacMw.RequireAdmin())
+		// Admin routes (auth + admin role required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Use(rbacMw.RequireAdmin())
 
-		r.Get("/admin/users", adminHandler.ListUsers)
-		r.Get("/admin/users/{id}", adminHandler.GetUser)
-		r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
-		r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
-		r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
+			r.Get("/admin/users", adminHandler.ListUsers)
+			r.Get("/admin/users/{id}", adminHandler.GetUser)
+			r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
+			r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
+			r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
+		})
+	}
+
+	// Telemetry routes (stubs for now)
+	r.Route("/telemetry", func(r chi.Router) {
+		// TODO: Wire up telemetry inspector endpoints in Slice 10
+		r.Get("/health", func(w http.ResponseWriter, t *http.Request) {
+			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		})
 	})
 
 	return r, nil
@@ -142,7 +180,7 @@ func healthLiveHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}
 }
 
@@ -150,8 +188,46 @@ func healthLiveHandler() http.HandlerFunc {
 func healthReadyHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","checks":{"database":{"status":"ok"},"nats":{"status":"ok"}}}`))
+
+		status := HealthStatus{
+			Status: "ok",
+			Checks: make(map[string]SubsystemHealth),
+		}
+
+		// Check database
+		if cfg.DB != nil {
+			if err := cfg.DB.PingContext(r.Context()); err != nil {
+				status.Checks["database"] = SubsystemHealth{Status: "fail", Reason: err.Error()}
+				status.Status = "degraded"
+			} else {
+				status.Checks["database"] = SubsystemHealth{Status: "ok"}
+			}
+		} else {
+			status.Checks["database"] = SubsystemHealth{Status: "not_initialized"}
+		}
+
+		// Check NATS
+		if cfg.NATSConn != nil && cfg.NATSConn.IsConnected() {
+			status.Checks["nats"] = SubsystemHealth{Status: "ok"}
+		} else {
+			status.Checks["nats"] = SubsystemHealth{Status: "not_connected"}
+			status.Status = "degraded"
+		}
+
+		// Check cache
+		if cfg.Cache != nil {
+			status.Checks["cache"] = SubsystemHealth{Status: "ok"}
+		} else {
+			status.Checks["cache"] = SubsystemHealth{Status: "not_initialized"}
+		}
+
+		httpStatus := http.StatusOK
+		if status.Status == "degraded" {
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		w.WriteHeader(httpStatus)
+		json.NewEncoder(w).Encode(status)
 	}
 }
 

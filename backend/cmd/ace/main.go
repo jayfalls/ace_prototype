@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"os"
 
 	"ace/internal/app"
@@ -98,22 +99,38 @@ func runServer() error {
 	// Resolve configuration
 	cfg, err := app.ResolveConfig(cliCfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("resolve config: %w", err)
 	}
 
 	// Validate configuration for server startup
 	if err := app.ValidateConfig(cfg); err != nil {
-		return err
+		return fmt.Errorf("validate config: %w", err)
 	}
+
+	log.Printf("[ACE] starting ACE v%s", version)
+	log.Printf("[ACE] commit: %s, build: %s", commit, buildDate)
 
 	// Create app
 	ace, err := app.New(cfg)
 	if err != nil {
-		return err
+		return fmt.Errorf("create app: %w", err)
 	}
 
-	// Start server
-	return ace.Serve()
+	// Start HTTP server
+	if err := ace.Serve(); err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+
+	// Wait for shutdown signal
+	sig := app.WaitForSignal()
+	log.Printf("[ACE] received signal: %v", sig)
+
+	// Graceful shutdown
+	if err := ace.Shutdown(); err != nil {
+		return fmt.Errorf("shutdown: %w", err)
+	}
+
+	return nil
 }
 
 func runPaths() error {
