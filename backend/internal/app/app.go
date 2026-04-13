@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	db "ace/internal/api/repository/generated"
 	"ace/internal/api/router"
+	"ace/internal/api/service"
 	"ace/internal/caching"
 	"ace/internal/platform"
 	"ace/internal/platform/cache"
@@ -165,6 +167,27 @@ func (a *App) Serve() error {
 
 	addr := fmt.Sprintf("%s:%d", host, port)
 
+	// Create queries (database access layer)
+	queries := db.New(a.DB)
+
+	// Create token service with RSA key pair
+	tokenService, err := service.NewTokenService(&service.TokenConfig{})
+	if err != nil {
+		return fmt.Errorf("create token service: %w", err)
+	}
+
+	// Create magic link service
+	magicLinkService, err := service.NewMagicLinkService(queries, nil)
+	if err != nil {
+		return fmt.Errorf("create magic link service: %w", err)
+	}
+
+	// Create auth service (depends on token service)
+	authService, err := service.NewAuthService(queries, tokenService)
+	if err != nil {
+		return fmt.Errorf("create auth service: %w", err)
+	}
+
 	// Create router
 	routeCfg := &router.Config{
 		App: &router.AppConfig{
@@ -172,9 +195,13 @@ func (a *App) Serve() error {
 			Port:               port,
 			CORSAllowedOrigins: []string{"*"}, // TODO: make this configurable
 		},
-		DB:       a.DB,
-		NATSConn: a.NATSConn,
-		Cache:    a.Cache,
+		Queries:          queries,
+		AuthService:      authService,
+		TokenService:     tokenService,
+		MagicLinkService: magicLinkService,
+		DB:               a.DB,
+		NATSConn:         a.NATSConn,
+		Cache:            a.Cache,
 	}
 
 	r, err := router.New(routeCfg)

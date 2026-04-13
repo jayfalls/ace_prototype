@@ -2,4 +2,1237 @@
 // Source: http://127.0.0.1:8080/openapi.json
 // Run 'make test' to regenerate
 
-{"components":{"schemas":{"APIError":{"properties":{"error":{"properties":{"code":{"type":"string"},"details":{"items":{"properties":{"field":{"type":"string"},"message":{"type":"string"}},"type":"object"},"type":"array"},"message":{"type":"string"}},"type":"object"},"success":{"type":"boolean"}},"type":"object"},"AdminUserResponse":{"properties":{"created_at":{"type":"string"},"email":{"format":"email","type":"string"},"id":{"format":"uuid","type":"string"},"role":{"type":"string"},"status":{"type":"string"},"suspended_at":{"type":"string"},"suspended_reason":{"type":"string"},"updated_at":{"type":"string"}},"type":"object"},"Session":{"properties":{"created_at":{"type":"string"},"expires_at":{"type":"string"},"id":{"format":"uuid","type":"string"},"ip_address":{"type":"string"},"last_used_at":{"type":"string"},"user_agent":{"type":"string"},"user_id":{"format":"uuid","type":"string"}},"type":"object"},"SessionsListResponse":{"properties":{"limit":{"type":"integer"},"page":{"type":"integer"},"sessions":{"items":{"$ref":"#/components/schemas/Session"},"type":"array"},"total":{"type":"integer"}},"type":"object"},"TokenResponse":{"properties":{"access_token":{"type":"string"},"expires_in":{"type":"integer"},"refresh_token":{"type":"string"},"token_type":{"type":"string"},"user":{"$ref":"#/components/schemas/User"}},"type":"object"},"User":{"properties":{"created_at":{"type":"string"},"email":{"format":"email","type":"string"},"id":{"format":"uuid","type":"string"},"role":{"type":"string"},"status":{"type":"string"},"updated_at":{"type":"string"}},"type":"object"},"UserListItem":{"properties":{"created_at":{"type":"string"},"email":{"format":"email","type":"string"},"id":{"format":"uuid","type":"string"},"role":{"type":"string"},"status":{"type":"string"},"updated_at":{"type":"string"}},"type":"object"},"UserResponse":{"properties":{"created_at":{"type":"string"},"email":{"format":"email","type":"string"},"id":{"format":"uuid","type":"string"},"role":{"type":"string"},"status":{"type":"string"},"updated_at":{"type":"string"}},"type":"object"},"UsersListResponse":{"properties":{"limit":{"type":"integer"},"page":{"type":"integer"},"total":{"type":"integer"},"users":{"items":{"$ref":"#/components/schemas/UserListItem"},"type":"array"}},"type":"object"}},"securitySchemes":{"bearerAuth":{"bearerFormat":"JWT","scheme":"bearer","type":"http"}}},"info":{"description":"Agent Configuration Engine API","title":"ACE API","version":"1.0.0"},"openapi":"3.0.3","paths":{"/admin/users":{"get":{"operationId":"listUsers","parameters":[{"in":"query","name":"page","schema":{"default":1,"type":"integer"}},{"in":"query","name":"limit","schema":{"default":20,"type":"integer"}},{"in":"query","name":"status","schema":{"type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UsersListResponse"}}},"description":"List of users"},"403":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"Admin access required"}},"security":[{"bearerAuth":[]}],"summary":"List all users (paginated)","tags":["admin"]}},"/admin/users/{id}":{"get":{"operationId":"getUser","parameters":[{"in":"path","name":"id","required":true,"schema":{"format":"uuid","type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminUserResponse"}}},"description":"User details"},"404":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"User not found"}},"security":[{"bearerAuth":[]}],"summary":"Get user details","tags":["admin"]}},"/admin/users/{id}/restore":{"post":{"operationId":"restoreUser","parameters":[{"in":"path","name":"id","required":true,"schema":{"format":"uuid","type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminUserResponse"}}},"description":"User restored"}},"security":[{"bearerAuth":[]}],"summary":"Restore a suspended user","tags":["admin"]}},"/admin/users/{id}/role":{"put":{"operationId":"updateUserRole","parameters":[{"in":"path","name":"id","required":true,"schema":{"format":"uuid","type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"role":{"enum":["user","admin","viewer"],"type":"string"}},"required":["role"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminUserResponse"}}},"description":"Role updated"}},"security":[{"bearerAuth":[]}],"summary":"Update user role","tags":["admin"]}},"/admin/users/{id}/suspend":{"post":{"operationId":"suspendUser","parameters":[{"in":"path","name":"id","required":true,"schema":{"format":"uuid","type":"string"}}],"requestBody":{"content":{"application/json":{"schema":{"properties":{"reason":{"type":"string"}},"type":"object"}}}},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/AdminUserResponse"}}},"description":"User suspended"}},"security":[{"bearerAuth":[]}],"summary":"Suspend a user","tags":["admin"]}},"/auth/login":{"post":{"operationId":"login","requestBody":{"content":{"application/json":{"schema":{"properties":{"email":{"format":"email","type":"string"},"password":{"type":"string"}},"required":["email","password"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TokenResponse"}}},"description":"Login successful"},"401":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"Invalid credentials"}},"summary":"Login with email and password","tags":["auth"]}},"/auth/logout":{"post":{"operationId":"logout","requestBody":{"content":{"application/json":{"schema":{"properties":{"session_id":{"format":"uuid","type":"string"}},"required":["session_id"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"message":{"type":"string"}},"type":"object"}}},"description":"Logged out successfully"}},"summary":"Logout current session","tags":["auth"]}},"/auth/magic-link/request":{"post":{"operationId":"magicLinkRequest","requestBody":{"content":{"application/json":{"schema":{"properties":{"email":{"format":"email","type":"string"}},"required":["email"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"message":{"type":"string"}},"type":"object"}}},"description":"Magic link sent if account exists"}},"summary":"Request magic link","tags":["auth"]}},"/auth/magic-link/verify":{"post":{"operationId":"magicLinkVerify","requestBody":{"content":{"application/json":{"schema":{"properties":{"token":{"type":"string"}},"required":["token"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TokenResponse"}}},"description":"Magic link verified"}},"summary":"Verify magic link","tags":["auth"]}},"/auth/me":{"get":{"operationId":"getMe","responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/UserResponse"}}},"description":"Current user profile"},"401":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"Unauthorized"}},"security":[{"bearerAuth":[]}],"summary":"Get current user profile","tags":["session"]}},"/auth/me/sessions":{"get":{"operationId":"listSessions","parameters":[{"in":"query","name":"page","schema":{"default":1,"type":"integer"}},{"in":"query","name":"limit","schema":{"default":20,"type":"integer"}}],"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/SessionsListResponse"}}},"description":"List of sessions"}},"security":[{"bearerAuth":[]}],"summary":"List user's active sessions","tags":["session"]}},"/auth/me/sessions/{id}":{"delete":{"operationId":"revokeSession","parameters":[{"in":"path","name":"id","required":true,"schema":{"format":"uuid","type":"string"}}],"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"message":{"type":"string"}},"type":"object"}}},"description":"Session revoked"},"404":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"Session not found"}},"security":[{"bearerAuth":[]}],"summary":"Revoke a specific session","tags":["session"]}},"/auth/password/reset/confirm":{"post":{"operationId":"passwordResetConfirm","requestBody":{"content":{"application/json":{"schema":{"properties":{"new_password":{"minLength":8,"type":"string"},"token":{"type":"string"}},"required":["token","new_password"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TokenResponse"}}},"description":"Password reset successful"}},"summary":"Confirm password reset","tags":["auth"]}},"/auth/password/reset/request":{"post":{"operationId":"passwordResetRequest","requestBody":{"content":{"application/json":{"schema":{"properties":{"email":{"format":"email","type":"string"}},"required":["email"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"message":{"type":"string"}},"type":"object"}}},"description":"Reset email sent if account exists"}},"summary":"Request password reset","tags":["auth"]}},"/auth/refresh":{"post":{"operationId":"refresh","requestBody":{"content":{"application/json":{"schema":{"properties":{"refresh_token":{"type":"string"}},"required":["refresh_token"],"type":"object"}}},"required":true},"responses":{"200":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TokenResponse"}}},"description":"Token refreshed"}},"summary":"Refresh access token","tags":["auth"]}},"/auth/register":{"post":{"operationId":"register","requestBody":{"content":{"application/json":{"schema":{"properties":{"email":{"format":"email","type":"string"},"password":{"minLength":8,"type":"string"}},"required":["email","password"],"type":"object"}}},"required":true},"responses":{"201":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/TokenResponse"}}},"description":"User registered successfully"},"400":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"Invalid request"},"409":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/APIError"}}},"description":"User already exists"}},"summary":"Register a new user","tags":["auth"]}},"/health/live":{"get":{"operationId":"getHealthLive","responses":{"200":{"content":{"application/json":{"schema":{"properties":{"status":{"type":"string"}},"type":"object"}}},"description":"Service is alive"}},"summary":"Liveness check","tags":["health"]}},"/health/ready":{"get":{"operationId":"getHealthReady","responses":{"200":{"content":{"application/json":{"schema":{"properties":{"checks":{"additionalProperties":{"properties":{"reason":{"type":"string"},"status":{"type":"string"}},"type":"object"},"type":"object"},"status":{"type":"string"}},"type":"object"}}},"description":"Service is ready"}},"summary":"Readiness check","tags":["health"]}},"/telemetry/health":{"get":{"operationId":"getTelemetryHealth","responses":{"200":{"content":{"application/json":{"schema":{"properties":{"status":{"type":"string"}},"type":"object"}}},"description":"Telemetry health status"}},"summary":"Telemetry health check","tags":["telemetry"]}}},"servers":[{"description":"Local development server","url":"http://localhost:8080"}]}
+{
+    "schemes": [],
+    "swagger": "2.0",
+    "info": {
+        "description": "Agent Configuration Engine - A secure, embedded database for managing users, sessions, and permissions",
+        "title": "ACE - Agent Configuration Engine",
+        "contact": {},
+        "version": "0.1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/admin/users": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "List all users (paginated)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.UsersListResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Get user details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.AdminUserResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/restore": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Restore a suspended user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.AdminUserResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/role": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Update user role",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New role",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.UpdateRoleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.AdminUserResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/users/{id}/suspend": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Suspend a user",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Suspension reason",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.SuspendUserRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.AdminUserResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/login": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Login with email and password",
+                "parameters": [
+                    {
+                        "description": "User credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Logout current session",
+                "parameters": [
+                    {
+                        "description": "Session ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.LogoutRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/magic-link/request": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request magic link",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.MagicLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.MagicLinkResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/magic-link/verify": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify magic link",
+                "parameters": [
+                    {
+                        "description": "Magic link token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.MagicLinkVerifyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "session"
+                ],
+                "summary": "Get current user profile",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.UserResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me/sessions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "session"
+                ],
+                "summary": "List user's active sessions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Items per page (default: 20)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.SessionsListResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me/sessions/{id}": {
+            "delete": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "session"
+                ],
+                "summary": "Revoke a specific session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/password/reset/confirm": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Confirm password reset",
+                "parameters": [
+                    {
+                        "description": "Reset token and new password",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.PasswordResetConfirmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/password/reset/request": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Request password reset",
+                "parameters": [
+                    {
+                        "description": "Email address",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.PasswordResetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.MagicLinkResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Refresh access token",
+                "parameters": [
+                    {
+                        "description": "Refresh token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RefreshRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/register": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Register a new user",
+                "parameters": [
+                    {
+                        "description": "User registration data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.RegisterRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.TokenResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/examples/": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "examples"
+                ],
+                "summary": "Create example (validation demo)",
+                "parameters": [
+                    {
+                        "description": "Example data",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handler.CreateExampleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExampleResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/examples/{id}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "examples"
+                ],
+                "summary": "Get example by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Example ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handler.ExampleResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/response.APIError"
+                        }
+                    }
+                }
+            }
+        },
+        "/health/exporters": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Exporter health status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/health/live": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Liveness probe",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health/ready": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "health"
+                ],
+                "summary": "Readiness probe (includes DB and NATS checks)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "handler.AdminUserResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.UserRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.UserStatus"
+                },
+                "suspended_at": {
+                    "type": "string"
+                },
+                "suspended_reason": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.CreateExampleRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "name"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 1
+                }
+            }
+        },
+        "handler.ExampleResponse": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LoginRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.LogoutRequest": {
+            "type": "object",
+            "required": [
+                "session_id"
+            ],
+            "properties": {
+                "session_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.MagicLinkRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.MagicLinkResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.MagicLinkVerifyRequest": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.PasswordResetConfirmRequest": {
+            "type": "object",
+            "required": [
+                "new_password",
+                "token"
+            ],
+            "properties": {
+                "new_password": {
+                    "type": "string",
+                    "minLength": 8
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.PasswordResetRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RefreshRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.RegisterRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 8
+                }
+            }
+        },
+        "handler.SessionResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "user_agent": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.SessionsListResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "sessions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.SessionResponse"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handler.SuspendUserRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.TokenResponse": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/model.User"
+                }
+            }
+        },
+        "handler.UpdateRoleRequest": {
+            "type": "object",
+            "required": [
+                "role"
+            ],
+            "properties": {
+                "role": {
+                    "type": "string",
+                    "enum": [
+                        "user",
+                        "admin",
+                        "viewer"
+                    ]
+                }
+            }
+        },
+        "handler.UserListItem": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.UserRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.UserStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.UserResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.UserRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.UserStatus"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "handler.UsersListResponse": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handler.UserListItem"
+                    }
+                }
+            }
+        },
+        "model.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "role": {
+                    "$ref": "#/definitions/model.UserRole"
+                },
+                "status": {
+                    "$ref": "#/definitions/model.UserStatus"
+                },
+                "suspended_at": {
+                    "type": "string"
+                },
+                "suspended_reason": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "model.UserRole": {
+            "type": "string",
+            "enum": [
+                "admin",
+                "user",
+                "viewer"
+            ],
+            "x-enum-varnames": [
+                "RoleAdmin",
+                "RoleUser",
+                "RoleViewer"
+            ]
+        },
+        "model.UserStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "active",
+                "suspended"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusActive",
+                "StatusSuspended"
+            ]
+        },
+        "response.APIError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/response.FieldError"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "response.FieldError": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
