@@ -8,7 +8,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"ace/internal/caching"
 	"ace/internal/platform"
+	"ace/internal/platform/cache"
 	"ace/internal/platform/database"
 	"ace/internal/platform/messaging"
 
@@ -22,6 +24,7 @@ type App struct {
 	DB          *sql.DB
 	NATSConn    *nats.Conn
 	natsCleanup func() error
+	Cache       caching.CacheBackend
 }
 
 // New creates a new App instance with the given configuration.
@@ -71,12 +74,27 @@ func New(cfg *Config) (*App, error) {
 		return nil, fmt.Errorf("init messaging: %w", err)
 	}
 
+	// Initialize cache
+	cacheCfg := &cache.Config{
+		Mode:        cfg.CacheMode,
+		URL:         cfg.CacheURL,
+		MaxCost:     int64(cfg.CacheMaxCost),
+		BufferItems: 64,
+	}
+	cacheBackend, err := cache.Init(cacheCfg)
+	if err != nil {
+		nc.Close()
+		db.Close()
+		return nil, fmt.Errorf("init cache: %w", err)
+	}
+
 	return &App{
 		Config:      cfg,
 		Paths:       &paths,
 		DB:          db,
 		NATSConn:    nc,
 		natsCleanup: natsCleanup,
+		Cache:       cacheBackend,
 	}, nil
 }
 
@@ -90,6 +108,13 @@ func (a *App) Serve() error {
 
 // Shutdown gracefully shuts down the application.
 func (a *App) Shutdown() error {
+	// Close cache
+	if a.Cache != nil {
+		if err := a.Cache.Close(); err != nil {
+			return fmt.Errorf("close cache: %w", err)
+		}
+	}
+
 	// Cleanup NATS (drain client then shutdown server)
 	if a.natsCleanup != nil {
 		if err := a.natsCleanup(); err != nil {
