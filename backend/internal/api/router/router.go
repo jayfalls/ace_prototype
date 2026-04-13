@@ -112,6 +112,17 @@ func New(cfg *Config) (*chi.Mux, error) {
 		return nil, err
 	}
 
+	// Create telemetry handler
+	telemetryHandler, err := handler.NewTelemetryHandler(
+		cfg.Queries,
+		cfg.DB,
+		cfg.NATSConn,
+		cfg.Cache,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create auth middleware
 	authMw := mw.NewAuthMiddleware(cfg.TokenService)
 
@@ -177,12 +188,13 @@ func New(cfg *Config) (*chi.Mux, error) {
 		r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
 	})
 
-	// Telemetry routes (stubs for now)
+	// Telemetry routes (auth required)
 	r.Route("/telemetry", func(r chi.Router) {
-		// TODO: Wire up telemetry inspector endpoints in Slice 10
-		r.Get("/health", func(w http.ResponseWriter, t *http.Request) {
-			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-		})
+		r.Use(authMw.RequireAuth())
+		r.Get("/spans", telemetryHandler.Spans)
+		r.Get("/metrics", telemetryHandler.Metrics)
+		r.Get("/usage", telemetryHandler.Usage)
+		r.Get("/health", telemetryHandler.Health)
 	})
 
 	// SPA catch-all route - must be last to not intercept API routes
