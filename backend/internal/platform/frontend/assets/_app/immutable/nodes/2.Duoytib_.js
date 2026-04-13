@@ -1,0 +1,1 @@
+import{a as t,f as n}from"../chunks/igZlNZgj.js";import{d as o,n as r,r as m}from"../chunks/D8M6Badw.js";var l=n('<main class="svelte-1uha8ag"><h1 class="svelte-1uha8ag"></h1> <p class="svelte-1uha8ag">Frontend is running successfully!</p></main>');function p(e){var a=l(),s=o(a);s.textContent="Welcome to ACE Framework",r(2),m(a),t(e,a)}export{p as component};

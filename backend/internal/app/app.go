@@ -202,6 +202,7 @@ func (a *App) Serve() error {
 		DB:               a.DB,
 		NATSConn:         a.NATSConn,
 		Cache:            a.Cache,
+		SPAHandler:       frontend.Handler(),
 	}
 
 	r, err := router.New(routeCfg)
@@ -306,9 +307,4 @@ func WaitForSignal() os.Signal {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	return <-sigCh
-}
-
-// DevProxyHandler returns a handler that proxies to Vite dev server.
-func DevProxyHandler() http.Handler {
-	return frontend.DevProxy("http://localhost:5173")
 }

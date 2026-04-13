@@ -25,7 +25,7 @@
     "@opentelemetry/semantic-conventions": "^1.29.0"
   },
   "devDependencies": {
-    "@sveltejs/adapter-node": "^5.2.9",
+    "@sveltejs/adapter-static": "^3.0.8",
     "@sveltejs/kit": "^2.15.2",
     "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@testing-library/svelte": "^5.2.4",

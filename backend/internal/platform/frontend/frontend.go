@@ -7,29 +7,22 @@ import (
 	"net/url"
 )
 
-// DevProxy returns a handler that proxies requests to the Vite dev server.
-// This is used in development mode when the frontend is run separately.
-func DevProxy(viteURL string) http.Handler {
-	target, err := url.Parse(viteURL)
+const defaultViteURL = "http://localhost:5173"
+
+// DevHandler returns a handler that proxies requests to the Vite dev server.
+// This is used in development mode when the frontend is run separately via `npm run dev`.
+func DevHandler() http.Handler {
+	target, err := url.Parse(defaultViteURL)
 	if err != nil {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "Invalid Vite URL: "+viteURL, http.StatusInternalServerError)
+			http.Error(w, "Invalid Vite URL: "+defaultViteURL, http.StatusInternalServerError)
 		})
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
-		http.Error(w, "Frontend not available in dev mode - run npm run dev in frontend/", http.StatusServiceUnavailable)
+		http.Error(w, "Vite dev server not reachable at localhost:5173. Run 'npm run dev' in the frontend directory.", http.StatusBadGateway)
 	}
 
 	return proxy
-}
-
-// DevModeHandler returns a placeholder handler for dev mode when Vite is not running.
-func DevModeHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("frontend not available in dev mode - run npm run dev in frontend/"))
-	})
 }

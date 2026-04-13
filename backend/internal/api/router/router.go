@@ -58,6 +58,7 @@ type Config struct {
 	DB               *sql.DB
 	NATSConn         *nats.Conn
 	Cache            caching.CacheBackend
+	SPAHandler       http.Handler // Serves the SPA (embedded assets or Vite proxy)
 }
 
 // AppConfig holds the basic app configuration needed for the router.
@@ -183,6 +184,11 @@ func New(cfg *Config) (*chi.Mux, error) {
 			json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 		})
 	})
+
+	// SPA catch-all route - must be last to not intercept API routes
+	if cfg.SPAHandler != nil {
+		r.NotFound(cfg.SPAHandler.ServeHTTP)
+	}
 
 	return r, nil
 }
