@@ -176,24 +176,33 @@ frontend/src/
 
 ### 2.1 UI Primitives (`$lib/components/ui/`)
 
-Every primitive wraps Bits UI for accessibility and adds Tailwind styling. Each follows the pattern: directory → component file → barrel export (`index.ts`). Props include `class` for extension.
+Every primitive is a shadcn-svelte component with Tailwind styling. Each follows the pattern: directory → component file → barrel export (`index.ts`). Props include `class` for extension.
 
-| Component | Bits UI Base | Key Props | Events | Notes |
+| Component | shadcn-svelte | Key Props | Events | Notes |
 |-----------|-------------|-----------|--------|-------|
-| **Button** | N/A (native) | `variant`, `size`, `disabled`, `loading`, `type` | `click` | `variant`: primary, secondary, destructive, ghost, outline. `size`: sm, md, lg. Loading shows spinner and disables. |
-| **Input** | N/A (native) | `type`, `placeholder`, `value`, `disabled`, `error`, `id` | `input`, `blur`, `focus` | Wraps native `<input>` with label, error message slot, and focus ring styling |
-| **Dialog** | Bits UI Dialog | `open` (bindable), `class` | N/A | Composite: Dialog, DialogContent, DialogOverlay, DialogTrigger. Focus trap, Escape dismiss, portal rendering |
-| **Select** | Bits UI Select | `value` (bindable), `options`, `placeholder`, `disabled` | `change` | Dropdown with keyboard navigation. Option type: `{ value: string, label: string }` |
-| **Table** | N/A (native) | Composable sub-components | N/A | Table, TableRow, TableHeader, TableCell. Responsive: horizontal scroll on mobile |
-| **Badge** | N/A (native) | `variant`, `size` | N/A | `variant`: default, success, warning, error, info. Roles statuses |
-| **Avatar** | Bits UI Avatar | `src`, `alt`, `fallback`, `size` | N/A | Fallback shows initials. `size`: sm, md, lg |
-| **DropdownMenu** | Bits UI Dropdown | N/A | N/A | Composite: DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger. Arrow key nav |
-| **Toast** | N/A (custom) | `variant`, `title`, `description`, `duration` | `dismiss` | Primitive. Toast container managed by NotificationStore. `variant`: success, error, warning, info |
-| **Toaster** | N/A (custom) | N/A | N/A | Renders toast stack with auto-dismiss. Reads from NotificationStore |
-| **Card** | N/A (native) | N/A | N/A | Composite: Card, CardHeader, CardContent, CardFooter. Layout primitive |
-| **Tabs** | Bits UI Tabs | `value` (bindable) | `change` | Composite: Tabs, TabsList, TabsTrigger, TabsContent |
-| **Skeleton** | N/A (native) | `variant`, `class` | N/A | `variant`: text, circle, rect, table. Pulse animation |
-| **Separator** | Bits UI Separator | `orientation`, `decorative` | N/A | Horizontal or vertical divider |
+| **Button** | Yes | `variant`, `size`, `disabled`, `loading`, `type` | `click` | `variant`: default, destructive, outline, secondary, ghost, link. `size`: default, sm, lg, icon. |
+| **Input** | Yes | `type`, `placeholder`, `value`, `disabled`, `id` | `input`, `blur` | Wraps native `<input>` with focus ring styling |
+| **Dialog** | Yes | `open` (bindable), `class` | N/A | Composite: Dialog, DialogContent, DialogHeader, DialogFooter. Focus trap, Escape dismiss, portal rendering |
+| **Select** | Yes | `value` (bindable), `options`, `placeholder`, `disabled` | `change` | Dropdown with keyboard navigation. Option type: `{ value: string, label: string }` |
+| **Table** | Yes | Composable sub-components | N/A | Table, TableRow, TableHeader, TableHead, TableBody, TableCell, TableCaption. Responsive: horizontal scroll on mobile |
+| **Badge** | Yes | `variant` | N/A | `variant`: default, secondary, destructive, outline, link. |
+| **Avatar** | Yes | `src`, `alt`, `fallback` | N/A | Fallback shows initials. |
+| **DropdownMenu** | Yes | N/A | N/A | Composite: DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger. Arrow key nav |
+| **Toast** | Via Alert | `variant`, `title`, `description`, `duration` | `dismiss` | Primitive. Toast container managed by NotificationStore. `variant`: default, destructive, success, warning |
+| **Toaster** | Via Alert | N/A | N/A | Renders toast stack with auto-dismiss. Reads from NotificationStore |
+| **Card** | Yes | N/A | N/A | Composite: Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter. Layout primitive |
+| **Tabs** | Yes | `value` (bindable) | `change` | Composite: Tabs, TabsList, TabsTrigger, TabsContent |
+| **Skeleton** | Yes | `class` | N/A | Pulse animation, utility classes for shape |
+| **Separator** | Yes | `orientation`, `decorative` | N/A | Horizontal or vertical divider |
+| **Label** | Yes | `for` | N/A | Accessible label for form inputs |
+| **Checkbox** | Yes | `checked` (bindable), `disabled` | `change` | Accessible checkbox |
+| **Switch** | Yes | `checked` (bindable), `disabled` | `change` | Accessible toggle switch |
+| **Progress** | Yes | `value` | N/A | Progress bar with value |
+| **Slider** | Yes | `value` (bindable), `min`, `max` | N/A | Accessible range slider |
+| **Toggle** | Yes | `pressed` (bindable), `variant` | N/A | Accessible toggle button |
+| **Accordion** | Yes | `items` | N/A | Collapsible content sections |
+| **Alert** | Yes | `variant` | N/A | Alert variants: default, destructive, success, warning |
+| **Textarea** | Yes | `value` (bindable), `placeholder`, `disabled` | N/A | Multi-line text input |
 
 ### 2.2 Layout Components (`$lib/components/layout/`)
 

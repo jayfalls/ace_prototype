@@ -71,12 +71,10 @@ Dependencies between slices are explicit. A slice that depends on a prior slice 
 
 - **Backend:** N/A
 - **Frontend:**
-  - Create `$lib/components/ui/button/Button.svelte` + `index.ts` (variants: primary, secondary, destructive, ghost, outline; sizes: sm, md, lg; loading state with spinner; disabled state)
-  - Create `$lib/components/ui/input/Input.svelte` + `index.ts` (type, placeholder, value, disabled, error, id, label; blur validation trigger)
-  - Create `$lib/components/ui/badge/Badge.svelte` + `index.ts` (variants: default, success, warning, error, info; sizes: sm, md)
-  - Create `$lib/components/ui/skeleton/Skeleton.svelte` + `index.ts` (variants: text, circle, rect, table; pulse animation)
-  - Create `$lib/components/ui/separator/Separator.svelte` + `index.ts` (orientation: horizontal/vertical; decorative prop)
-  - Create `$lib/components/ui/avatar/Avatar.svelte` + `index.ts` (src, alt, fallback initials, sizes: sm, md, lg)
+  - Install shadcn-svelte via CLI: `npx shadcn-svelte@latest init` with defaults
+  - Add shadcn components: `button`, `input`, `badge`, `skeleton`, `separator`, `avatar`, `label`, `checkbox`, `switch`, `progress`, `slider`, `toggle`
+  - Components stored in `$lib/components/ui/` following shadcn directory structure
+  - Each component has `component.svelte` + `index.ts` barrel export
 - **Test:**
   - `Button.test.ts`: renders text, shows spinner on loading, disables on loading, emits click, applies variant classes
   - `Input.test.ts`: renders label, shows error message, binds value, disables
@@ -89,13 +87,13 @@ Dependencies between slices are explicit. A slice that depends on a prior slice 
 
 - **Backend:** N/A
 - **Frontend:**
-  - Create `$lib/components/ui/dialog/` (Dialog.svelte, DialogContent.svelte, DialogOverlay.svelte, DialogTrigger.svelte, index.ts) — Bits UI Dialog wrapper with focus trap, Escape dismiss, overlay
-  - Create `$lib/components/ui/select/Select.svelte` + `index.ts` — Bits UI Select with keyboard navigation and value binding
-  - Create `$lib/components/ui/dropdown-menu/` (DropdownMenu.svelte, DropdownMenuContent.svelte, DropdownMenuItem.svelte, DropdownMenuTrigger.svelte, index.ts) — Bits UI Dropdown with arrow key nav
-  - Create `$lib/components/ui/toast/Toast.svelte`, `Toaster.svelte` + `index.ts` — Toast rendering, auto-dismiss, stacked positioning, reads from notificationStore
-  - Create `$lib/components/ui/tabs/` (Tabs.svelte, TabsList.svelte, TabsTrigger.svelte, TabsContent.svelte, index.ts) — Bits UI Tabs with keyboard navigation
-  - Create `$lib/components/ui/card/` (Card.svelte, CardHeader.svelte, CardContent.svelte, CardFooter.svelte, index.ts) — Layout primitive
-  - Create `$lib/components/ui/table/` (Table.svelte, TableRow.svelte, TableHeader.svelte, TableCell.svelte, index.ts) — Responsive table with horizontal scroll on mobile
+  - Add shadcn components via CLI: `npx shadcn-svelte@latest add dialog`, `select`, `dropdown-menu`, `toast`, `tabs`, `card`, `table`, `textarea`, `accordion`, `alert`
+  - Dialog: Modal overlay with focus trap, Escape dismiss, portal rendering
+  - Select: Dropdown with keyboard navigation and value binding
+  - Toast: Auto-dismiss notifications, stacked positioning, reads from notificationStore
+  - Tabs: Tabbed interface with keyboard navigation
+  - Card: CardHeader, CardTitle, CardDescription, CardContent, CardFooter composite
+  - Table: TableHeader, TableRow, TableHead, TableBody, TableCell, TableCaption
 - **Test:**
   - `Dialog.test.ts`: opens on trigger click, closes on Escape, closes on overlay click, focus trapped inside
   - `Select.test.ts`: renders options, selects value, keyboard navigation

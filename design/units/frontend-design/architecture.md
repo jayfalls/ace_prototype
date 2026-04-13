@@ -422,14 +422,14 @@ Page:      /login, /admin/users, /telemetry/spans
 - Organisms compose molecules and atoms, handle local interaction patterns.
 - Pages orchestrate organisms and stores. Pages are thin — they wire data flow, not UI logic.
 
-### 6.2 UI Primitive Pattern (Bits UI Wrappers)
+### 6.2 UI Primitive Pattern (shadcn-svelte)
 
-Each UI primitive in `$lib/components/ui/` wraps a Bits UI headless component with Tailwind styling. The pattern follows shadcn-svelte's structure:
+Each UI primitive in `$lib/components/ui/` is a shadcn-svelte component with Tailwind styling. The pattern follows shadcn-svelte's copy-paste-and-own model:
 
 ```svelte
 <!-- $lib/components/ui/dialog/Dialog.svelte -->
 <script lang="ts">
-  import { Dialog as DialogPrimitive } from 'bits-ui';
+  import * as Dialog from '$lib/components/ui/dialog';
   import { cn } from '$lib/utils/cn';
 
   type Props = {
@@ -440,17 +440,17 @@ Each UI primitive in `$lib/components/ui/` wraps a Bits UI headless component wi
   let { open = $bindable(false), class: className, children }: Props = $props();
 </script>
 
-<DialogPrimitive.Root bind:open>
-  <DialogPrimitive.Portal>
-    <DialogPrimitive.Overlay class={cn('fixed inset-0 bg-black/80', className)} />
-    <DialogPrimitive.Content class="fixed left-1/2 top-1/2 ...">
+<Dialog.Root bind:open>
+  <Dialog.Portal>
+    <Dialog.Overlay class={cn('fixed inset-0 bg-black/80', className)} />
+    <Dialog.Content class="fixed left-1/2 top-1/2 ...">
       {@render children()}
-    </DialogPrimitive.Content>
-  </DialogPrimitive.Portal>
-</DialogPrimitive.Root>
+    </Dialog.Content>
+  </Dialog.Portal>
+</Dialog.Root>
 ```
 
-**Key principle:** UI primitives own only presentation. They accept `class` for extension. They emit events via callbacks. They wrap Bits UI for accessibility (ARIA, focus trap, keyboard navigation) and add Tailwind for visual styling.
+**Key principle:** UI primitives own only presentation. They accept `class` for extension. They emit events via callbacks. shadcn-svelte provides accessible components (ARIA, focus trap, keyboard navigation) with Tailwind for visual styling.
 
 ### 6.3 Component File Structure
 
@@ -912,8 +912,8 @@ test('renders with text and handles click', async () => {
 
 | Package | Purpose | Justification |
 |---------|---------|---------------|
-| `bits-ui` | Headless UI primitives | Accessibility, keyboard nav, ARIA. Required for Dialog, Dropdown, Select, etc. |
-| `tailwindcss` v4 | Utility CSS | Design system tokens, zero runtime CSS-in-JS, purging eliminates unused styles |
+| `shadcn-svelte` | UI component library | Copy-paste-and-own components, accessibility built-in, Tailwind styling |
+| `tailwindcss` v3 | Utility CSS | Design system tokens, zero runtime CSS-in-JS, shadcn requires Tailwind v3 |
 | `clsx` | Conditional class names | Tiny (228B), used by `cn()` utility |
 | `tailwind-merge` | Tailwind class conflict resolution | Resolves conflicting Tailwind classes in `cn()` |
 | `zod` | Schema validation | Client-side form validation, matches server constraints |
@@ -1139,8 +1139,8 @@ frontend/src/
 | ADR-1 | Rendering mode | SPA (adapter-static) | SSR, Hybrid SSR | Single-binary deployment constraint; no Node server; auth dashboard doesn't need SEO |
 | ADR-2 | State management | Svelte 5 rune class stores | Svelte stores, tRPC, external libs | Zero external deps; compiler-optimized reactivity; testable pure TS classes |
 | ADR-3 | Auth token storage | localStorage + in-memory | HttpOnly cookies, memory-only | Backend returns JSON tokens; localStorage survives refresh; XSS risk minimal (single-binary, no 3P scripts) |
-| ADR-4 | Component library | Custom on Bits UI + Tailwind v4 | shadcn-svelte, Skeleton, DaisyUI | Bespoke design needed; Bits UI gives accessibility for free; copy-paste model = no lock-in |
-| ADR-5 | CSS framework | Tailwind CSS v4 | CSS Modules, Styled-components, UnoCSS | Utility-first matches component model; v4 is CSS-native; tree-shaking removes unused utilities |
+| ADR-4 | Component library | shadcn-svelte + Tailwind v3 | Bits UI, Skeleton, DaisyUI | shadcn-svelte provides accessible components with copy-paste model; no runtime dependency; easy customization; matches design system |
+| ADR-5 | CSS framework | Tailwind CSS v3 | CSS Modules, Styled-components, UnoCSS | Utility-first matches component model; shadcn requires v3; tree-shaking removes unused utilities |
 | ADR-6 | API client | Custom typed fetch wrapper | OpenAPI codegen, tRPC, raw fetch | Full control over auth/refresh/error logic; matches backend JSON envelope; no codegen drift risk |
 | ADR-7 | Form handling | Custom useForm + Zod | Superforms, Felte | SPA mode negates Superforms advantage; API expects JSON POST, not form-encoded; full control |
 | ADR-8 | Theme engine | CSS custom properties + class switching | CSS-in-JS, Tailwind plugin, PostCSS | Zero runtime overhead; class swap is instant; each theme is a static CSS file; dark/light is a mode toggle |

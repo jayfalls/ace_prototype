@@ -1,5 +1,5 @@
 import { THEME } from '$lib/utils/constants';
-import { getThemeClass } from '$lib/themes';
+import { themes, type ThemePreset } from '$lib/themes/colors';
 
 interface UIState {
 	theme: string;
@@ -26,64 +26,33 @@ function createUIStore() {
 		);
 	}
 
+	function applyCssVars(theme: ThemePreset, mode: 'dark' | 'light') {
+		if (typeof document === 'undefined' || !document.documentElement) return;
+		const colors = mode === 'dark' ? theme.dark : theme.light;
+		const root = document.documentElement;
+		root.style.setProperty('--background', colors.background);
+		root.style.setProperty('--foreground', colors.foreground);
+		root.style.setProperty('--card', colors.card);
+		root.style.setProperty('--card-foreground', colors.cardForeground);
+		root.style.setProperty('--primary', colors.primary);
+		root.style.setProperty('--primary-foreground', colors.primaryForeground);
+		root.style.setProperty('--secondary', colors.secondary);
+		root.style.setProperty('--secondary-foreground', colors.secondaryForeground);
+		root.style.setProperty('--muted', colors.muted);
+		root.style.setProperty('--muted-foreground', colors.mutedForeground);
+		root.style.setProperty('--accent', colors.accent);
+		root.style.setProperty('--accent-foreground', colors.accentForeground);
+		root.style.setProperty('--destructive', colors.destructive);
+		root.style.setProperty('--destructive-foreground', colors.destructiveForeground);
+		root.style.setProperty('--border', colors.border);
+		root.style.setProperty('--input', colors.input);
+		root.style.setProperty('--ring', colors.ring);
+	}
+
 	function apply() {
 		if (typeof document === 'undefined') return;
-		const themeClass = getThemeClass(state.theme, state.mode);
-		document.documentElement.classList.remove(
-			'one-dark-dark',
-			'one-dark-light',
-			'one-light-dark',
-			'one-light-light',
-			'catppuccin-mocha-dark',
-			'catppuccin-mocha-light',
-			'catppuccin-latte-dark',
-			'catppuccin-latte-light',
-			'nord-dark',
-			'nord-light',
-			'monokai-dark',
-			'monokai-light',
-			'oc-2-dark',
-			'oc-2-light',
-			'tokyonight-dark',
-			'tokyonight-light',
-			'vesper-dark',
-			'vesper-light',
-			'carbonfox-dark',
-			'carbonfox-light',
-			'gruvbox-dark-dark',
-			'gruvbox-dark-light',
-			'gruvbox-light-dark',
-			'gruvbox-light-light',
-			'aura-dark',
-			'aura-light',
-			'amoled-dark',
-			'amoled-light',
-			'ayu-dark-dark',
-			'ayu-dark-light',
-			'ayu-light-dark',
-			'ayu-light-light',
-			'kanagawa-dark',
-			'kanagawa-light',
-			'everforest-dark-dark',
-			'everforest-dark-light',
-			'everforest-light-dark',
-			'everforest-light-light',
-			'nightowl-dark',
-			'nightowl-light',
-			'abyss-dark',
-			'abyss-light',
-			'karasu-dark-dark',
-			'karasu-dark-light',
-			'karasu-light-dark',
-			'karasu-light-light',
-			'vscode-dark-dark',
-			'vscode-dark-light',
-			'vscode-light-dark',
-			'vscode-light-light',
-			'tomorrow-night-blue-dark',
-			'tomorrow-night-blue-light'
-		);
-		document.documentElement.classList.add(themeClass);
+		const theme = themes.find((t) => t.name === state.theme) || themes[0];
+		applyCssVars(theme, state.mode);
 	}
 
 	function init() {
