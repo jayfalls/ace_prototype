@@ -1,0 +1,52 @@
+/* OC-2 (OpenCode default) Theme */
+@layer base {
+	.oc-2-dark {
+		--color-background: oklch(0.13 0.01 265);
+		--color-foreground: oklch(0.94 0.01 265);
+		--color-card: oklch(0.16 0.01 265);
+		--color-card-foreground: oklch(0.94 0.01 265);
+		--color-primary: oklch(0.70 0.18 280);
+		--color-primary-foreground: oklch(0.98 0 0);
+		--color-secondary: oklch(0.20 0.01 265);
+		--color-secondary-foreground: oklch(0.94 0.01 265);
+		--color-muted: oklch(0.20 0.01 265);
+		--color-muted-foreground: oklch(0.55 0.02 265);
+		--color-accent: oklch(0.22 0.02 265);
+		--color-accent-foreground: oklch(0.94 0.01 265);
+		--color-destructive: oklch(0.65 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.25 0.01 265);
+		--color-input: oklch(0.25 0.01 265);
+		--color-ring: oklch(0.70 0.18 280);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+
+	.oc-2-light {
+		--color-background: oklch(0.97 0 0);
+		--color-foreground: oklch(0.15 0.01 265);
+		--color-card: oklch(0.94 0 0);
+		--color-card-foreground: oklch(0.15 0.01 265);
+		--color-primary: oklch(0.55 0.18 280);
+		--color-primary-foreground: oklch(0.98 0 0);
+		--color-secondary: oklch(0.90 0 0);
+		--color-secondary-foreground: oklch(0.20 0.01 265);
+		--color-muted: oklch(0.90 0 0);
+		--color-muted-foreground: oklch(0.45 0.02 265);
+		--color-accent: oklch(0.86 0 0);
+		--color-accent-foreground: oklch(0.20 0.01 265);
+		--color-destructive: oklch(0.55 0.20 25);
+		--color-destructive-foreground: oklch(0.98 0 0);
+		--color-border: oklch(0.84 0 0);
+		--color-input: oklch(0.84 0 0);
+		--color-ring: oklch(0.55 0.18 280);
+		--radius-sm: 0.25rem;
+		--radius-md: 0.5rem;
+		--radius-lg: 0.75rem;
+		--font-sans: ui-sans-serif, system-ui, sans-serif;
+		--font-mono: ui-monospace, monospace;
+	}
+}
