@@ -56,14 +56,6 @@ agent-stop: ## Stop OpenCode agent in distrobox
 
 ##@ Application Development
 
-ui: ## Build the frontend (produces frontend/build/)
-	@echo "$(BLUE)Building frontend...$(NC)"
-	cd frontend && npm install && npm run build
-	@echo "$(GREEN)Copying frontend build to backend assets...$(NC)"
-	rm -rf backend/internal/platform/frontend/assets
-	mkdir -p backend/internal/platform/frontend/assets
-	cp -r frontend/build/* backend/internal/platform/frontend/assets/
-
 ace: ## Run ace backend and frontend with hot reloading (dev mode)
 	@echo "$(BLUE)Starting ACE in dev mode...$(NC)"
 	@echo "$(YELLOW)Backend will auto-reload with Air$(NC)"
@@ -82,10 +74,6 @@ ace: ## Run ace backend and frontend with hot reloading (dev mode)
 		VITE_PID=$$!; \
 		wait \
 	)
-
-ace-embed: ui ## Build ace binary with embedded frontend (production)
-	@echo "$(BLUE)Building ACE with embedded frontend...$(NC)"
-	cd backend && go build -tags embed -o bin/ace ./cmd/ace/
 
 test: ## Run full validation pipeline (build, lint, test, git add)
 	@echo "=== Swag Init ==="
