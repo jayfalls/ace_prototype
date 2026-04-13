@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
 	"ace/internal/app"
 	"ace/internal/platform"
 	"ace/internal/platform/database"
+	"ace/internal/platform/telemetry"
 
+	"go.uber.org/zap"
 	_ "modernc.org/sqlite"
 )
 
@@ -26,6 +27,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Error:", err)
 		os.Exit(1)
 	}
+
 }
 
 func run(args []string) error {
@@ -78,6 +80,12 @@ var (
 )
 
 func runServer() error {
+	// Create logger for CLI startup messages
+	logger, err := telemetry.NewLoggerWithStdout("ace", "development")
+	if err != nil {
+		return fmt.Errorf("create logger: %w", err)
+	}
+
 	// Build CLI config from flags
 	cliCfg := &app.Config{
 		DataDir:       *dataDir,
@@ -107,8 +115,11 @@ func runServer() error {
 		return fmt.Errorf("validate config: %w", err)
 	}
 
-	log.Printf("[ACE] starting ACE v%s", version)
-	log.Printf("[ACE] commit: %s, build: %s", commit, buildDate)
+	logger.Info("starting ACE",
+		zap.String("version", version),
+		zap.String("commit", commit),
+		zap.String("build_date", buildDate),
+	)
 
 	// Create app
 	ace, err := app.New(cfg)
@@ -123,7 +134,7 @@ func runServer() error {
 
 	// Wait for shutdown signal
 	sig := app.WaitForSignal()
-	log.Printf("[ACE] received signal: %v", sig)
+	logger.Info("received signal", zap.Stringer("signal", sig))
 
 	// Graceful shutdown
 	if err := ace.Shutdown(); err != nil {

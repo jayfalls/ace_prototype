@@ -2,18 +2,17 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/jackc/pgx/v5"
 )
 
-func validateDocs(ctx context.Context, conn *pgx.Conn, repoRoot string) error {
-	rows, err := conn.Query(ctx, `
-		SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
+func validateDocs(ctx context.Context, db *sql.DB, repoRoot string) error {
+	rows, err := db.QueryContext(ctx, `
+		SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
 	`)
 	if err != nil {
 		return fmt.Errorf("querying tables: %w", err)
@@ -89,12 +88,14 @@ func validateDocs(ctx context.Context, conn *pgx.Conn, repoRoot string) error {
 			continue
 		}
 		var liveCount int
-		if err := conn.QueryRow(ctx, `
-			SELECT COUNT(*) FROM information_schema.columns
-			WHERE table_schema = 'public' AND table_name = $1
-		`, table).Scan(&liveCount); err != nil {
+		colRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info('%s')", table))
+		if err != nil {
 			continue
 		}
+		for colRows.Next() {
+			liveCount++
+		}
+		colRows.Close()
 
 		content, err := os.ReadFile(filepath.Join(docDir, table+".md"))
 		if err != nil {

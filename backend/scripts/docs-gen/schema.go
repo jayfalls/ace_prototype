@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/jackc/pgx/v5"
 )
 
 type column struct {
@@ -38,95 +37,126 @@ type tableDoc struct {
 	Indexes     []index
 }
 
-func generateSchemaDocs(ctx context.Context, conn *pgx.Conn, repoRoot string) error {
-	rows, err := conn.Query(ctx, `
-		SELECT
-			c.table_schema,
-			c.table_name,
-			c.column_name,
-			c.data_type,
-			COALESCE(c.column_default, ''),
-			c.is_nullable
-		FROM information_schema.columns c
-		WHERE c.table_schema = 'public'
-		ORDER BY c.table_name, c.ordinal_position
-	`)
-	if err != nil {
-		return fmt.Errorf("querying columns: %w", err)
-	}
-	defer rows.Close()
-
+func generateSchemaDocs(ctx context.Context, db *sql.DB, repoRoot string) error {
+	// Get all tables
 	tables := make(map[string]*tableDoc)
 	var tableOrder []string
 
-	for rows.Next() {
-		var schema, tableName, colName, dataType, colDefault, isNullable string
-		if err := rows.Scan(&schema, &tableName, &colName, &dataType, &colDefault, &isNullable); err != nil {
-			return fmt.Errorf("scanning column: %w", err)
-		}
-		if _, exists := tables[tableName]; !exists {
-			tables[tableName] = &tableDoc{Schema: schema, Name: tableName}
-			tableOrder = append(tableOrder, tableName)
-		}
-		tables[tableName].Columns = append(tables[tableName].Columns, column{
-			Name: colName, DataType: dataType, ColumnDefault: colDefault, IsNullable: isNullable,
-		})
-	}
-	rows.Close()
-
-	constraintRows, err := conn.Query(ctx, `
-		SELECT
-			tc.table_name,
-			tc.constraint_name,
-			tc.constraint_type,
-			COALESCE(pg_get_constraintdef(pgc.oid), '')
-		FROM information_schema.table_constraints tc
-		JOIN pg_constraint pgc ON pgc.conname = tc.constraint_name
-		JOIN pg_namespace nsp ON nsp.oid = pgc.connamespace
-		WHERE tc.table_schema = 'public' AND nsp.nspname = 'public'
-		ORDER BY tc.table_name, tc.constraint_name
+	tableRows, err := db.QueryContext(ctx, `
+		SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name
 	`)
 	if err != nil {
-		return fmt.Errorf("querying constraints: %w", err)
+		return fmt.Errorf("querying tables: %w", err)
 	}
-	defer constraintRows.Close()
+	defer tableRows.Close()
 
-	for constraintRows.Next() {
-		var tableName, constraintName, constraintType, definition string
-		if err := constraintRows.Scan(&tableName, &constraintName, &constraintType, &definition); err != nil {
-			return fmt.Errorf("scanning constraint: %w", err)
+	for tableRows.Next() {
+		var tableName string
+		if err := tableRows.Scan(&tableName); err != nil {
+			return fmt.Errorf("scanning table name: %w", err)
 		}
-		if t, exists := tables[tableName]; exists {
-			t.Constraints = append(t.Constraints, constraint{Name: constraintName, Type: constraintType, Definition: definition})
-		}
+		tables[tableName] = &tableDoc{Schema: "main", Name: tableName}
+		tableOrder = append(tableOrder, tableName)
 	}
-	constraintRows.Close()
 
-	indexRows, err := conn.Query(ctx, `
-		SELECT t.relname, i.relname, pg_get_indexdef(ix.indexrelid), ix.indisunique
-		FROM pg_index ix
-		JOIN pg_class t ON t.oid = ix.indrelid
-		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_namespace n ON n.oid = t.relnamespace
-		WHERE n.nspname = 'public' AND NOT ix.indisprimary
-		ORDER BY t.relname, i.relname
-	`)
-	if err != nil {
-		return fmt.Errorf("querying indexes: %w", err)
+	// Get columns for each table using PRAGMA
+	for _, tableName := range tableOrder {
+		colRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA table_info('%s')", tableName))
+		if err != nil {
+			return fmt.Errorf("querying columns for %s: %w", tableName, err)
+		}
+		for colRows.Next() {
+			var cid int
+			var name, colType, notNull, pk string
+			var defaultValue sql.NullString
+			if err := colRows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+				colRows.Close()
+				return fmt.Errorf("scanning column: %w", err)
+			}
+			nullable := "YES"
+			if notNull == "1" {
+				nullable = "NO"
+			}
+			defVal := "-"
+			if defaultValue.Valid {
+				defVal = defaultValue.String
+			}
+			tables[tableName].Columns = append(tables[tableName].Columns, column{
+				Name: name, DataType: colType, ColumnDefault: defVal, IsNullable: nullable,
+			})
+		}
+		colRows.Close()
 	}
-	defer indexRows.Close()
 
-	for indexRows.Next() {
-		var tableName, indexName, indexDef string
-		var isUnique bool
-		if err := indexRows.Scan(&tableName, &indexName, &indexDef, &isUnique); err != nil {
-			return fmt.Errorf("scanning index: %w", err)
+	// Get foreign keys for each table
+	for _, tableName := range tableOrder {
+		fkRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA foreign_key_list('%s')", tableName))
+		if err != nil {
+			return fmt.Errorf("querying foreign keys for %s: %w", tableName, err)
 		}
-		if t, exists := tables[tableName]; exists {
-			t.Indexes = append(t.Indexes, index{Name: indexName, Definition: indexDef, IsUnique: isUnique})
+		for fkRows.Next() {
+			var id, seq int
+			var fkTable, from, to string
+			var onUpdate, onDelete, match sql.NullString
+			if err := fkRows.Scan(&id, &seq, &fkTable, &from, &to, &onUpdate, &onDelete, &match); err != nil {
+				fkRows.Close()
+				return fmt.Errorf("scanning foreign key: %w", err)
+			}
+			def := fmt.Sprintf("FOREIGN KEY (%s) REFERENCES %s(%s)", from, fkTable, to)
+			tables[tableName].Constraints = append(tables[tableName].Constraints, constraint{
+				Name: fmt.Sprintf("fk_%s_%d", tableName, id), Type: "FOREIGN KEY", Definition: def,
+			})
 		}
+		fkRows.Close()
 	}
-	indexRows.Close()
+
+	// Get indexes for each table
+	for _, tableName := range tableOrder {
+		idxRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_list('%s')", tableName))
+		if err != nil {
+			return fmt.Errorf("querying indexes for %s: %w", tableName, err)
+		}
+		for idxRows.Next() {
+			var seq int
+			var name, unique, origin string
+			var partial int
+			if err := idxRows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+				idxRows.Close()
+				return fmt.Errorf("scanning index: %w", err)
+			}
+			// Skip primary key indexes
+			if strings.HasPrefix(name, "sqlite_autoindex") || origin == "pk" {
+				continue
+			}
+			isUnique := unique == "1"
+
+			// Get index definition
+			defRows, err := db.QueryContext(ctx, fmt.Sprintf("PRAGMA index_info('%s')", name))
+			if err != nil {
+				defRows.Close()
+				return fmt.Errorf("querying index info: %w", err)
+			}
+			var cols []string
+			for defRows.Next() {
+				var cid int
+				var colName string
+				var colDesc string
+				if err := defRows.Scan(&cid, &colName, &colDesc); err != nil {
+					defRows.Close()
+					return fmt.Errorf("scanning index column: %w", err)
+				}
+				cols = append(cols, colName)
+			}
+			defRows.Close()
+
+			def := fmt.Sprintf("CREATE %sINDEX %s ON %s (%s)",
+				map[bool]string{true: "UNIQUE ", false: ""}[isUnique], name, tableName, strings.Join(cols, ", "))
+			tables[tableName].Indexes = append(tables[tableName].Indexes, index{
+				Name: name, Definition: def, IsUnique: isUnique,
+			})
+		}
+		idxRows.Close()
+	}
 
 	outputDir := filepath.Join(repoRoot, "documentation/database-design/schema")
 	if err := os.MkdirAll(outputDir, 0755); err != nil {

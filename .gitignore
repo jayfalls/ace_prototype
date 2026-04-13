@@ -66,3 +66,4 @@ pnpm-debug.log*
 # Logs
 logs/
 .log
+.DS_Store

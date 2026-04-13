@@ -215,13 +215,13 @@ Slices 3-6 are independent of each other after Slice 2, but sequencing them avoi
 **Risk:** Low — Makefile refactoring
 
 **Backend:**
-- Update `Makefile` root targets: `ace`, `ui`, `test`
-- `make ace`: `go build -o bin/ace ./cmd/ace/`
-- `make ui`: `cd frontend && npm run build`
-- `make test`: sequential pipeline (go build → go vet → go test -short → sqlc generate → fe lint → fe test → git add)
+- Update `Makefile` root targets: `ace`, `test`
+- `make ace`: Run backend (Air) and frontend (Vite) together with hot reload
+- `make test`: sequential pipeline (go build → go vet → go test -short → sqlc generate → fe check → fe test → git add)
 - Remove `-count=1` from test flags (enable caching)
 - Delete `.pre-commit-config` references to Docker/Podman
 - Update pre-commit hook to call `make test` only
+- Preserve `make dev`, `make agent`, `make agent-stop` for OpenCode environment
 
 **Frontend:** None
 
@@ -323,12 +323,12 @@ Slices 3-6 are independent of each other after Slice 2, but sequencing them avoi
 **Frontend:** Verify `npm run build` configuration is correct for `adapter-static`.
 
 **Test:**
-- Manual: `make ace` builds dev binary. `go build -tags embed ./cmd/ace/` builds production binary.
+- Manual: `make ace` runs dev mode with hot reload.
 - Manual: `make test` passes full pipeline.
 - Manual: Binary size check (<150MB with embedded frontend).
-- Manual: `make generate` (sqlc) succeeds with SQLite engine.
+- Manual: `sqlc generate` succeeds with SQLite engine.
 
-**Definition of Done:** `make ace`, `make ui`, `make test` all work. GoReleaser config builds for all 4 targets. SQLC generates from SQLite queries. Production binary includes embedded frontend.
+**Definition of Done:** `make ace`, `make test` work. GoReleaser config builds for all 4 targets. SQLC generates from SQLite queries. Production binary includes embedded frontend.
 
 ---
 

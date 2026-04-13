@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 // App represents the main ACE application.
@@ -36,6 +36,7 @@ type App struct {
 	Telemetry   *telemetry.Telemetry
 	HTTPServer  *http.Server
 	Router      *chi.Mux
+	logger      *zap.Logger
 }
 
 // New creates a new App instance with the given configuration.
@@ -43,6 +44,12 @@ type App struct {
 // in order: database → NATS → cache → telemetry.
 func New(cfg *Config) (*App, error) {
 	ctx := context.Background()
+
+	// Create temporary development logger for early startup
+	logger, err := telemetry.NewLoggerWithStdout("ace", "development")
+	if err != nil {
+		return nil, fmt.Errorf("create logger: %w", err)
+	}
 
 	// Resolve filesystem paths
 	paths, err := platform.ResolvePaths(cfg.DataDir)
@@ -55,7 +62,7 @@ func New(cfg *Config) (*App, error) {
 		return nil, fmt.Errorf("ensure directories: %w", err)
 	}
 
-	log.Printf("[ACE] initializing subsystems...")
+	logger.Info("initializing subsystems")
 
 	// 1. Open database (order: 1st)
 	dbCfg := &database.Config{
@@ -68,14 +75,14 @@ func New(cfg *Config) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	log.Printf("[ACE]   database: opened (%s)", paths.DBPath)
+	logger.Info("database opened", zap.String("path", paths.DBPath))
 
 	// Run migrations
 	if err := database.Migrate(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate database: %w", err)
 	}
-	log.Printf("[ACE]   database: migrated")
+	logger.Info("database migrated")
 
 	// 2. Initialize NATS messaging (order: 2nd)
 	messagingCfg := &messaging.Config{
@@ -91,7 +98,7 @@ func New(cfg *Config) (*App, error) {
 		db.Close()
 		return nil, fmt.Errorf("init messaging: %w", err)
 	}
-	log.Printf("[ACE]   nats: connected")
+	logger.Info("nats connected")
 
 	// 3. Initialize cache (order: 3rd)
 	cacheCfg := &cache.Config{
@@ -106,7 +113,7 @@ func New(cfg *Config) (*App, error) {
 		db.Close()
 		return nil, fmt.Errorf("init cache: %w", err)
 	}
-	log.Printf("[ACE]   cache: initialized")
+	logger.Info("cache initialized")
 
 	// 4. Initialize telemetry (order: 4th)
 	telemetryCfg := &telemetry.Config{
@@ -124,9 +131,9 @@ func New(cfg *Config) (*App, error) {
 		db.Close()
 		return nil, fmt.Errorf("init telemetry: %w", err)
 	}
-	log.Printf("[ACE]   telemetry: initialized")
+	logger.Info("telemetry initialized")
 
-	log.Printf("[ACE] all subsystems initialized successfully")
+	logger.Info("all subsystems initialized successfully")
 
 	return &App{
 		Config:      cfg,
@@ -136,6 +143,7 @@ func New(cfg *Config) (*App, error) {
 		natsCleanup: natsCleanup,
 		Cache:       cacheBackend,
 		Telemetry:   appTelemetry,
+		logger:      appTelemetry.Logger,
 	}, nil
 }
 
@@ -186,9 +194,9 @@ func (a *App) Serve() error {
 
 	// Start server in goroutine
 	go func() {
-		log.Printf("[ACE] HTTP server listening on %s", addr)
+		a.logger.Info("HTTP server listening", zap.String("addr", addr))
 		if err := a.HTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[ACE] HTTP server error: %v", err)
+			a.logger.Error("HTTP server error", zap.Error(err))
 		}
 	}()
 
@@ -200,7 +208,7 @@ func (a *App) Serve() error {
 func (a *App) Shutdown() error {
 	var errs []error
 
-	log.Printf("[ACE] shutting down...")
+	a.logger.Info("shutting down")
 
 	// 1. Shutdown HTTP server (drain connections)
 	if a.HTTPServer != nil {
@@ -210,14 +218,14 @@ func (a *App) Shutdown() error {
 		if err := a.HTTPServer.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("shutdown http: %w", err))
 		} else {
-			log.Printf("[ACE]   http: drained")
+			a.logger.Info("http drained")
 		}
 	}
 
 	// 2. Stop pruning goroutine
 	if a.Telemetry != nil && a.Telemetry.PruneStop != nil {
 		a.Telemetry.PruneStop()
-		log.Printf("[ACE]   telemetry: pruning stopped")
+		a.logger.Info("telemetry pruning stopped")
 	}
 
 	// 3. Flush and shutdown telemetry
@@ -227,7 +235,7 @@ func (a *App) Shutdown() error {
 		if err := a.Telemetry.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("shutdown telemetry: %w", err))
 		} else {
-			log.Printf("[ACE]   telemetry: flushed")
+			a.logger.Info("telemetry flushed")
 		}
 	}
 
@@ -236,7 +244,7 @@ func (a *App) Shutdown() error {
 		if err := a.Cache.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close cache: %w", err))
 		} else {
-			log.Printf("[ACE]   cache: closed")
+			a.logger.Info("cache closed")
 		}
 	}
 
@@ -245,7 +253,7 @@ func (a *App) Shutdown() error {
 		if err := a.natsCleanup(); err != nil {
 			errs = append(errs, fmt.Errorf("cleanup messaging: %w", err))
 		} else {
-			log.Printf("[ACE]   nats: drained and stopped")
+			a.logger.Info("nats drained and stopped")
 		}
 	}
 
@@ -254,11 +262,11 @@ func (a *App) Shutdown() error {
 		if err := a.DB.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("close database: %w", err))
 		} else {
-			log.Printf("[ACE]   database: closed")
+			a.logger.Info("database closed")
 		}
 	}
 
-	log.Printf("[ACE] shutdown complete")
+	a.logger.Info("shutdown complete")
 
 	if len(errs) > 0 {
 		return fmt.Errorf("shutdown errors: %v", errs)
