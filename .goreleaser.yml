@@ -1,0 +1,37 @@
+# GoReleaser configuration for ACE
+# Multi-arch builds for linux/darwin × amd64/arm64
+
+version: 2
+
+project_name: ace
+
+builds:
+  - main: ./cmd/ace/
+    binary: ace
+    dir: ./backend
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    tags:
+      - embed
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+  algorithm: sha256
+
+release:
+  github:
+    owner: ace-org
+    name: ace
+  draft: false

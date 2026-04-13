@@ -11,7 +11,7 @@ BLUE := $(shell printf '\033[0;34m')
 RED := $(shell printf '\033[0;31m')
 NC := $(shell printf '\033[0m')
 
-.PHONY: help dev agent agent-stop ace test
+.PHONY: help dev agent agent-stop ace test migrate
 
 ##@ OpenCode Development Environment
 
@@ -109,6 +109,10 @@ test: ## Run full validation pipeline (build, lint, test, git add)
 	@echo "=== Git Add ==="
 	git add .
 
+migrate: ## Run database migrations
+	@echo "=== Running Migrations ==="
+	cd backend && go run ./cmd/ace migrate
+
 help: ## Show this help message
 	@echo ""
 	@echo "$(GREEN)ACE Prototype$(NC)"
@@ -121,4 +125,5 @@ help: ## Show this help message
 	@echo "$(GREEN)Application Development:$(NC)"
 	@echo "  $(YELLOW)make ace$(NC)         - Run backend + frontend with hot reload"
 	@echo "  $(YELLOW)make test$(NC)        - Run full validation pipeline"
+	@echo "  $(YELLOW)make migrate$(NC)     - Run database migrations"
 	@echo ""
