@@ -1,0 +1,1639 @@
+# FSD: Frontend Design
+
+[unit: frontend-design]
+
+## 1. File Tree Structure
+
+```
+frontend/src/
+├── app.html                              # HTML shell with theme pre-load script
+├── app.css                               # Tailwind v4 directives + base theme tokens
+├── app.d.ts                              # Global type declarations
+│
+├── routes/
+│   ├── +layout.svelte                    # Root layout (theme init, auth store init)
+│   ├── +page.svelte                       # Root redirect (/ → /login or /dashboard)
+│   ├── (auth)/
+│   │   ├── +layout.svelte                # Centered card layout, no sidebar, auth guard redirect
+│   │   ├── login/+page.svelte            # Login form page
+│   │   ├── register/+page.svelte         # Registration form page
+│   │   ├── forgot-password/+page.svelte   # Password reset request page
+│   │   ├── reset-password/+page.svelte   # Password reset confirm page (token from URL)
+│   │   └── magic-link/+page.svelte       # Magic link verification page (token from URL)
+│   ├── (app)/
+│   │   ├── +layout.ts                    # Export: `export const ssr = false`
+│   │   ├── +layout.svelte                # App shell layout (auth guard, sidebar, header)
+│   │   ├── +page.svelte                  # Dashboard overview
+│   │   ├── profile/+page.svelte          # User profile & session management
+│   │   ├── admin/
+│   │   │   └── users/
+│   │   │       ├── +page.svelte          # User list (paginated table)
+│   │   │       └── [id]/+page.svelte     # User detail (suspend, restore, role change)
+│   │   ├── telemetry/
+│   │   │   ├── +page.svelte              # Telemetry overview (health cards)
+│   │   │   ├── spans/+page.svelte        # Span browser (filterable table)
+│   │   │   ├── metrics/+page.svelte      # Metrics dashboard (aggregated view)
+│   │   │   └── usage/+page.svelte        # Usage & cost analysis (filterable table)
+│   │   └── settings/+page.svelte         # App settings (theme selector, preferences)
+│   └── (errors)/
+│       ├── +layout.svelte                 # Error page layout (centered, minimal)
+│       └── +page.svelte                   # 404 fallback
+│
+├── lib/
+│   ├── api/
+│   │   ├── client.ts                     # Base fetch wrapper (auth headers, refresh, error normalization)
+│   │   ├── types.ts                      # TypeScript interfaces matching backend models
+│   │   ├── auth.ts                       # login, register, logout, refresh, me
+│   │   ├── sessions.ts                   # listSessions, revokeSession
+│   │   ├── admin.ts                      # listUsers, getUser, updateRole, suspendUser, restoreUser
+│   │   └── telemetry.ts                  # spans, metrics, usage, health
+│   │
+│   ├── stores/
+│   │   ├── auth.svelte.ts                # AuthStore: user, tokens, isAuthenticated, login/logout/refresh
+│   │   ├── ui.svelte.ts                  # UIStore: theme, sidebarCollapsed, notifications
+│   │   └── notifications.svelte.ts       # NotificationStore: toasts, alerts
+│   │
+│   ├── components/
+│   │   ├── ui/                           # Primitive components (Bits UI + Tailwind)
+│   │   │   ├── button/
+│   │   │   │   ├── Button.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── input/
+│   │   │   │   ├── Input.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── dialog/
+│   │   │   │   ├── Dialog.svelte
+│   │   │   │   ├── DialogContent.svelte
+│   │   │   │   ├── DialogOverlay.svelte
+│   │   │   │   ├── DialogTrigger.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── select/
+│   │   │   │   ├── Select.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── table/
+│   │   │   │   ├── Table.svelte
+│   │   │   │   ├── TableRow.svelte
+│   │   │   │   ├── TableHeader.svelte
+│   │   │   │   ├── TableCell.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── badge/
+│   │   │   │   ├── Badge.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── avatar/
+│   │   │   │   ├── Avatar.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── dropdown-menu/
+│   │   │   │   ├── DropdownMenu.svelte
+│   │   │   │   ├── DropdownMenuContent.svelte
+│   │   │   │   ├── DropdownMenuItem.svelte
+│   │   │   │   ├── DropdownMenuTrigger.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── toast/
+│   │   │   │   ├── Toast.svelte
+│   │   │   │   ├── Toaster.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── card/
+│   │   │   │   ├── Card.svelte
+│   │   │   │   ├── CardHeader.svelte
+│   │   │   │   ├── CardContent.svelte
+│   │   │   │   ├── CardFooter.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── tabs/
+│   │   │   │   ├── Tabs.svelte
+│   │   │   │   ├── TabsList.svelte
+│   │   │   │   ├── TabsTrigger.svelte
+│   │   │   │   ├── TabsContent.svelte
+│   │   │   │   └── index.ts
+│   │   │   ├── skeleton/
+│   │   │   │   ├── Skeleton.svelte
+│   │   │   │   └── index.ts
+│   │   │   └── separator/
+│   │   │       ├── Separator.svelte
+│   │   │       └── index.ts
+│   │   ├── layout/
+│   │   │   ├── AppShell.svelte          # Sidebar + Header + Content slot
+│   │   │   ├── Sidebar.svelte           # Collapsible nav sidebar
+│   │   │   ├── Header.svelte            # Breadcrumbs, user menu, mobile toggle
+│   │   │   ├── NavItem.svelte           # Sidebar nav link (icon + label + badge)
+│   │   │   ├── UserMenu.svelte          # Dropdown: profile, sessions, logout
+│   │   │   └── Breadcrumbs.svelte       # Auto-generated from route
+│   │   ├── auth/
+│   │   │   ├── LoginForm.svelte          # Email + password + submit + links
+│   │   │   ├── RegisterForm.svelte       # Email + password + confirm + submit
+│   │   │   ├── ForgotPasswordForm.svelte # Email + submit
+│   │   │   ├── ResetPasswordForm.svelte  # New password + confirm + submit
+│   │   │   └── MagicLinkVerifier.svelte  # Token verification + result display
+│   │   ├── admin/
+│   │   │   ├── UserTable.svelte          # Paginated user list with status filter
+│   │   │   ├── UserDetailCard.svelte     # User info card with actions
+│   │   │   ├── SuspendDialog.svelte      # Confirmation dialog with reason input
+│   │   │   └── RoleSelect.svelte         # Role dropdown (admin/user/viewer)
+│   │   ├── telemetry/
+│   │   │   ├── HealthCards.svelte        # System health status cards
+│   │   │   ├── SpansTable.svelte         # Filterable span list with detail expand
+│   │   │   ├── MetricsList.svelte        # Aggregated metric cards/list
+│   │   │   └── UsageTable.svelte         # Usage events table with cost summary
+│   │   └── shared/
+│   │       ├── DataState.svelte          # Loading/Error/Empty state wrapper
+│   │       ├── Pagination.svelte         # Page number navigation
+│   │       ├── ConfirmDialog.svelte       # Confirmation dialog with message
+│   │       └── SearchInput.svelte         # Debounced search input
+│   │
+│   ├── themes/
+│   │   ├── one-dark.css                  # One Dark preset (dark variant)
+│   │   ├── one-light.css                 # One Light preset (light variant)
+│   │   ├── catppuccin-mocha.css          # Catppuccin Mocha preset (dark)
+│   │   ├── catppuccin-latte.css           # Catppuccin Latte preset (light)
+│   │   ├── nord.css                       # Nord preset (dark)
+│   │   ├── monokai.css                   # Monokai preset (dark)
+│   │   └── index.ts                      # Theme registry, type definitions, apply/persist logic
+│   │
+│   ├── validation/
+│   │   └── schemas.ts                    # Zod validation schemas for all forms
+│   │
+│   ├── utils/
+│   │   ├── cn.ts                          # clsx + tailwind-merge class merger
+│   │   ├── form.svelte.ts                # useForm composable (runes + Zod)
+│   │   ├── formatter.ts                   # Date, duration, cost formatting utilities
+│   │   └── constants.ts                   # Route paths, breakpoints, defaults
+│   │
+│   └── telemetry/                         # (existing) OpenTelemetry client
+│       ├── index.ts
+│       ├── error.ts
+│       ├── metrics.ts
+│       └── trace.ts
+│
+└── test/
+    ├── setup.ts                           # Vitest setup (jsdom, globals)
+    └── integration/
+        ├── auth.test.ts                  # Login/logout/refresh flow integration tests
+        └── admin.test.ts                 # Admin user management flow integration tests
+```
+
+---
+
+## 2. Component Inventory
+
+### 2.1 UI Primitives (`$lib/components/ui/`)
+
+Every primitive wraps Bits UI for accessibility and adds Tailwind styling. Each follows the pattern: directory → component file → barrel export (`index.ts`). Props include `class` for extension.
+
+| Component | Bits UI Base | Key Props | Events | Notes |
+|-----------|-------------|-----------|--------|-------|
+| **Button** | N/A (native) | `variant`, `size`, `disabled`, `loading`, `type` | `click` | `variant`: primary, secondary, destructive, ghost, outline. `size`: sm, md, lg. Loading shows spinner and disables. |
+| **Input** | N/A (native) | `type`, `placeholder`, `value`, `disabled`, `error`, `id` | `input`, `blur`, `focus` | Wraps native `<input>` with label, error message slot, and focus ring styling |
+| **Dialog** | Bits UI Dialog | `open` (bindable), `class` | N/A | Composite: Dialog, DialogContent, DialogOverlay, DialogTrigger. Focus trap, Escape dismiss, portal rendering |
+| **Select** | Bits UI Select | `value` (bindable), `options`, `placeholder`, `disabled` | `change` | Dropdown with keyboard navigation. Option type: `{ value: string, label: string }` |
+| **Table** | N/A (native) | Composable sub-components | N/A | Table, TableRow, TableHeader, TableCell. Responsive: horizontal scroll on mobile |
+| **Badge** | N/A (native) | `variant`, `size` | N/A | `variant`: default, success, warning, error, info. Roles statuses |
+| **Avatar** | Bits UI Avatar | `src`, `alt`, `fallback`, `size` | N/A | Fallback shows initials. `size`: sm, md, lg |
+| **DropdownMenu** | Bits UI Dropdown | N/A | N/A | Composite: DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger. Arrow key nav |
+| **Toast** | N/A (custom) | `variant`, `title`, `description`, `duration` | `dismiss` | Primitive. Toast container managed by NotificationStore. `variant`: success, error, warning, info |
+| **Toaster** | N/A (custom) | N/A | N/A | Renders toast stack with auto-dismiss. Reads from NotificationStore |
+| **Card** | N/A (native) | N/A | N/A | Composite: Card, CardHeader, CardContent, CardFooter. Layout primitive |
+| **Tabs** | Bits UI Tabs | `value` (bindable) | `change` | Composite: Tabs, TabsList, TabsTrigger, TabsContent |
+| **Skeleton** | N/A (native) | `variant`, `class` | N/A | `variant`: text, circle, rect, table. Pulse animation |
+| **Separator** | Bits UI Separator | `orientation`, `decorative` | N/A | Horizontal or vertical divider |
+
+### 2.2 Layout Components (`$lib/components/layout/`)
+
+| Component | Purpose | Key Props | State Sources | Notes |
+|-----------|---------|-----------|---------------|-------|
+| **AppShell** | Authenticated layout frame: sidebar + header + content | N/A | `authStore.user`, `uiStore.sidebarCollapsed` | Renders Sidebar, Header, `<main>` with `<slot>`. Skip-to-content link. ARIA landmarks |
+| **Sidebar** | Collapsible navigation sidebar | N/A | `uiStore.sidebarCollapsed` | 256px expanded, 64px collapsed. Logo, NavItems, settings at bottom. Overlay mode on mobile |
+| **Header** | Top bar with breadcrumbs, user menu, mobile toggle | N/A | `authStore.user` | Hamburger on mobile, breadcrumb path, UserMenu dropdown |
+| **NavItem** | Individual sidebar navigation item | `icon`, `label`, `href`, `badge?` | N/A | Uses `aria-current="page"` on active route. Icon from lucide-svelte |
+| **UserMenu** | User avatar dropdown menu | N/A | `authStore.user` | Profile link, sessions link, logout action. Uses DropdownMenu primitive |
+| **Breadcrumbs** | Auto-generated breadcrumb from current route | N/A | `$page.url` | Parses route segments to labels. Last segment is current page (non-link) |
+
+### 2.3 Auth Components (`$lib/components/auth/`)
+
+| Component | Purpose | Form Fields | API Call | Validation Schema |
+|-----------|---------|-------------|----------|-------------------|
+| **LoginForm** | Email + password login | email, password | `authApi.login()` | `loginSchema` |
+| **RegisterForm** | New account creation | email, password, confirmPassword | `authApi.register()` | `registerSchema` |
+| **ForgotPasswordForm** | Request password reset email | email | `authApi.resetPasswordRequest()` | `forgotPasswordSchema` |
+| **ResetPasswordForm** | Confirm password reset | newPassword, confirmPassword | `authApi.resetPasswordConfirm(token)` | `resetPasswordSchema` |
+| **MagicLinkVerifier** | Verify magic link token from URL | N/A | `authApi.magicLinkVerify(token)` | N/A (no form) |
+
+### 2.4 Admin Components (`$lib/components/admin/`)
+
+| Component | Purpose | Key Props | Actions | Notes |
+|-----------|---------|-----------|---------|-------|
+| **UserTable** | Paginated user list with filters | `users: UserListItem[]`, `total`, `page`, `limit`, `onPageChange`, `onStatusFilter` | View, Suspend, Restore | Responsive: card layout on mobile |
+| **UserDetailCard** | Full user detail display | `user: AdminUserResponse` | Change Role, Suspend, Restore | Shows suspended_at and suspended_reason if present |
+| **SuspendDialog** | Confirmation dialog with reason input | `open`, `userId`, `onConfirm` | Confirm suspension | Uses Dialog primitive. Optional reason textarea, max 500 chars |
+| **RoleSelect** | Role selection dropdown | `value`, `onchange` | Select role | Options: admin, user, viewer. Admin-only action |
+
+### 2.5 Telemetry Components (`$lib/components/telemetry/`)
+
+| Component | Purpose | Key Props | Data Source | Notes |
+|-----------|---------|-----------|-------------|-------|
+| **HealthCards** | System health status grid | N/A (fetches own data) | `telemetryApi.health()` | Cards: database, messaging (NATS), cache, telemetry. Status indicator + counts |
+| **SpansTable** | Filterable span browser | `spans`, `total`, `filters`, `onFilterChange`, `onPageChange` | `telemetryApi.spans()` | Filters: service, operation, status, time range. Expandable rows for attributes |
+| **MetricsList** | Aggregated metrics display | `metrics`, `total` | `telemetryApi.metrics()` | Filter: service, name, time window. Value + timestamp + labels |
+| **UsageTable** | Usage events with cost | `events`, `total`, `filters` | `telemetryApi.usage()` | Filters: agent_id, event_type, resource_type, time range. Cost summary footer |
+
+### 2.6 Shared Components (`$lib/components/shared/`)
+
+| Component | Purpose | Key Props | Notes |
+|-----------|---------|-----------|-------|
+| **DataState** | Loading/Error/Empty wrapper | `loading`, `error`, `empty`, `onRetry` | Renders slot on success. Shows Skeleton on loading, error message on error, empty state on empty |
+| **Pagination** | Page navigation | `page`, `total`, `limit`, `onPageChange` | Shows page numbers, prev/next, total count |
+| **ConfirmDialog** | Confirmation before destructive action | `open`, `title`, `message`, `onConfirm`, `variant` | Uses Dialog primitive. `variant`: danger (destructive actions) |
+| **SearchInput** | Debounced search input | `value`, `placeholder`, `onSearch`, `debounceMs` | Emits search after configurable debounce delay |
+
+---
+
+## 3. Page Specifications
+
+### 3.1 Auth Pages
+
+#### `/login` — Login Page
+- **Layout**: `(auth)` group — centered card, no sidebar
+- **Auth guard**: Redirects to `/` if already authenticated
+- **Component**: `LoginForm`
+- **State**: `{ email: '', password: '' }`
+- **Flow**: Submit → `authStore.login(email, password)` → on success: `goto('/')`, on 401: show "Invalid email or password"
+- **Links**: "Forgot password?" → `/forgot-password`, "Create account" → `/register`, "Sign in with magic link" → `/magic-link`
+
+#### `/register` — Registration Page
+- **Layout**: `(auth)` group
+- **Auth guard**: Redirects to `/` if already authenticated
+- **Component**: `RegisterForm`
+- **State**: `{ email: '', password: '', confirmPassword: '' }`
+- **Flow**: Submit → `authApi.register(email, password)` → on 201: auto-login, `goto('/')`, on 409: show "Account with this email already exists"
+- **Links**: "Already have an account?" → `/login`
+
+#### `/forgot-password` — Password Reset Request
+- **Layout**: `(auth)` group
+- **Auth guard**: Redirects to `/` if already authenticated
+- **Component**: `ForgotPasswordForm`
+- **State**: `{ email: '' }`
+- **Flow**: Submit → `authApi.resetPasswordRequest(email)` → always show "If an account exists, a reset link has been sent" (prevents email enumeration)
+- **Links**: "Back to login" → `/login`
+
+#### `/reset-password` — Password Reset Confirm
+- **Layout**: `(auth)` group
+- **Auth guard**: No redirect (token-based, user may not be logged in)
+- **Component**: `ResetPasswordForm`
+- **State**: `{ newPassword: '', confirmPassword: '' }`, token extracted from `URL.searchParams.get('token')`
+- **Flow**: Submit → `authApi.resetPasswordConfirm(token, newPassword)` → on success: auto-login with returned tokens, `goto('/')`, on 400: show "This reset link has expired or is invalid"
+
+#### `/magic-link` — Magic Link Verification
+- **Layout**: `(auth)` group
+- **Auth guard**: No redirect (token-based)
+- **Component**: `MagicLinkVerifier`
+- **State**: No form — triggers verification immediately on mount
+- **Flow**: On mount → `authApi.magicLinkVerify(token)` → on success: store tokens, `goto('/')`, on failure: show "This link has expired or is invalid" with link to `/login`
+
+### 3.2 Dashboard Page
+
+#### `/` — Dashboard Overview
+- **Layout**: `(app)` group — sidebar + header
+- **Auth guard**: Redirects to `/login` if not authenticated
+- **Components**: `HealthCards`, quick-action buttons
+- **Data**: `GET /telemetry/health` and `GET /health/ready`
+- **Content**:
+  - Welcome message: "Welcome back, {user.email}"
+  - System health cards: database status, NATS status, cache status, telemetry counts
+  - Quick actions: "View Telemetry" button, "Manage Users" button (admin only), "View Profile" button
+- **State machine**: `Initial → Loading → Success | Error`
+
+### 3.3 Profile Page
+
+#### `/profile` — User Profile & Sessions
+- **Layout**: `(app)` group
+- **Auth guard**: Yes
+- **Data sources**: `GET /auth/me` (user profile), `GET /auth/me/sessions` (session list)
+- **Content**:
+  - User profile card: email, role, status, created_at
+  - Active sessions table: user_agent (parsed), ip_address, last_used_at, created_at, expires_at, "Revoke" button per row
+  - "Sign out all other sessions" button
+  - "Change password" link → `/forgot-password`
+- **Actions**: Revoke session → `DELETE /auth/me/sessions/{id}` with optimistic update
+
+### 3.4 Admin Pages
+
+#### `/admin/users` — User List
+- **Layout**: `(app)` group, admin-only
+- **Auth guard**: Redirects non-admin to 403 page
+- **Components**: `UserTable`, `SearchInput`
+- **Data**: `GET /admin/users?page={page}&limit={limit}&status={status}`
+- **State**: `{ page: 1, limit: 20, statusFilter: 'all', searchQuery: '' }`
+- **Content**:
+  - Status filter: All, Active, Pending, Suspended (dropdown)
+  - User table columns: Email, Role, Status, Created, Actions
+  - Actions per row: View → `/admin/users/{id}`, Suspend (for active), Restore (for suspended)
+  - Pagination controls
+- **State machine**: `Initial → Loading → Success | Error`
+
+#### `/admin/users/[id]` — User Detail
+- **Layout**: `(app)` group, admin-only
+- **Auth guard**: Redirects non-admin to 403 page
+- **Components**: `UserDetailCard`, `SuspendDialog`, `RoleSelect`
+- **Data**: `GET /admin/users/{id}`
+- **Content**:
+  - User info: id, email, role, status, created_at, updated_at
+  - If suspended: `suspended_at`, `suspended_reason`
+  - Role change dropdown: admin/user/viewer → `PUT /admin/users/{id}/role`
+  - Suspend button → `SuspendDialog` → `POST /admin/users/{id}/suspend { reason }`
+  - Restore button → `POST /admin/users/{id}/restore`
+  - "Back to users" link
+- **Actions**: Role change (optimistic), Suspend (with confirmation dialog), Restore (with confirmation)
+
+### 3.5 Telemetry Pages
+
+#### `/telemetry` — Overview
+- **Layout**: `(app)` group
+- **Auth guard**: Yes (all authenticated users)
+- **Components**: `HealthCards`
+- **Data**: `GET /telemetry/health`
+- **Content**: Health cards showing database, messaging, cache, telemetry subsystem status. Counts: spans last hour, metrics last hour. Quick links to sub-pages
+
+#### `/telemetry/spans` — Span Browser
+- **Layout**: `(app)` group
+- **Components**: `SpansTable`, `DataState`, `Pagination`
+- **Data**: `GET /telemetry/spans?service=&operation=&status=&start_time=&end_time=&limit=50&offset=0`
+- **Filters**: service (text), operation (text), status (ok/error dropdown), time range (start_time, end_time as RFC3339)
+- **State**: `{ service: '', operation: '', status: '', timeRange: '24h', offset: 0, limit: 50 }`
+- **Content**: Table with columns: Trace ID, Span ID, Operation, Service, Duration (ms), Status, Timestamp. Expandable rows showing attributes JSON
+
+#### `/telemetry/metrics` — Metrics Dashboard
+- **Layout**: `(app)` group
+- **Components**: `MetricsList`, `DataState`
+- **Data**: `GET /telemetry/metrics?name=&window=1h&limit=50`
+- **Filters**: name (text), window (5m/15m/1h/6h/24h dropdown)
+- **State**: `{ name: '', window: '1h', limit: 50 }`
+- **Content**: Metric cards showing name, value, type, timestamp, labels
+
+#### `/telemetry/usage` — Usage & Cost
+- **Layout**: `(app)` group
+- **Components**: `UsageTable`, `DataState`, `Pagination`
+- **Data**: `GET /telemetry/usage?agent_id=&event_type=&from=&to=&limit=100&offset=0`
+- **Filters**: agent_id (text), event_type (dropdown: llm_call, memory_read, memory_write, tool_execute, db_query), resource_type (dropdown: api, memory, tool, database, messaging), from/to (time range)
+- **State**: `{ agentId: '', eventType: '', resourceType: '', from: '7d ago', to: 'now', limit: 100, offset: 0 }`
+- **Content**: Table columns: Agent ID, Operation, Resource, Duration (ms), Cost (USD), Timestamp. Summary row showing total cost in period
+
+### 3.6 Settings Page
+
+#### `/settings` — App Settings
+- **Layout**: `(app)` group
+- **Auth guard**: Yes
+- **Data**: None (local state only)
+- **Content**:
+  - Theme selector: grid of theme preset cards (One Dark, One Light, Catppuccin Mocha, Catppuccin Latte, Nord, Monokai). Active theme highlighted.
+  - Dark/light mode toggle: switch between dark and light variants of current preset
+  - Sidebar default: expanded/collapsed preference (persisted in localStorage)
+- **State**: All from `uiStore` — `theme`, `mode`, `sidebarCollapsed`
+
+### 3.7 Error Page
+
+#### `(errors)/+page.svelte` — 404 Fallback
+- **Layout**: `(errors)` group — centered message
+- **Content**: "Page not found" message with link back to `/`
+- **Auth guard**: No
+
+---
+
+## 4. API Client Structure
+
+### 4.1 Base Client (`$lib/api/client.ts`)
+
+The `APIClient` class is the single entry point for all backend communication. It handles auth token injection, proactive/reactive refresh, and error normalization.
+
+```typescript
+class APIClient {
+  private baseUrl: string;
+  private refreshPromise: Promise<void> | null = null;
+
+  constructor() {
+    this.baseUrl = import.meta.env.VITE_API_URL || '';
+  }
+
+  // Core typed request — all domain modules call this
+  async request<T>(options: RequestOptions): Promise<T>;
+
+  // Private: token management
+  private getAccessToken(): string | null;
+  private setTokens(access: string, refresh: string, expiresIn: number): void;
+  private clearTokens(): void;
+
+  // Private: proactive refresh (<30s before expiry)
+  private async ensureValidToken(): Promise<void>;
+
+  // Private: reactive refresh (on 401 response)
+  private async handleUnauthorized(): Promise<void>;
+
+  // Private: error code → user message mapping
+  private normalizeError(response: Response): APIError;
+}
+
+export const apiClient = new APIClient();
+```
+
+**Request lifecycle:**
+1. `ensureValidToken()` — if `accessToken` expires in <30s, refresh first
+2. Attach `Authorization: Bearer <accessToken>` header
+3. Send request
+4. On 401 → `handleUnauthorized()` (refresh mutex) → retry original
+5. On success → unwrap `{ success, data }` envelope, return typed `T`
+6. On error → throw `APIError` with code + message + field details
+
+**Refresh mutex:** Single in-flight refresh promise. Concurrent 401s await the same promise. On refresh failure: clear auth store, redirect to `/login`.
+
+### 4.2 Request/Response Types (`$lib/api/types.ts`)
+
+All TypeScript interfaces mirroring the backend Go structs and JSON envelope:
+
+```typescript
+// --- API Envelope ---
+interface APIEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: APIError;
+}
+
+interface APIError {
+  code: string;
+  message: string;
+  details?: FieldError[];
+}
+
+interface FieldError {
+  field: string;
+  message: string;
+}
+
+// --- Pagination ---
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// --- Auth ---
+interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  user: User;
+  expires_in: number;
+}
+
+interface RefreshRequest {
+  refresh_token: string;
+}
+
+interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+interface MagicLinkVerifyRequest {
+  token: string;
+}
+
+// --- User (matches backend model.User) ---
+type UserRole = 'admin' | 'user' | 'viewer';
+type UserStatus = 'pending' | 'active' | 'suspended';
+
+interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  suspended_at?: string;
+  suspended_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- User List Item (matches backend UserListItem) ---
+interface UserListItem {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Admin User Response (matches backend AdminUserResponse) ---
+interface AdminUserResponse {
+  id: string;
+  email: string;
+  role: UserRole;
+  status: UserStatus;
+  suspended_at?: string;
+  suspended_reason?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- Sessions (matches backend SessionResponse) ---
+interface Session {
+  id: string;
+  user_id: string;
+  user_agent?: string;
+  ip_address?: string;
+  last_used_at: string;
+  expires_at: string;
+  created_at: string;
+}
+
+interface SessionsListResponse {
+  sessions: Session[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// --- Admin (matches backend UsersListResponse) ---
+interface UsersListResponse {
+  users: UserListItem[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+// --- Telemetry: Spans (matches backend SpanResponse) ---
+interface Span {
+  trace_id: string;
+  span_id: string;
+  operation: string;
+  service: string;
+  start_time: string;
+  end_time: string;
+  duration_ms: number;
+  status: string;
+  attributes?: Record<string, unknown>;
+}
+
+interface SpansResponse {
+  spans: Span[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// --- Telemetry: Metrics (matches backend MetricResponse) ---
+interface Metric {
+  name: string;
+  type: string;
+  labels?: Record<string, string>;
+  value: number;
+  timestamp: string;
+  window?: string;
+}
+
+interface MetricsResponse {
+  metrics: Metric[];
+  total: number;
+  limit: number;
+}
+
+// --- Telemetry: Usage (matches backend UsageEventResponse) ---
+interface UsageEvent {
+  id: string;
+  agent_id: string;
+  session_id: string;
+  event_type: string;
+  model?: string;
+  input_tokens?: number;
+  output_tokens?: number;
+  cost_usd?: number;
+  duration_ms?: number;
+  timestamp: string;
+}
+
+interface UsageResponse {
+  events: UsageEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// --- Telemetry: Health (matches backend TelemetryHealthResponse) ---
+type HealthStatus = 'healthy' | 'degraded' | 'error';
+
+interface SubsystemCheck {
+  status: string;
+  mode?: string;
+  path?: string;
+  size_bytes?: number;
+  connections?: number;
+  max_cost_bytes?: number;
+  current_cost_bytes?: number;
+  hit_rate?: number;
+  spans_last_hour?: number;
+  metrics_last_hour?: number;
+  error?: string;
+}
+
+interface TelemetryHealthResponse {
+  status: HealthStatus;
+  checks: Record<string, SubsystemCheck>;
+}
+
+// --- Health (matches backend HealthStatus) ---
+interface SystemHealthCheck {
+  status: string;
+  reason?: string;
+}
+
+interface SystemHealthResponse {
+  status: string;
+  checks: Record<string, SystemHealthCheck>;
+}
+```
+
+### 4.3 Domain Modules
+
+#### `$lib/api/auth.ts`
+
+```typescript
+export async function login(email: string, password: string): Promise<TokenResponse>;
+export async function register(email: string, password: string): Promise<TokenResponse>;
+export async function logout(sessionId: string): Promise<void>;
+export async function refresh(refreshToken: string): Promise<TokenResponse>;
+export async function me(): Promise<User>;
+export async function resetPasswordRequest(email: string): Promise<void>;
+export async function resetPasswordConfirm(token: string, newPassword: string): Promise<TokenResponse>;
+export async function magicLinkRequest(email: string): Promise<void>;
+export async function magicLinkVerify(token: string): Promise<TokenResponse>;
+```
+
+| Function | HTTP | Endpoint | Auth | Response Type |
+|----------|------|----------|------|----------------|
+| `login` | POST | `/auth/login` | No | `TokenResponse` |
+| `register` | POST | `/auth/register` | No | `TokenResponse` |
+| `logout` | POST | `/auth/logout` | Yes | `void` |
+| `refresh` | POST | `/auth/refresh` | No | `TokenResponse` |
+| `me` | GET | `/auth/me` | Yes | `User` |
+| `resetPasswordRequest` | POST | `/auth/password/reset/request` | No | `void` |
+| `resetPasswordConfirm` | POST | `/auth/password/reset/confirm` | No | `TokenResponse` |
+| `magicLinkRequest` | POST | `/auth/magic-link/request` | No | `void` |
+| `magicLinkVerify` | POST | `/auth/magic-link/verify` | No | `TokenResponse` |
+
+#### `$lib/api/sessions.ts`
+
+```typescript
+export async function listSessions(page?: number, limit?: number): Promise<SessionsListResponse>;
+export async function revokeSession(sessionId: string): Promise<void>;
+```
+
+| Function | HTTP | Endpoint | Auth | Response Type |
+|----------|------|----------|------|----------------|
+| `listSessions` | GET | `/auth/me/sessions?page={p}&limit={l}` | Yes | `SessionsListResponse` |
+| `revokeSession` | DELETE | `/auth/me/sessions/{id}` | Yes | `void` |
+
+#### `$lib/api/admin.ts`
+
+```typescript
+export async function listUsers(page?: number, limit?: number, status?: string): Promise<UsersListResponse>;
+export async function getUser(id: string): Promise<AdminUserResponse>;
+export async function updateUserRole(id: string, role: UserRole): Promise<AdminUserResponse>;
+export async function suspendUser(id: string, reason: string): Promise<AdminUserResponse>;
+export async function restoreUser(id: string): Promise<AdminUserResponse>;
+```
+
+| Function | HTTP | Endpoint | Auth | Role | Response Type |
+|----------|------|----------|------|------|----------------|
+| `listUsers` | GET | `/admin/users?page={p}&limit={l}&status={s}` | Yes | Admin | `UsersListResponse` |
+| `getUser` | GET | `/admin/users/{id}` | Yes | Admin | `AdminUserResponse` |
+| `updateUserRole` | PUT | `/admin/users/{id}/role` | Yes | Admin | `AdminUserResponse` |
+| `suspendUser` | POST | `/admin/users/{id}/suspend` | Yes | Admin | `AdminUserResponse` |
+| `restoreUser` | POST | `/admin/users/{id}/restore` | Yes | Admin | `AdminUserResponse` |
+
+#### `$lib/api/telemetry.ts`
+
+```typescript
+export async function spans(params?: SpanQueryParams): Promise<SpansResponse>;
+export async function metrics(params?: MetricQueryParams): Promise<MetricsResponse>;
+export async function usage(params?: UsageQueryParams): Promise<UsageResponse>;
+export async function health(): Promise<TelemetryHealthResponse>;
+```
+
+| Function | HTTP | Endpoint | Auth | Query Params | Response Type |
+|----------|------|----------|------|-------------|----------------|
+| `spans` | GET | `/telemetry/spans` | Yes | service, operation, status, start_time, end_time, limit, offset | `SpansResponse` |
+| `metrics` | GET | `/telemetry/metrics` | Yes | name, window (5m/15m/1h/6h/24h), limit | `MetricsResponse` |
+| `usage` | GET | `/telemetry/usage` | Yes | agent_id, event_type, from, to, limit, offset | `UsageResponse` |
+| `health` | GET | `/telemetry/health` | Yes | None | `TelemetryHealthResponse` |
+
+**Query param interfaces:**
+
+```typescript
+interface SpanQueryParams {
+  service?: string;
+  operation?: string;
+  status?: string;
+  start_time?: string; // RFC3339
+  end_time?: string;   // RFC3339
+  limit?: number;      // default 50, max 1000
+  offset?: number;     // default 0
+}
+
+interface MetricQueryParams {
+  name?: string;
+  window?: '5m' | '15m' | '1h' | '6h' | '24h'; // default 1h
+  limit?: number; // default 50, max 200
+}
+
+interface UsageQueryParams {
+  agent_id?: string;
+  event_type?: string;
+  from?: string;    // RFC3339
+  to?: string;      // RFC3339
+  limit?: number;   // default 100, max 500
+  offset?: number;  // default 0
+}
+```
+
+### 4.4 Error Handling Map
+
+Every API response flows through `client.ts`'s error normalization:
+
+| HTTP Status | Error Code | Action |
+|-------------|-----------|--------|
+| 401 | `unauthorized` | Trigger refresh → retry. On refresh failure → clear auth, redirect `/login` |
+| 403 | `forbidden` | Show "You do not have permission" message, redirect to `/` |
+| 404 | `not_found` | Show 404 page |
+| 400 | `validation_error` | Map `details` field errors to form fields |
+| 400 | `invalid_request` | Show toast with error message |
+| 409 | `user_already_exists` | Show "An account with this email already exists" |
+| 429 | `rate_limit_exceeded` | Show "Too many requests. Please wait." toast |
+| 500 | `internal_error` | Show "Something went wrong. Please try again." toast |
+| Network error | N/A | Show "Unable to connect. Please check your connection." toast |
+
+---
+
+## 5. State Management Files
+
+All stores use Svelte 5 rune-based classes in `.svelte.ts` modules. Stores are the single source of truth for their domain. Components never call API client directly — they call store methods.
+
+### 5.1 `$lib/stores/auth.svelte.ts`
+
+**Purpose**: Authentication state, token lifecycle, login/logout/refresh.
+
+```typescript
+export class AuthStore {
+  // Reactive state
+  user = $state<User | null>(null);
+  accessToken = $state<string>('');
+  refreshToken = $state<string>('');
+  expiresAt = $state<number>(0);
+  isLoading = $state<boolean>(false);
+  error = $state<string | null>(null);
+
+  // Derived state
+  isAuthenticated = $derived(this.user !== null && this.accessToken !== '');
+
+  // Methods
+  init(): void;
+  // Load tokens from localStorage. If expired, attempt refresh. If refresh fails, clear.
+
+  async login(email: string, password: string): Promise<void>;
+  // Call authApi.login → store tokens + user → redirect to /
+
+  async register(email: string, password: string): Promise<void>;
+  // Call authApi.register → auto-login → redirect to /
+
+  async logout(): Promise<void>;
+  // Call authApi.logout → clear localStorage → reset state → redirect to /login
+
+  async refreshTokens(): Promise<void>;
+  // Call authApi.refresh → update tokens + expiry. Refresh mutex: single in-flight promise.
+
+  ensureValidToken(): Promise<void>;
+  // If token expires in <30s, call refreshTokens(). Called by APIClient before each request.
+
+  clear(): void;
+  // Reset all state to defaults. Clear localStorage keys: access_token, refresh_token, ace-theme.
+}
+
+export const authStore = new AuthStore();
+```
+
+**LocalStorage keys**:
+- `ace_access_token` — JWT access token
+- `ace_refresh_token` — JWT refresh token
+- `ace_expires_at` — Token expiry timestamp (ms since epoch)
+
+**State transitions**:
+```
+[Unauthenticated] ──login/register/magic-link──> [Authenticated]
+[Authenticated] ──token expiry <30s──> [Refreshing] ──success──> [Authenticated]
+[Refreshing] ──failure──> [Unauthenticated] (redirect /login)
+[Authenticated] ──logout──> [Unauthenticated] (clear storage, redirect /login)
+```
+
+### 5.2 `$lib/stores/ui.svelte.ts`
+
+**Purpose**: Global UI preferences — theme, sidebar state.
+
+```typescript
+export class UIStore {
+  // Theme state
+  theme = $state<string>('one-dark');        // Current theme preset name
+  mode = $state<'dark' | 'light'>('dark');   // Current mode
+  sidebarCollapsed = $state<boolean>(false);  // Sidebar collapsed state
+
+  // Derived: CSS class to apply to <html>
+  themeClass = $derived(`${this.theme}-${this.mode}`);
+
+  // Methods
+  setTheme(preset: string): void;
+  // Update theme preset, persist to localStorage, apply to DOM
+
+  toggleMode(): void;
+  // Toggle dark/light mode, persist, apply
+
+  toggleSidebar(): void;
+  // Toggle sidebar collapsed state, persist
+
+  setSidebarCollapsed(collapsed: boolean): void;
+  // Set sidebar to specific state (used by responsive breakpoint handler)
+
+  private apply(): void;
+  // Remove all theme classes from <html>, add current themeClass
+
+  private persist(): void;
+  // Write { theme, mode, sidebarCollapsed } to localStorage key 'ace-ui'
+
+  init(): void;
+  // Load from localStorage, apply. Defaults: one-dark, dark, expanded.
+}
+
+export const uiStore = new UIStore();
+```
+
+**LocalStorage keys**:
+- `ace-ui` — JSON `{ theme, mode, sidebarCollapsed }`
+
+**Responsive behavior**: On window resize <768px, `setSidebarCollapsed(true)`. On resize ≥768px, restore persisted preference.
+
+### 5.3 `$lib/stores/notifications.svelte.ts`
+
+**Purpose**: Toast notification system for success/error/warning/info messages.
+
+```typescript
+export interface Toast {
+  id: string;
+  variant: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  description?: string;
+  duration: number;     // ms, 0 = manual dismiss
+  createdAt: number;
+}
+
+export class NotificationStore {
+  toasts = $state<Toast[]>([]);
+
+  add(title: string, variant: Toast['variant'] = 'info', description?: string, duration: number = 5000): string;
+  // Create toast, push to array, return id. Auto-dismiss after duration (if > 0).
+
+  dismiss(id: string): void;
+  // Remove toast by id.
+
+  success(title: string, description?: string): string;
+  // Shorthand: add(title, 'success', description)
+
+  error(title: string, description?: string): string;
+  // Shorthand: add(title, 'error', description, 8000) — longer duration for errors
+
+  warning(title: string, description?: string): string;
+  // Shorthand: add(title, 'warning', description)
+
+  info(title: string, description?: string): string;
+  // Shorthand: add(title, 'info', description)
+}
+
+export const notificationStore = new NotificationStore();
+```
+
+**Usage**: `<Toaster />` component reads from `notificationStore.toasts` and renders the toast stack. Auto-dismiss is handled via `setTimeout` in `add()`.
+
+---
+
+## 6. Utility Modules
+
+### 6.1 `$lib/utils/cn.ts`
+
+Class name merger. Combines `clsx` for conditional classes with `tailwind-merge` for conflict resolution.
+
+```typescript
+import { clsx } from 'clsx';
+import type { ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(...inputs));
+}
+```
+
+**Usage**: Every component accepts an optional `class` prop and merges it via `cn(cssModuleClasses, className)`.
+
+### 6.2 `$lib/utils/form.svelte.ts`
+
+Reusable form composable built on Svelte 5 runes + Zod. Used by every form page.
+
+```typescript
+import { ZodSchema } from 'zod';
+
+export function useForm<T extends Record<string, unknown>>(
+  initialValues: T,
+  schema: ZodSchema<T>
+) {
+  const values = $state(initialValues);
+  const errors = $state<Partial<Record<keyof T, string>>>({});
+  const touched = $state<Partial<Record<keyof T, boolean>>>({});
+  const isSubmitting = $state(false);
+
+  const isValid = $derived(Object.values(errors).every(e => !e));
+  const isDirty = $derived(
+    JSON.stringify(values) !== JSON.stringify(initialValues)
+  );
+
+  // Validate all fields against Zod schema. Returns boolean.
+  function validate(): boolean;
+
+  // Validate a single field. Called on blur.
+  function validateField(field: keyof T): void;
+
+  // Reset form to initial values and clear errors/touched.
+  function reset(): void;
+
+  // Validate, then call submit handler. Sets isSubmitting during async call.
+  async function handleSubmit(fn: (values: T) => Promise<void>): Promise<void>;
+
+  // Map API validation errors (FieldError[]) to form fields.
+  function setFieldErrors(fieldErrors: FieldError[]): void;
+
+  return {
+    values, errors, touched, isSubmitting,
+    isValid, isDirty,
+    validate, validateField, reset, handleSubmit, setFieldErrors
+  };
+}
+```
+
+**Usage pattern**:
+```svelte
+<script>
+  import { useForm } from '$lib/utils/form.svelte';
+  import { loginSchema } from '$lib/validation/schemas';
+  import { authStore } from '$lib/stores/auth.svelte';
+
+  const form = useForm({ email: '', password: '' }, loginSchema);
+</script>
+
+<form on:submit|preventDefault={() => form.handleSubmit(authStore.login)}>
+  <Input bind:value={form.values.email} error={form.errors.email} />
+  <Input type="password" bind:value={form.values.password} error={form.errors.password} />
+  <Button type="submit" disabled={!form.isValid || form.isSubmitting}>
+    {form.isSubmitting ? 'Signing in...' : 'Sign in'}
+  </Button>
+</form>
+```
+
+### 6.3 `$lib/utils/formatter.ts`
+
+Display formatting utilities. Pure functions, no side effects.
+
+```typescript
+// Date formatting
+export function formatDate(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "Mar 15, 2024"
+
+export function formatDateTime(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "Mar 15, 2024, 10:30 AM"
+
+export function formatRelativeTime(isoString: string): string;
+// "2024-03-15T10:30:00Z" → "2 hours ago", "3 days ago", etc.
+
+// Duration formatting
+export function formatDuration(ms: number): string;
+// 1500 → "1.5s", 65000 → "1m 5s", 250 → "250ms"
+
+// Cost formatting
+export function formatCost(usd: number): string;
+// 0.001234 → "$0.0012", 12.5 → "$12.50"
+
+// Number formatting
+export function formatNumber(n: number): string;
+// 1234 → "1,234", 1000000 → "1.0M"
+
+// User agent parsing (simplified)
+export function parseUserAgent(ua: string): { browser: string; os: string; device: string };
+// "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) ..." → { browser: "Chrome", os: "macOS", device: "Desktop" }
+
+// Role badge color mapping
+export function roleBadgeVariant(role: UserRole): 'default' | 'success' | 'warning' | 'error';
+// admin → error, user → success, viewer → default
+
+// Status badge color mapping
+export function statusBadgeVariant(status: UserStatus): 'default' | 'success' | 'warning' | 'error';
+// active → success, pending → warning, suspended → error
+```
+
+### 6.4 `$lib/utils/constants.ts`
+
+Application-wide constants. Single source of truth for route paths, breakpoints, and defaults.
+
+```typescript
+// Route paths — prevents hardcoded strings across components
+export const ROUTES = {
+  HOME: '/',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
+  MAGIC_LINK: '/magic-link',
+  PROFILE: '/profile',
+  ADMIN_USERS: '/admin/users',
+  ADMIN_USER_DETAIL: '/admin/users',  // + `/${id}`
+  TELEMETRY: '/telemetry',
+  TELEMETRY_SPANS: '/telemetry/spans',
+  TELEMETRY_METRICS: '/telemetry/metrics',
+  TELEMETRY_USAGE: '/telemetry/usage',
+  SETTINGS: '/settings',
+} as const;
+
+// Responsive breakpoints (matching Tailwind defaults)
+export const BREAKPOINTS = {
+  MOBILE: 768,    // <768px: mobile
+  TABLET: 1024,   // 768–1024px: tablet
+  DESKTOP: 1024,  // >1024px: desktop
+} as const;
+
+// Sidebar dimensions
+export const SIDEBAR = {
+  EXPANDED_WIDTH: 256,  // px
+  COLLAPSED_WIDTH: 64,  // px
+  MOBILE_BREAKPOINT: 768,
+} as const;
+
+// Pagination defaults
+export const PAGINATION = {
+  DEFAULT_PAGE: 1,
+  DEFAULT_LIMIT: 20,
+  ADMIN_USERS_LIMIT: 20,
+  SPANS_LIMIT: 50,
+  METRICS_LIMIT: 50,
+  USAGE_LIMIT: 100,
+} as const;
+
+// Token refresh timing
+export const AUTH = {
+  REFRESH_THRESHOLD_MS: 30_000,  // Refresh if token expires in <30s
+  LOCALSTORAGE_ACCESS_TOKEN: 'ace_access_token',
+  LOCALSTORAGE_REFRESH_TOKEN: 'ace_refresh_token',
+  LOCALSTORAGE_EXPIRES_AT: 'ace_expires_at',
+} as const;
+
+// Theme defaults
+export const THEME = {
+  DEFAULT_PRESET: 'one-dark',
+  DEFAULT_MODE: 'dark' as const,
+  LOCALSTORAGE_KEY: 'ace-ui',
+  LOCALSTORAGE_THEME_KEY: 'ace-theme',
+} as const;
+```
+
+---
+
+## 7. Validation Schemas (`$lib/validation/schemas.ts`)
+
+Zod schemas matching backend validation rules. Used by `useForm` composable for client-side validation. Server validation errors override client-side validation.
+
+```typescript
+import { z } from 'zod';
+
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+}).refine(data => data.password === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('Invalid email format'),
+});
+
+export const resetPasswordSchema = z.object({
+  newPassword: z.string().min(8, 'Password must be at least 8 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
+}).refine(data => data.newPassword === data.confirmPassword, {
+  message: 'Passwords do not match',
+  path: ['confirmPassword'],
+});
+
+export const suspendUserSchema = z.object({
+  reason: z.string().max(500, 'Reason must be at most 500 characters').optional(),
+});
+
+export const updateUserRoleSchema = z.object({
+  role: z.enum(['admin', 'user', 'viewer']),
+});
+```
+
+---
+
+## 8. Theme System Specification
+
+### 8.1 CSS Token Hierarchy
+
+Theme tokens are CSS custom properties applied to `<html>` via a class. Tailwind v4's CSS-first configuration maps these tokens to utility classes (`bg-background`, `text-foreground`, `border-border`, etc.).
+
+**Token set (applied per theme in `$lib/themes/*.css`)**:
+
+```css
+@layer base {
+  .{theme-preset}-{mode} {
+    --color-background: <r g b>;
+    --color-foreground: <r g b>;
+    --color-card: <r g b>;
+    --color-card-foreground: <r g b>;
+    --color-primary: <r g b>;
+    --color-primary-foreground: <r g b>;
+    --color-secondary: <r g b>;
+    --color-secondary-foreground: <r g b>;
+    --color-muted: <r g b>;
+    --color-muted-foreground: <r g b>;
+    --color-accent: <r g b>;
+    --color-accent-foreground: <r g b>;
+    --color-destructive: <r g b>;
+    --color-destructive-foreground: <r g b>;
+    --color-border: <r g b>;
+    --color-input: <r g b>;
+    --color-ring: <r g b>;
+    --radius-sm: <value>;
+    --radius-md: <value>;
+    --radius-lg: <value>;
+    --font-sans: <value>;
+    --font-mono: <value>;
+  }
+}
+```
+
+### 8.2 Theme Preset Definitions
+
+Each theme preset is a `.css` file in `$lib/themes/` defining both dark and light variants in a single file (or paired files). The theme registry (`$lib/themes/index.ts`) maps preset names to their CSS class names.
+
+**Presets:**
+
+| Preset Name | Dark Class | Light Class | Description |
+|-------------|-----------|-------------|-------------|
+| `one-dark` | `.one-dark-dark` | `.one-dark-light` | Atom One Dark-inspired. Warm tones, high contrast. **Default.** |
+| `one-light` | `.one-light-dark` | `.one-light-light` | Atom One Light-inspired. Clean, warm whites. |
+| `catppuccin-mocha` | `.catppuccin-mocha-dark` | `.catppuccin-mocha-light` | Pastel dark theme. Soft contrast, cozy. |
+| `catppuccin-latte` | `.catppuccin-latte-dark` | `.catppuccin-latte-light` | Pastel light theme. Warm tones. |
+| `nord` | `.nord-dark` | `.nord-light` | Arctic blue-grey palette. Cool, calm. |
+| `monokai` | `.monokai-dark` | `.monokai-light` | Vibrant syntax highlighter palette. High contrast color pops. |
+
+### 8.3 Theme Registry (`$lib/themes/index.ts`)
+
+```typescript
+export interface ThemePreset {
+  name: string;
+  label: string;
+  darkClass: string;
+  lightClass: string;
+}
+
+export const themePresets: ThemePreset[] = [
+  { name: 'one-dark',        label: 'One Dark',         darkClass: 'one-dark-dark',        lightClass: 'one-dark-light' },
+  { name: 'one-light',       label: 'One Light',        darkClass: 'one-light-dark',       lightClass: 'one-light-light' },
+  { name: 'catppuccin-mocha', label: 'Catppuccin Mocha', darkClass: 'catppuccin-mocha-dark', lightClass: 'catppuccin-mocha-light' },
+  { name: 'catppuccin-latte', label: 'Catppuccin Latte', darkClass: 'catppuccin-latte-dark', lightClass: 'catppuccin-latte-light' },
+  { name: 'nord',            label: 'Nord',             darkClass: 'nord-dark',            lightClass: 'nord-light' },
+  { name: 'monokai',        label: 'Monokai',          darkClass: 'monokai-dark',          lightClass: 'monokai-light' },
+];
+
+export function getThemeClass(preset: string, mode: 'dark' | 'light'): string {
+  const theme = themePresets.find(t => t.name === preset);
+  if (!theme) return 'one-dark-dark'; // fallback
+  return mode === 'dark' ? theme.darkClass : theme.lightClass;
+}
+```
+
+### 8.4 Theme Application Flow
+
+1. **`app.html`**: Inline `<script>` in `<head>` reads `ace-theme` from localStorage, applies class to `<html>` before first paint to prevent flash of unstyled content (FOUC).
+2. **`+layout.svelte` (root)**: Calls `uiStore.init()` on mount, which reads localStorage, sets reactive state, applies class.
+3. **Settings page**: Theme selector grid → `uiStore.setTheme(preset)` → updates state, persists, applies.
+4. **Mode toggle**: `uiStore.toggleMode()` → switches dark/light variant of current preset.
+
+### 8.5 WCAG 2.1 AA Contrast Requirements
+
+Every theme preset must meet:
+- Normal text (<18pt): ≥ 4.5:1 contrast ratio against background
+- Large text (≥18pt or ≥14pt bold): ≥ 3:1 contrast ratio
+- UI components and graphical objects: ≥ 3:1
+
+Each preset file includes comment documentation of contrast ratios for `foreground`/`background`, `primary`/`primary-foreground`, `destructive`/`destructive-foreground`, and `muted-foreground`/`background` pairs.
+
+---
+
+## 9. Route Guard Specification
+
+### 9.1 Auth Route Groups
+
+| Group | Path Pattern | Layout | Auth Check | Sidebar | Redirect |
+|-------|-------------|--------|-----------|---------|----------|
+| `(auth)` | `/login`, `/register`, `/forgot-password`, `/reset-password`, `/magic-link` | Centered card | If authenticated → redirect to `/` | No | Authenticated users leave |
+| `(app)` | `/`, `/profile`, `/admin/*`, `/telemetry/*`, `/settings` | App shell | If not authenticated → redirect to `/login` | Yes | Unauthenticated users leave |
+| `(errors)` | `/404` | Centered message | No | No | None |
+
+### 9.2 Role-Based Access
+
+| Route | Required Role | Fallback |
+|-------|--------------|----------|
+| `/admin/users` | `admin` | Show 403 Forbidden message |
+| `/admin/users/[id]` | `admin` | Show 403 Forbidden message |
+| All other routes | Any authenticated user | N/A |
+
+Role check is cosmetic only (sidebar item visibility + route guard message). Backend enforces RBAC on all admin endpoints.
+
+---
+
+## 10. SvelteKit Configuration
+
+### 10.1 `+layout.ts` Files
+
+**`(app)/+layout.ts`**:
+```typescript
+export const ssr = false;
+export const prerender = false;
+```
+
+All app pages are client-rendered only. No SSR, no prerendering.
+
+**`(auth)/+layout.ts`**: Not needed — auth pages work without disabling SSR, but they also function client-side.
+
+### 10.2 Vite Proxy (`vite.config.ts`)
+
+```typescript
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+    strictPort: false,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      '/health': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+```
+
+Development: frontend (`localhost:5173`) proxies `/api` and `/health` to backend (`localhost:8080`). Production: both served from Go binary — no proxy needed.
+
+### 10.3 `app.html`
+
+The HTML shell includes a blocking script in `<head>` to prevent FOUC:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <script>
+      // Prevent FOUC: apply saved theme before page renders
+      try {
+        const ui = JSON.parse(localStorage.getItem('ace-ui') || '{}');
+        const theme = ui.theme || 'one-dark';
+        const mode = ui.mode || 'dark';
+        const themeClass = theme + '-' + mode;
+        document.documentElement.classList.add(themeClass);
+      } catch (e) {
+        document.documentElement.classList.add('one-dark-dark');
+      }
+    </script>
+    %sveltekit.head%
+  </head>
+  <body data-sveltekit-preload-data="hover">
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>
+```
+
+### 10.4 `app.css`
+
+```css
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    /* Default tokens — overridden by theme classes */
+    --color-background: 255 255 255;
+    --color-foreground: 15 15 15;
+    --color-card: 255 255 255;
+    --color-card-foreground: 15 15 15;
+    --color-primary: 59 130 246;
+    --color-primary-foreground: 255 255 255;
+    --color-secondary: 241 245 249;
+    --color-secondary-foreground: 15 15 15;
+    --color-muted: 241 245 249;
+    --color-muted-foreground: 107 114 128;
+    --color-accent: 241 245 249;
+    --color-accent-foreground: 15 15 15;
+    --color-destructive: 239 68 68;
+    --color-destructive-foreground: 255 255 255;
+    --color-border: 229 231 235;
+    --color-input: 229 231 235;
+    --color-ring: 59 130 246;
+    --radius-sm: 0.25rem;
+    --radius-md: 0.375rem;
+    --radius-lg: 0.5rem;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+}
+```
+
+---
+
+## 11. Testing File Specification
+
+### 11.1 Test File Locations
+
+Tests are co-located with their source files using the `.test.ts` or `.svelte.test.ts` suffix.
+
+```
+frontend/src/
+├── lib/
+│   ├── api/
+│   │   ├── client.test.ts                  # APIClient: token injection, refresh, error normalization
+│   │   ├── auth.test.ts                    # Auth API functions mocked
+│   │   ├── sessions.test.ts                # Session API functions mocked
+│   │   ├── admin.test.ts                   # Admin API functions mocked
+│   │   └── telemetry.test.ts               # Telemetry API functions mocked
+│   ├── stores/
+│   │   ├── auth.svelte.test.ts             # AuthStore: login, logout, refresh, token lifecycle
+│   │   ├── ui.svelte.test.ts               # UIStore: theme switching, persistence
+│   │   └── notifications.svelte.test.ts    # NotificationStore: add, dismiss, auto-dismiss
+│   ├── utils/
+│   │   ├── cn.test.ts                      # cn() class merger
+│   │   ├── form.svelte.test.ts             # useForm: validate, handleSubmit, setFieldErrors
+│   │   ├── formatter.test.ts               # formatDate, formatDuration, formatCost, etc.
+│   │   └── constants.test.ts               # Route paths, breakpoint values
+│   ├── validation/
+│   │   └── schemas.test.ts                 # Zod schemas: valid/invalid inputs
+│   └── components/
+│       ├── ui/button/Button.test.ts        # Button renders, click handling, variants
+│       ├── ui/input/Input.test.ts          # Input renders, typing, validation error display
+│       ├── ui/dialog/Dialog.test.ts        # Dialog open/close, focus trap
+│       ├── ui/select/Select.test.ts        # Select options, keyboard nav
+│       ├── ui/badge/Badge.test.ts          # Badge variants
+│       ├── layout/Sidebar.test.ts          # Sidebar collapse, nav items, mobile overlay
+│       ├── layout/Header.test.ts           # Breadcrumbs, user menu
+│       └── shared/DataState.test.ts        # Loading/error/empty states
+├── test/
+│   ├── setup.ts                            # Vitest setup (jsdom, global mocks)
+│   └── integration/
+│       ├── auth.test.ts                    # Full login → redirect flow
+│       └── admin.test.ts                   # Admin user management flow
+```
+
+### 11.2 Test Conventions
+
+- **Unit tests** (stores, utils, API client): Test pure TypeScript classes/functions. Mock fetch. No DOM rendering.
+- **Component tests** (UI primitives, layout): Use `@testing-library/svelte` `render()` and `screen`. Test user-visible behavior, not implementation details.
+- **Integration tests**: Test full flows across stores and API client. Mock fetch at the network level.
+- **No E2E tests** in scope for this unit (future Playwright unit).
+
+### 11.3 Vitest Configuration
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { sveltekit } from '@sveltejs/kit/vite';
+
+export default defineConfig({
+  plugins: [sveltekit()],
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
+    include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json', 'html'],
+    },
+  },
+});
+```
+
+---
+
+## 12. Dependency Summary
+
+### Production Dependencies (to add)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `bits-ui` | ^0.22 | Headless UI primitives (Dialog, Select, Dropdown, Tabs, etc.) |
+| `tailwindcss` | ^4.0 | Utility CSS framework |
+| `clsx` | ^2.1 | Conditional class name utility |
+| `tailwind-merge` | ^2.2 | Tailwind class conflict resolution |
+| `zod` | ^3.22 | Schema validation |
+| `lucide-svelte` | ^0.400 | Icon library |
+
+### Development Dependencies (to add)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@tailwindcss/vite` | ^4.0 | Tailwind v4 Vite plugin |
+
+### Existing Dependencies (already installed)
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `@sveltejs/adapter-static` | ^3.0 | SPA static build |
+| `@sveltejs/kit` | ^2.15 | Framework |
+| `svelte` | ^5.19 | Compiler (runes) |
+| `vite` | ^6.0 | Build tool |
+| `vitest` | ^2.1 | Testing |
+| `@testing-library/svelte` | ^5.2 | Component testing |
+| `jsdom` | ^25.0 | DOM environment for tests |
+| `@opentelemetry/*` | various | OpenTelemetry client (existing) |
+
+---
+
+## 5. State Management Files
+
+All stores use Svelte 5 rune-based classes in `.svelte.ts` modules. Stores are the single source of truth for their domain. Components never call API client directly — they call store methods.
+
+### 5.1 `$lib/stores/auth.svelte.ts`
+
+**Purpose**: Authentication state, token lifecycle, login/logout/refresh.
+
+```typescript
+export class AuthStore {
+  // Reactive state
+  user = $state<User | null>(null);
+  accessToken = $state<string>('');
+  refreshToken = $state<string>('');
+  expiresAt = $state<number>(0);
+  isLoading = $state<boolean>(false);
+  error = $state<string | null>(null);
+
+  // Derived state
+  isAuthenticated = $derived(this.user !== null && this.accessToken !== '');
+
+  // Methods
+  init(): void;
+  // Load tokens from localStorage. If expired, attempt refresh. If refresh fails, clear.
+
+  async login(email: string, password: string): Promise<void>;
+  // Call authApi.login → store tokens + user → redirect to /
+
+  async register(email: string, password: string): Promise<void>;
+  // Call authApi.register → auto-login → redirect to /
+
+  async logout(): Promise<void>;
+  // Call authApi.logout → clear localStorage → reset state → redirect to /login
+
+  async refreshTokens(): Promise<void>;
+  // Call authApi.refresh → update tokens + expiry. Refresh mutex: single in-flight promise.
+
+  ensureValidToken(): Promise<void>;
+  // If token expires in <30s, call refreshTokens(). Called by APIClient before each request.
+
+  clear(): void;
+  // Reset all state to defaults. Clear localStorage keys: access_token, refresh_token, ace-theme.
+}
+
+export const authStore = new AuthStore();
+```
+
+**LocalStorage keys**:
+- `ace_access_token` — JWT access token
+- `ace_refresh_token` — JWT refresh token
+- `ace_expires_at` — Token expiry timestamp (ms since epoch)
+
+**State transitions**:
+```
+[Unauthenticated] ──login/register/magic-link──> [Authenticated]
+[Authenticated] ──token expiry <30s──> [Refreshing] ──success──> [Authenticated]
+[Refreshing] ──failure──> [Unauthenticated] (redirect /login)
+[Authenticated] ──logout──> [Unauthenticated] (clear storage, redirect /login)
+```
+
+### 5.2 `$lib/stores/ui.svelte.ts`
+
+**Purpose**: Global UI preferences — theme, sidebar state.
+
+```typescript
+export class UIStore {
+  // Theme state
+  theme = $state<string>('one-dark');        // Current theme preset name
+  mode = $state<'dark' | 'light'>('dark');   // Current mode
+  sidebarCollapsed = $state<boolean>(false);  // Sidebar collapsed state
+
+  // Derived: CSS class to apply to <html>
+  themeClass = $derived(`${this.theme}-${this.mode}`);
+
+  // Methods
+  setTheme(preset: string): void;
+  // Update theme preset, persist to localStorage, apply to DOM
+
+  toggleMode(): void;
+  // Toggle dark/light mode, persist, apply
+
+  toggleSidebar(): void;
+  // Toggle sidebar collapsed state, persist
+
+  setSidebarCollapsed(collapsed: boolean): void;
+  // Set sidebar to specific state (used by responsive breakpoint handler)
+
+  private apply(): void;
+  // Remove all theme classes from <html>, add current themeClass
+
+  private persist(): void;
+  // Write { theme, mode, sidebarCollapsed } to localStorage key 'ace-ui'
+
+  init(): void;
+  // Load from localStorage, apply. Defaults: one-dark, dark, expanded.
+}
+
+export const uiStore = new UIStore();
+```
+
+**LocalStorage keys**:
+- `ace-ui` — JSON `{ theme, mode, sidebarCollapsed }`
+
+**Responsive behavior**: On window resize <768px, `setSidebarCollapsed(true)`. On resize ≥768px, restore persisted preference.
+
+### 5.3 `$lib/stores/notifications.svelte.ts`
+
+**Purpose**: Toast notification system for success/error/warning/info messages.
+
+```typescript
+export interface Toast {
+  id: string;
+  variant: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  description?: string;
+  duration: number;     // ms, 0 = manual dismiss
+  createdAt: number;
+}
+
+export class NotificationStore {
+  toasts = $state<Toast[]>([]);
+
+  add(title: string, variant: Toast['variant'] = 'info', description?: string, duration: number = 5000): string;
+  // Create toast, push to array, return id. Auto-dismiss after duration (if > 0).
+
+  dismiss(id: string): void;
+  // Remove toast by id.
+
+  success(title: string, description?: string): string;
+  // Shorthand: add(title, 'success', description)
+
+  error(title: string, description?: string): string;
+  // Shorthand: add(title, 'error', description, 8000) — longer duration for errors
+
+  warning(title: string, description?: string): string;
+  // Shorthand: add(title, 'warning', description)
+
+  info(title: string, description?: string): string;
+  // Shorthand: add(title, 'info', description)
+}
+
+export const notificationStore = new NotificationStore();
+```
+
+**Usage in components**: `<Toaster />` component reads from `notificationStore.toasts` and renders the toast stack. Auto-dismiss is handled via `setTimeout` in `add()`.
