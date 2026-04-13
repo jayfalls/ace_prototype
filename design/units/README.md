@@ -14,3 +14,7 @@ This directory contains discrete pieces of work: features, components, refactors
 ## Developer Experience
 
 - [Deployment & DX](deployment-dx/README.md) - Status: Complete
+
+## User Interface
+
+- [Frontend Design](frontend-design/README.md) - Status: Discovery
