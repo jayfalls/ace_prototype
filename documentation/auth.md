@@ -113,7 +113,7 @@ Recovery → Logger → CORS → RateLimit → Auth → Handler
 
 ---
 
-## Events (NATS)
+## Events
 
 | Event | Subject |
 |-------|---------|
@@ -124,6 +124,8 @@ Recovery → Logger → CORS → RateLimit → Auth → Handler
 | Role Change | `ace.auth.role_change.event` |
 | Account Suspended | `ace.auth.suspended.event` |
 | Account Deleted | `ace.auth.deleted.event` |
+
+*Events are published internally via the event bus.*
 
 ---
 

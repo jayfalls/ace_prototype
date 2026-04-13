@@ -2,43 +2,49 @@
 
 ## Prerequisites
 
-- Docker or Podman
+- Git
+- Go 1.21+
+- Node.js 18+ (for frontend development)
 
-## Quick Start
+## Installation
 
-- Clone the repo
+### Install Latest Release
+
+```bash
+curl -fsSL https://ace.dev/install.sh | sh
+```
+
+### Clone for Development
+
 ```bash
 git clone https://github.com/jayfalls/ace_prototype.git
 cd ace_prototype
 ```
 
-- Run the ACE
+## Quick Start
+
+Run ACE in development mode with hot reload:
+
 ```bash
-make up
+make ace
 ```
 
 ### Make Commands
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Start all services |
-| `make down` | Stop all services |
-| `make restart` | Restart all services |
-| `make logs` | View logs |
-| `make logs-api` | View API logs |
-| `make logs-fe` | View frontend logs |
-| `make logs-db` | View database logs |
-| `make logs-broker` | View broker logs |
-| `make clean` | Remove all containers and volumes |
-| `make build` | Build all images |
-| `make ps` | Show running containers |
+| `make ace` | Run ACE with hot reload (backend + frontend) |
+| `make test` | Run full validation pipeline |
+| `make dev` | Setup dev environment (distrobox + OpenCode) |
+| `make agent` | Start OpenCode agent |
 | `make help` | Show available commands |
 
 ## Services
+
+After running `make ace`:
 
 | Service | URL |
 |---------|-----|
 | Frontend | http://localhost:5173 |
 | API | http://localhost:8080 |
-| PostgreSQL | localhost:5432 |
-| NATS | localhost:4222 |
+| Swagger UI | http://localhost:8080/swagger/index.html |
