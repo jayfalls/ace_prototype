@@ -10,13 +10,18 @@ import (
 
 	"ace/internal/platform"
 	"ace/internal/platform/database"
+	"ace/internal/platform/messaging"
+
+	"github.com/nats-io/nats.go"
 )
 
 // App represents the main ACE application.
 type App struct {
-	Config *Config
-	Paths  *platform.Paths
-	DB     *sql.DB
+	Config      *Config
+	Paths       *platform.Paths
+	DB          *sql.DB
+	NATSConn    *nats.Conn
+	natsCleanup func() error
 }
 
 // New creates a new App instance with the given configuration.
@@ -51,10 +56,27 @@ func New(cfg *Config) (*App, error) {
 		return nil, fmt.Errorf("migrate database: %w", err)
 	}
 
+	// Initialize NATS messaging
+	messagingCfg := &messaging.Config{
+		Mode: cfg.NATSMode,
+		URL:  cfg.NATSURL,
+	}
+	messagingPaths := &messaging.MessagingPaths{
+		NATSPath: paths.NATSPath,
+	}
+
+	nc, natsCleanup, err := messaging.Init(messagingCfg, messagingPaths)
+	if err != nil {
+		db.Close()
+		return nil, fmt.Errorf("init messaging: %w", err)
+	}
+
 	return &App{
-		Config: cfg,
-		Paths:  &paths,
-		DB:     db,
+		Config:      cfg,
+		Paths:       &paths,
+		DB:          db,
+		NATSConn:    nc,
+		natsCleanup: natsCleanup,
 	}, nil
 }
 
@@ -68,6 +90,13 @@ func (a *App) Serve() error {
 
 // Shutdown gracefully shuts down the application.
 func (a *App) Shutdown() error {
+	// Cleanup NATS (drain client then shutdown server)
+	if a.natsCleanup != nil {
+		if err := a.natsCleanup(); err != nil {
+			return fmt.Errorf("cleanup messaging: %w", err)
+		}
+	}
+
 	// Close database connection
 	if a.DB != nil {
 		if err := a.DB.Close(); err != nil {
