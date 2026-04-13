@@ -5,15 +5,120 @@
 		<link rel="icon" href="%sveltekit.assets%/favicon.png" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<script>
-			// FOUC prevention: apply theme before first paint
+			// FOUC prevention: apply theme CSS variables before first paint
 			(function() {
 				try {
 					var stored = localStorage.getItem('ace-ui');
+					var theme = 'one-dark';
+					var mode = 'dark';
+					
 					if (stored) {
 						var parsed = JSON.parse(stored);
-						if (parsed && parsed.theme) {
-							document.documentElement.classList.add(parsed.theme + '-' + (parsed.mode || 'dark'));
+						theme = parsed.theme || theme;
+						mode = parsed.mode || mode;
+					}
+					
+					var themes = {
+						'one-dark': {
+							dark: {
+								'--background': '220 20% 10%', '--foreground': '220 10% 92%',
+								'--card': '220 18% 12%', '--card-foreground': '220 10% 92%',
+								'--primary': '262 83% 58%', '--primary-foreground': '0 0% 98%',
+								'--secondary': '220 15% 16%', '--secondary-foreground': '220 10% 92%',
+								'--muted': '220 15% 16%', '--muted-foreground': '220 10% 60%',
+								'--accent': '220 18% 20%', '--accent-foreground': '220 10% 92%',
+								'--destructive': '0 72% 51%', '--destructive-foreground': '0 0% 98%',
+								'--border': '220 15% 22%', '--input': '220 15% 22%', '--ring': '262 83% 58%'
+							},
+							light: {
+								'--background': '0 0% 98%', '--foreground': '220 20% 20%',
+								'--card': '0 0% 100%', '--card-foreground': '220 20% 20%',
+								'--primary': '262 83% 58%', '--primary-foreground': '0 0% 98%',
+								'--secondary': '220 15% 90%', '--secondary-foreground': '220 20% 20%',
+								'--muted': '220 15% 90%', '--muted-foreground': '220 10% 40%',
+								'--accent': '220 18% 85%', '--accent-foreground': '220 20% 20%',
+								'--destructive': '0 72% 51%', '--destructive-foreground': '0 0% 98%',
+								'--border': '220 15% 85%', '--input': '220 15% 85%', '--ring': '262 83% 58%'
+							}
+						},
+						'nord': {
+							dark: {
+								'--background': '220 16% 22%', '--foreground': '219 28% 88%',
+								'--card': '220 16% 25%', '--card-foreground': '219 28% 88%',
+								'--primary': '213 32% 52%', '--primary-foreground': '219 28% 88%',
+								'--secondary': '220 16% 28%', '--secondary-foreground': '219 28% 88%',
+								'--muted': '220 16% 28%', '--muted-foreground': '219 20% 65%',
+								'--accent': '220 16% 32%', '--accent-foreground': '219 28% 88%',
+								'--destructive': '354 42% 56%', '--destructive-foreground': '219 28% 88%',
+								'--border': '220 16% 32%', '--input': '220 16% 32%', '--ring': '213 32% 52%'
+							},
+							light: {
+								'--background': '220 16% 96%', '--foreground': '220 16% 22%',
+								'--card': '0 0% 100%', '--card-foreground': '220 16% 22%',
+								'--primary': '213 32% 52%', '--primary-foreground': '0 0% 100%',
+								'--secondary': '220 16% 90%', '--secondary-foreground': '220 16% 22%',
+								'--muted': '220 16% 90%', '--muted-foreground': '220 10% 45%',
+								'--accent': '220 16% 85%', '--accent-foreground': '220 16% 22%',
+								'--destructive': '354 42% 56%', '--destructive-foreground': '0 0% 100%',
+								'--border': '220 16% 85%', '--input': '220 16% 85%', '--ring': '213 32% 52%'
+							}
+						},
+						'catppuccin-mocha': {
+							dark: {
+								'--background': '234 20% 10%', '--foreground': '234 10% 92%',
+								'--card': '234 18% 14%', '--card-foreground': '234 10% 92%',
+								'--primary': '272 60% 60%', '--primary-foreground': '234 10% 8%',
+								'--secondary': '234 15% 18%', '--secondary-foreground': '234 10% 92%',
+								'--muted': '234 15% 18%', '--muted-foreground': '234 10% 60%',
+								'--accent': '234 18% 22%', '--accent-foreground': '234 10% 92%',
+								'--destructive': '15 75% 60%', '--destructive-foreground': '234 10% 8%',
+								'--border': '234 15% 24%', '--input': '234 15% 24%', '--ring': '272 60% 60%'
+							},
+							light: {
+								'--background': '234 20% 96%', '--foreground': '234 10% 22%',
+								'--card': '0 0% 100%', '--card-foreground': '234 10% 22%',
+								'--primary': '272 60% 55%', '--primary-foreground': '234 10% 96%',
+								'--secondary': '234 15% 92%', '--secondary-foreground': '234 10% 30%',
+								'--muted': '234 15% 92%', '--muted-foreground': '234 10% 48%',
+								'--accent': '234 15% 90%', '--accent-foreground': '234 10% 30%',
+								'--destructive': '15 75% 55%', '--destructive-foreground': '0 0% 98%',
+								'--border': '234 15% 86%', '--input': '234 15% 86%', '--ring': '272 60% 55%'
+							}
+						},
+						'monokai': {
+							dark: {
+								'--background': '30 100% 8%', '--foreground': '60 100% 90%',
+								'--card': '30 80% 12%', '--card-foreground': '60 100% 90%',
+								'--primary': '150 100% 45%', '--primary-foreground': '30 100% 8%',
+								'--secondary': '30 60% 15%', '--secondary-foreground': '60 100% 90%',
+								'--muted': '30 60% 15%', '--muted-foreground': '60 80% 60%',
+								'--accent': '280 80% 55%', '--accent-foreground': '60 100% 90%',
+								'--destructive': '0 100% 55%', '--destructive-foreground': '0 0% 100%',
+								'--border': '30 50% 22%', '--input': '30 50% 22%', '--ring': '150 100% 45%'
+							},
+							light: {
+								'--background': '60 100% 95%', '--foreground': '30 80% 15%',
+								'--card': '0 0% 100%', '--card-foreground': '30 80% 15%',
+								'--primary': '150 80% 40%', '--primary-foreground': '60 100% 95%',
+								'--secondary': '60 30% 90%', '--secondary-foreground': '30 80% 20%',
+								'--muted': '60 30% 90%', '--muted-foreground': '30 60% 40%',
+								'--accent': '280 60% 50%', '--accent-foreground': '60 100% 95%',
+								'--destructive': '0 90% 50%', '--destructive-foreground': '0 0% 100%',
+								'--border': '60 30% 80%', '--input': '60 30% 80%', '--ring': '150 80% 40%'
+							}
 						}
+					};
+					
+					var t = themes[theme] || themes['one-dark'];
+					var colors = t[mode] || t.dark;
+					var root = document.documentElement;
+					
+					for (var key in colors) {
+						root.style.setProperty(key, colors[key]);
+					}
+					
+					if (mode === 'dark') {
+						document.documentElement.classList.add('dark');
 					}
 				} catch (e) {}
 			})();

@@ -35,6 +35,9 @@ describe('uiStore', () => {
 				classList: {
 					add: (...classes: string[]) => classes.forEach((c) => documentClassList.add(c)),
 					remove: (...classes: string[]) => classes.forEach((c) => documentClassList.delete(c))
+				},
+				style: {
+					setProperty: vi.fn()
 				}
 			}
 		});
@@ -58,9 +61,13 @@ describe('uiStore', () => {
 			expect(stored.mode).toBe(THEME.DEFAULT_MODE);
 		});
 
-		it('applies theme class to document', () => {
+		it('applies CSS variables to document', () => {
+			const setPropertyMock = vi.fn();
+			(document.documentElement as any).style.setProperty = setPropertyMock;
+
 			uiStore.apply();
-			expect(documentClassList.has('one-dark-dark')).toBe(true);
+
+			expect(setPropertyMock).toHaveBeenCalled();
 		});
 	});
 
@@ -79,15 +86,18 @@ describe('uiStore', () => {
 			expect(uiStore.sidebarCollapsed).toBe(true);
 		});
 
-		it('applies class on init', () => {
+		it('applies CSS variables on init', () => {
 			localStorageMock[THEME.LOCALSTORAGE_KEY] = JSON.stringify({
 				theme: 'nord',
 				mode: 'dark'
 			});
 
+			const setPropertyMock = vi.fn();
+			(document.documentElement as any).style.setProperty = setPropertyMock;
+
 			uiStore.init();
 
-			expect(documentClassList.has('nord-dark')).toBe(true);
+			expect(setPropertyMock).toHaveBeenCalledWith('--background', expect.any(String));
 		});
 
 		it('uses defaults on empty storage', () => {
@@ -107,10 +117,14 @@ describe('uiStore', () => {
 			expect(stored.theme).toBe('monokai');
 		});
 
-		it('applies new theme class', () => {
-			uiStore.setTheme('monokai');
+		it('applies CSS variables for the theme', () => {
+			const setPropertyMock = vi.fn();
+			(document.documentElement as any).style.setProperty = setPropertyMock;
 
-			expect(documentClassList.has('monokai-dark')).toBe(true);
+			uiStore.setTheme('nord');
+
+			expect(setPropertyMock).toHaveBeenCalledWith('--background', expect.any(String));
+			expect(setPropertyMock).toHaveBeenCalledWith('--primary', expect.any(String));
 		});
 	});
 
