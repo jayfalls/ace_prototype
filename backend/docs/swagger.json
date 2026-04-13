@@ -1,8 +1,13 @@
 {
     "swagger": "2.0",
     "info": {
-        "contact": {}
+        "description": "Agent Configuration Engine - A secure, embedded database for managing users, sessions, and permissions",
+        "title": "ACE - Agent Configuration Engine",
+        "contact": {},
+        "version": "0.1.0"
     },
+    "host": "localhost:8080",
+    "basePath": "/",
     "paths": {
         "/admin/users": {
             "get": {

@@ -4,7 +4,6 @@ package router
 import (
 	"context"
 	"database/sql"
-	"embed"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 
+	"ace/docs"
 	"ace/internal/api/handler"
 	mw "ace/internal/api/middleware"
 	db "ace/internal/api/repository/generated"
@@ -21,12 +21,9 @@ import (
 	"ace/internal/caching"
 )
 
-//go:embed docs/swagger.json
-var openAPISpec embed.FS
-
-// GetOpenAPISpec returns the OpenAPI spec as bytes.
+// GetOpenAPISpec returns the OpenAPI spec as bytes using swaggo.
 func GetOpenAPISpec() ([]byte, error) {
-	return openAPISpec.ReadFile("docs/swagger.json")
+	return []byte(docs.SwaggerInfo.ReadDoc()), nil
 }
 
 // Error definitions for router validation.

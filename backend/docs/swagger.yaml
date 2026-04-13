@@ -1,3 +1,4 @@
+basePath: /
 definitions:
   handler.AdminUserResponse:
     properties:
@@ -272,8 +273,13 @@ definitions:
       message:
         type: string
     type: object
+host: localhost:8080
 info:
   contact: {}
+  description: Agent Configuration Engine - A secure, embedded database for managing
+    users, sessions, and permissions
+  title: ACE - Agent Configuration Engine
+  version: 0.1.0
 paths:
   /admin/users:
     get:

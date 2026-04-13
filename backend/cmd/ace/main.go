@@ -1,4 +1,10 @@
 // Package main is the entry point for the ACE binary.
+//
+//	@title		ACE - Agent Configuration Engine
+//	@version	0.1.0
+//	@description	Agent Configuration Engine - A secure, embedded database for managing users, sessions, and permissions
+//	@host		localhost:8080
+//	@basePath	/
 package main
 
 import (

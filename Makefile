@@ -76,6 +76,9 @@ ace: ## Run ace backend and frontend with hot reloading (dev mode)
 	)
 
 test: ## Run full validation pipeline (build, lint, test, git add)
+	@echo "=== Swag Init ==="
+	cd backend && swag init -g ./cmd/ace/main.go -o ./docs
+	@echo ""
 	@echo "=== Go Build ==="
 	cd backend && go build ./...
 	@echo ""
