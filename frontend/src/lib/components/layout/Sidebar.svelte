@@ -37,7 +37,7 @@
 		{ href: '/agents', icon: Bot, label: 'Agents', adminOnly: false, disabled: true },
 		{ href: '/chat', icon: MessageSquare, label: 'Chat', adminOnly: false, disabled: true },
 		{ href: '/memory', icon: HardDrive, label: 'Memory', adminOnly: false, disabled: true },
-		{ href: '/telemetry', icon: Activity, label: 'Telemetry', adminOnly: false, disabled: true },
+		{ href: '/telemetry', icon: Activity, label: 'Telemetry', adminOnly: false },
 		{ href: '/admin/users', icon: Shield, label: 'Admin', adminOnly: true }
 	]);
 
