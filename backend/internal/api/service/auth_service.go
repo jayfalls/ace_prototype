@@ -351,22 +351,14 @@ func (s *AuthService) CountUsers(ctx context.Context) (int64, error) {
 
 // generateTokensForUser creates a session and generates token pair for a user.
 func (s *AuthService) generateTokensForUser(ctx context.Context, user *model.User) (*model.TokenPair, error) {
-	// Generate token pair first to get the refresh token for session
-	// Use nil UUID as placeholder - will regenerate after getting actual session ID
-	tokens, err := s.tokenSvc.GenerateTokenPair(user, uuid.Nil)
-	if err != nil {
-		return nil, fmt.Errorf("generate token pair: %w", err)
-	}
-
-	// Create session in database
-	refreshTokenHash := HashRefreshToken(tokens.RefreshToken)
-	expiresAt := time.Now().Add(s.tokenSvc.GetRefreshTokenTTL())
 	now := time.Now().Format(time.RFC3339)
+	expiresAt := time.Now().Add(s.tokenSvc.GetRefreshTokenTTL())
 
+	// Create session FIRST with empty refresh token hash
 	session, err := s.queries.CreateSession(ctx, db.CreateSessionParams{
 		ID:               uuid.New().String(),
 		UserID:           user.ID.String(),
-		RefreshTokenHash: refreshTokenHash,
+		RefreshTokenHash: "",
 		UserAgent:        sql.NullString{},
 		IpAddress:        sql.NullString{Valid: false},
 		ExpiresAt:        expiresAt.Format(time.RFC3339),
@@ -376,20 +368,21 @@ func (s *AuthService) generateTokensForUser(ctx context.Context, user *model.Use
 		return nil, fmt.Errorf("create session: %w", err)
 	}
 
-	// Regenerate tokens with actual session ID
+	// Generate tokens with real session ID
 	sessionUUID, _ := uuid.Parse(session.ID)
-	tokens, err = s.tokenSvc.GenerateTokenPair(s.userWithoutSensitive(user), sessionUUID)
+	tokens, err := s.tokenSvc.GenerateTokenPair(s.userWithoutSensitive(user), sessionUUID)
 	if err != nil {
-		return nil, fmt.Errorf("regenerate token pair: %w", err)
+		return nil, fmt.Errorf("generate token pair: %w", err)
 	}
 
-	// Update session last used timestamp
-	_, err = s.queries.UpdateSessionLastUsed(ctx, db.UpdateSessionLastUsedParams{
-		LastUsedAt: now,
-		ID:         session.ID,
+	// Update session with refresh token hash
+	refreshTokenHash := HashRefreshToken(tokens.RefreshToken)
+	_, err = s.queries.UpdateSessionRefreshTokenHash(ctx, db.UpdateSessionRefreshTokenHashParams{
+		RefreshTokenHash: refreshTokenHash,
+		ID:               session.ID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("update session: %w", err)
+		return nil, fmt.Errorf("update session refresh token hash: %w", err)
 	}
 
 	return tokens, nil

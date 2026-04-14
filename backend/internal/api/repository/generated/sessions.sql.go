@@ -331,3 +331,40 @@ func (q *Queries) UpdateSessionLastUsed(ctx context.Context, arg UpdateSessionLa
 	)
 	return &i, err
 }
+
+const updateSessionRefreshTokenHash = `-- name: UpdateSessionRefreshTokenHash :one
+UPDATE sessions
+SET refresh_token_hash = ?
+WHERE id = ?
+RETURNING
+    id,
+    user_id,
+    refresh_token_hash,
+    user_agent,
+    ip_address,
+    last_used_at,
+    expires_at,
+    created_at
+`
+
+type UpdateSessionRefreshTokenHashParams struct {
+	RefreshTokenHash string `json:"refresh_token_hash"`
+	ID               string `json:"id"`
+}
+
+// Updates the refresh_token_hash for a session.
+func (q *Queries) UpdateSessionRefreshTokenHash(ctx context.Context, arg UpdateSessionRefreshTokenHashParams) (*Session, error) {
+	row := q.db.QueryRowContext(ctx, updateSessionRefreshTokenHash, arg.RefreshTokenHash, arg.ID)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.RefreshTokenHash,
+		&i.UserAgent,
+		&i.IpAddress,
+		&i.LastUsedAt,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return &i, err
+}
