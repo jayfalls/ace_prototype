@@ -12,7 +12,8 @@ import type {
 export async function getHealth(): Promise<TelemetryHealthResponse> {
 	return apiClient.request<TelemetryHealthResponse>({
 		method: 'GET',
-		path: '/telemetry/health'
+		path: '/health/live',
+		requiresAuth: false
 	});
 }
 

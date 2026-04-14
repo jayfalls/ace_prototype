@@ -3,48 +3,15 @@
 	import { ROUTES } from '$lib/utils/constants';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
-	import { Activity, Users, User, ArrowRight, RefreshCw } from 'lucide-svelte';
-	import HealthCards from '$lib/components/telemetry/HealthCards.svelte';
-	import { getHealth } from '$lib/api/telemetry';
-	import type { TelemetryHealthResponse } from '$lib/api/types';
+	import { Activity, Users, User, ArrowRight } from 'lucide-svelte';
 
 	let username = $derived(authStore.user?.username ?? 'User');
-
-	let health = $state<TelemetryHealthResponse | undefined>();
-	let healthLoading = $state(true);
-	let healthError = $state<string | null>(null);
-
-	async function loadHealth() {
-		healthLoading = true;
-		healthError = null;
-		try {
-			health = await getHealth();
-		} catch (err) {
-			healthError = err instanceof Error ? err.message : 'Failed to load';
-		} finally {
-			healthLoading = false;
-		}
-	}
-
-	$effect(() => {
-		loadHealth();
-	});
 </script>
 
 <div class="space-y-6">
 	<div>
 		<h1 class="text-3xl font-bold">Welcome back, {username}</h1>
 		<p class="text-muted-foreground mt-1">Here's an overview of your ACE Framework dashboard.</p>
-	</div>
-
-	<div class="space-y-4">
-		<div class="flex items-center justify-between">
-			<h2 class="text-lg font-semibold">System Health</h2>
-			<Button variant="ghost" size="icon" onclick={loadHealth} aria-label="Refresh health status">
-				<RefreshCw class="h-4 w-4 {healthLoading ? 'animate-spin' : ''}" />
-			</Button>
-		</div>
-		<HealthCards {health} loading={healthLoading} error={healthError} />
 	</div>
 
 	<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -91,29 +58,5 @@
 				</CardContent>
 			</Card>
 		{/if}
-	</div>
-
-	<div class="grid gap-4 md:grid-cols-1">
-		<Card>
-			<CardHeader>
-				<CardTitle>Quick Actions</CardTitle>
-			</CardHeader>
-			<CardContent class="flex flex-wrap gap-2">
-				<Button variant="outline" onclick={() => window.location.href = ROUTES.TELEMETRY}>
-					<Activity class="mr-2 h-4 w-4" />
-					View Telemetry
-				</Button>
-				<Button variant="outline" onclick={() => window.location.href = ROUTES.PROFILE}>
-					<User class="mr-2 h-4 w-4" />
-					My Profile
-				</Button>
-				{#if authStore.user?.role === 'admin'}
-					<Button variant="outline" onclick={() => window.location.href = ROUTES.ADMIN_USERS}>
-						<Users class="mr-2 h-4 w-4" />
-						Manage Users
-					</Button>
-				{/if}
-			</CardContent>
-		</Card>
 	</div>
 </div>
