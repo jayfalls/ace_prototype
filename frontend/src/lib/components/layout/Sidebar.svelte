@@ -127,28 +127,24 @@
 				<NavItem
 				href="/settings"
 				icon={Settings}
-				label={collapsed ? '' : 'Settings'}
+				label=""
 				active={isActive('/settings')}
 			/>
 
 			<div class="relative flex-1">
-				<button
-					bind:this={userMenuTriggerEl}
-					type="button"
-					class={cn(
-						'flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent',
-						userMenuOpen && 'bg-accent',
-						collapsed ? 'justify-center' : 'justify-start'
-					)}
-					onclick={toggleUserMenu}
-					aria-expanded={userMenuOpen}
-					aria-haspopup="true"
-				>
-					<Avatar fallback={getInitials(authStore.user?.username ?? '?')} class="h-8 w-8" />
-					{#if !collapsed}
-						<span class="text-sm font-medium">{authStore.user?.username}</span>
-					{/if}
-				</button>
+			<button
+				bind:this={userMenuTriggerEl}
+				type="button"
+				class={cn(
+					'flex items-center justify-center rounded-lg p-1 transition-colors hover:bg-accent',
+					userMenuOpen && 'bg-accent'
+				)}
+				onclick={toggleUserMenu}
+				aria-expanded={userMenuOpen}
+				aria-haspopup="true"
+			>
+				<Avatar fallback={getInitials(authStore.user?.username ?? '?')} class="h-8 w-8" />
+			</button>
 
 				{#if userMenuOpen}
 					<div
