@@ -34,8 +34,10 @@
 
 	const navItems = $derived([
 		{ href: '/', icon: LayoutDashboard, label: 'Dashboard', adminOnly: false },
-		{ href: '/agents', icon: Bot, label: 'Agents', adminOnly: false },
-		{ href: '/telemetry', icon: Activity, label: 'Telemetry', adminOnly: false },
+		{ href: '/agents', icon: Bot, label: 'Agents', adminOnly: false, disabled: true },
+		{ href: '/chat', icon: MessageSquare, label: 'Chat', adminOnly: false, disabled: true },
+		{ href: '/memory', icon: HardDrive, label: 'Memory', adminOnly: false, disabled: true },
+		{ href: '/telemetry', icon: Activity, label: 'Telemetry', adminOnly: false, disabled: true },
 		{ href: '/admin/users', icon: Shield, label: 'Admin', adminOnly: true }
 	]);
 
@@ -92,10 +94,11 @@
 			{#each visibleNavItems as item}
 				<li>
 					<NavItem
-						href={item.href}
+						href={item.disabled ? '#' : item.href}
 						icon={item.icon}
 						label={collapsed ? '' : item.label}
 						active={isActive(item.href)}
+						disabled={item.disabled}
 					/>
 				</li>
 			{/each}
@@ -103,7 +106,12 @@
 	</nav>
 
 	<div class="border-t p-2">
-		<div class="flex flex-col items-center gap-2">
+		<div
+			class={cn(
+				'flex items-center gap-2',
+				collapsed ? 'flex-col' : 'flex-row'
+			)}
+		>
 			<button
 				type="button"
 				onclick={toggleSidebar}
@@ -117,34 +125,32 @@
 				{/if}
 			</button>
 
-			<Button variant="ghost" size="sm" class="h-10 w-10 p-0" disabled aria-label="Chat (coming soon)">
-				<MessageSquare class="h-5 w-5" />
-			</Button>
+				<div class={cn('flex', collapsed ? 'justify-center' : '')}>
+				<NavItem
+					href="/settings"
+					icon={Settings}
+					label={collapsed ? '' : 'Settings'}
+					active={isActive('/settings')}
+				/>
+			</div>
 
-			<Button variant="ghost" size="sm" class="h-10 w-10 p-0" disabled aria-label="Memory (coming soon)">
-				<HardDrive class="h-5 w-5" />
-			</Button>
-
-			<NavItem
-				href="/settings"
-				icon={Settings}
-				label={collapsed ? '' : 'Settings'}
-				active={isActive('/settings')}
-			/>
-
-			<div class="relative">
+			<div class="relative flex-1">
 				<button
 					bind:this={userMenuTriggerEl}
 					type="button"
 					class={cn(
 						'flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent',
-						userMenuOpen && 'bg-accent'
+						userMenuOpen && 'bg-accent',
+						collapsed ? 'justify-center' : 'justify-start'
 					)}
 					onclick={toggleUserMenu}
 					aria-expanded={userMenuOpen}
 					aria-haspopup="true"
 				>
 					<Avatar fallback={getInitials(authStore.user?.username ?? '?')} class="h-8 w-8" />
+					{#if !collapsed}
+						<span class="text-sm font-medium">{authStore.user?.username}</span>
+					{/if}
 				</button>
 
 				{#if userMenuOpen}

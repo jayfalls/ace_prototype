@@ -4,8 +4,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { themes } from '$lib/themes/colors';
-	import { Settings2, ExternalLink, Moon, Sun, Palette } from 'lucide-svelte';
-	import { APP_VERSION, GITHUB_REPO } from '$lib/utils/constants';
+	import { Settings2, Moon, Sun, Palette } from 'lucide-svelte';
+
 
 	let selectedTheme = $state(uiStore.theme);
 	let selectedMode = $state(uiStore.mode);
@@ -30,35 +30,6 @@
 			<p class="text-muted-foreground">Application settings and configuration</p>
 		</div>
 	</div>
-
-	<Card>
-		<CardHeader>
-			<CardTitle>About</CardTitle>
-			<CardDescription>Application information</CardDescription>
-		</CardHeader>
-		<CardContent class="space-y-4">
-			<div class="flex items-center justify-between">
-				<span class="text-sm font-medium">Version</span>
-				<span class="text-sm text-muted-foreground">{APP_VERSION}</span>
-			</div>
-			<div class="flex items-center justify-between">
-				<span class="text-sm font-medium">Build</span>
-				<span class="text-sm text-muted-foreground">Production</span>
-			</div>
-			<div class="flex items-center justify-between">
-				<span class="text-sm font-medium">Repository</span>
-				<a
-					href={GITHUB_REPO}
-					target="_blank"
-					rel="noopener noreferrer"
-					class="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-				>
-					<ExternalLink class="h-4 w-4" />
-					GitHub
-				</a>
-			</div>
-		</CardContent>
-	</Card>
 
 	<Card>
 		<CardHeader>
