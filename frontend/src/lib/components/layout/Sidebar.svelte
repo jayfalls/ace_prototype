@@ -1,10 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { cn } from '$lib/utils/cn';
-	import { SIDEBAR } from '$lib/utils/constants';
+	import { ROUTES } from '$lib/utils/constants';
 	import NavItem from './NavItem.svelte';
+	import { Avatar } from '$lib/components/ui/avatar';
+	import { Button } from '$lib/components/ui/button';
 	import {
 		LayoutDashboard,
 		Bot,
@@ -12,7 +15,11 @@
 		Shield,
 		Settings,
 		ChevronLeft,
-		ChevronRight
+		ChevronRight,
+		MessageSquare,
+		HardDrive,
+		LogOut,
+		User
 	} from 'lucide-svelte';
 
 	let collapsed = $derived(uiStore.sidebarCollapsed);
@@ -35,7 +42,35 @@
 	const visibleNavItems = $derived(
 		navItems.filter(item => !item.adminOnly || authStore.user?.role === 'admin')
 	);
+
+	let userMenuOpen = $state(false);
+	let userMenuTriggerEl: HTMLButtonElement;
+
+	function toggleUserMenu() {
+		userMenuOpen = !userMenuOpen;
+	}
+
+	function closeUserMenu() {
+		userMenuOpen = false;
+	}
+
+	function handleClickOutside(e: MouseEvent) {
+		if (userMenuOpen && userMenuTriggerEl && !userMenuTriggerEl.contains(e.target as Node)) {
+			closeUserMenu();
+		}
+	}
+
+	async function handleLogout() {
+		closeUserMenu();
+		await authStore.logout();
+	}
+
+	function getInitials(name: string): string {
+		return name.slice(0, 2).toUpperCase();
+	}
 </script>
+
+<svelte:window onclick={handleClickOutside} />
 
 <aside
 	class={cn(
@@ -68,24 +103,88 @@
 	</nav>
 
 	<div class="border-t p-2">
-		<NavItem
-			href="/settings"
-			icon={Settings}
-			label={collapsed ? '' : 'Settings'}
-			active={isActive('/settings')}
-		/>
+		<div class="flex flex-col items-center gap-2">
+			<button
+				type="button"
+				onclick={toggleSidebar}
+				class="flex h-10 w-10 items-center justify-center rounded-lg p-2 hover:bg-accent"
+				aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			>
+				{#if collapsed}
+					<ChevronRight class="h-5 w-5" />
+				{:else}
+					<ChevronLeft class="h-5 w-5" />
+				{/if}
+			</button>
 
-		<button
-			type="button"
-			onclick={toggleSidebar}
-			class="mt-2 flex w-full items-center justify-center rounded-lg p-2 hover:bg-accent"
-			aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-		>
-			{#if collapsed}
-				<ChevronRight class="h-5 w-5" />
-			{:else}
-				<ChevronLeft class="h-5 w-5" />
-			{/if}
-		</button>
+			<Button variant="ghost" size="sm" class="h-10 w-10 p-0" disabled aria-label="Chat (coming soon)">
+				<MessageSquare class="h-5 w-5" />
+			</Button>
+
+			<Button variant="ghost" size="sm" class="h-10 w-10 p-0" disabled aria-label="Memory (coming soon)">
+				<HardDrive class="h-5 w-5" />
+			</Button>
+
+			<NavItem
+				href="/settings"
+				icon={Settings}
+				label={collapsed ? '' : 'Settings'}
+				active={isActive('/settings')}
+			/>
+
+			<div class="relative">
+				<button
+					bind:this={userMenuTriggerEl}
+					type="button"
+					class={cn(
+						'flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-accent',
+						userMenuOpen && 'bg-accent'
+					)}
+					onclick={toggleUserMenu}
+					aria-expanded={userMenuOpen}
+					aria-haspopup="true"
+				>
+					<Avatar fallback={getInitials(authStore.user?.username ?? '?')} class="h-8 w-8" />
+				</button>
+
+				{#if userMenuOpen}
+					<div
+						class={cn(
+							'absolute bottom-full left-0 mb-2 w-56 rounded-lg border bg-background shadow-lg',
+							collapsed ? 'left-full' : ''
+						)}
+						role="menu"
+						aria-orientation="vertical"
+					>
+						<div class="border-b px-3 py-2">
+							<p class="text-sm font-medium">{authStore.user?.username}</p>
+							<p class="text-xs text-muted-foreground capitalize">{authStore.user?.role}</p>
+						</div>
+						<div class="py-1">
+							<a
+								href={ROUTES.PROFILE}
+								class="flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+								role="menuitem"
+								onclick={closeUserMenu}
+							>
+								<User class="h-4 w-4" />
+								Profile
+							</a>
+						</div>
+						<div class="border-t py-1">
+							<button
+								type="button"
+								class="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-accent"
+								role="menuitem"
+								onclick={handleLogout}
+							>
+								<LogOut class="h-4 w-4" />
+								Logout
+							</button>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
 	</div>
 </aside>

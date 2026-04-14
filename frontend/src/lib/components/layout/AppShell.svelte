@@ -1,6 +1,5 @@
 <script lang="ts">
 	import Sidebar from './Sidebar.svelte';
-	import Header from './Header.svelte';
 
 	let { children, title }: {
 		children?: import('svelte').Snippet;
@@ -11,21 +10,15 @@
 <div class="flex h-screen overflow-hidden">
 	<Sidebar />
 
-	<div class="flex flex-1 flex-col overflow-hidden">
-		<Header>
-			{@render children?.()}
-		</Header>
-
-		<main
-			role="main"
-			class="flex-1 overflow-y-auto bg-background p-6"
-		>
-			{#if title}
-				<h1 class="mb-6 text-2xl font-bold">{title}</h1>
-			{/if}
-			{@render children?.()}
-		</main>
-	</div>
+	<main
+		role="main"
+		class="flex-1 overflow-y-auto bg-background p-6"
+	>
+		{#if title}
+			<h1 class="mb-6 text-2xl font-bold">{title}</h1>
+		{/if}
+		{@render children?.()}
+	</main>
 </div>
 
 <a

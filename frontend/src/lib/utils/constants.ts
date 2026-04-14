@@ -13,6 +13,11 @@ export const ROUTES = {
 	SETTINGS: '/settings'
 } as const;
 
+// App info
+export const APP_VERSION = '0.1.0';
+export const APP_NAME = 'ACE Framework';
+export const GITHUB_REPO = 'https://github.com/ace-framework/ace';
+
 // Responsive breakpoints
 export const BREAKPOINTS = {
 	MOBILE: 768,
