@@ -34,7 +34,7 @@ func NewSessionHandler(queries *db.Queries) (*SessionHandler, error) {
 // UserResponse represents a user response for API endpoints.
 type UserResponse struct {
 	ID        uuid.UUID        `json:"id"`
-	Email     string           `json:"email"`
+	Username  string           `json:"username"`
 	Role      model.UserRole   `json:"role"`
 	Status    model.UserStatus `json:"status"`
 	CreatedAt string           `json:"created_at"`
@@ -86,7 +86,7 @@ func (h *SessionHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	resp := UserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),

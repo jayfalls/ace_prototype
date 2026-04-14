@@ -88,11 +88,11 @@ class AuthStore {
 		}
 	}
 
-	async register(username: string, pin: string, email: string): Promise<void> {
+	async register(username: string, pin: string): Promise<void> {
 		this.isLoading = true;
 		this.error = null;
 		try {
-			const response = await authApi.register(username, pin, email);
+			const response = await authApi.register(username, pin);
 			this.handleTokenResponse(response);
 		} catch (err) {
 			this.error = err instanceof Error ? err.message : 'Registration failed';

@@ -29,11 +29,10 @@ func GetOpenAPISpec() ([]byte, error) {
 
 // Error definitions for router validation.
 var (
-	ErrConfigRequired           = errors.New("config is required")
-	ErrQueriesRequired          = errors.New("queries is required")
-	ErrAuthServiceRequired      = errors.New("auth service is required")
-	ErrTokenServiceRequired     = errors.New("token service is required")
-	ErrMagicLinkServiceRequired = errors.New("magic link service is required")
+	ErrConfigRequired       = errors.New("config is required")
+	ErrQueriesRequired      = errors.New("queries is required")
+	ErrAuthServiceRequired  = errors.New("auth service is required")
+	ErrTokenServiceRequired = errors.New("token service is required")
 )
 
 // SubsystemHealth holds health status for a subsystem.
@@ -50,15 +49,14 @@ type HealthStatus struct {
 
 // Config holds all dependencies needed to create the router.
 type Config struct {
-	App              *AppConfig
-	Queries          *db.Queries
-	AuthService      *service.AuthService
-	TokenService     *service.TokenService
-	MagicLinkService *service.MagicLinkService
-	DB               *sql.DB
-	NATSConn         *nats.Conn
-	Cache            caching.CacheBackend
-	SPAHandler       http.Handler // Serves the SPA (embedded assets or Vite proxy)
+	App          *AppConfig
+	Queries      *db.Queries
+	AuthService  *service.AuthService
+	TokenService *service.TokenService
+	DB           *sql.DB
+	NATSConn     *nats.Conn
+	Cache        caching.CacheBackend
+	SPAHandler   http.Handler // Serves the SPA (embedded assets or Vite proxy)
 }
 
 // AppConfig holds the basic app configuration needed for the router.
@@ -87,16 +85,12 @@ func New(cfg *Config) (*chi.Mux, error) {
 	if cfg.TokenService == nil {
 		return nil, ErrTokenServiceRequired
 	}
-	if cfg.MagicLinkService == nil {
-		return nil, ErrMagicLinkServiceRequired
-	}
 
 	// Create handlers - these must be available
 	authHandler, err := handler.NewAuthHandler(
 		cfg.Queries,
 		cfg.AuthService,
 		cfg.TokenService,
-		cfg.MagicLinkService,
 	)
 	if err != nil {
 		return nil, err
@@ -166,10 +160,6 @@ func New(cfg *Config) (*chi.Mux, error) {
 			r.Post("/login", authHandler.LoginWithPIN)
 			r.Post("/logout", authHandler.Logout)
 			r.Post("/refresh", authHandler.Refresh)
-			r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
-			r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
-			r.Post("/magic-link/request", authHandler.MagicLinkRequest)
-			r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
 		})
 
 		// Protected routes (auth required)

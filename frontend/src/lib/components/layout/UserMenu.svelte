@@ -41,8 +41,8 @@
 		await authStore.logout();
 	}
 
-	function getInitials(email: string): string {
-		return email.slice(0, 2).toUpperCase();
+	function getInitials(name: string): string {
+		return name.slice(0, 2).toUpperCase();
 	}
 </script>
 
@@ -60,7 +60,7 @@
 		aria-expanded={open}
 		aria-haspopup="true"
 	>
-		<Avatar fallback={getInitials(authStore.user?.email ?? '?')} class="h-8 w-8" />
+		<Avatar fallback={getInitials(authStore.user?.username ?? '?')} class="h-8 w-8" />
 		<ChevronDown class="h-4 w-4 text-muted-foreground" />
 	</button>
 
@@ -71,7 +71,7 @@
 			aria-orientation="vertical"
 		>
 			<div class="border-b px-3 py-2">
-				<p class="text-sm font-medium">{authStore.user?.email}</p>
+				<p class="text-sm font-medium">{authStore.user?.username}</p>
 				<p class="text-xs text-muted-foreground capitalize">{authStore.user?.role}</p>
 			</div>
 			<div class="py-1">

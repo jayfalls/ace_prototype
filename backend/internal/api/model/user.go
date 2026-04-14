@@ -27,7 +27,6 @@ const (
 // User represents an authenticated user in the system.
 type User struct {
 	ID              uuid.UUID  `json:"id"`
-	Email           string     `json:"email"`
 	Username        string     `json:"username"`
 	PasswordHash    *string    `json:"-"`
 	PinHash         *string    `json:"-"`
@@ -64,7 +63,6 @@ func (u *User) CanLogin() bool {
 type UserListItem struct {
 	ID        uuid.UUID  `json:"id"`
 	Username  string     `json:"username"`
-	Email     string     `json:"email"`
 	Role      UserRole   `json:"role"`
 	Status    UserStatus `json:"status"`
 	CreatedAt time.Time  `json:"created_at"`

@@ -33,7 +33,6 @@ export interface LoginRequest {
 export interface RegisterRequest {
 	username: string;
 	pin: string;
-	email: string;
 }
 
 export interface TokenResponse {
@@ -47,27 +46,12 @@ export interface RefreshRequest {
 	refresh_token: string;
 }
 
-export interface ResetPasswordRequest {
-	token: string;
-	new_password: string;
-}
-
-export interface MagicLinkVerifyRequest {
-	token: string;
-}
-
-export interface MagicLinkRequestResponse {
-	token: string;
-	expires_at: string;
-}
-
 // --- User ---
 export type UserRole = 'admin' | 'user' | 'viewer';
 export type UserStatus = 'pending' | 'active' | 'suspended';
 
 export interface User {
 	id: string;
-	email: string;
 	username: string;
 	role: UserRole;
 	status: UserStatus;
@@ -80,7 +64,6 @@ export interface User {
 export interface UserListItem {
 	id: string;
 	username: string;
-	email: string;
 	role: UserRole;
 	status: UserStatus;
 	created_at: string;
@@ -89,7 +72,7 @@ export interface UserListItem {
 
 export interface AdminUserResponse {
 	id: string;
-	email: string;
+	username: string;
 	role: UserRole;
 	status: UserStatus;
 	suspended_at?: string;

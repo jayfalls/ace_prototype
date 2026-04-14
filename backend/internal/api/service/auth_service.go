@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,7 +16,7 @@ import (
 )
 
 // AuthService handles user authentication operations.
-// It orchestrates password verification, token generation, and session management.
+// It orchestrates PIN verification, token generation, and session management.
 type AuthService struct {
 	queries  *db.Queries
 	tokenSvc *TokenService
@@ -39,71 +40,9 @@ func NewAuthService(
 	}, nil
 }
 
-// Register registers a new user with email and password.
-// It validates password strength, hashes the password, creates the user,
-// and generates an initial token pair.
-func (s *AuthService) Register(ctx context.Context, email, password string) (*model.User, *model.TokenPair, error) {
-	if ctx == nil {
-		return nil, nil, errors.New("context is required")
-	}
-	if email == "" {
-		return nil, nil, errors.New("email is required")
-	}
-	if password == "" {
-		return nil, nil, errors.New("password is required")
-	}
-
-	// Validate password strength first
-	if err := ValidatePasswordStrength(password); err != nil {
-		return nil, nil, fmt.Errorf("%w: %w", model.ErrWeakPassword, err)
-	}
-
-	// Hash password
-	passwordHash, err := HashPassword(password)
-	if err != nil {
-		return nil, nil, fmt.Errorf("hash password: %w", err)
-	}
-
-	// Check if user already exists
-	existingUser, err := s.queries.GetUserByEmail(ctx, email)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, nil, fmt.Errorf("check existing user: %w", err)
-	}
-	if existingUser != nil {
-		return nil, nil, model.ErrUserAlreadyExists
-	}
-
-	// Create user in database
-	now := time.Now().Format(time.RFC3339)
-	dbUser, err := s.queries.CreateUser(ctx, db.CreateUserParams{
-		ID:           uuid.New().String(),
-		Email:        email,
-		PasswordHash: passwordHash,
-		Role:         string(model.RoleUser),
-		Status:       string(model.StatusActive),
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	})
-	if err != nil {
-		return nil, nil, fmt.Errorf("create user: %w", err)
-	}
-
-	// Convert to model user
-	user := s.createUserRowToModel(dbUser)
-
-	// Generate token pair
-	tokens, err := s.generateTokensForUser(ctx, user)
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate tokens: %w", err)
-	}
-
-	// Return user without password hash
-	return s.userWithoutSensitive(user), tokens, nil
-}
-
 // RegisterWithPIN registers a new user with username and PIN (OS-style login).
 // First user automatically becomes admin.
-func (s *AuthService) RegisterWithPIN(ctx context.Context, username, pin, email string) (*model.User, *model.TokenPair, error) {
+func (s *AuthService) RegisterWithPIN(ctx context.Context, username, pin string) (*model.User, *model.TokenPair, error) {
 	if ctx == nil {
 		return nil, nil, errors.New("context is required")
 	}
@@ -126,20 +65,27 @@ func (s *AuthService) RegisterWithPIN(ctx context.Context, username, pin, email 
 	}
 
 	// Check if username already exists
-	existingUser, err := s.queries.GetUserByUsername(ctx, sql.NullString{String: username, Valid: true})
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, nil, fmt.Errorf("check existing user: %w", err)
-	}
-	if existingUser != nil {
+	existingUser, err := s.queries.GetUserByUsername(ctx, username)
+	log.Printf("[DEBUG] GetUserByUsername returned: user=%v, err=%v, err==nil:%v, errors.Is(err,sql.ErrNoRows):%v",
+		existingUser != nil, err, err == nil, errors.Is(err, sql.ErrNoRows))
+	if err == nil {
+		log.Printf("[DEBUG] User exists, returning error")
 		return nil, nil, model.ErrUserAlreadyExists
 	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		log.Printf("[DEBUG] Database error: %v", err)
+		return nil, nil, fmt.Errorf("check existing user: %w", err)
+	}
+	log.Printf("[DEBUG] User not found, continuing with registration")
 
 	// Check if this is the first user (make them admin)
 	isFirstUser := false
 	count, err := s.queries.CountUsers(ctx)
 	if err != nil {
+		log.Printf("[DEBUG] CountUsers error: %v", err)
 		return nil, nil, fmt.Errorf("count users: %w", err)
 	}
+	log.Printf("[DEBUG] User count: %d, isFirstUser: %v", count, count == 0)
 	if count == 0 {
 		isFirstUser = true
 	}
@@ -153,8 +99,7 @@ func (s *AuthService) RegisterWithPIN(ctx context.Context, username, pin, email 
 
 	dbUser, err := s.queries.CreateUser(ctx, db.CreateUserParams{
 		ID:           uuid.New().String(),
-		Email:        email,
-		Username:     sql.NullString{String: username, Valid: true},
+		Username:     username,
 		PasswordHash: "", // Empty for PIN-based auth
 		PinHash:      sql.NullString{String: pinHash, Valid: true},
 		Role:         role,
@@ -163,71 +108,21 @@ func (s *AuthService) RegisterWithPIN(ctx context.Context, username, pin, email 
 		UpdatedAt:    now,
 	})
 	if err != nil {
+		log.Printf("[DEBUG] CreateUser error: %v", err)
 		return nil, nil, fmt.Errorf("create user: %w", err)
 	}
+	log.Printf("[DEBUG] User created: %s", dbUser.ID)
 
 	// Convert to model user
-	user := s.createUserRowToModel(dbUser)
+	user := s.userToModel(dbUser)
 
 	// Generate token pair
 	tokens, err := s.generateTokensForUser(ctx, user)
 	if err != nil {
+		log.Printf("[DEBUG] Generate tokens error: %v", err)
 		return nil, nil, fmt.Errorf("generate tokens: %w", err)
 	}
-
-	// Return user without sensitive data
-	return s.userWithoutSensitive(user), tokens, nil
-}
-
-// Login authenticates a user with email and password.
-// It verifies the credentials and generates a new token pair.
-func (s *AuthService) Login(ctx context.Context, email, password string) (*model.User, *model.TokenPair, error) {
-	if ctx == nil {
-		return nil, nil, errors.New("context is required")
-	}
-	if email == "" {
-		return nil, nil, errors.New("email is required")
-	}
-	if password == "" {
-		return nil, nil, errors.New("password is required")
-	}
-
-	// Get user by email
-	dbUser, err := s.queries.GetUserByEmail(ctx, email)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, model.ErrInvalidCredentials
-		}
-		return nil, nil, fmt.Errorf("get user: %w", err)
-	}
-
-	// Check if user is suspended
-	if dbUser.Status == string(model.StatusSuspended) {
-		return nil, nil, model.ErrAccountSuspended
-	}
-
-	// Check if user is deleted
-	if dbUser.DeletedAt.Valid {
-		return nil, nil, model.ErrInvalidCredentials
-	}
-
-	// Verify password
-	valid, err := VerifyPassword(dbUser.PasswordHash, password)
-	if err != nil {
-		return nil, nil, fmt.Errorf("verify password: %w", err)
-	}
-	if !valid {
-		return nil, nil, model.ErrInvalidCredentials
-	}
-
-	// Convert to model user
-	user := s.getUserByEmailRowToModel(dbUser)
-
-	// Generate token pair
-	tokens, err := s.generateTokensForUser(ctx, user)
-	if err != nil {
-		return nil, nil, fmt.Errorf("generate tokens: %w", err)
-	}
+	log.Printf("[DEBUG] Tokens generated successfully")
 
 	// Return user without sensitive data
 	return s.userWithoutSensitive(user), tokens, nil
@@ -246,7 +141,7 @@ func (s *AuthService) LoginWithPIN(ctx context.Context, username, pin string) (*
 	}
 
 	// Get user by username
-	dbUser, err := s.queries.GetUserByUsername(ctx, sql.NullString{String: username, Valid: true})
+	dbUser, err := s.queries.GetUserByUsername(ctx, username)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil, model.ErrInvalidCredentials
@@ -278,7 +173,7 @@ func (s *AuthService) LoginWithPIN(ctx context.Context, username, pin string) (*
 	}
 
 	// Convert to model user
-	user := s.getUserByUsernameRowToModel(dbUser)
+	user := s.userToModel(dbUser)
 
 	// Generate token pair
 	tokens, err := s.generateTokensForUser(ctx, user)
@@ -365,7 +260,7 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 	}
 
 	// Convert to model user
-	user := s.getUserByIDRowToModel(dbUser)
+	user := s.userToModel(dbUser)
 
 	// Generate new token pair using the session ID from token data
 	sessionID := tokenData.SessionID
@@ -405,7 +300,7 @@ func (s *AuthService) GetCurrentUser(ctx context.Context, userID uuid.UUID) (*mo
 	}
 
 	// Convert and return user without sensitive data
-	user := s.getUserByIDRowToModel(dbUser)
+	user := s.userToModel(dbUser)
 	return s.userWithoutSensitive(user), nil
 }
 
@@ -427,7 +322,7 @@ func (s *AuthService) ListUsersForLogin(ctx context.Context) ([]model.UserListIt
 
 	users := make([]model.UserListItem, 0, len(dbUsers))
 	for _, u := range dbUsers {
-		if u.Status != string(model.StatusActive) || !u.Username.Valid {
+		if u.Status != string(model.StatusActive) {
 			continue
 		}
 		id, _ := uuid.Parse(u.ID)
@@ -435,8 +330,7 @@ func (s *AuthService) ListUsersForLogin(ctx context.Context) ([]model.UserListIt
 		updatedAt, _ := time.Parse(time.RFC3339, u.UpdatedAt)
 		users = append(users, model.UserListItem{
 			ID:        id,
-			Username:  u.Username.String,
-			Email:     u.Email,
+			Username:  u.Username,
 			Role:      model.UserRole(u.Role),
 			Status:    model.UserStatus(u.Status),
 			CreatedAt: createdAt,
@@ -508,7 +402,6 @@ func (s *AuthService) userWithoutSensitive(user *model.User) *model.User {
 	}
 	return &model.User{
 		ID:              user.ID,
-		Email:           user.Email,
 		Username:        user.Username,
 		PasswordHash:    nil,
 		PinHash:         nil,
@@ -522,8 +415,8 @@ func (s *AuthService) userWithoutSensitive(user *model.User) *model.User {
 	}
 }
 
-// createUserRowToModel converts a CreateUserRow to model.User.
-func (s *AuthService) createUserRowToModel(row *db.CreateUserRow) *model.User {
+// userToModel converts a *User (from db) to model.User.
+func (s *AuthService) userToModel(row *db.User) *model.User {
 	if row == nil {
 		return nil
 	}
@@ -532,11 +425,6 @@ func (s *AuthService) createUserRowToModel(row *db.CreateUserRow) *model.User {
 	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
 	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
 
-	var username string
-	if row.Username.Valid {
-		username = row.Username.String
-	}
-
 	var pinHash *string
 	if row.PinHash.Valid {
 		pinHash = &row.PinHash.String
@@ -544,155 +432,7 @@ func (s *AuthService) createUserRowToModel(row *db.CreateUserRow) *model.User {
 
 	user := &model.User{
 		ID:           userID,
-		Email:        row.Email,
-		Username:     username,
-		PasswordHash: &row.PasswordHash,
-		PinHash:      pinHash,
-		Role:         model.UserRole(row.Role),
-		Status:       model.UserStatus(row.Status),
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
-	}
-
-	if row.SuspendedAt.Valid {
-		suspendedAt, _ := time.Parse(time.RFC3339, row.SuspendedAt.String)
-		user.SuspendedAt = &suspendedAt
-	}
-
-	if row.SuspendedReason.Valid {
-		user.SuspendedReason = &row.SuspendedReason.String
-	}
-
-	if row.DeletedAt.Valid {
-		deletedAt, _ := time.Parse(time.RFC3339, row.DeletedAt.String)
-		user.DeletedAt = &deletedAt
-	}
-
-	return user
-}
-
-// getUserByEmailRowToModel converts a GetUserByEmailRow to model.User.
-func (s *AuthService) getUserByEmailRowToModel(row *db.GetUserByEmailRow) *model.User {
-	if row == nil {
-		return nil
-	}
-
-	userID, _ := uuid.Parse(row.ID)
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var username string
-	if row.Username.Valid {
-		username = row.Username.String
-	}
-
-	var pinHash *string
-	if row.PinHash.Valid {
-		pinHash = &row.PinHash.String
-	}
-
-	user := &model.User{
-		ID:           userID,
-		Email:        row.Email,
-		Username:     username,
-		PasswordHash: &row.PasswordHash,
-		PinHash:      pinHash,
-		Role:         model.UserRole(row.Role),
-		Status:       model.UserStatus(row.Status),
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
-	}
-
-	if row.SuspendedAt.Valid {
-		suspendedAt, _ := time.Parse(time.RFC3339, row.SuspendedAt.String)
-		user.SuspendedAt = &suspendedAt
-	}
-
-	if row.SuspendedReason.Valid {
-		user.SuspendedReason = &row.SuspendedReason.String
-	}
-
-	if row.DeletedAt.Valid {
-		deletedAt, _ := time.Parse(time.RFC3339, row.DeletedAt.String)
-		user.DeletedAt = &deletedAt
-	}
-
-	return user
-}
-
-// getUserByUsernameRowToModel converts a GetUserByUsernameRow to model.User.
-func (s *AuthService) getUserByUsernameRowToModel(row *db.GetUserByUsernameRow) *model.User {
-	if row == nil {
-		return nil
-	}
-
-	userID, _ := uuid.Parse(row.ID)
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var username string
-	if row.Username.Valid {
-		username = row.Username.String
-	}
-
-	var pinHash *string
-	if row.PinHash.Valid {
-		pinHash = &row.PinHash.String
-	}
-
-	user := &model.User{
-		ID:           userID,
-		Email:        row.Email,
-		Username:     username,
-		PasswordHash: &row.PasswordHash,
-		PinHash:      pinHash,
-		Role:         model.UserRole(row.Role),
-		Status:       model.UserStatus(row.Status),
-		CreatedAt:    createdAt,
-		UpdatedAt:    updatedAt,
-	}
-
-	if row.SuspendedAt.Valid {
-		suspendedAt, _ := time.Parse(time.RFC3339, row.SuspendedAt.String)
-		user.SuspendedAt = &suspendedAt
-	}
-
-	if row.SuspendedReason.Valid {
-		user.SuspendedReason = &row.SuspendedReason.String
-	}
-
-	if row.DeletedAt.Valid {
-		deletedAt, _ := time.Parse(time.RFC3339, row.DeletedAt.String)
-		user.DeletedAt = &deletedAt
-	}
-
-	return user
-}
-
-// getUserByIDRowToModel converts a GetUserByIDRow to model.User.
-func (s *AuthService) getUserByIDRowToModel(row *db.GetUserByIDRow) *model.User {
-	if row == nil {
-		return nil
-	}
-
-	userID, _ := uuid.Parse(row.ID)
-	createdAt, _ := time.Parse(time.RFC3339, row.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, row.UpdatedAt)
-
-	var username string
-	if row.Username.Valid {
-		username = row.Username.String
-	}
-
-	var pinHash *string
-	if row.PinHash.Valid {
-		pinHash = &row.PinHash.String
-	}
-
-	user := &model.User{
-		ID:           userID,
-		Email:        row.Email,
-		Username:     username,
+		Username:     row.Username,
 		PasswordHash: &row.PasswordHash,
 		PinHash:      pinHash,
 		Role:         model.UserRole(row.Role),

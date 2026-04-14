@@ -11,9 +11,9 @@ Schema: `main`
 | `refresh_token_hash` | TEXT | - | NO |
 | `user_agent` | TEXT | - | YES |
 | `ip_address` | TEXT | - | YES |
-| `last_used_at` | TEXT | datetime('now') | NO |
+| `last_used_at` | TEXT | - | NO |
 | `expires_at` | TEXT | - | NO |
-| `created_at` | TEXT | datetime('now') | NO |
+| `created_at` | TEXT | - | NO |
 
 ## Constraints
 

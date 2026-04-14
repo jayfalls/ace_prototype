@@ -6,12 +6,11 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card';
 	import { Alert } from '$lib/components/ui/alert';
-	import { User, Lock, Mail, AlertCircle, CheckCircle } from 'lucide-svelte';
+	import { User, Lock, AlertCircle, CheckCircle } from 'lucide-svelte';
 
 	let username = $state('');
 	let pin = $state('');
 	let confirmPin = $state('');
-	let email = $state('');
 	let error = $state<string | null>(null);
 	let success = $state(false);
 	let isLoading = $state(false);
@@ -44,11 +43,6 @@
 			return false;
 		}
 
-		if (!email.includes('@')) {
-			error = 'Please enter a valid email address';
-			return false;
-		}
-
 		return true;
 	}
 
@@ -60,7 +54,7 @@
 		success = false;
 
 		try {
-			await authStore.register(username, pin, email);
+			await authStore.register(username, pin);
 			success = true;
 			setTimeout(() => {
 				goto(ROUTES.HOME);
@@ -115,21 +109,6 @@
 							/>
 						</div>
 						<p class="text-xs text-muted-foreground">3-20 characters, letters, numbers, and underscores only</p>
-					</div>
-
-					<div class="space-y-2">
-						<label for="email" class="text-sm font-medium">Email</label>
-						<div class="relative">
-							<Mail class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								id="email"
-								type="email"
-								placeholder="you@example.com"
-								class="pl-10"
-								bind:value={email}
-								disabled={isLoading || success}
-							/>
-						</div>
 					</div>
 
 					<div class="space-y-2">

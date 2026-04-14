@@ -47,7 +47,6 @@ func (q *Queries) CountUsersByStatus(ctx context.Context) (*CountUsersByStatusRo
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -56,10 +55,9 @@ INSERT INTO users (
     created_at,
     updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -74,8 +72,7 @@ RETURNING
 
 type CreateUserParams struct {
 	ID           string         `json:"id"`
-	Email        string         `json:"email"`
-	Username     sql.NullString `json:"username"`
+	Username     string         `json:"username"`
 	PasswordHash string         `json:"password_hash"`
 	PinHash      sql.NullString `json:"pin_hash"`
 	Role         string         `json:"role"`
@@ -84,26 +81,10 @@ type CreateUserParams struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
-type CreateUserRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Creates a new user account.
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*CreateUserRow, error) {
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.ID,
-		arg.Email,
 		arg.Username,
 		arg.PasswordHash,
 		arg.PinHash,
@@ -112,10 +93,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*Create
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	var i CreateUserRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -145,65 +125,9 @@ func (q *Queries) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT
-    id,
-    email,
-    username,
-    password_hash,
-    pin_hash,
-    role,
-    status,
-    suspended_at,
-    suspended_reason,
-    deleted_at,
-    created_at,
-    updated_at
-FROM users
-WHERE email = ?
-  AND deleted_at IS NULL
-`
-
-type GetUserByEmailRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
-// Gets a user by email, excluding soft-deleted users.
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*GetUserByEmailRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
-	var i GetUserByEmailRow
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.PasswordHash,
-		&i.PinHash,
-		&i.Role,
-		&i.Status,
-		&i.SuspendedAt,
-		&i.SuspendedReason,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
 const getUserByID = `-- name: GetUserByID :one
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -219,28 +143,12 @@ WHERE id = ?
   AND deleted_at IS NULL
 `
 
-type GetUserByIDRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Gets a user by ID, excluding soft-deleted users.
-func (q *Queries) GetUserByID(ctx context.Context, id string) (*GetUserByIDRow, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id string) (*User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
-	var i GetUserByIDRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -258,7 +166,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (*GetUserByIDRow, 
 const getUserByUsername = `-- name: GetUserByUsername :one
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -274,28 +181,12 @@ WHERE username = ?
   AND deleted_at IS NULL
 `
 
-type GetUserByUsernameRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Gets a user by username, excluding soft-deleted users.
-func (q *Queries) GetUserByUsername(ctx context.Context, username sql.NullString) (*GetUserByUsernameRow, error) {
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByUsername, username)
-	var i GetUserByUsernameRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -313,7 +204,6 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username sql.NullString
 const listUsers = `-- name: ListUsers :many
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -338,23 +228,8 @@ type ListUsersParams struct {
 	Offset  int64       `json:"offset"`
 }
 
-type ListUsersRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Lists users with optional status filter and pagination.
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*ListUsersRow, error) {
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, error) {
 	rows, err := q.db.QueryContext(ctx, listUsers,
 		arg.Column1,
 		arg.Status,
@@ -365,12 +240,11 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*ListUs
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*ListUsersRow
+	var items []*User
 	for rows.Next() {
-		var i ListUsersRow
+		var i User
 		if err := rows.Scan(
 			&i.ID,
-			&i.Email,
 			&i.Username,
 			&i.PasswordHash,
 			&i.PinHash,
@@ -427,7 +301,6 @@ WHERE id = ?
   AND status = 'suspended'
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -445,28 +318,12 @@ type RestoreUserParams struct {
 	ID        string `json:"id"`
 }
 
-type RestoreUserRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Restores a suspended user account.
-func (q *Queries) RestoreUser(ctx context.Context, arg RestoreUserParams) (*RestoreUserRow, error) {
+func (q *Queries) RestoreUser(ctx context.Context, arg RestoreUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, restoreUser, arg.UpdatedAt, arg.ID)
-	var i RestoreUserRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -490,7 +347,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -509,28 +365,12 @@ type SoftDeleteUserParams struct {
 	ID        string         `json:"id"`
 }
 
-type SoftDeleteUserRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Soft-deletes a user by setting deleted_at timestamp.
-func (q *Queries) SoftDeleteUser(ctx context.Context, arg SoftDeleteUserParams) (*SoftDeleteUserRow, error) {
+func (q *Queries) SoftDeleteUser(ctx context.Context, arg SoftDeleteUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, softDeleteUser, arg.DeletedAt, arg.UpdatedAt, arg.ID)
-	var i SoftDeleteUserRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -556,7 +396,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -576,33 +415,17 @@ type SuspendUserParams struct {
 	ID              string         `json:"id"`
 }
 
-type SuspendUserRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Suspends a user account with reason.
-func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*SuspendUserRow, error) {
+func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, suspendUser,
 		arg.SuspendedAt,
 		arg.SuspendedReason,
 		arg.UpdatedAt,
 		arg.ID,
 	)
-	var i SuspendUserRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -620,7 +443,6 @@ func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*Susp
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
-    email = COALESCE(?, email),
     username = COALESCE(?, username),
     password_hash = COALESCE(?, password_hash),
     pin_hash = COALESCE(?, pin_hash),
@@ -631,7 +453,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -645,8 +466,7 @@ RETURNING
 `
 
 type UpdateUserParams struct {
-	Email        string         `json:"email"`
-	Username     sql.NullString `json:"username"`
+	Username     string         `json:"username"`
 	PasswordHash string         `json:"password_hash"`
 	PinHash      sql.NullString `json:"pin_hash"`
 	Role         string         `json:"role"`
@@ -655,25 +475,9 @@ type UpdateUserParams struct {
 	ID           string         `json:"id"`
 }
 
-type UpdateUserRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
-// Updates user fields (email, username, password_hash, pin_hash, role, status).
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*UpdateUserRow, error) {
+// Updates user fields (username, password_hash, pin_hash, role, status).
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, updateUser,
-		arg.Email,
 		arg.Username,
 		arg.PasswordHash,
 		arg.PinHash,
@@ -682,10 +486,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*Update
 		arg.UpdatedAt,
 		arg.ID,
 	)
-	var i UpdateUserRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,
@@ -709,7 +512,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -728,28 +530,12 @@ type UpdateUserRoleParams struct {
 	ID        string `json:"id"`
 }
 
-type UpdateUserRoleRow struct {
-	ID              string         `json:"id"`
-	Email           string         `json:"email"`
-	Username        sql.NullString `json:"username"`
-	PasswordHash    string         `json:"password_hash"`
-	PinHash         sql.NullString `json:"pin_hash"`
-	Role            string         `json:"role"`
-	Status          string         `json:"status"`
-	SuspendedAt     sql.NullString `json:"suspended_at"`
-	SuspendedReason sql.NullString `json:"suspended_reason"`
-	DeletedAt       sql.NullString `json:"deleted_at"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
-}
-
 // Updates only the role field for a user.
-func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*UpdateUserRoleRow, error) {
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserRole, arg.Role, arg.UpdatedAt, arg.ID)
-	var i UpdateUserRoleRow
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
 		&i.Username,
 		&i.PasswordHash,
 		&i.PinHash,

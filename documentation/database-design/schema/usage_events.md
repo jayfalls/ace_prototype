@@ -16,7 +16,7 @@ Schema: `main`
 | `cost_usd` | REAL | - | YES |
 | `duration_ms` | INTEGER | - | YES |
 | `metadata` | TEXT | - | YES |
-| `created_at` | TEXT | datetime('now') | NO |
+| `created_at` | TEXT | - | NO |
 
 ## Indexes
 

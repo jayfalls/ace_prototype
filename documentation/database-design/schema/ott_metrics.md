@@ -12,7 +12,7 @@ Schema: `main`
 | `labels` | TEXT | - | YES |
 | `value` | REAL | - | NO |
 | `timestamp` | TEXT | - | NO |
-| `created_at` | TEXT | datetime('now') | NO |
+| `created_at` | TEXT | - | NO |
 
 ## Indexes
 

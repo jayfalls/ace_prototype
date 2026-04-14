@@ -2,8 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
 	loginSchema,
 	registerSchema,
-	forgotPasswordSchema,
-	resetPasswordSchema,
 	suspendUserSchema,
 	updateUserRoleSchema,
 } from '$lib/validation/schemas';
@@ -63,7 +61,6 @@ describe('registerSchema', () => {
 	it('passes with valid inputs', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '123456',
 		});
@@ -73,7 +70,6 @@ describe('registerSchema', () => {
 	it('fails when pins do not match', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '654321',
 		});
@@ -84,20 +80,9 @@ describe('registerSchema', () => {
 		}
 	});
 
-	it('fails with invalid email', () => {
-		const result = registerSchema.safeParse({
-			username: 'testuser',
-			email: 'notanemail',
-			pin: '123456',
-			confirmPin: '123456',
-		});
-		expect(result.success).toBe(false);
-	});
-
 	it('fails with short username', () => {
 		const result = registerSchema.safeParse({
 			username: 'ab',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '123456',
 		});
@@ -107,7 +92,6 @@ describe('registerSchema', () => {
 	it('fails with short pin', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123',
 			confirmPin: '123',
 		});
@@ -117,61 +101,8 @@ describe('registerSchema', () => {
 	it('fails with empty confirm pin', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '',
-		});
-		expect(result.success).toBe(false);
-	});
-});
-
-describe('forgotPasswordSchema', () => {
-	it('passes with valid email', () => {
-		const result = forgotPasswordSchema.safeParse({
-			email: 'test@example.com',
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it('fails with invalid email', () => {
-		const result = forgotPasswordSchema.safeParse({
-			email: 'notanemail',
-		});
-		expect(result.success).toBe(false);
-	});
-
-	it('fails with empty email', () => {
-		const result = forgotPasswordSchema.safeParse({
-			email: '',
-		});
-		expect(result.success).toBe(false);
-	});
-});
-
-describe('resetPasswordSchema', () => {
-	it('passes with valid inputs', () => {
-		const result = resetPasswordSchema.safeParse({
-			newPassword: 'password123',
-			confirmPassword: 'password123',
-		});
-		expect(result.success).toBe(true);
-	});
-
-	it('fails when passwords do not match', () => {
-		const result = resetPasswordSchema.safeParse({
-			newPassword: 'password123',
-			confirmPassword: 'different',
-		});
-		expect(result.success).toBe(false);
-		if (!result.success) {
-			expect(result.error.issues[0].message).toBe('Passwords do not match');
-		}
-	});
-
-	it('fails with short new password', () => {
-		const result = resetPasswordSchema.safeParse({
-			newPassword: 'short',
-			confirmPassword: 'short',
 		});
 		expect(result.success).toBe(false);
 	});

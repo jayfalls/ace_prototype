@@ -24,8 +24,8 @@
 					<div class="flex items-center gap-3">
 						<User class="h-5 w-5 text-muted-foreground" />
 						<div>
-							<p class="text-sm text-muted-foreground">Email</p>
-							<p class="font-medium">{user.email}</p>
+							<p class="text-sm text-muted-foreground">Username</p>
+							<p class="font-medium">{user.username}</p>
 						</div>
 					</div>
 

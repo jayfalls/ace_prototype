@@ -8,7 +8,7 @@
 	import { Alert } from '$lib/components/ui/alert';
 	import { AlertCircle, Users } from 'lucide-svelte';
 
-	let users = $state<UserListItem[]>([]);
+		let users = $state<UserListItem[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 
@@ -17,17 +17,23 @@
 	});
 
 	async function loadUsers() {
+		console.log('[Login] loadUsers() called');
 		isLoading = true;
 		error = null;
 		try {
-			users = await listUsers();
+			const response = await listUsers();
+			users = response?.users ?? [];
+			console.log('[Login] users received:', users);
 			// If no users, redirect to setup
 			if (users.length === 0) {
+				console.log('[Login] No users, redirecting to setup');
 				goto(ROUTES.SETUP);
 			}
 		} catch (err) {
+			console.log('[Login] Error loading users:', err);
 			error = err instanceof Error ? err.message : 'Failed to load users';
 			// If we get an error, it might be because no users exist
+			console.log('[Login] Redirecting to setup due to error');
 			goto(ROUTES.SETUP);
 		} finally {
 			isLoading = false;
@@ -72,18 +78,11 @@
 			</Alert>
 		{/if}
 
-		{#if isLoading}
-			<div class="flex items-center justify-center py-12">
-				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+		{#if isLoading || users.length === 0}
+			<div class="flex flex-col items-center justify-center py-12">
+				<div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+				<p class="text-muted-foreground">Redirecting to setup...</p>
 			</div>
-		{:else if users.length === 0}
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center py-12">
-					<Users class="h-12 w-12 text-muted-foreground mb-4" />
-					<p class="text-muted-foreground">No users found</p>
-					<p class="text-sm text-muted-foreground mt-1">Setting up your account...</p>
-				</CardContent>
-			</Card>
 		{:else}
 			<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
 				{#each users as user (user.id)}
@@ -101,11 +100,5 @@
 				{/each}
 			</div>
 		{/if}
-
-		<div class="text-center mt-8">
-			<p class="text-sm text-muted-foreground">
-				Need help? Contact your administrator.
-			</p>
-		</div>
 	</div>
 </div>

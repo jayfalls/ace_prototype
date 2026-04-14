@@ -140,7 +140,7 @@ func (h *TestableAdminHandler) ListUsers(w http.ResponseWriter, r *http.Request)
 		updatedAt, _ := time.Parse(time.RFC3339, u.UpdatedAt)
 		users[i] = UserListItem{
 			ID:        id,
-			Email:     u.Email,
+			Username:  u.Username,
 			Role:      model.UserRole(u.Role),
 			Status:    model.UserStatus(u.Status),
 			CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -186,7 +186,7 @@ func (h *TestableAdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -255,7 +255,7 @@ func (h *TestableAdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Req
 
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -309,7 +309,7 @@ func (h *TestableAdminHandler) SuspendUser(w http.ResponseWriter, r *http.Reques
 
 	resp := AdminUserResponse{
 		ID:              id,
-		Email:           dbUser.Email,
+		Username:        dbUser.Username,
 		Role:            model.UserRole(dbUser.Role),
 		Status:          model.UserStatus(dbUser.Status),
 		SuspendedReason: &dbUser.SuspendedReason.String,
@@ -358,7 +358,7 @@ func (h *TestableAdminHandler) RestoreUser(w http.ResponseWriter, r *http.Reques
 
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -378,11 +378,11 @@ func createContextWithUserRole() context.Context {
 }
 
 // Helper function to create test user for admin.
-func createAdminTestUser(email string) *db.User {
+func createAdminTestUser(username string) *db.User {
 	userID := uuid.New()
 	return &db.User{
 		ID:           userID.String(),
-		Email:        email,
+		Username:     username,
 		PasswordHash: "hashed_password",
 		Role:         "user",
 		Status:       "active",
@@ -397,7 +397,7 @@ func createAdminTestUser(email string) *db.User {
 func TestListUsers_Success(t *testing.T) {
 	mockQueries := &MockAdminQueries{
 		ListUsersFunc: func(ctx context.Context, params db.ListUsersParams) ([]*db.User, error) {
-			return []*db.User{createAdminTestUser("user@example.com")}, nil
+			return []*db.User{createAdminTestUser("testuser")}, nil
 		},
 		CountUsersFunc: func(ctx context.Context) (int64, error) {
 			return 1, nil
@@ -469,7 +469,7 @@ func TestListUsers_NoRole(t *testing.T) {
 // Tests for GetUser endpoint.
 
 func TestGetUser_Success(t *testing.T) {
-	testUser := createAdminTestUser("user@example.com")
+	testUser := createAdminTestUser("testuser")
 
 	mockQueries := &MockAdminQueries{
 		GetUserByIDFunc: func(ctx context.Context, id string) (*db.User, error) {
@@ -571,7 +571,7 @@ func TestGetUser_InvalidUserID(t *testing.T) {
 // Tests for UpdateUserRole endpoint.
 
 func TestUpdateUserRole_Success(t *testing.T) {
-	testUser := createAdminTestUser("user@example.com")
+	testUser := createAdminTestUser("testuser")
 	testUser.Role = "admin"
 
 	mockQueries := &MockAdminQueries{
@@ -663,7 +663,7 @@ func TestUpdateUserRole_InvalidRole(t *testing.T) {
 // Tests for SuspendUser endpoint.
 
 func TestSuspendUser_Success(t *testing.T) {
-	testUser := createAdminTestUser("user@example.com")
+	testUser := createAdminTestUser("testuser")
 	testUser.Status = "suspended"
 
 	mockQueries := &MockAdminQueries{
@@ -726,7 +726,7 @@ func TestSuspendUser_Unauthorized(t *testing.T) {
 // Tests for RestoreUser endpoint.
 
 func TestRestoreUser_Success(t *testing.T) {
-	testUser := createAdminTestUser("user@example.com")
+	testUser := createAdminTestUser("testuser")
 	testUser.Status = "active"
 
 	mockQueries := &MockAdminQueries{

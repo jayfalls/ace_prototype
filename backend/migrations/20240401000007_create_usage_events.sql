@@ -11,9 +11,8 @@ CREATE TABLE IF NOT EXISTS usage_events (
     cost_usd REAL,
     duration_ms INTEGER,
     metadata TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS idx_usage_events_agent_id ON usage_events(agent_id);
 CREATE INDEX IF NOT EXISTS idx_usage_events_event_type ON usage_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
@@ -21,8 +20,5 @@ CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_a
 
 -- +goose Down
 -- +goose StatementBegin
-DROP INDEX IF EXISTS idx_usage_events_agent_id;
-DROP INDEX IF EXISTS idx_usage_events_event_type;
-DROP INDEX IF EXISTS idx_usage_events_created_at;
 DROP TABLE IF EXISTS usage_events;
 -- +goose StatementEnd

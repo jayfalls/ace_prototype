@@ -111,9 +111,8 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		service := setupService()
 
 		claims := &model.TokenClaims{
-			Sub:   uuid.New(),
-			Role:  "user",
-			Email: "test@example.com",
+			Sub:  uuid.New(),
+			Role: "user",
 		}
 
 		token, err := service.GenerateAccessToken(claims)
@@ -136,9 +135,8 @@ func TestTokenService_GenerateAccessToken(t *testing.T) {
 		service := setupService()
 
 		claims := &model.TokenClaims{
-			Sub:   uuid.New(),
-			Role:  "user",
-			Email: "test@example.com",
+			Sub:  uuid.New(),
+			Role: "user",
 		}
 
 		token, err := service.GenerateAccessToken(claims)
@@ -239,9 +237,8 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 		service := setupService()
 
 		claims := &model.TokenClaims{
-			Sub:   uuid.New(),
-			Role:  "user",
-			Email: "test@example.com",
+			Sub:  uuid.New(),
+			Role: "user",
 		}
 
 		token, err := service.GenerateAccessToken(claims)
@@ -261,10 +258,6 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 		if validatedClaims.Role != claims.Role {
 			t.Errorf("expected role %q, got %q", claims.Role, validatedClaims.Role)
 		}
-
-		if validatedClaims.Email != claims.Email {
-			t.Errorf("expected email %q, got %q", claims.Email, validatedClaims.Email)
-		}
 	})
 
 	t.Run("rejects token with wrong issuer", func(t *testing.T) {
@@ -279,9 +272,8 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 		otherService, _ := NewTokenService(otherConfig)
 
 		claims := &model.TokenClaims{
-			Sub:   uuid.New(),
-			Role:  "user",
-			Email: "test@example.com",
+			Sub:  uuid.New(),
+			Role: "user",
 		}
 
 		token, _ := otherService.GenerateAccessToken(claims)
@@ -303,9 +295,8 @@ func TestTokenService_ValidateAccessToken(t *testing.T) {
 		otherService, _ := NewTokenService(otherConfig)
 
 		claims := &model.TokenClaims{
-			Sub:   uuid.New(),
-			Role:  "user",
-			Email: "test@example.com",
+			Sub:  uuid.New(),
+			Role: "user",
 		}
 
 		token, _ := otherService.GenerateAccessToken(claims)
@@ -407,9 +398,8 @@ func TestTokenService_GenerateTokenPair(t *testing.T) {
 		service := setupService()
 
 		user := &model.User{
-			ID:    uuid.New(),
-			Email: "test@example.com",
-			Role:  model.RoleUser,
+			ID:   uuid.New(),
+			Role: model.RoleUser,
 		}
 		sessionID := uuid.New()
 
@@ -449,9 +439,8 @@ func TestTokenService_GenerateTokenPair(t *testing.T) {
 		service := setupService()
 
 		user := &model.User{
-			ID:    uuid.New(),
-			Email: "test@example.com",
-			Role:  model.RoleUser,
+			ID:   uuid.New(),
+			Role: model.RoleUser,
 		}
 
 		_, err := service.GenerateTokenPair(user, uuid.Nil)
@@ -488,9 +477,8 @@ func TestTokenService_RoundTrip(t *testing.T) {
 	service2, _ := NewTokenService(config2)
 
 	claims := &model.TokenClaims{
-		Sub:   uuid.New(),
-		Role:  "admin",
-		Email: "admin@example.com",
+		Sub:  uuid.New(),
+		Role: "admin",
 	}
 
 	// Generate with service1

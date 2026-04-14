@@ -11,27 +11,15 @@ describe('RegisterPage', () => {
 	it('registerSchema should be valid for correct input', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '123456'
 		});
 		expect(result.success).toBe(true);
 	});
 
-	it('registerSchema should reject invalid email', () => {
-		const result = registerSchema.safeParse({
-			username: 'testuser',
-			email: 'invalid',
-			pin: '123456',
-			confirmPin: '123456'
-		});
-		expect(result.success).toBe(false);
-	});
-
 	it('registerSchema should reject short pin', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123',
 			confirmPin: '123'
 		});
@@ -41,7 +29,6 @@ describe('RegisterPage', () => {
 	it('registerSchema should reject mismatched pins', () => {
 		const result = registerSchema.safeParse({
 			username: 'testuser',
-			email: 'test@example.com',
 			pin: '123456',
 			confirmPin: '654321'
 		});

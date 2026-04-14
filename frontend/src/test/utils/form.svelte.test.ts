@@ -288,7 +288,6 @@ describe('useForm', () => {
 			const form = useForm({
 				initialValues: {
 					username: 'testuser',
-					email: 'test@example.com',
 					pin: '123456',
 					confirmPin: '654321',
 				},
@@ -304,7 +303,6 @@ describe('useForm', () => {
 			const form = useForm({
 				initialValues: {
 					username: 'testuser',
-					email: 'test@example.com',
 					pin: '123456',
 					confirmPin: '123456',
 				},

@@ -2,7 +2,6 @@
 -- Creates a new user account.
 INSERT INTO users (
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -11,10 +10,9 @@ INSERT INTO users (
     created_at,
     updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -30,7 +28,6 @@ RETURNING
 -- Gets a user by ID, excluding soft-deleted users.
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -45,30 +42,10 @@ FROM users
 WHERE id = ?
   AND deleted_at IS NULL;
 
--- name: GetUserByEmail :one
--- Gets a user by email, excluding soft-deleted users.
-SELECT
-    id,
-    email,
-    username,
-    password_hash,
-    pin_hash,
-    role,
-    status,
-    suspended_at,
-    suspended_reason,
-    deleted_at,
-    created_at,
-    updated_at
-FROM users
-WHERE email = ?
-  AND deleted_at IS NULL;
-
 -- name: GetUserByUsername :one
 -- Gets a user by username, excluding soft-deleted users.
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -84,10 +61,9 @@ WHERE username = ?
   AND deleted_at IS NULL;
 
 -- name: UpdateUser :one
--- Updates user fields (email, username, password_hash, pin_hash, role, status).
+-- Updates user fields (username, password_hash, pin_hash, role, status).
 UPDATE users
 SET
-    email = COALESCE(?, email),
     username = COALESCE(?, username),
     password_hash = COALESCE(?, password_hash),
     pin_hash = COALESCE(?, pin_hash),
@@ -98,7 +74,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -120,7 +95,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -136,7 +110,6 @@ RETURNING
 -- Lists users with optional status filter and pagination.
 SELECT
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -170,7 +143,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -194,7 +166,6 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,
@@ -219,7 +190,6 @@ WHERE id = ?
   AND status = 'suspended'
 RETURNING
     id,
-    email,
     username,
     password_hash,
     pin_hash,

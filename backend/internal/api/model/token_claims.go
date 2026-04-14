@@ -15,8 +15,7 @@ type TokenClaims struct {
 	Jti uuid.UUID `json:"jti"` // JWT ID
 
 	// Custom claims
-	Role  string `json:"role"`
-	Email string `json:"email"`
+	Role string `json:"role"`
 }
 
 // RefreshTokenData represents the data stored in a refresh token.

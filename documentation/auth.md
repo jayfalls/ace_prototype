@@ -8,7 +8,7 @@
 
 ## Overview
 
-This document describes the authentication and authorization system implemented in the ACE Framework. The system provides JWT-based authentication with support for password login, magic links, session management, and role-based access control.
+This document describes the authentication and authorization system implemented in the ACE Framework. The system provides JWT-based authentication with support for username/PIN login, session management, and role-based access control.
 
 ---
 
@@ -16,20 +16,18 @@ This document describes the authentication and authorization system implemented 
 
 ### Technology Stack
 
-- **Password Hashing**: Argon2id (64MB memory, 3 iterations, 4 parallelism)
+- **PIN Hashing**: Argon2id (64MB memory, 3 iterations, 4 parallelism)
 - **Token Signing**: RS256 (RSA 2048-bit keys)
 - **Access Token TTL**: 15 minutes (configurable)
 - **Refresh Token TTL**: 7 days (configurable)
-- **Magic Link TTL**: 15 minutes (configurable)
-- **Password Reset TTL**: 1 hour (configurable)
+- **PIN Length**: 4-6 digits
 
 ### Database Schema
 
 | Table | Purpose |
 |-------|---------|
-| `users` | User accounts with email, password_hash, role, status |
+| `users` | User accounts with username, pin_hash, role, status |
 | `sessions` | Active user sessions with refresh token hashes |
-| `auth_tokens` | Magic link and password reset tokens |
 | `resource_permissions` | Resource-level permissions (view/use/admin) |
 
 ### Role-Based Access Control
@@ -56,14 +54,10 @@ This document describes the authentication and authorization system implemented 
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/auth/register` | Create new user account |
-| POST | `/auth/login` | Login with email/password |
+| POST | `/auth/register` | Create new user account (username + PIN) |
+| POST | `/auth/login` | Login with username + PIN |
 | POST | `/auth/logout` | Invalidate session |
 | POST | `/auth/refresh` | Rotate refresh token |
-| POST | `/auth/password/reset/request` | Request password reset |
-| POST | `/auth/password/reset/confirm` | Confirm password reset |
-| POST | `/auth/magic-link/request` | Request magic link |
-| POST | `/auth/magic-link/verify` | Verify magic link, return tokens |
 
 ### Session Management
 
@@ -101,15 +95,13 @@ Recovery → Logger → CORS → RateLimit → Auth → Handler
 
 ---
 
-## Password Requirements
+## PIN Requirements
 
 | Requirement | Default |
 |-------------|---------|
-| Minimum length | 8 characters |
-| Uppercase letter | Required |
-| Lowercase letter | Required |
-| Number | Required |
-| Symbol | Optional |
+| Minimum length | 4 digits |
+| Maximum length | 6 digits |
+| Numeric only | Required |
 
 ---
 
@@ -142,21 +134,13 @@ JWT_ISSUER=ace-auth
 
 # Rate Limiting
 RATE_LIMIT_PER_IP=100
-RATE_LIMIT_PER_EMAIL=10
 RATE_LIMIT_WINDOW=1m
 LOGIN_LOCKOUT_THRESHOLD=5
 LOGIN_LOCKOUT_DURATION=15m
 
-# Password
-PASSWORD_MIN_LENGTH=8
-PASSWORD_REQUIRE_UPPER=true
-PASSWORD_REQUIRE_LOWER=true
-PASSWORD_REQUIRE_NUMBER=true
-PASSWORD_REQUIRE_SYMBOL=false
-
-# Tokens
-EMAIL_TOKEN_TTL=15m
-RESET_TOKEN_TTL=1h
+# PIN
+PIN_MIN_LENGTH=4
+PIN_MAX_LENGTH=6
 
 # Deployment
 DEPLOYMENT_MODE=single
@@ -177,10 +161,8 @@ BASE_URL=http://localhost:3000
 - `backend/services/api/internal/model/events.go`
 
 ### Services
-- `backend/services/api/internal/service/password_service.go`
 - `backend/services/api/internal/service/token_service.go`
 - `backend/services/api/internal/service/auth_service.go`
-- `backend/services/api/internal/service/magic_link_service.go`
 - `backend/services/api/internal/service/permission_service.go`
 - `backend/services/api/internal/service/event_service.go`
 
@@ -195,23 +177,20 @@ BASE_URL=http://localhost:3000
 - `backend/services/api/internal/middleware/rate_limit_middleware.go`
 
 ### Database
-- `backend/services/api/migrations/20240401000001_create_users.go`
-- `backend/services/api/migrations/20240401000002_create_sessions.go`
-- `backend/services/api/migrations/20240401000003_create_auth_tokens.go`
-- `backend/services/api/migrations/20240401000004_create_resource_permissions.go`
-- `backend/services/api/internal/repository/queries/users.sql`
-- `backend/services/api/internal/repository/queries/sessions.sql`
-- `backend/services/api/internal/repository/queries/auth_tokens.sql`
-- `backend/services/api/internal/repository/queries/permissions.sql`
+- `backend/migrations/20240401000001_create_version_stamps.sql`
+- `backend/migrations/20240401000002_create_users.sql`
+- `backend/migrations/20240401000003_create_sessions.sql`
+- `backend/migrations/20240401000004_create_resource_permissions.sql`
+- `backend/migrations/20240401000005_create_ott_spans.sql`
+- `backend/migrations/20240401000006_create_ott_metrics.sql`
+- `backend/migrations/20240401000007_create_usage_events.sql`
 
 ---
 
 ## Unit Test Coverage
 
-- Password service tests
 - Token service tests
 - Auth service tests
-- Magic link service tests
 - Permission service tests
 - Event service tests
 - Handler tests (auth, session, admin)

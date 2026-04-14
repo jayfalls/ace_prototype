@@ -16,7 +16,6 @@ const (
 	UserIDKey      contextKey = "user_id"
 	UserRoleKey    contextKey = "user_role"
 	TokenClaimsKey contextKey = "token_claims"
-	UserEmailKey   contextKey = "user_email"
 )
 
 // contextKey is a type for context keys.
@@ -116,7 +115,6 @@ func (m *AuthMiddleware) RequireAuth() func(next http.Handler) http.Handler {
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.Sub)
 			ctx = context.WithValue(ctx, UserRoleKey, model.UserRole(claims.Role))
 			ctx = context.WithValue(ctx, TokenClaimsKey, claims)
-			ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
@@ -145,13 +143,4 @@ func GetTokenClaimsFromContext(ctx context.Context) *model.TokenClaims {
 		return claims
 	}
 	return nil
-}
-
-// GetUserEmailFromContext retrieves the user email from the request context.
-// Returns empty string if not found.
-func GetUserEmailFromContext(ctx context.Context) string {
-	if email, ok := ctx.Value(UserEmailKey).(string); ok {
-		return email
-	}
-	return ""
 }

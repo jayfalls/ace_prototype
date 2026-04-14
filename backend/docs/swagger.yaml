@@ -4,8 +4,6 @@ definitions:
     properties:
       created_at:
         type: string
-      email:
-        type: string
       id:
         type: string
       role:
@@ -17,6 +15,8 @@ definitions:
       suspended_reason:
         type: string
       updated_at:
+        type: string
+      username:
         type: string
     type: object
   handler.CreateExampleRequest:
@@ -39,16 +39,6 @@ definitions:
         type: string
       name:
         type: string
-    type: object
-  handler.LoginRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-    required:
-    - email
-    - password
     type: object
   handler.LoginUsersResponse:
     properties:
@@ -74,43 +64,6 @@ definitions:
     required:
     - session_id
     type: object
-  handler.MagicLinkRequest:
-    properties:
-      email:
-        type: string
-    required:
-    - email
-    type: object
-  handler.MagicLinkResponse:
-    properties:
-      message:
-        type: string
-    type: object
-  handler.MagicLinkVerifyRequest:
-    properties:
-      token:
-        type: string
-    required:
-    - token
-    type: object
-  handler.PasswordResetConfirmRequest:
-    properties:
-      new_password:
-        minLength: 8
-        type: string
-      token:
-        type: string
-    required:
-    - new_password
-    - token
-    type: object
-  handler.PasswordResetRequest:
-    properties:
-      email:
-        type: string
-    required:
-    - email
-    type: object
   handler.RefreshRequest:
     properties:
       refresh_token:
@@ -118,27 +71,13 @@ definitions:
     required:
     - refresh_token
     type: object
-  handler.RegisterRequest:
-    properties:
-      email:
-        type: string
-      password:
-        minLength: 8
-        type: string
-    required:
-    - email
-    - password
-    type: object
   handler.RegisterWithPINRequest:
     properties:
-      email:
-        type: string
       pin:
         type: string
       username:
         type: string
     required:
-    - email
     - pin
     - username
     type: object
@@ -205,8 +144,6 @@ definitions:
     properties:
       created_at:
         type: string
-      email:
-        type: string
       id:
         type: string
       role:
@@ -214,14 +151,14 @@ definitions:
       status:
         $ref: '#/definitions/model.UserStatus'
       updated_at:
+        type: string
+      username:
         type: string
     type: object
   handler.UserResponse:
     properties:
       created_at:
         type: string
-      email:
-        type: string
       id:
         type: string
       role:
@@ -229,6 +166,8 @@ definitions:
       status:
         $ref: '#/definitions/model.UserStatus'
       updated_at:
+        type: string
+      username:
         type: string
     type: object
   handler.UsersListResponse:
@@ -250,8 +189,6 @@ definitions:
         type: string
       deleted_at:
         type: string
-      email:
-        type: string
       id:
         type: string
       role:
@@ -270,8 +207,6 @@ definitions:
   model.UserListItem:
     properties:
       created_at:
-        type: string
-      email:
         type: string
       id:
         type: string
@@ -535,52 +470,6 @@ paths:
       summary: Logout current session
       tags:
       - auth
-  /auth/magic-link/request:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Email address
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.MagicLinkRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.MagicLinkResponse'
-      summary: Request magic link
-      tags:
-      - auth
-  /auth/magic-link/verify:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Magic link token
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.MagicLinkVerifyRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.TokenResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.APIError'
-      summary: Verify magic link
-      tags:
-      - auth
   /auth/me:
     get:
       produces:
@@ -650,52 +539,6 @@ paths:
       summary: Revoke a specific session
       tags:
       - session
-  /auth/password/reset/confirm:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Reset token and new password
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.PasswordResetConfirmRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.TokenResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/response.APIError'
-      summary: Confirm password reset
-      tags:
-      - auth
-  /auth/password/reset/request:
-    post:
-      consumes:
-      - application/json
-      parameters:
-      - description: Email address
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/handler.PasswordResetRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/handler.MagicLinkResponse'
-      summary: Request password reset
-      tags:
-      - auth
   /auth/refresh:
     post:
       consumes:

@@ -5,12 +5,12 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Activity, Users, User, ArrowRight } from 'lucide-svelte';
 
-	let userEmail = $derived(authStore.user?.email ?? 'User');
+	let username = $derived(authStore.user?.username ?? 'User');
 </script>
 
 <div class="space-y-6">
 	<div>
-		<h1 class="text-3xl font-bold">Welcome back, {userEmail}</h1>
+		<h1 class="text-3xl font-bold">Welcome back, {username}</h1>
 		<p class="text-muted-foreground mt-1">Here's an overview of your ACE Framework dashboard.</p>
 	</div>
 

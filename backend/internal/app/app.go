@@ -176,12 +176,6 @@ func (a *App) Serve() error {
 		return fmt.Errorf("create token service: %w", err)
 	}
 
-	// Create magic link service
-	magicLinkService, err := service.NewMagicLinkService(queries, nil)
-	if err != nil {
-		return fmt.Errorf("create magic link service: %w", err)
-	}
-
 	// Create auth service (depends on token service)
 	authService, err := service.NewAuthService(queries, tokenService)
 	if err != nil {
@@ -195,14 +189,13 @@ func (a *App) Serve() error {
 			Port:               port,
 			CORSAllowedOrigins: []string{"*"}, // TODO: make this configurable
 		},
-		Queries:          queries,
-		AuthService:      authService,
-		TokenService:     tokenService,
-		MagicLinkService: magicLinkService,
-		DB:               a.DB,
-		NATSConn:         a.NATSConn,
-		Cache:            a.Cache,
-		SPAHandler:       frontend.Handler(),
+		Queries:      queries,
+		AuthService:  authService,
+		TokenService: tokenService,
+		DB:           a.DB,
+		NATSConn:     a.NATSConn,
+		Cache:        a.Cache,
+		SPAHandler:   frontend.Handler(),
 	}
 
 	r, err := router.New(routeCfg)

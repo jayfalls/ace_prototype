@@ -17,7 +17,7 @@ Schema: `main`
 | `duration_ms` | INTEGER | - | NO |
 | `status` | TEXT | 'ok' | NO |
 | `attributes` | TEXT | - | YES |
-| `created_at` | TEXT | datetime('now') | NO |
+| `created_at` | TEXT | - | NO |
 
 ## Indexes
 
