@@ -125,14 +125,12 @@
 				{/if}
 			</button>
 
-				<div class={cn('flex', collapsed ? 'justify-center' : '')}>
 				<NavItem
-					href="/settings"
-					icon={Settings}
-					label={collapsed ? '' : 'Settings'}
-					active={isActive('/settings')}
-				/>
-			</div>
+				href="/settings"
+				icon={Settings}
+				label={collapsed ? '' : 'Settings'}
+				active={isActive('/settings')}
+			/>
 
 			<div class="relative flex-1">
 				<button

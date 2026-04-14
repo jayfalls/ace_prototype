@@ -25,7 +25,8 @@
 <a
 	{href}
 	class={cn(
-		'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+		'flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+		label ? 'gap-3' : 'justify-center',
 		active ? 'bg-accent text-accent-foreground' : 'text-muted-foreground',
 		disabled && 'pointer-events-none opacity-50',
 		!active && !disabled && 'hover:bg-accent hover:text-accent-foreground',
@@ -35,10 +36,12 @@
 	aria-disabled={disabled}
 >
 	<Icon class="h-5 w-5 shrink-0" />
-	<span class="flex-1">{label}</span>
-	{#if badge}
-		<span class="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
-			{badge}
-		</span>
+	{#if label}
+		<span class="flex-1">{label}</span>
+		{#if badge}
+			<span class="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+				{badge}
+			</span>
+		{/if}
 	{/if}
 </a>
