@@ -108,8 +108,7 @@
 	<div class="border-t p-2">
 		<div
 			class={cn(
-				'flex items-center gap-2',
-				collapsed ? 'flex-col' : 'flex-row'
+				'flex items-center gap-2 flex-col'
 			)}
 		>
 			<button
