@@ -47,18 +47,20 @@ func (q *Queries) CountUsersByStatus(ctx context.Context) (*CountUsersByStatusRo
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     created_at,
     updated_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -69,21 +71,23 @@ RETURNING
 `
 
 type CreateUserParams struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	Role         string `json:"role"`
-	Status       string `json:"status"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at"`
+	ID           string         `json:"id"`
+	Username     string         `json:"username"`
+	PasswordHash string         `json:"password_hash"`
+	PinHash      sql.NullString `json:"pin_hash"`
+	Role         string         `json:"role"`
+	Status       string         `json:"status"`
+	CreatedAt    string         `json:"created_at"`
+	UpdatedAt    string         `json:"updated_at"`
 }
 
 // Creates a new user account.
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, createUser,
 		arg.ID,
-		arg.Email,
+		arg.Username,
 		arg.PasswordHash,
+		arg.PinHash,
 		arg.Role,
 		arg.Status,
 		arg.CreatedAt,
@@ -92,8 +96,9 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (*User, 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -120,47 +125,12 @@ func (q *Queries) GetActiveUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT
-    id,
-    email,
-    password_hash,
-    role,
-    status,
-    suspended_at,
-    suspended_reason,
-    deleted_at,
-    created_at,
-    updated_at
-FROM users
-WHERE email = ?
-  AND deleted_at IS NULL
-`
-
-// Gets a user by email, excluding soft-deleted users.
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (*User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.PasswordHash,
-		&i.Role,
-		&i.Status,
-		&i.SuspendedAt,
-		&i.SuspendedReason,
-		&i.DeletedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
-}
-
 const getUserByID = `-- name: GetUserByID :one
 SELECT
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -179,8 +149,47 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (*User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
+		&i.Role,
+		&i.Status,
+		&i.SuspendedAt,
+		&i.SuspendedReason,
+		&i.DeletedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return &i, err
+}
+
+const getUserByUsername = `-- name: GetUserByUsername :one
+SELECT
+    id,
+    username,
+    password_hash,
+    pin_hash,
+    role,
+    status,
+    suspended_at,
+    suspended_reason,
+    deleted_at,
+    created_at,
+    updated_at
+FROM users
+WHERE username = ?
+  AND deleted_at IS NULL
+`
+
+// Gets a user by username, excluding soft-deleted users.
+func (q *Queries) GetUserByUsername(ctx context.Context, username string) (*User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByUsername, username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -195,8 +204,9 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (*User, error) {
 const listUsers = `-- name: ListUsers :many
 SELECT
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -235,8 +245,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, 
 		var i User
 		if err := rows.Scan(
 			&i.ID,
-			&i.Email,
+			&i.Username,
 			&i.PasswordHash,
+			&i.PinHash,
 			&i.Role,
 			&i.Status,
 			&i.SuspendedAt,
@@ -290,8 +301,9 @@ WHERE id = ?
   AND status = 'suspended'
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -312,8 +324,9 @@ func (q *Queries) RestoreUser(ctx context.Context, arg RestoreUserParams) (*User
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -334,8 +347,9 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -357,8 +371,9 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, arg SoftDeleteUserParams) 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -381,8 +396,9 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -410,8 +426,9 @@ func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*User
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -426,8 +443,9 @@ func (q *Queries) SuspendUser(ctx context.Context, arg SuspendUserParams) (*User
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
 SET
-    email = COALESCE(?, email),
+    username = COALESCE(?, username),
     password_hash = COALESCE(?, password_hash),
+    pin_hash = COALESCE(?, pin_hash),
     role = COALESCE(?, role),
     status = COALESCE(?, status),
     updated_at = ?
@@ -435,8 +453,9 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -447,19 +466,21 @@ RETURNING
 `
 
 type UpdateUserParams struct {
-	Email        string `json:"email"`
-	PasswordHash string `json:"password_hash"`
-	Role         string `json:"role"`
-	Status       string `json:"status"`
-	UpdatedAt    string `json:"updated_at"`
-	ID           string `json:"id"`
+	Username     string         `json:"username"`
+	PasswordHash string         `json:"password_hash"`
+	PinHash      sql.NullString `json:"pin_hash"`
+	Role         string         `json:"role"`
+	Status       string         `json:"status"`
+	UpdatedAt    string         `json:"updated_at"`
+	ID           string         `json:"id"`
 }
 
-// Updates user fields (email, password_hash, role, status).
+// Updates user fields (username, password_hash, pin_hash, role, status).
 func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, error) {
 	row := q.db.QueryRowContext(ctx, updateUser,
-		arg.Email,
+		arg.Username,
 		arg.PasswordHash,
+		arg.PinHash,
 		arg.Role,
 		arg.Status,
 		arg.UpdatedAt,
@@ -468,8 +489,9 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (*User, 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,
@@ -490,8 +512,9 @@ WHERE id = ?
   AND deleted_at IS NULL
 RETURNING
     id,
-    email,
+    username,
     password_hash,
+    pin_hash,
     role,
     status,
     suspended_at,
@@ -513,8 +536,9 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.Email,
+		&i.Username,
 		&i.PasswordHash,
+		&i.PinHash,
 		&i.Role,
 		&i.Status,
 		&i.SuspendedAt,

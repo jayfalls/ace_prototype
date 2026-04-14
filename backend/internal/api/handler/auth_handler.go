@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -29,10 +28,9 @@ const (
 
 // AuthHandler handles authentication-related HTTP requests.
 type AuthHandler struct {
-	queries      *db.Queries
-	authSvc      *service.AuthService
-	tokenSvc     *service.TokenService
-	magicLinkSvc *service.MagicLinkService
+	queries  *db.Queries
+	authSvc  *service.AuthService
+	tokenSvc *service.TokenService
 }
 
 // NewAuthHandler creates a new AuthHandler.
@@ -40,7 +38,6 @@ func NewAuthHandler(
 	queries *db.Queries,
 	authSvc *service.AuthService,
 	tokenSvc *service.TokenService,
-	magicLinkSvc *service.MagicLinkService,
 ) (*AuthHandler, error) {
 	if queries == nil {
 		return nil, errors.New("queries is required")
@@ -51,28 +48,29 @@ func NewAuthHandler(
 	if tokenSvc == nil {
 		return nil, errors.New("token service is required")
 	}
-	if magicLinkSvc == nil {
-		return nil, errors.New("magic link service is required")
-	}
 
 	return &AuthHandler{
-		queries:      queries,
-		authSvc:      authSvc,
-		tokenSvc:     tokenSvc,
-		magicLinkSvc: magicLinkSvc,
+		queries:  queries,
+		authSvc:  authSvc,
+		tokenSvc: tokenSvc,
 	}, nil
 }
 
-// RegisterRequest represents the request body for user registration.
-type RegisterRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
+// RegisterWithPINRequest represents the request body for PIN-based registration.
+type RegisterWithPINRequest struct {
+	Username string `json:"username" validate:"required"`
+	PIN      string `json:"pin" validate:"required"`
 }
 
-// LoginRequest represents the request body for user login.
-type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
+// LoginWithPINRequest represents the request body for PIN-based login.
+type LoginWithPINRequest struct {
+	Username string `json:"username" validate:"required"`
+	PIN      string `json:"pin" validate:"required"`
+}
+
+// LoginUsersResponse represents the response for listing users on login screen.
+type LoginUsersResponse struct {
+	Users []model.UserListItem `json:"users"`
 }
 
 // TokenResponse represents the response for token-based operations.
@@ -94,58 +92,32 @@ type LogoutRequest struct {
 	SessionID string `json:"session_id" validate:"required,uuid"`
 }
 
-// PasswordResetRequest represents the request body for requesting password reset.
-type PasswordResetRequest struct {
-	Email string `json:"email" validate:"required,email"`
-}
-
-// PasswordResetConfirmRequest represents the request body for confirming password reset.
-type PasswordResetConfirmRequest struct {
-	Token       string `json:"token" validate:"required"`
-	NewPassword string `json:"new_password" validate:"required,min=8"`
-}
-
-// MagicLinkRequest represents the request body for requesting magic link.
-type MagicLinkRequest struct {
-	Email string `json:"email" validate:"required,email"`
-}
-
-// MagicLinkVerifyRequest represents the request body for verifying magic link.
-type MagicLinkVerifyRequest struct {
-	Token string `json:"token" validate:"required"`
-}
-
-// MagicLinkResponse represents the response for magic link operations.
-type MagicLinkResponse struct {
-	Message string `json:"message"`
-}
-
-// @Summary Register a new user
+// @Summary Register with username and PIN (OS-style)
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body RegisterRequest true "User registration data"
+// @Param request body RegisterWithPINRequest true "User registration data"
 // @Success 201 {object} TokenResponse
 // @Failure 400 {object} response.APIError
 // @Failure 409 {object} response.APIError
 // @Router /auth/register [post]
-// Register handles POST /auth/register - Creates user, returns tokens
-func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req RegisterRequest
+// RegisterWithPIN handles POST /auth/register - Creates user with username/PIN, returns tokens
+func (h *AuthHandler) RegisterWithPIN(w http.ResponseWriter, r *http.Request) {
+	var req RegisterWithPINRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "invalid_request", "Invalid request body")
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		response.BadRequest(w, "invalid_request", "Email and password are required")
+	if req.Username == "" || req.PIN == "" {
+		response.BadRequest(w, "invalid_request", "Username and PIN are required")
 		return
 	}
 
-	user, tokens, err := h.authSvc.Register(r.Context(), req.Email, req.Password)
+	user, tokens, err := h.authSvc.RegisterWithPIN(r.Context(), req.Username, req.PIN)
 	if err != nil {
 		if errors.Is(err, model.ErrUserAlreadyExists) {
-			response.Error(w, "user_exists", "User with this email already exists", http.StatusConflict)
+			response.Error(w, "user_exists", "User with this username already exists", http.StatusConflict)
 			return
 		}
 		if errors.Is(err, model.ErrWeakPassword) {
@@ -166,32 +138,32 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	response.Created(w, resp)
 }
 
-// @Summary Login with email and password
+// @Summary Login with username and PIN (OS-style)
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param request body LoginRequest true "User credentials"
+// @Param request body LoginWithPINRequest true "User credentials"
 // @Success 200 {object} TokenResponse
 // @Failure 400 {object} response.APIError
 // @Failure 401 {object} response.APIError
 // @Router /auth/login [post]
-// Login handles POST /auth/login - Validates credentials, returns tokens
-func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req LoginRequest
+// LoginWithPIN handles POST /auth/login - Validates username/PIN, returns tokens
+func (h *AuthHandler) LoginWithPIN(w http.ResponseWriter, r *http.Request) {
+	var req LoginWithPINRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.BadRequest(w, "invalid_request", "Invalid request body")
 		return
 	}
 
-	if req.Email == "" || req.Password == "" {
-		response.BadRequest(w, "invalid_request", "Email and password are required")
+	if req.Username == "" || req.PIN == "" {
+		response.BadRequest(w, "invalid_request", "Username and PIN are required")
 		return
 	}
 
-	user, tokens, err := h.authSvc.Login(r.Context(), req.Email, req.Password)
+	user, tokens, err := h.authSvc.LoginWithPIN(r.Context(), req.Username, req.PIN)
 	if err != nil {
 		if errors.Is(err, model.ErrInvalidCredentials) {
-			response.Unauthorized(w, "Invalid email or password")
+			response.Unauthorized(w, "Invalid username or PIN")
 			return
 		}
 		if errors.Is(err, model.ErrAccountSuspended) {
@@ -210,6 +182,23 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		TokenType:    tokens.TokenType,
 	}
 	response.Success(w, resp)
+}
+
+// @Summary List users for login screen
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} LoginUsersResponse
+// @Router /users [get]
+// ListUsers handles GET /users - Returns list of users for login screen
+func (h *AuthHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	users, err := h.authSvc.ListUsersForLogin(r.Context())
+	if err != nil {
+		response.InternalError(w, "Failed to list users")
+		return
+	}
+
+	response.Success(w, LoginUsersResponse{Users: users})
 }
 
 // @Summary Logout current session
@@ -265,7 +254,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokens, err := h.authSvc.RefreshSession(r.Context(), req.RefreshToken)
+	user, tokens, err := h.authSvc.RefreshSession(r.Context(), req.RefreshToken)
 	if err != nil {
 		if errors.Is(err, model.ErrTokenExpired) {
 			response.Unauthorized(w, "Refresh token has expired")
@@ -281,234 +270,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		}
 		response.InternalError(w, "Failed to refresh session")
 		return
-	}
-
-	// Get current user from context
-	userID := r.Context().Value(UserIDKey)
-	if userID == nil {
-		response.InternalError(w, "User context not found")
-		return
-	}
-
-	user, err := h.authSvc.GetCurrentUser(r.Context(), userID.(uuid.UUID))
-	if err != nil {
-		response.InternalError(w, "Failed to get user")
-		return
-	}
-
-	resp := TokenResponse{
-		User:         user,
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresIn:    tokens.ExpiresIn,
-		TokenType:    tokens.TokenType,
-	}
-	response.Success(w, resp)
-}
-
-// @Summary Request password reset
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body PasswordResetRequest true "Email address"
-// @Success 200 {object} MagicLinkResponse
-// @Router /auth/password/reset/request [post]
-// ResetPasswordRequest handles POST /auth/password/reset/request - Sends reset token
-func (h *AuthHandler) ResetPasswordRequest(w http.ResponseWriter, r *http.Request) {
-	var req PasswordResetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "invalid_request", "Invalid request body")
-		return
-	}
-
-	if req.Email == "" {
-		response.BadRequest(w, "invalid_request", "Email is required")
-		return
-	}
-
-	// Generate magic link token for password reset
-	_, err := h.magicLinkSvc.GenerateMagicLink(r.Context(), req.Email, service.TokenTypePasswordReset)
-	if err != nil {
-		// Don't expose error details - just return success to prevent email enumeration
-		// In production, you would log this
-	}
-
-	// Always return success to prevent email enumeration
-	response.Success(w, MagicLinkResponse{
-		Message: "If the email exists, a password reset link has been sent",
-	})
-}
-
-// @Summary Confirm password reset
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body PasswordResetConfirmRequest true "Reset token and new password"
-// @Success 200 {object} TokenResponse
-// @Failure 400 {object} response.APIError
-// @Router /auth/password/reset/confirm [post]
-// ResetPasswordConfirm handles POST /auth/password/reset/confirm - Resets password with token
-func (h *AuthHandler) ResetPasswordConfirm(w http.ResponseWriter, r *http.Request) {
-	var req PasswordResetConfirmRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "invalid_request", "Invalid request body")
-		return
-	}
-
-	if req.Token == "" || req.NewPassword == "" {
-		response.BadRequest(w, "invalid_request", "Token and new password are required")
-		return
-	}
-
-	user, err := h.magicLinkSvc.ResetPassword(r.Context(), req.Token, req.NewPassword)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidToken) {
-			response.BadRequest(w, "invalid_token", "Invalid or expired reset token")
-			return
-		}
-		if errors.Is(err, service.ErrTokenExpired) {
-			response.BadRequest(w, "token_expired", "Reset token has expired")
-			return
-		}
-		if errors.Is(err, service.ErrTokenAlreadyUsed) {
-			response.BadRequest(w, "token_used", "Reset token has already been used")
-			return
-		}
-		if errors.Is(err, model.ErrWeakPassword) {
-			response.BadRequest(w, "weak_password", err.Error())
-			return
-		}
-		response.InternalError(w, "Failed to reset password")
-		return
-	}
-
-	// Generate new tokens after password reset
-	tokens, err := h.authSvc.RefreshSession(r.Context(), req.Token)
-	if err != nil {
-		// If refresh fails, just return user success - password was reset
-		response.Success(w, MagicLinkResponse{
-			Message: "Password has been reset successfully",
-		})
-		return
-	}
-
-	resp := TokenResponse{
-		User:         user,
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: tokens.RefreshToken,
-		ExpiresIn:    tokens.ExpiresIn,
-		TokenType:    tokens.TokenType,
-	}
-	response.Success(w, resp)
-}
-
-// @Summary Request magic link
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body MagicLinkRequest true "Email address"
-// @Success 200 {object} MagicLinkResponse
-// @Router /auth/magic-link/request [post]
-// MagicLinkRequest handles POST /auth/magic-link/request - Requests magic link
-func (h *AuthHandler) MagicLinkRequest(w http.ResponseWriter, r *http.Request) {
-	var req MagicLinkRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "invalid_request", "Invalid request body")
-		return
-	}
-
-	if req.Email == "" {
-		response.BadRequest(w, "invalid_request", "Email is required")
-		return
-	}
-
-	// Generate magic link token
-	_, err := h.magicLinkSvc.GenerateMagicLink(r.Context(), req.Email, service.TokenTypeLogin)
-	if err != nil {
-		// Don't expose error details
-	}
-
-	// Always return success to prevent email enumeration
-	response.Success(w, MagicLinkResponse{
-		Message: "If the email exists, a magic link has been sent",
-	})
-}
-
-// @Summary Verify magic link
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param request body MagicLinkVerifyRequest true "Magic link token"
-// @Success 200 {object} TokenResponse
-// @Failure 400 {object} response.APIError
-// @Router /auth/magic-link/verify [post]
-// MagicLinkVerify handles POST /auth/magic-link/verify - Verifies magic link, returns tokens
-func (h *AuthHandler) MagicLinkVerify(w http.ResponseWriter, r *http.Request) {
-	var req MagicLinkVerifyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.BadRequest(w, "invalid_request", "Invalid request body")
-		return
-	}
-
-	if req.Token == "" {
-		response.BadRequest(w, "invalid_request", "Token is required")
-		return
-	}
-
-	// Validate magic link token
-	userID, err := h.magicLinkSvc.ValidateMagicLink(r.Context(), req.Token, service.TokenTypeLogin)
-	if err != nil {
-		if errors.Is(err, service.ErrInvalidToken) {
-			response.BadRequest(w, "invalid_token", "Invalid or expired magic link")
-			return
-		}
-		if errors.Is(err, service.ErrTokenExpired) {
-			response.BadRequest(w, "token_expired", "Magic link has expired")
-			return
-		}
-		if errors.Is(err, service.ErrTokenAlreadyUsed) {
-			response.BadRequest(w, "token_used", "Magic link has already been used")
-			return
-		}
-		response.InternalError(w, "Failed to verify magic link")
-		return
-	}
-
-	// Get user by ID
-	dbUser, err := h.queries.GetUserByID(r.Context(), userID.String())
-	if err != nil {
-		response.InternalError(w, "Failed to get user")
-		return
-	}
-
-	// Check if user is suspended
-	if dbUser.Status == string(model.StatusSuspended) {
-		response.Forbidden(w, "Account has been suspended")
-		return
-	}
-
-	id, _ := uuid.Parse(dbUser.ID)
-	createdAt, _ := time.Parse(time.RFC3339, dbUser.CreatedAt)
-	updatedAt, _ := time.Parse(time.RFC3339, dbUser.UpdatedAt)
-
-	// Generate tokens for user
-	user := &model.User{
-		ID:        id,
-		Email:     dbUser.Email,
-		Role:      model.UserRole(dbUser.Role),
-		Status:    model.UserStatus(dbUser.Status),
-		CreatedAt: createdAt,
-		UpdatedAt: updatedAt,
-	}
-
-	tokens, err := h.authSvc.RefreshSession(r.Context(), req.Token)
-	if err != nil {
-		// Need to generate new tokens - use the magic link token flow
-		tokens, err = h.tokenSvc.GenerateTokenPair(user, uuid.Nil)
-		if err != nil {
-			response.InternalError(w, "Failed to generate tokens")
-			return
-		}
 	}
 
 	resp := TokenResponse{

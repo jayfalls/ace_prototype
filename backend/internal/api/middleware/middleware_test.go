@@ -43,9 +43,8 @@ func TestGetUserRoleFromContext_Empty(t *testing.T) {
 
 func TestGetTokenClaimsFromContext(t *testing.T) {
 	claims := &model.TokenClaims{
-		Sub:   uuid.New(),
-		Role:  string(model.RoleUser),
-		Email: "test@example.com",
+		Sub:  uuid.New(),
+		Role: string(model.RoleUser),
 	}
 	ctx := context.WithValue(context.Background(), TokenClaimsKey, claims)
 
@@ -58,20 +57,6 @@ func TestGetTokenClaimsFromContext_Empty(t *testing.T) {
 
 	result := GetTokenClaimsFromContext(ctx)
 	assert.Nil(t, result)
-}
-
-func TestGetUserEmailFromContext(t *testing.T) {
-	ctx := context.WithValue(context.Background(), UserEmailKey, "test@example.com")
-
-	result := GetUserEmailFromContext(ctx)
-	assert.Equal(t, "test@example.com", result)
-}
-
-func TestGetUserEmailFromContext_Empty(t *testing.T) {
-	ctx := context.Background()
-
-	result := GetUserEmailFromContext(ctx)
-	assert.Equal(t, "", result)
 }
 
 // TestRequireAuth_MissingHeader tests that RequireAuth returns 401 when Authorization header is missing.

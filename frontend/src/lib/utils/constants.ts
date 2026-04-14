@@ -2,10 +2,7 @@
 export const ROUTES = {
 	HOME: '/',
 	LOGIN: '/login',
-	REGISTER: '/register',
-	FORGOT_PASSWORD: '/forgot-password',
-	RESET_PASSWORD: '/reset-password',
-	MAGIC_LINK: '/magic-link',
+	SETUP: '/setup',
 	PROFILE: '/profile',
 	ADMIN_USERS: '/admin/users',
 	ADMIN_USER_DETAIL: '/admin/users',
@@ -15,6 +12,11 @@ export const ROUTES = {
 	TELEMETRY_USAGE: '/telemetry/usage',
 	SETTINGS: '/settings'
 } as const;
+
+// App info
+export const APP_VERSION = '0.1.0';
+export const APP_NAME = 'ACE Framework';
+export const GITHUB_REPO = 'https://github.com/ace-framework/ace';
 
 // Responsive breakpoints
 export const BREAKPOINTS = {

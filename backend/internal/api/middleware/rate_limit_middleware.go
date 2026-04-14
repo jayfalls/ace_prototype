@@ -43,13 +43,6 @@ func (rl *RateLimiter) LimitByIP(key string, maxRequests int, window time.Durati
 	return rl.checkLimit(key, maxRequests, window)
 }
 
-// LimitByEmail checks if the email has exceeded the rate limit.
-// Returns true if allowed, false if limit exceeded.
-// The key should be the user's email address.
-func (rl *RateLimiter) LimitByEmail(email string, maxRequests int, window time.Duration) (bool, error) {
-	return rl.checkLimit(email, maxRequests, window)
-}
-
 // checkLimit is the internal method that performs the rate limit check.
 func (rl *RateLimiter) checkLimit(key string, maxRequests int, window time.Duration) (bool, error) {
 	now := time.Now()
@@ -184,15 +177,6 @@ func (rl *RateLimiter) RateLimitByIP(maxRequests int, window time.Duration) func
 			}
 		}
 		return ip
-	})
-}
-
-// RateLimitByEmail returns a middleware that rate limits by user email.
-// This middleware expects the email to be in the request context under UserEmailKey.
-// Use this after the auth middleware.
-func (rl *RateLimiter) RateLimitByEmail(maxRequests int, window time.Duration) func(next http.Handler) http.Handler {
-	return rl.Middleware(maxRequests, window, func(r *http.Request) string {
-		return GetUserEmailFromContext(r.Context())
 	})
 }
 

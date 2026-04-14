@@ -12,7 +12,7 @@ Schema: `main`
 | `resource_id` | TEXT | - | NO |
 | `permission_level` | TEXT | - | NO |
 | `granted_by` | TEXT | - | YES |
-| `created_at` | TEXT | datetime('now') | NO |
+| `created_at` | TEXT | - | NO |
 
 ## Constraints
 

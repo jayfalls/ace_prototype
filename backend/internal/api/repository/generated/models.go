@@ -8,16 +8,6 @@ import (
 	"database/sql"
 )
 
-type AuthToken struct {
-	ID        string         `json:"id"`
-	UserID    string         `json:"user_id"`
-	TokenType string         `json:"token_type"`
-	TokenHash string         `json:"token_hash"`
-	ExpiresAt string         `json:"expires_at"`
-	UsedAt    sql.NullString `json:"used_at"`
-	CreatedAt string         `json:"created_at"`
-}
-
 type OttMetric struct {
 	ID        int64          `json:"id"`
 	Name      string         `json:"name"`
@@ -80,8 +70,9 @@ type UsageEvent struct {
 
 type User struct {
 	ID              string         `json:"id"`
-	Email           string         `json:"email"`
+	Username        string         `json:"username"`
 	PasswordHash    string         `json:"password_hash"`
+	PinHash         sql.NullString `json:"pin_hash"`
 	Role            string         `json:"role"`
 	Status          string         `json:"status"`
 	SuspendedAt     sql.NullString `json:"suspended_at"`

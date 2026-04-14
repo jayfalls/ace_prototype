@@ -4,93 +4,93 @@ import { loginSchema, registerSchema } from '$lib/validation/schemas';
 import type { FieldError } from '$lib/api/types';
 
 describe('useForm', () => {
-	describe('validate', () => {
+	describe('validate with loginSchema', () => {
 		it('sets errors on invalid input', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
 			const valid = form.validate();
 			expect(valid).toBe(false);
-			expect(form.errors.email).toBe('Invalid email format');
-			expect(form.errors.password).toBe('Password must be at least 8 characters');
+			expect(form.errors.username).toBe('Username is required');
+			expect(form.errors.pin).toBe('PIN must be at least 4 digits');
 		});
 
 		it('clears errors on valid input', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.values.email = 'test@example.com';
-			form.values.password = 'password123';
+			form.values.username = 'testuser';
+			form.values.pin = '123456';
 
 			const valid = form.validate();
 			expect(valid).toBe(true);
-			expect(form.errors.email).toBeUndefined();
-			expect(form.errors.password).toBeUndefined();
+			expect(form.errors.username).toBeUndefined();
+			expect(form.errors.pin).toBeUndefined();
 		});
 	});
 
 	describe('validateField', () => {
 		it('validates single field and marks it as touched', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.validateField('email');
-			expect(form.touched.email).toBe(true);
-			expect(form.errors.email).toBe('Invalid email format');
+			form.validateField('username');
+			expect(form.touched.username).toBe(true);
+			expect(form.errors.username).toBe('Username is required');
 		});
 
 		it('clears error when field is valid', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.errors.email = 'some error';
-			form.values.email = 'test@example.com';
+			form.errors.username = 'some error';
+			form.values.username = 'testuser';
 
-			form.validateField('email');
-			expect(form.errors.email).toBeUndefined();
+			form.validateField('username');
+			expect(form.errors.username).toBeUndefined();
 		});
 	});
 
 	describe('reset', () => {
 		it('clears all values back to initial', () => {
 			const form = useForm({
-				initialValues: { email: 'original@example.com', password: 'password123' },
+				initialValues: { username: 'original', pin: '123456' },
 				schema: loginSchema,
 			});
 
-			form.values.email = 'new@example.com';
-			form.values.password = 'newpassword';
+			form.values.username = 'newuser';
+			form.values.pin = '654321';
 
 			form.reset();
-			expect(form.values.email).toBe('original@example.com');
-			expect(form.values.password).toBe('password123');
+			expect(form.values.username).toBe('original');
+			expect(form.values.pin).toBe('123456');
 		});
 
 		it('clears errors and touched state', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.errors.email = 'Invalid email format';
-			form.touched.email = true;
+			form.errors.username = 'Username too short';
+			form.touched.username = true;
 
 			form.reset();
 			expect(Object.keys(form.errors).length).toBe(0);
-			expect(form.touched.email).toBeUndefined();
+			expect(form.touched.username).toBeUndefined();
 		});
 
 		it('resets isSubmitting to false', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
@@ -103,7 +103,7 @@ describe('useForm', () => {
 	describe('handleSubmit', () => {
 		it('calls onSubmit when form is valid', async () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
@@ -114,14 +114,14 @@ describe('useForm', () => {
 			await handler(event);
 
 			expect(onSubmit).toHaveBeenCalledWith({
-				email: 'test@example.com',
-				password: 'password123',
+				username: 'testuser',
+				pin: '123456',
 			});
 		});
 
 		it('does not call onSubmit when form is invalid', async () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
@@ -136,7 +136,7 @@ describe('useForm', () => {
 
 		it('marks all fields as touched on submit', async () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
@@ -146,13 +146,13 @@ describe('useForm', () => {
 			const event = new Event('submit');
 			await handler(event);
 
-			expect(form.touched.email).toBe(true);
-			expect(form.touched.password).toBe(true);
+			expect(form.touched.username).toBe(true);
+			expect(form.touched.pin).toBe(true);
 		});
 
 		it('sets isSubmitting during submission', async () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
@@ -172,7 +172,7 @@ describe('useForm', () => {
 
 		it('resets isSubmitting even if submit throws', async () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
@@ -189,51 +189,51 @@ describe('useForm', () => {
 	describe('setFieldErrors', () => {
 		it('maps API errors to form fields', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
 			const apiErrors: FieldError[] = [
-				{ field: 'email', message: 'Email already exists' },
-				{ field: 'password', message: 'Password too weak' },
+				{ field: 'username', message: 'Username already exists' },
+				{ field: 'pin', message: 'PIN is incorrect' },
 			];
 
 			form.setFieldErrors(apiErrors);
-			expect(form.errors.email).toBe('Email already exists');
-			expect(form.errors.password).toBe('Password too weak');
+			expect(form.errors.username).toBe('Username already exists');
+			expect(form.errors.pin).toBe('PIN is incorrect');
 		});
 
 		it('overwrites existing errors', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.errors.email = 'Old error';
+			form.errors.username = 'Old error';
 			const apiErrors: FieldError[] = [
-				{ field: 'email', message: 'New error from API' },
+				{ field: 'username', message: 'New error from API' },
 			];
 
 			form.setFieldErrors(apiErrors);
-			expect(form.errors.email).toBe('New error from API');
+			expect(form.errors.username).toBe('New error from API');
 		});
 
 		it('handles empty array', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
-			form.errors.email = 'Some error';
+			form.errors.username = 'Some error';
 			form.setFieldErrors([]);
-			expect(form.errors.email).toBeUndefined();
+			expect(form.errors.username).toBeUndefined();
 		});
 	});
 
 	describe('isValid', () => {
 		it('is true when no errors', () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
@@ -242,7 +242,7 @@ describe('useForm', () => {
 
 		it('is false when there are errors', () => {
 			const form = useForm({
-				initialValues: { email: '', password: '' },
+				initialValues: { username: '', pin: '' },
 				schema: loginSchema,
 			});
 
@@ -254,7 +254,7 @@ describe('useForm', () => {
 	describe('isDirty', () => {
 		it('is false initially', () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
@@ -263,48 +263,48 @@ describe('useForm', () => {
 
 		it('is true when value changes', () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
-			form.values.email = 'changed@example.com';
+			form.values.username = 'changeduser';
 			expect(form.isDirty).toBe(true);
 		});
 
 		it('is false after reset', () => {
 			const form = useForm({
-				initialValues: { email: 'test@example.com', password: 'password123' },
+				initialValues: { username: 'testuser', pin: '123456' },
 				schema: loginSchema,
 			});
 
-			form.values.email = 'changed@example.com';
+			form.values.username = 'changeduser';
 			form.reset();
 			expect(form.isDirty).toBe(false);
 		});
 	});
 
 	describe('with registerSchema', () => {
-		it('validates password match', () => {
+		it('validates pin match', () => {
 			const form = useForm({
 				initialValues: {
-					email: 'test@example.com',
-					password: 'password123',
-					confirmPassword: 'different',
+					username: 'testuser',
+					pin: '123456',
+					confirmPin: '654321',
 				},
 				schema: registerSchema,
 			});
 
 			const valid = form.validate();
 			expect(valid).toBe(false);
-			expect(form.errors.confirmPassword).toBe('Passwords do not match');
+			expect(form.errors.confirmPin).toBe('PINs do not match');
 		});
 
-		it('passes when passwords match', () => {
+		it('passes when pins match', () => {
 			const form = useForm({
 				initialValues: {
-					email: 'test@example.com',
-					password: 'password123',
-					confirmPassword: 'password123',
+					username: 'testuser',
+					pin: '123456',
+					confirmPin: '123456',
 				},
 				schema: registerSchema,
 			});

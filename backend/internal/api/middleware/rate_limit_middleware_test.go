@@ -2,7 +2,6 @@
 package middleware
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -87,33 +86,6 @@ func TestLimitByIP_DifferentIPsIndependent(t *testing.T) {
 	allowed, _ = rl.LimitByIP("192.168.1.2", 2, time.Minute)
 	if !allowed {
 		t.Error("IP2 should be allowed")
-	}
-}
-
-func TestLimitByEmail(t *testing.T) {
-	rl := NewRateLimiter(RateLimitConfig{
-		MaxRequests:    2,
-		WindowDuration: time.Minute,
-	})
-
-	// First 2 requests should be allowed
-	for i := 0; i < 2; i++ {
-		allowed, err := rl.LimitByEmail("user@example.com", 2, time.Minute)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-		if !allowed {
-			t.Errorf("request %d should be allowed", i+1)
-		}
-	}
-
-	// 3rd request should be blocked
-	allowed, err := rl.LimitByEmail("user@example.com", 2, time.Minute)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if allowed {
-		t.Error("3rd request should be blocked")
 	}
 }
 
@@ -261,73 +233,6 @@ func TestRateLimitByIP_AddsHeaders(t *testing.T) {
 	}
 	if reset == "" {
 		t.Error("X-RateLimit-Reset header should be set")
-	}
-}
-
-func TestRateLimitByEmail_Middleware(t *testing.T) {
-	rl := NewRateLimiter(RateLimitConfig{
-		MaxRequests:    2,
-		WindowDuration: time.Minute,
-	})
-
-	middleware := rl.RateLimitByEmail(2, time.Minute)
-
-	nextCalled := false
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextCalled = true
-		w.WriteHeader(http.StatusOK)
-	})
-
-	handler := middleware(next)
-
-	// Request with email in context
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	ctx := context.WithValue(req.Context(), UserEmailKey, "user@example.com")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if !nextCalled {
-		t.Error("next handler should be called")
-	}
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-}
-
-func TestRateLimitByEmail_BlocksExceeded(t *testing.T) {
-	rl := NewRateLimiter(RateLimitConfig{
-		MaxRequests:    1,
-		WindowDuration: time.Minute,
-	})
-
-	middleware := rl.RateLimitByEmail(1, time.Minute)
-
-	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	handler := middleware(next)
-
-	// First request
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	ctx := context.WithValue(req.Context(), UserEmailKey, "user@example.com")
-	req = req.WithContext(ctx)
-
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	// Second request - should be blocked
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	ctx = context.WithValue(req.Context(), UserEmailKey, "user@example.com")
-	req = req.WithContext(ctx)
-
-	w = httptest.NewRecorder()
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusTooManyRequests {
-		t.Errorf("expected status 429, got %d", w.Code)
 	}
 }
 

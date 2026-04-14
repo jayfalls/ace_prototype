@@ -14,12 +14,13 @@ CREATE TABLE IF NOT EXISTS version_stamps (
 );
 
 -- =============================================================================
--- users table (user accounts with authentication credentials and roles)
+-- users table (user accounts with PIN-based authentication)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS users (
     id               TEXT PRIMARY KEY,
-    email            TEXT NOT NULL UNIQUE,
+    username         TEXT NOT NULL UNIQUE,
     password_hash    TEXT NOT NULL,
+    pin_hash         TEXT,
     role             TEXT NOT NULL DEFAULT 'user',
     status           TEXT NOT NULL DEFAULT 'pending',
     suspended_at     TEXT,
@@ -29,7 +30,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at       TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- =============================================================================
 -- sessions table (active user sessions with refresh tokens)
@@ -48,24 +49,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
-
--- =============================================================================
--- auth_tokens table (auth tokens for magic links and password reset)
--- =============================================================================
-CREATE TABLE IF NOT EXISTS auth_tokens (
-    id          TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL,
-    token_type  TEXT NOT NULL,
-    token_hash  TEXT NOT NULL,
-    expires_at  TEXT NOT NULL,
-    used_at     TEXT,
-    created_at  TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_id ON auth_tokens(user_id);
-CREATE INDEX IF NOT EXISTS idx_auth_tokens_token_hash ON auth_tokens(token_hash);
-CREATE INDEX IF NOT EXISTS idx_auth_tokens_expires_at ON auth_tokens(expires_at);
 
 -- =============================================================================
 -- resource_permissions table (resource-level permissions for fine-grained access control)

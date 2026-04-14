@@ -181,24 +181,26 @@ class APIClient {
 			});
 
 			if (!retryResponse.ok) {
-				throw await this.normalizeError(retryResponse);
+				const apiError = await this.normalizeError(retryResponse);
+				throw new Error(apiError.message);
 			}
 
 			const envelope = await retryResponse.json() as APIEnvelope<T>;
 			if (!envelope.success) {
-				throw envelope.error ?? { code: 'internal_error', message: 'Request failed' };
+				throw new Error(envelope.error?.message ?? 'Request failed');
 			}
 			return envelope.data as T;
 		}
 
 		if (!response.ok) {
-			throw await this.normalizeError(response);
+			const apiError = await this.normalizeError(response);
+			throw new Error(apiError.message);
 		}
 
 		const envelope = await response.json() as APIEnvelope<T>;
 
 		if (!envelope.success) {
-			throw envelope.error ?? { code: 'internal_error', message: 'Request failed' };
+			throw new Error(envelope.error?.message ?? 'Request failed');
 		}
 
 		return envelope.data as T;

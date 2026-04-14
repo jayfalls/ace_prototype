@@ -41,6 +41,7 @@ describe('AuthStore', () => {
 
 	const mockUser = {
 		id: '1',
+		username: 'testuser',
 		email: 'test@test.com',
 		role: 'user' as const,
 		status: 'active' as const,
@@ -82,9 +83,9 @@ describe('AuthStore', () => {
 			const { login } = await import('$lib/api/auth');
 			vi.mocked(login).mockResolvedValue(mockTokenResponse);
 
-			await authStore.login('test@test.com', 'password123');
+			await authStore.login('testuser', '123456');
 
-			expect(login).toHaveBeenCalledWith('test@test.com', 'password123');
+			expect(login).toHaveBeenCalledWith('testuser', '123456');
 			expect(authStore.user).toEqual(mockUser);
 			expect(authStore.accessToken).toBe('access-token-123');
 			expect(authStore.refreshToken).toBe('refresh-token-456');
@@ -96,7 +97,7 @@ describe('AuthStore', () => {
 			vi.mocked(login).mockRejectedValue(new Error('Invalid credentials'));
 
 			await expect(
-				authStore.login('test@test.com', 'wrongpassword')
+				authStore.login('testuser', 'wrongpin')
 			).rejects.toThrow('Invalid credentials');
 			expect(authStore.error).toBe('Invalid credentials');
 		});

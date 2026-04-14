@@ -307,9 +307,8 @@ func (s *TokenService) GenerateTokenPair(user *model.User, sessionID uuid.UUID) 
 
 	// Create access token claims
 	accessClaims := &model.TokenClaims{
-		Sub:   user.ID,
-		Role:  string(user.Role),
-		Email: user.Email,
+		Sub:  user.ID,
+		Role: string(user.Role),
 	}
 
 	// Generate access token

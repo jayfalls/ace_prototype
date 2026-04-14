@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"ace/internal/api/middleware"
 	"ace/internal/api/model"
 	db "ace/internal/api/repository/generated"
 	"ace/internal/api/response"
@@ -34,7 +35,7 @@ func NewSessionHandler(queries *db.Queries) (*SessionHandler, error) {
 // UserResponse represents a user response for API endpoints.
 type UserResponse struct {
 	ID        uuid.UUID        `json:"id"`
-	Email     string           `json:"email"`
+	Username  string           `json:"username"`
 	Role      model.UserRole   `json:"role"`
 	Status    model.UserStatus `json:"status"`
 	CreatedAt string           `json:"created_at"`
@@ -68,7 +69,7 @@ type SessionsListResponse struct {
 // @Router /auth/me [get]
 // Me handles GET /auth/me - Returns current user profile
 func (h *SessionHandler) Me(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(UserIDKey)
+	userID := r.Context().Value(middleware.UserIDKey)
 	if userID == nil {
 		response.Unauthorized(w, "User not authenticated")
 		return
@@ -86,7 +87,7 @@ func (h *SessionHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 	resp := UserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -105,7 +106,7 @@ func (h *SessionHandler) Me(w http.ResponseWriter, r *http.Request) {
 // @Router /auth/me/sessions [get]
 // ListSessions handles GET /auth/me/sessions - Lists user's active sessions
 func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(UserIDKey)
+	userID := r.Context().Value(middleware.UserIDKey)
 	if userID == nil {
 		response.Unauthorized(w, "User not authenticated")
 		return
@@ -164,7 +165,7 @@ func (h *SessionHandler) ListSessions(w http.ResponseWriter, r *http.Request) {
 // @Router /auth/me/sessions/{id} [delete]
 // RevokeSession handles DELETE /auth/me/sessions/:id - Revokes specific session
 func (h *SessionHandler) RevokeSession(w http.ResponseWriter, r *http.Request) {
-	userID := r.Context().Value(UserIDKey)
+	userID := r.Context().Value(middleware.UserIDKey)
 	if userID == nil {
 		response.Unauthorized(w, "User not authenticated")
 		return

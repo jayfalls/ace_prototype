@@ -36,7 +36,7 @@ func NewAdminHandler(queries *db.Queries) (*AdminHandler, error) {
 // UserListItem represents a user in a list response.
 type UserListItem struct {
 	ID        uuid.UUID        `json:"id"`
-	Email     string           `json:"email"`
+	Username  string           `json:"username"`
 	Role      model.UserRole   `json:"role"`
 	Status    model.UserStatus `json:"status"`
 	CreatedAt string           `json:"created_at"`
@@ -54,7 +54,7 @@ type UsersListResponse struct {
 // AdminUserResponse represents a detailed user response for admin.
 type AdminUserResponse struct {
 	ID              uuid.UUID        `json:"id"`
-	Email           string           `json:"email"`
+	Username        string           `json:"username"`
 	Role            model.UserRole   `json:"role"`
 	Status          model.UserStatus `json:"status"`
 	SuspendedAt     *string          `json:"suspended_at,omitempty"`
@@ -139,7 +139,7 @@ func (h *AdminHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		updatedAt, _ := time.Parse(time.RFC3339, u.UpdatedAt)
 		users[i] = UserListItem{
 			ID:        id,
-			Email:     u.Email,
+			Username:  u.Username,
 			Role:      model.UserRole(u.Role),
 			Status:    model.UserStatus(u.Status),
 			CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -193,7 +193,7 @@ func (h *AdminHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	// Build response
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -272,7 +272,7 @@ func (h *AdminHandler) UpdateUserRole(w http.ResponseWriter, r *http.Request) {
 
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -338,7 +338,7 @@ func (h *AdminHandler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := AdminUserResponse{
 		ID:              id,
-		Email:           dbUser.Email,
+		Username:        dbUser.Username,
 		Role:            model.UserRole(dbUser.Role),
 		Status:          model.UserStatus(dbUser.Status),
 		SuspendedReason: &dbUser.SuspendedReason.String,
@@ -395,7 +395,7 @@ func (h *AdminHandler) RestoreUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := AdminUserResponse{
 		ID:        id,
-		Email:     dbUser.Email,
+		Username:  dbUser.Username,
 		Role:      model.UserRole(dbUser.Role),
 		Status:    model.UserStatus(dbUser.Status),
 		CreatedAt: createdAt.Format("2006-01-02T15:04:05Z07:00"),

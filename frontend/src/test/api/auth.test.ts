@@ -13,23 +13,23 @@ describe('Auth API', () => {
 	});
 
 	describe('login', () => {
-		it('calls POST /auth/login with email and password', async () => {
+		it('calls POST /auth/login with username and pin', async () => {
 			const { apiClient } = await import('$lib/api/client');
 			const { login } = await import('$lib/api/auth');
 
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
-			const result = await login('test@test.com', 'password123');
+			const result = await login('testuser', '123456');
 
 			expect(apiClient.request).toHaveBeenCalledWith({
 				method: 'POST',
 				path: '/auth/login',
-				body: { email: 'test@test.com', password: 'password123' },
+				body: { username: 'testuser', pin: '123456' },
 				requiresAuth: false
 			});
 			expect(result.access_token).toBe('token');
@@ -37,26 +37,26 @@ describe('Auth API', () => {
 	});
 
 	describe('register', () => {
-		it('calls POST /auth/register with email and password', async () => {
+		it('calls POST /auth/register with username and pin', async () => {
 			const { apiClient } = await import('$lib/api/client');
 			const { register } = await import('$lib/api/auth');
 
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'token',
 				refresh_token: 'refresh',
-				user: { id: '1', email: 'new@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'newuser', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
-			const result = await register('new@test.com', 'password123');
+			const result = await register('newuser', '123456');
 
 			expect(apiClient.request).toHaveBeenCalledWith({
 				method: 'POST',
 				path: '/auth/register',
-				body: { email: 'new@test.com', password: 'password123' },
+				body: { username: 'newuser', pin: '123456' },
 				requiresAuth: false
 			});
-			expect(result.user.email).toBe('new@test.com');
+			expect(result.user.username).toBe('newuser');
 		});
 	});
 
@@ -85,7 +85,7 @@ describe('Auth API', () => {
 			vi.mocked(apiClient.request).mockResolvedValue({
 				access_token: 'new-token',
 				refresh_token: 'new-refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
+				user: { id: '1', username: 'testuser', role: 'user', status: 'active', created_at: '', updated_at: '' },
 				expires_in: 3600
 			});
 
@@ -108,7 +108,7 @@ describe('Auth API', () => {
 
 			const mockUser = {
 				id: '1',
-				email: 'test@test.com',
+				username: 'testuser',
 				role: 'user' as const,
 				status: 'active' as const,
 				created_at: '2024-01-01T00:00:00Z',
@@ -122,91 +122,30 @@ describe('Auth API', () => {
 				method: 'GET',
 				path: '/auth/me'
 			});
-			expect(result.email).toBe('test@test.com');
+			expect(result.username).toBe('testuser');
 		});
 	});
 
-	describe('resetPasswordRequest', () => {
-		it('calls POST /auth/password/reset/request with email', async () => {
+	describe('listUsers', () => {
+		it('calls GET /users', async () => {
 			const { apiClient } = await import('$lib/api/client');
-			const { resetPasswordRequest } = await import('$lib/api/auth');
+			const { listUsers } = await import('$lib/api/auth');
 
-			vi.mocked(apiClient.request).mockResolvedValue(undefined);
+			const mockUsers = [
+				{ id: '1', username: 'user1', role: 'user' as const, status: 'active' as const },
+				{ id: '2', username: 'user2', role: 'admin' as const, status: 'active' as const }
+			];
+		vi.mocked(apiClient.request).mockResolvedValue({ users: mockUsers });
 
-			await resetPasswordRequest('test@test.com');
+		const result = await listUsers();
 
-			expect(apiClient.request).toHaveBeenCalledWith({
-				method: 'POST',
-				path: '/auth/password/reset/request',
-				body: { email: 'test@test.com' },
-				requiresAuth: false
-			});
+		expect(apiClient.request).toHaveBeenCalledWith({
+			method: 'GET',
+			path: '/users',
+			requiresAuth: false
 		});
-	});
-
-	describe('resetPasswordConfirm', () => {
-		it('calls POST /auth/password/reset/confirm with token and new_password', async () => {
-			const { apiClient } = await import('$lib/api/client');
-			const { resetPasswordConfirm } = await import('$lib/api/auth');
-
-			vi.mocked(apiClient.request).mockResolvedValue({
-				access_token: 'token',
-				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
-				expires_in: 3600
-			});
-
-			const result = await resetPasswordConfirm('reset-token-xyz', 'newpassword123');
-
-			expect(apiClient.request).toHaveBeenCalledWith({
-				method: 'POST',
-				path: '/auth/password/reset/confirm',
-				body: { token: 'reset-token-xyz', new_password: 'newpassword123' },
-				requiresAuth: false
-			});
-			expect(result.access_token).toBe('token');
-		});
-	});
-
-	describe('magicLinkRequest', () => {
-		it('calls POST /auth/magic-link/request with email', async () => {
-			const { apiClient } = await import('$lib/api/client');
-			const { magicLinkRequest } = await import('$lib/api/auth');
-
-			vi.mocked(apiClient.request).mockResolvedValue(undefined);
-
-			await magicLinkRequest('test@test.com');
-
-			expect(apiClient.request).toHaveBeenCalledWith({
-				method: 'POST',
-				path: '/auth/magic-link/request',
-				body: { email: 'test@test.com' },
-				requiresAuth: false
-			});
-		});
-	});
-
-	describe('magicLinkVerify', () => {
-		it('calls POST /auth/magic-link/verify with token', async () => {
-			const { apiClient } = await import('$lib/api/client');
-			const { magicLinkVerify } = await import('$lib/api/auth');
-
-			vi.mocked(apiClient.request).mockResolvedValue({
-				access_token: 'token',
-				refresh_token: 'refresh',
-				user: { id: '1', email: 'test@test.com', role: 'user', status: 'active', created_at: '', updated_at: '' },
-				expires_in: 3600
-			});
-
-			const result = await magicLinkVerify('magic-token-xyz');
-
-			expect(apiClient.request).toHaveBeenCalledWith({
-				method: 'POST',
-				path: '/auth/magic-link/verify',
-				body: { token: 'magic-token-xyz' },
-				requiresAuth: false
-			});
-			expect(result.access_token).toBe('token');
+		expect(result.users).toHaveLength(2);
+			expect(result.users[0].username).toBe('user1');
 		});
 	});
 });

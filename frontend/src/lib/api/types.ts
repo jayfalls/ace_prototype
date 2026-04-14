@@ -26,13 +26,13 @@ export interface PaginatedResponse<T> {
 
 // --- Auth ---
 export interface LoginRequest {
-	email: string;
-	password: string;
+	username: string;
+	pin: string;
 }
 
 export interface RegisterRequest {
-	email: string;
-	password: string;
+	username: string;
+	pin: string;
 }
 
 export interface TokenResponse {
@@ -46,22 +46,13 @@ export interface RefreshRequest {
 	refresh_token: string;
 }
 
-export interface ResetPasswordRequest {
-	token: string;
-	new_password: string;
-}
-
-export interface MagicLinkVerifyRequest {
-	token: string;
-}
-
 // --- User ---
 export type UserRole = 'admin' | 'user' | 'viewer';
 export type UserStatus = 'pending' | 'active' | 'suspended';
 
 export interface User {
 	id: string;
-	email: string;
+	username: string;
 	role: UserRole;
 	status: UserStatus;
 	suspended_at?: string;
@@ -72,7 +63,7 @@ export interface User {
 
 export interface UserListItem {
 	id: string;
-	email: string;
+	username: string;
 	role: UserRole;
 	status: UserStatus;
 	created_at: string;
@@ -81,7 +72,7 @@ export interface UserListItem {
 
 export interface AdminUserResponse {
 	id: string;
-	email: string;
+	username: string;
 	role: UserRole;
 	status: UserStatus;
 	suspended_at?: string;

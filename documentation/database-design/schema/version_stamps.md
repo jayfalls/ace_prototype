@@ -9,6 +9,6 @@ Schema: `main`
 | `key` | TEXT | - | YES |
 | `version` | TEXT | - | NO |
 | `source_hash` | TEXT | - | YES |
-| `updated_at` | TEXT | datetime('now') | NO |
+| `updated_at` | TEXT | - | NO |
 | `updated_by` | TEXT | - | YES |
 

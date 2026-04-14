@@ -6,10 +6,7 @@ describe('constants', () => {
 		it('has all required route keys', () => {
 			expect(ROUTES.HOME).toBe('/');
 			expect(ROUTES.LOGIN).toBe('/login');
-			expect(ROUTES.REGISTER).toBe('/register');
-			expect(ROUTES.FORGOT_PASSWORD).toBe('/forgot-password');
-			expect(ROUTES.RESET_PASSWORD).toBe('/reset-password');
-			expect(ROUTES.MAGIC_LINK).toBe('/magic-link');
+			expect(ROUTES.SETUP).toBe('/setup');
 			expect(ROUTES.PROFILE).toBe('/profile');
 			expect(ROUTES.ADMIN_USERS).toBe('/admin/users');
 			expect(ROUTES.TELEMETRY).toBe('/telemetry');

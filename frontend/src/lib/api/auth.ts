@@ -4,24 +4,23 @@ import type {
 	RegisterRequest,
 	TokenResponse,
 	User,
-	ResetPasswordRequest,
-	MagicLinkVerifyRequest
+	UserListItem
 } from './types';
 
-export async function login(email: string, password: string): Promise<TokenResponse> {
+export async function login(username: string, pin: string): Promise<TokenResponse> {
 	return apiClient.request<TokenResponse>({
 		method: 'POST',
 		path: '/auth/login',
-		body: { email, password } satisfies LoginRequest,
+		body: { username, pin } satisfies LoginRequest,
 		requiresAuth: false
 	});
 }
 
-export async function register(email: string, password: string): Promise<TokenResponse> {
+export async function register(username: string, pin: string): Promise<TokenResponse> {
 	return apiClient.request<TokenResponse>({
 		method: 'POST',
 		path: '/auth/register',
-		body: { email, password } satisfies RegisterRequest,
+		body: { username, pin } satisfies RegisterRequest,
 		requiresAuth: false
 	});
 }
@@ -50,38 +49,10 @@ export async function me(): Promise<User> {
 	});
 }
 
-export async function resetPasswordRequest(email: string): Promise<void> {
-	return apiClient.request<void>({
-		method: 'POST',
-		path: '/auth/password/reset/request',
-		body: { email },
-		requiresAuth: false
-	});
-}
-
-export async function resetPasswordConfirm(token: string, newPassword: string): Promise<TokenResponse> {
-	return apiClient.request<TokenResponse>({
-		method: 'POST',
-		path: '/auth/password/reset/confirm',
-		body: { token, new_password: newPassword } satisfies ResetPasswordRequest,
-		requiresAuth: false
-	});
-}
-
-export async function magicLinkRequest(email: string): Promise<void> {
-	return apiClient.request<void>({
-		method: 'POST',
-		path: '/auth/magic-link/request',
-		body: { email },
-		requiresAuth: false
-	});
-}
-
-export async function magicLinkVerify(token: string): Promise<TokenResponse> {
-	return apiClient.request<TokenResponse>({
-		method: 'POST',
-		path: '/auth/magic-link/verify',
-		body: { token } satisfies MagicLinkVerifyRequest,
+export async function listUsers(): Promise<{ users: UserListItem[] }> {
+	return apiClient.request<{ users: UserListItem[] }>({
+		method: 'GET',
+		path: '/users',
 		requiresAuth: false
 	});
 }

@@ -81,6 +81,21 @@ RETURNING
     expires_at,
     created_at;
 
+-- name: UpdateSessionRefreshTokenHash :one
+-- Updates the refresh_token_hash for a session.
+UPDATE sessions
+SET refresh_token_hash = ?
+WHERE id = ?
+RETURNING
+    id,
+    user_id,
+    refresh_token_hash,
+    user_agent,
+    ip_address,
+    last_used_at,
+    expires_at,
+    created_at;
+
 -- name: DeleteSession :exec
 -- Deletes a specific session by ID.
 DELETE FROM sessions

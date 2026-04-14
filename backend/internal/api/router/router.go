@@ -29,11 +29,10 @@ func GetOpenAPISpec() ([]byte, error) {
 
 // Error definitions for router validation.
 var (
-	ErrConfigRequired           = errors.New("config is required")
-	ErrQueriesRequired          = errors.New("queries is required")
-	ErrAuthServiceRequired      = errors.New("auth service is required")
-	ErrTokenServiceRequired     = errors.New("token service is required")
-	ErrMagicLinkServiceRequired = errors.New("magic link service is required")
+	ErrConfigRequired       = errors.New("config is required")
+	ErrQueriesRequired      = errors.New("queries is required")
+	ErrAuthServiceRequired  = errors.New("auth service is required")
+	ErrTokenServiceRequired = errors.New("token service is required")
 )
 
 // SubsystemHealth holds health status for a subsystem.
@@ -50,15 +49,14 @@ type HealthStatus struct {
 
 // Config holds all dependencies needed to create the router.
 type Config struct {
-	App              *AppConfig
-	Queries          *db.Queries
-	AuthService      *service.AuthService
-	TokenService     *service.TokenService
-	MagicLinkService *service.MagicLinkService
-	DB               *sql.DB
-	NATSConn         *nats.Conn
-	Cache            caching.CacheBackend
-	SPAHandler       http.Handler // Serves the SPA (embedded assets or Vite proxy)
+	App          *AppConfig
+	Queries      *db.Queries
+	AuthService  *service.AuthService
+	TokenService *service.TokenService
+	DB           *sql.DB
+	NATSConn     *nats.Conn
+	Cache        caching.CacheBackend
+	SPAHandler   http.Handler // Serves the SPA (embedded assets or Vite proxy)
 }
 
 // AppConfig holds the basic app configuration needed for the router.
@@ -87,16 +85,12 @@ func New(cfg *Config) (*chi.Mux, error) {
 	if cfg.TokenService == nil {
 		return nil, ErrTokenServiceRequired
 	}
-	if cfg.MagicLinkService == nil {
-		return nil, ErrMagicLinkServiceRequired
-	}
 
 	// Create handlers - these must be available
 	authHandler, err := handler.NewAuthHandler(
 		cfg.Queries,
 		cfg.AuthService,
 		cfg.TokenService,
-		cfg.MagicLinkService,
 	)
 	if err != nil {
 		return nil, err
@@ -149,52 +143,54 @@ func New(cfg *Config) (*chi.Mux, error) {
 	// Swagger UI
 	r.Get("/swagger/*", httpSwagger.WrapHandler)
 
-	// Health check routes (no auth required)
+	// Health check routes (no auth required, no /api prefix)
 	r.Group(func(r chi.Router) {
 		r.Get("/health/live", healthLiveHandler())
 		r.Get("/health/ready", healthReadyHandler(cfg))
 	})
 
-	// Auth routes (no auth required)
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", authHandler.Register)
-		r.Post("/login", authHandler.Login)
-		r.Post("/logout", authHandler.Logout)
-		r.Post("/refresh", authHandler.Refresh)
-		r.Post("/password/reset/request", authHandler.ResetPasswordRequest)
-		r.Post("/password/reset/confirm", authHandler.ResetPasswordConfirm)
-		r.Post("/magic-link/request", authHandler.MagicLinkRequest)
-		r.Post("/magic-link/verify", authHandler.MagicLinkVerify)
-	})
+	// API routes group (all under /api prefix)
+	r.Route("/api", func(r chi.Router) {
+		// Public user listing for login screen (no auth required)
+		r.Get("/users", authHandler.ListUsers)
 
-	// Protected routes (auth required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
+		// Auth routes (no auth required)
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.RegisterWithPIN)
+			r.Post("/login", authHandler.LoginWithPIN)
+			r.Post("/logout", authHandler.Logout)
+			r.Post("/refresh", authHandler.Refresh)
+		})
 
-		r.Get("/auth/me", sessionHandler.Me)
-		r.Get("/auth/me/sessions", sessionHandler.ListSessions)
-		r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
-	})
+		// Protected routes (auth required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
 
-	// Admin routes (auth + admin role required)
-	r.Group(func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
-		r.Use(rbacMw.RequireAdmin())
+			r.Get("/auth/me", sessionHandler.Me)
+			r.Get("/auth/me/sessions", sessionHandler.ListSessions)
+			r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
+		})
 
-		r.Get("/admin/users", adminHandler.ListUsers)
-		r.Get("/admin/users/{id}", adminHandler.GetUser)
-		r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
-		r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
-		r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
-	})
+		// Admin routes (auth + admin role required)
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Use(rbacMw.RequireAdmin())
 
-	// Telemetry routes (auth required)
-	r.Route("/telemetry", func(r chi.Router) {
-		r.Use(authMw.RequireAuth())
-		r.Get("/spans", telemetryHandler.Spans)
-		r.Get("/metrics", telemetryHandler.Metrics)
-		r.Get("/usage", telemetryHandler.Usage)
-		r.Get("/health", telemetryHandler.Health)
+			r.Get("/admin/users", adminHandler.ListUsers)
+			r.Get("/admin/users/{id}", adminHandler.GetUser)
+			r.Put("/admin/users/{id}/role", adminHandler.UpdateUserRole)
+			r.Post("/admin/users/{id}/suspend", adminHandler.SuspendUser)
+			r.Post("/admin/users/{id}/restore", adminHandler.RestoreUser)
+		})
+
+		// Telemetry routes (auth required)
+		r.Route("/telemetry", func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Get("/spans", telemetryHandler.Spans)
+			r.Get("/metrics", telemetryHandler.Metrics)
+			r.Get("/usage", telemetryHandler.Usage)
+			r.Get("/health", telemetryHandler.Health)
+		})
 	})
 
 	// SPA catch-all route - must be last to not intercept API routes
