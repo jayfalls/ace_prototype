@@ -205,21 +205,21 @@ func (s *AuthService) Logout(ctx context.Context, sessionID uuid.UUID) error {
 
 // RefreshSession validates a refresh token and generates a new token pair.
 // It also updates the session's last used timestamp.
-func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (*model.TokenPair, error) {
+func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (*model.User, *model.TokenPair, error) {
 	if ctx == nil {
-		return nil, errors.New("context is required")
+		return nil, nil, errors.New("context is required")
 	}
 	if refreshToken == "" {
-		return nil, errors.New("refresh token is required")
+		return nil, nil, errors.New("refresh token is required")
 	}
 
 	// Validate refresh token
 	tokenData, err := s.tokenSvc.ValidateRefreshToken(refreshToken)
 	if err != nil {
 		if errors.Is(err, ErrTokenExpired) {
-			return nil, model.ErrTokenExpired
+			return nil, nil, model.ErrTokenExpired
 		}
-		return nil, model.ErrRefreshTokenInvalid
+		return nil, nil, model.ErrRefreshTokenInvalid
 	}
 
 	// Get session to verify it's still valid
@@ -231,9 +231,9 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, model.ErrRefreshTokenInvalid
+			return nil, nil, model.ErrRefreshTokenInvalid
 		}
-		return nil, fmt.Errorf("get session: %w", err)
+		return nil, nil, fmt.Errorf("get session: %w", err)
 	}
 
 	// Update session last used timestamp
@@ -242,21 +242,21 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 		ID:         session.ID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("update session: %w", err)
+		return nil, nil, fmt.Errorf("update session: %w", err)
 	}
 
 	// Get user to generate new tokens
 	dbUser, err := s.queries.GetUserByID(ctx, session.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
+		return nil, nil, fmt.Errorf("get user: %w", err)
 	}
 
 	// Check if user is still active
 	if dbUser.Status == string(model.StatusSuspended) {
-		return nil, model.ErrAccountSuspended
+		return nil, nil, model.ErrAccountSuspended
 	}
 	if dbUser.DeletedAt.Valid {
-		return nil, model.ErrInvalidCredentials
+		return nil, nil, model.ErrInvalidCredentials
 	}
 
 	// Convert to model user
@@ -270,10 +270,10 @@ func (s *AuthService) RefreshSession(ctx context.Context, refreshToken string) (
 
 	tokens, err := s.tokenSvc.GenerateTokenPair(s.userWithoutSensitive(user), sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("generate tokens: %w", err)
+		return nil, nil, fmt.Errorf("generate tokens: %w", err)
 	}
 
-	return tokens, nil
+	return s.userWithoutSensitive(user), tokens, nil
 }
 
 // GetCurrentUser retrieves a user by their ID.

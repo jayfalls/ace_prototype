@@ -254,7 +254,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokens, err := h.authSvc.RefreshSession(r.Context(), req.RefreshToken)
+	user, tokens, err := h.authSvc.RefreshSession(r.Context(), req.RefreshToken)
 	if err != nil {
 		if errors.Is(err, model.ErrTokenExpired) {
 			response.Unauthorized(w, "Refresh token has expired")
@@ -269,19 +269,6 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		response.InternalError(w, "Failed to refresh session")
-		return
-	}
-
-	// Get current user from context
-	userID := r.Context().Value(UserIDKey)
-	if userID == nil {
-		response.InternalError(w, "User context not found")
-		return
-	}
-
-	user, err := h.authSvc.GetCurrentUser(r.Context(), userID.(uuid.UUID))
-	if err != nil {
-		response.InternalError(w, "Failed to get user")
 		return
 	}
 
