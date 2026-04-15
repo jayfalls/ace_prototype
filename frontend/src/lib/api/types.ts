@@ -164,7 +164,7 @@ export interface UsageResponse {
 }
 
 // --- Telemetry: Health ---
-export type HealthStatus = 'healthy' | 'degraded' | 'error';
+export type HealthStatus = 'healthy' | 'degraded' | 'error' | 'ok';
 
 export interface SubsystemCheck {
 	status: string;
@@ -182,7 +182,7 @@ export interface SubsystemCheck {
 
 export interface TelemetryHealthResponse {
 	status: HealthStatus;
-	checks: Record<string, SubsystemCheck>;
+	checks?: Record<string, SubsystemCheck>;
 }
 
 // --- Health ---

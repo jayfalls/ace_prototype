@@ -10,11 +10,24 @@ import type {
 } from './types';
 
 export async function getHealth(): Promise<TelemetryHealthResponse> {
-	return apiClient.request<TelemetryHealthResponse>({
-		method: 'GET',
-		path: '/health/live',
-		requiresAuth: false
-	});
+	try {
+		// Health endpoint returns simple {"status":"ok"} without envelope
+		const response = await fetch('/api/health/live');
+		if (!response.ok) {
+			const error = await response.text();
+			console.error('Health check failed:', response.status, error);
+			throw new Error(`Health check failed: ${response.status}`);
+		}
+		const data = await response.json();
+		// Return in expected format even if backend sends simple format
+		return {
+			status: data.status ?? 'ok',
+			checks: data.checks
+		};
+	} catch (err) {
+		console.error('Health check error:', err);
+		throw err;
+	}
 }
 
 export async function getSpans(params?: SpanQueryParams): Promise<SpansResponse> {

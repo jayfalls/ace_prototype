@@ -26,7 +26,11 @@
 	}
 
 	function getSubsystemStatus(subsystem: string): { status: HealthStatus; icon: typeof Database; label: string } {
-		const check = health?.checks[subsystem];
+		// Handle simple {"status":"ok"} response without checks
+		if (!health?.checks) {
+			return { status: health?.status as HealthStatus ?? 'unknown', icon: Database, label: subsystem };
+		}
+		const check = health.checks[subsystem];
 		const status = (check?.status ?? 'unknown') as HealthStatus;
 
 		switch (subsystem) {
@@ -82,7 +86,9 @@
 				<CardContent>
 					<div class="text-2xl font-bold {getStatusColor(status)} capitalize">{status}</div>
 					<p class="text-xs text-muted-foreground">
-						{#if health.checks[subsystem]}
+						{#if !health?.checks}
+							Backend responding
+						{:else if health.checks[subsystem]}
 							{#if health.checks[subsystem].spans_last_hour !== undefined}
 								{health.checks[subsystem].spans_last_hour} spans/hr
 							{:else if health.checks[subsystem].metrics_last_hour !== undefined}
