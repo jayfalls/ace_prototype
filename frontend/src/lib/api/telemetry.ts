@@ -12,7 +12,8 @@ import type {
 export async function getHealth(): Promise<TelemetryHealthResponse> {
 	try {
 		// Health endpoint returns simple {"status":"ok"} without envelope
-		const response = await fetch('/api/health/live');
+		// Backend route is at /health/live (no /api prefix)
+		const response = await fetch('/health/live');
 		if (!response.ok) {
 			const error = await response.text();
 			console.error('Health check failed:', response.status, error);
