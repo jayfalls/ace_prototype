@@ -15,6 +15,7 @@ See [problem_space.md](./problem_space.md)
 - [Problem Space](./problem_space.md) - Core conflict, constraints, and success metrics
 - [Research](./research.md) - Comparative analysis of WebSocket libraries, transport strategies, NATS bridging, reconnection patterns, and polling fallback
 - [Architecture](./architecture.md) - System design: Hub+Client+TopicReg backend bridge, RealtimeManager frontend, message types, auth flow, reconnection, and observability
+- [Implementation Plan](./implementation_plan.md) - 11 vertical slices: message types → TopicReg → Hub/Client → WS handler → RealtimeManager → reconnect/polling → UI components → store integration → observability → end-to-end → integration tests
 
 ## Related Units
 
