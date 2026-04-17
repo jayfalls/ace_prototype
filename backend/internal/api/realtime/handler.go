@@ -25,7 +25,8 @@ const wsAuthTimeout = 5 * time.Second
 func HandleWebSocket(hub *Hub, tokenService *service.TokenService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			CompressionMode: websocket.CompressionDisabled,
+			CompressionMode:    websocket.CompressionDisabled,
+			InsecureSkipVerify: true, // auth is JWT-in-first-message; no CSRF risk
 		})
 		if err != nil {
 			hub.logger.Warn("websocket accept failed", zap.Error(err))

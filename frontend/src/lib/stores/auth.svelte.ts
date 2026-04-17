@@ -1,6 +1,7 @@
 import { goto } from '$app/navigation';
 import * as authApi from '$lib/api/auth';
 import { apiClient } from '$lib/api/client';
+import { realtimeManager } from '$lib/realtime/manager.svelte';
 import type { User, TokenResponse } from '$lib/api/types';
 import { AUTH, ROUTES } from '$lib/utils/constants';
 
@@ -65,6 +66,7 @@ class AuthStore {
 			.me()
 			.then((user) => {
 				this.user = user;
+				realtimeManager.connect(this.accessToken);
 			})
 			.catch(() => {
 				this.clear();
@@ -145,11 +147,13 @@ class AuthStore {
 		this.error = null;
 		this.clearStorage();
 		apiClient.clearStoredTokens();
+		realtimeManager.disconnect();
 	}
 
 	private handleTokenResponse(response: TokenResponse): void {
 		this.user = response.user;
 		this.setTokens(response.access_token, response.refresh_token, response.expires_in);
+		realtimeManager.connect(response.access_token);
 	}
 }
 
