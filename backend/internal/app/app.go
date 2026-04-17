@@ -12,6 +12,7 @@ import (
 	"time"
 
 	db "ace/internal/api/repository/generated"
+	"ace/internal/api/realtime"
 	"ace/internal/api/router"
 	"ace/internal/api/service"
 	"ace/internal/caching"
@@ -38,6 +39,7 @@ type App struct {
 	Telemetry   *telemetry.Telemetry
 	HTTPServer  *http.Server
 	Router      *chi.Mux
+	Hub         *realtime.Hub
 	logger      *zap.Logger
 }
 
@@ -182,6 +184,9 @@ func (a *App) Serve() error {
 		return fmt.Errorf("create auth service: %w", err)
 	}
 
+	// Create realtime hub
+	a.Hub = realtime.NewHub(a.NATSConn, a.logger, a.Telemetry.Meter)
+
 	// Create router
 	routeCfg := &router.Config{
 		App: &router.AppConfig{
@@ -195,6 +200,7 @@ func (a *App) Serve() error {
 		DB:           a.DB,
 		NATSConn:     a.NATSConn,
 		Cache:        a.Cache,
+		Hub:          a.Hub,
 		SPAHandler:   frontend.Handler(),
 	}
 
@@ -243,7 +249,16 @@ func (a *App) Shutdown() error {
 		}
 	}
 
-	// 2. Stop pruning goroutine
+	// 2. Close realtime hub (drains WebSocket connections before NATS shuts down)
+	if a.Hub != nil {
+		if err := a.Hub.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("close hub: %w", err))
+		} else {
+			a.logger.Info("realtime hub closed")
+		}
+	}
+
+	// 3. Stop pruning goroutine
 	if a.Telemetry != nil && a.Telemetry.PruneStop != nil {
 		a.Telemetry.PruneStop()
 		a.logger.Info("telemetry pruning stopped")
