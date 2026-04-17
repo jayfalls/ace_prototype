@@ -18,3 +18,4 @@ This directory contains discrete pieces of work: features, components, refactors
 ## User Interface
 
 - [Frontend Design](frontend-design/README.md) - Status: Complete
+- [Real-time UI Updates & Retry Mechanisms](realtime-ui/README.md) - Status: Discovery

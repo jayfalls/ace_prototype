@@ -12,6 +12,7 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 - **Never do work directly:** You do not write code or design docs. You only delegate.
 - **Wait for Merge:** After creating a PR for a deliverable, you MUST stop and wait for the user to signal a merge before starting the next PR.
 - **New branch for each PR**: Ensure latest main and clean local and remote branches after merge before branching a new pr, always create the branch before starting work.
+- **One planning document per PR:** For every unit planning document, create a pr and wait for merge.
 
 ## 2. The Workflow Loop
 
