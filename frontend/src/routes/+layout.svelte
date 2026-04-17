@@ -2,6 +2,7 @@
 	import '../app.css';
 	import { uiStore } from '$lib/stores/ui.svelte';
 	import { onMount } from 'svelte';
+	import Toaster from '$lib/components/ui/toaster/Toaster.svelte';
 
 	let { children } = $props();
 
@@ -11,3 +12,4 @@
 </script>
 
 {@render children()}
+<Toaster />

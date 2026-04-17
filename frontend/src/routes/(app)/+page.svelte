@@ -59,28 +59,4 @@
 			</Card>
 		{/if}
 	</div>
-
-	<div class="grid gap-4 md:grid-cols-1">
-		<Card>
-			<CardHeader>
-				<CardTitle>Quick Actions</CardTitle>
-			</CardHeader>
-			<CardContent class="flex flex-wrap gap-2">
-				<Button variant="outline" onclick={() => window.location.href = ROUTES.TELEMETRY}>
-					<Activity class="mr-2 h-4 w-4" />
-					View Telemetry
-				</Button>
-				<Button variant="outline" onclick={() => window.location.href = ROUTES.PROFILE}>
-					<User class="mr-2 h-4 w-4" />
-					My Profile
-				</Button>
-				{#if authStore.user?.role === 'admin'}
-					<Button variant="outline" onclick={() => window.location.href = ROUTES.ADMIN_USERS}>
-						<Users class="mr-2 h-4 w-4" />
-						Manage Users
-					</Button>
-				{/if}
-			</CardContent>
-		</Card>
-	</div>
 </div>

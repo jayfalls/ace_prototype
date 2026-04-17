@@ -12,6 +12,7 @@
 		disabled?: boolean;
 		'onclick'?: (e: MouseEvent) => void;
 		'aria-label'?: string;
+		'aria-current'?: 'page' | 'step' | 'location' | 'date' | 'time' | boolean;
 		children?: import('svelte').Snippet;
 	}
 
@@ -23,6 +24,7 @@
 		disabled = false,
 		onclick,
 		'aria-label': ariaLabel,
+		'aria-current': ariaCurrent,
 		children
 	}: Props = $props();
 
@@ -54,6 +56,7 @@
 	)}
 	{onclick}
 	aria-label={ariaLabel}
+	aria-current={ariaCurrent}
 >
 	{#if children}
 		{@render children()}
