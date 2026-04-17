@@ -1,6 +1,6 @@
 # Real-time UI Updates & Retry Mechanisms
 
-Status: Discovery
+Status: Research
 
 ## Overview
 
@@ -13,6 +13,7 @@ See [problem_space.md](./problem_space.md)
 ## Documents
 
 - [Problem Space](./problem_space.md) - Core conflict, constraints, and success metrics
+- [Research](./research.md) - Comparative analysis of WebSocket libraries, transport strategies, NATS bridging, reconnection patterns, and polling fallback
 
 ## Related Units
 
