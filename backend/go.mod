@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/adrg/xdg v0.5.3
+	github.com/coder/websocket v1.8.14
 	github.com/dgraph-io/ristretto v0.2.0
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/go-playground/validator/v10 v10.30.2
