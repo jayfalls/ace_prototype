@@ -11,7 +11,6 @@
 	<Sidebar />
 
 	<main
-		role="main"
 		class="flex-1 overflow-y-auto bg-background p-6"
 	>
 		{#if title}

@@ -41,8 +41,8 @@
 		</CardHeader>
 		<CardContent class="space-y-6">
 			<div class="space-y-2">
-				<label class="text-sm font-medium">Color Theme</label>
-				<Select bind:value={selectedTheme}>
+				<label for="color-theme" class="text-sm font-medium">Color Theme</label>
+				<Select id="color-theme" bind:value={selectedTheme}>
 					{#each themes as theme}
 						<option value={theme.name}>{theme.label}</option>
 					{/each}

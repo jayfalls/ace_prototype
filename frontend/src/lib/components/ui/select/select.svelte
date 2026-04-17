@@ -3,15 +3,17 @@
 
 	type SelectProps = {
 		value?: string;
+		id?: string;
 		class?: string;
 		onchange?: (e: Event) => void;
 		children?: import('svelte').Snippet;
 	};
 
-	let { value = $bindable(''), class: className = '', onchange, children }: SelectProps = $props();
+	let { value = $bindable(''), id, class: className = '', onchange, children }: SelectProps = $props();
 </script>
 
 <select
+	{id}
 	bind:value
 	onchange={onchange}
 	class={cn(
