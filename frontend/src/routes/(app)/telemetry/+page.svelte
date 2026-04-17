@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card';
 	import { Tabs, TabsContent, TabsList, TabsTrigger } from '$lib/components/ui/tabs';
 	import { Activity, Database, Zap, HardDrive } from 'lucide-svelte';
@@ -23,7 +24,7 @@
 		}
 	}
 
-	$effect(() => {
+	onMount(() => {
 		loadHealth();
 	});
 </script>

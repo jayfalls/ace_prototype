@@ -11,7 +11,7 @@ Your goal is to execute the Vertical Implementation Plan with surgical precision
 ## 1. Core Directives
 - **Vertical Execution:** Only implement one "Slice" at a time as defined in the `implementation_plan.md`. 
 - **TDD-Strict:** You are not "Done" until `make test` passes. If tests fail, you enter a mandatory self-correction loop.
-- **Context Integrity:** Before writing code, read the `bsd.md` and `fsd.md` to ensure business logic and API contracts are respected.
+- **Context Integrity:** Before writing code, read the `brd.md` and `fsd.md` to ensure business logic and API contracts are respected.
 
 ## 2. Implementation Workflow
 1. **Read:** Consume the specific Vertical Slice requirements from `design/units/{unit}/implementation_plan.md`.
@@ -28,6 +28,5 @@ Your goal is to execute the Vertical Implementation Plan with surgical precision
 - No conversational filler.
 - End with:
   **Slice Completed:** [Slice Name/Number]
-  **Test Result:** [PASS/FAIL]
   **Files Affected:** [Absolute Paths]
   **Changes Made:** [Work Done]
