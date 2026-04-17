@@ -17,6 +17,7 @@ import (
 	"ace/docs"
 	"ace/internal/api/handler"
 	mw "ace/internal/api/middleware"
+	"ace/internal/api/realtime"
 	db "ace/internal/api/repository/generated"
 	"ace/internal/api/service"
 	"ace/internal/caching"
@@ -56,6 +57,7 @@ type Config struct {
 	DB           *sql.DB
 	NATSConn     *nats.Conn
 	Cache        caching.CacheBackend
+	Hub          *realtime.Hub
 	SPAHandler   http.Handler // Serves the SPA (embedded assets or Vite proxy)
 }
 
@@ -192,6 +194,18 @@ func New(cfg *Config) (*chi.Mux, error) {
 			r.Get("/health", telemetryHandler.Health)
 		})
 	})
+
+	// Realtime routes
+	if cfg.Hub != nil {
+		// WebSocket — no auth middleware, auth via first message
+		r.Get("/api/ws", realtime.HandleWebSocket(cfg.Hub, cfg.TokenService))
+
+		// Polling — protected by auth middleware
+		r.Group(func(r chi.Router) {
+			r.Use(authMw.RequireAuth())
+			r.Get("/api/realtime/updates", realtime.HandlePolling(cfg.Hub))
+		})
+	}
 
 	// SPA catch-all route - must be last to not intercept API routes
 	if cfg.SPAHandler != nil {

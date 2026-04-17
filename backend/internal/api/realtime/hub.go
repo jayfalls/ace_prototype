@@ -166,13 +166,20 @@ func (h *Hub) RefreshAuth(c *Client, _ string) {
 	c.Send(NewAuthOkMessage(c.id))
 }
 
-// PollEvents returns buffered events for the requested topics since sinceSeq.
-// Topics where the buffer was exceeded are returned in the resync list.
+// PollEntry is a buffered event with its topic attached, for polling responses.
+type PollEntry struct {
+	Topic string
+	SeqEntry
+}
+
+// PollResult is the return value of PollEvents.
 type PollResult struct {
-	Events         []SeqEntry
+	Events         []PollEntry
 	ResyncRequired []string
 }
 
+// PollEvents returns buffered events for the requested topics since sinceSeq.
+// Topics where the buffer was exceeded are returned in the resync list.
 func (h *Hub) PollEvents(userID string, role model.UserRole, topics []string, sinceSeq uint64) PollResult {
 	var result PollResult
 	for _, topic := range topics {
@@ -184,7 +191,9 @@ func (h *Hub) PollEvents(userID string, role model.UserRole, topics []string, si
 			result.ResyncRequired = append(result.ResyncRequired, topic)
 			continue
 		}
-		result.Events = append(result.Events, entries...)
+		for _, e := range entries {
+			result.Events = append(result.Events, PollEntry{Topic: topic, SeqEntry: e})
+		}
 	}
 	return result
 }

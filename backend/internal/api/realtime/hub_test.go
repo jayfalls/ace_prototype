@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric/noop"
@@ -21,27 +20,11 @@ import (
 	"ace/internal/api/model"
 )
 
-// newTestHub creates a Hub without a real NATS connection for unit testing.
-// topicReg dispatch is wired to a no-op NATS stub so Add/Remove work on ref counts only.
 func newTestHub(t *testing.T) *Hub {
 	t.Helper()
 	logger, _ := zap.NewDevelopment()
 	meter := noop.NewMeterProvider().Meter("test")
-	h := &Hub{
-		clients: make(map[string][]*Client),
-		buffer:  NewSeqBuffer(DefaultSeqBufferConfig()),
-		logger:  logger,
-		meter:   meter,
-	}
-	// TopicReg with nil NATS — tests that call Add/Remove must use topics that
-	// won't attempt a real NATS Dial. We use a custom dispatch-only reg.
-	h.topics = &TopicReg{
-		refs:     make(map[string]int),
-		subs:     make(map[string]*nats.Subscription),
-		logger:   logger,
-		dispatch: h.dispatchNATSEvent,
-	}
-	return h
+	return NewHub(testNATSConn, logger, meter)
 }
 
 // dialTestHub starts an httptest server that upgrades to WebSocket and returns

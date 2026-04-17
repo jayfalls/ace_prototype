@@ -321,11 +321,7 @@ func (t *TopicReg) matchSubjectToTopic(subject, pattern string) (string, bool) {
 }
 
 // subscribeNATS creates a NATS subscription for the given subject.
-// Returns nil without error when nats is nil (test-only path).
 func (t *TopicReg) subscribeNATS(subject, topic string) (*nats.Subscription, error) {
-	if t.nats == nil {
-		return nil, nil
-	}
 	sub, err := messaging.SubscribeWithEnvelope(t.natsClient, subject, func(env *messaging.Envelope, data []byte) error {
 		if t.dispatch != nil {
 			t.dispatch(topic, data)
