@@ -125,6 +125,7 @@ class AuthStore {
 		try {
 			const response = await authApi.refresh(this.refreshToken);
 			this.handleTokenResponse(response);
+			realtimeManager.refreshAuth(response.access_token);
 		} catch {
 			this.clear();
 			goto(ROUTES.LOGIN);

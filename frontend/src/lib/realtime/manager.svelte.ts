@@ -154,6 +154,16 @@ class RealtimeManager {
 					h(event.data);
 				}
 			}
+
+			const eventPayload = event.data as { event_type?: string; data?: unknown };
+			if (eventPayload.event_type) {
+				const typeHandlers = this.handlers.get(eventPayload.event_type);
+				if (typeHandlers) {
+					for (const h of typeHandlers) {
+						h(eventPayload.data ?? event.data);
+					}
+				}
+			}
 		}
 	}
 
@@ -219,6 +229,14 @@ class RealtimeManager {
 		this.sendQueue = [];
 	}
 
+	// Send new auth token on existing connection without reconnecting
+	refreshAuth(token: string): void {
+		this.currentToken = token;
+		if (this.connection && this.status === 'connected') {
+			this.connection.sendAuth(token);
+		}
+	}
+
 	subscribe(topics: string[]): void {
 		for (const topic of topics) {
 			this.subscriptions.add(topic);
@@ -263,10 +281,21 @@ class RealtimeManager {
 			this.lastSeq = { ...this.lastSeq, [evt.topic]: evt.seq };
 		}
 
-		const handlers = this.handlers.get(evt.topic);
-		if (handlers) {
-			for (const h of handlers) {
+		const topicHandlers = this.handlers.get(evt.topic);
+		if (topicHandlers) {
+			for (const h of topicHandlers) {
 				h(evt.data);
+			}
+		}
+
+		// Also dispatch to event_type handlers (e.g., "agent.status_change")
+		const eventPayload = evt.data as { event_type?: string; data?: unknown };
+		if (eventPayload.event_type) {
+			const typeHandlers = this.handlers.get(eventPayload.event_type);
+			if (typeHandlers) {
+				for (const h of typeHandlers) {
+					h(eventPayload.data ?? evt.data);
+				}
 			}
 		}
 	}

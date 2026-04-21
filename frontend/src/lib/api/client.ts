@@ -1,4 +1,4 @@
-import type { APIEnvelope, APIError } from './types';
+import type { APIEnvelope, APIError, Agent } from './types';
 import { AUTH } from '$lib/utils/constants';
 
 export interface RequestOptions {
@@ -204,6 +204,20 @@ class APIClient {
 		}
 
 		return envelope.data as T;
+	}
+
+	listAgents(): Promise<Agent[]> {
+		return this.request<Agent[]>({
+			method: 'GET',
+			path: '/agents'
+		});
+	}
+
+	getAgent(id: string): Promise<Agent> {
+		return this.request<Agent>({
+			method: 'GET',
+			path: `/agents/${id}`
+		});
 	}
 }
 

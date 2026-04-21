@@ -1,11 +1,22 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte';
+	import { agentStore } from '$lib/stores/agents.svelte';
 	import { ROUTES } from '$lib/utils/constants';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
 	import { Activity, Users, User, ArrowRight } from 'lucide-svelte';
 
 	let username = $derived(authStore.user?.username ?? 'User');
+
+	$effect(() => {
+		if (authStore.isAuthenticated) {
+			agentStore.init();
+		}
+
+		return () => {
+			agentStore.destroy();
+		};
+	});
 </script>
 
 <div class="space-y-6">
