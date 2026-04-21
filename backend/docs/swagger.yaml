@@ -676,24 +676,6 @@ paths:
       summary: Liveness probe
       tags:
       - health
-  /health/ready:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "503":
-          description: Service Unavailable
-          schema:
-            additionalProperties: true
-            type: object
-      summary: Readiness probe (includes DB and NATS checks)
-      tags:
-      - health
   /users:
     get:
       consumes:

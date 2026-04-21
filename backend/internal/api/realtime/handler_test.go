@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	"go.uber.org/zap"
 
@@ -52,10 +54,25 @@ func newHandlerHub(t *testing.T) *Hub {
 	return NewHub(testNATSConn, logger, meter)
 }
 
+// newTestWSHandlerDeps creates WSHandlerDeps for testing.
+func newTestWSHandlerDeps(metricMeter metric.Meter) WSHandlerDeps {
+	messagesReceived, _ := metricMeter.Int64Counter(MetricWSMessagesReceived)
+	messagesSent, _ := metricMeter.Int64Counter(MetricWSMessagesSent)
+	wsErrors, _ := metricMeter.Int64Counter(MetricWSErrors)
+	return WSHandlerDeps{
+		Tracer:           otel.GetTracerProvider().Tracer("test"),
+		MessagesReceived: messagesReceived,
+		MessagesSent:     messagesSent,
+		WsErrors:         wsErrors,
+	}
+}
+
 // serveWS starts an httptest server running HandleWebSocket and returns its URL.
 func serveWS(t *testing.T, hub *Hub, tokenSvc *service.TokenService) string {
 	t.Helper()
-	srv := httptest.NewServer(HandleWebSocket(hub, tokenSvc))
+	meter := noop.NewMeterProvider().Meter("test")
+	deps := newTestWSHandlerDeps(meter)
+	srv := httptest.NewServer(HandleWebSocket(hub, tokenSvc, deps))
 	t.Cleanup(srv.Close)
 	return "ws" + strings.TrimPrefix(srv.URL, "http")
 }
@@ -206,10 +223,16 @@ func TestHandleWebSocket_PingPong(t *testing.T) {
 // servePolling starts an httptest server running HandlePolling with userID/role injected into context.
 func servePolling(t *testing.T, hub *Hub, userID string, role model.UserRole) *httptest.Server {
 	t.Helper()
+	meter := noop.NewMeterProvider().Meter("test")
+	pollRequests, _ := meter.Int64Counter(MetricPollRequests)
+	pollEventsDelivered, _ := meter.Int64Counter(MetricPollEventsDelivered)
+	bufferResyncRequired, _ := meter.Int64Counter(MetricBufferResyncRequired)
+	tracer := otel.GetTracerProvider().Tracer("test")
+
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.WithValue(r.Context(), middleware.UserIDKey, uuid.MustParse(userID))
 		ctx = context.WithValue(ctx, middleware.UserRoleKey, role)
-		HandlePolling(hub)(w, r.WithContext(ctx))
+		HandlePolling(hub, pollRequests, pollEventsDelivered, bufferResyncRequired, tracer)(w, r.WithContext(ctx))
 	})
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
