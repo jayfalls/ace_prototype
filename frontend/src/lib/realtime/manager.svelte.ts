@@ -41,7 +41,7 @@ class RealtimeManager {
 		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const url = `${protocol}//${location.host}/api/ws`;
 
-		this.status = 'connecting';
+		this.setStatus('connecting');
 		const conn = new WebSocketConnection();
 		this.connection = conn;
 
@@ -50,7 +50,7 @@ class RealtimeManager {
 		conn
 			.connect(url, this.currentToken)
 			.then(() => {
-				this.status = 'connected';
+				this.setStatus('connected');
 				this.reconnectManager.reset();
 				this.reconnectAttempts = 0;
 				this.stopPollingReconnectTimer();
@@ -75,7 +75,7 @@ class RealtimeManager {
 		const attempt = this.reconnectManager.incrementAttempt();
 
 		if (this.reconnectManager.shouldRetry(attempt)) {
-			this.status = 'reconnecting';
+			this.setStatus('reconnecting');
 			this.reconnectAttempts = attempt;
 			const delay = this.reconnectManager.getDelay(attempt);
 
@@ -83,7 +83,7 @@ class RealtimeManager {
 				this.doConnect();
 			}, delay);
 		} else {
-			this.status = 'polling';
+			this.setStatus('polling');
 			this.startPollingFallback();
 			this.startPollingReconnectTimer();
 		}
@@ -116,7 +116,7 @@ class RealtimeManager {
 	private attemptWebSocketReconnect(): void {
 		if (this.status !== 'polling') return;
 
-		this.status = 'connecting';
+		this.setStatus('connecting');
 		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const url = `${protocol}//${location.host}/api/ws`;
 
@@ -127,7 +127,7 @@ class RealtimeManager {
 		conn
 			.connect(url, this.currentToken)
 			.then(() => {
-				this.status = 'connected';
+				this.setStatus('connected');
 				this.reconnectManager.reset();
 				this.reconnectAttempts = 0;
 				this.stopPollingReconnectTimer();
@@ -225,7 +225,7 @@ class RealtimeManager {
 		this.pollingClient.stop();
 		this.connection?.close();
 		this.connection = null;
-		this.status = 'disconnected';
+		this.setStatus('disconnected');
 		this.sendQueue = [];
 	}
 
@@ -296,6 +296,23 @@ class RealtimeManager {
 				for (const h of typeHandlers) {
 					h(eventPayload.data ?? evt.data);
 				}
+			}
+		}
+	}
+
+	// setStatus updates the connection status and emits change events.
+	private setStatus(status: ConnectionStatus): void {
+		const prev = this.status;
+		this.status = status;
+		// Emit status change event for external listeners (e.g., notification store)
+		this.emitStatusChange(status, prev);
+	}
+
+	private emitStatusChange(status: ConnectionStatus, previous: ConnectionStatus): void {
+		const handlers = this.handlers.get('connection_status');
+		if (handlers) {
+			for (const h of handlers) {
+				h({ status, previous });
 			}
 		}
 	}

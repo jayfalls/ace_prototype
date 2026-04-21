@@ -2,6 +2,8 @@
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import Skeleton from '$lib/components/ui/skeleton/skeleton.svelte';
 	import { Database, Zap, HardDrive } from 'lucide-svelte';
+	import { realtimeManager } from '$lib/realtime/manager.svelte';
+	import { getHealth } from '$lib/api/telemetry';
 	import type { TelemetryHealthResponse, HealthStatus } from '$lib/api/types';
 
 	type Props = {
@@ -11,6 +13,25 @@
 	};
 
 	let { health, loading = false, error = null }: Props = $props();
+
+	// Subscribe to system:health topic for real-time updates
+	$effect(() => {
+		realtimeManager.subscribe(['system:health']);
+
+		const unsub = realtimeManager.on('system:health', (data) => {
+			// Update health state when real-time event arrives
+			const eventData = data as { status?: string; checks?: Record<string, { status: string }> };
+			health = {
+				status: (eventData.status ?? 'ok') as HealthStatus,
+				checks: eventData.checks as TelemetryHealthResponse['checks']
+			};
+		});
+
+		return () => {
+			unsub();
+			realtimeManager.unsubscribe(['system:health']);
+		};
+	});
 
 	function getStatusColor(status: HealthStatus): string {
 		switch (status) {
