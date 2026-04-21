@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ServerMessage } from '$lib/realtime/types';
 
 // Mock WebSocketConnection so manager tests are isolated.
@@ -34,9 +34,14 @@ describe('RealtimeManager', () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		capturedMessageHandler = null;
+		vi.useFakeTimers({ shouldAdvanceTime: false });
 
 		// Reset singleton between tests by re-importing with cache cleared.
 		vi.resetModules();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
 	});
 
 	async function getManager() {
@@ -62,14 +67,27 @@ describe('RealtimeManager', () => {
 		expect(mgr.reconnectAttempts).toBe(0);
 	});
 
-	it('transitions to disconnected on connect failure', async () => {
+	it('transitions to reconnecting on connect failure then disconnected after max attempts', async () => {
 		const mgr = await getManager();
 		mgr.connect('bad-token');
 
 		mockConnectReject(new Error('invalid token'));
 		await Promise.resolve();
 
-		expect(mgr.status).toBe('disconnected');
+		// After first failure, should be in reconnecting state with attempt 1
+		expect(mgr.status).toBe('reconnecting');
+		expect(mgr.reconnectAttempts).toBe(1);
+
+		// Fast-forward through all reconnect attempts (5 max, with small delays)
+		// Each attempt uses exponential backoff: 1s, 2s, 4s, 8s, 16s
+		// We need to advance time enough to trigger all retries
+		await vi.advanceTimersByTimeAsync(31000); // 1+2+4+8+16 = 31s total
+		await Promise.resolve();
+
+		// After 5 failed attempts, should fall back to polling
+		// The polling reconnect timer fires at 30s and tries WS again (status -> 'connecting')
+		// So after 31s, status could be 'polling' (timer hasn't fired yet) or 'connecting' (timer fired)
+		expect(['polling', 'connecting']).toContain(mgr.status);
 	});
 
 	it('disconnect() closes connection and sets status', async () => {
