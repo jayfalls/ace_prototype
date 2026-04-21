@@ -458,6 +458,7 @@ This section tracks the completion status of each design unit. Units are complet
 | **Security (Certs, TLS, HTTPS, etc)** | 📋 Planned | Security infrastructure and encryption |
 | **CI/CD (PromptFoo)** | 📋 Planned | Continuous integration and deployment pipeline |
 | **Frontend Design** | ✅ Complete | SvelteKit user interface with OS-style auth, 45 themes, complete admin UI |
+| **Real-time UI Updates & Retry Mechanisms** | ✅ Complete | WebSocket + polling fallback, NATS-to-client bridge, reconnection with replay, connection indicator UI |
 | **Production Deployment (End User Experience)** | 📋 Planned | Production deployment and end-user setup |
 
 ### Planned Units — Research
