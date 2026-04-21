@@ -89,6 +89,30 @@ export interface UsersListResponse {
 }
 
 // --- Sessions ---
+// --- Agents ---
+export interface Agent {
+	id: string;
+	name: string;
+	status: 'idle' | 'running' | 'paused' | 'error';
+	owner_id: string;
+	created_at: string;
+	updated_at: string;
+	metadata?: Record<string, unknown>;
+	current_cycle_id?: string;
+	cycle_started_at?: string;
+	last_cycle_id?: string;
+	cycle_completed_at?: string;
+	last_cycle_output?: unknown;
+}
+
+export interface AgentsListResponse {
+	agents: Agent[];
+	total: number;
+	page: number;
+	limit: number;
+}
+
+// --- Sessions ---
 export interface Session {
 	id: string;
 	user_id: string;
