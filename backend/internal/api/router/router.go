@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	httpSwagger "github.com/swaggo/http-swagger"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 
 	"ace/docs"
 	"ace/internal/api/handler"
@@ -59,6 +61,8 @@ type Config struct {
 	Cache        caching.CacheBackend
 	Hub          *realtime.Hub
 	SPAHandler   http.Handler // Serves the SPA (embedded assets or Vite proxy)
+	Meter        metric.Meter
+	Tracer       trace.Tracer
 }
 
 // AppConfig holds the basic app configuration needed for the router.
@@ -197,13 +201,29 @@ func New(cfg *Config) (*chi.Mux, error) {
 
 	// Realtime routes
 	if cfg.Hub != nil {
+		// Create WebSocket handler dependencies
+		messagesReceived, _ := cfg.Meter.Int64Counter(realtime.MetricWSMessagesReceived)
+		messagesSent, _ := cfg.Meter.Int64Counter(realtime.MetricWSMessagesSent)
+		wsErrors, _ := cfg.Meter.Int64Counter(realtime.MetricWSErrors)
+		wsDeps := realtime.WSHandlerDeps{
+			Tracer:           cfg.Tracer,
+			MessagesReceived: messagesReceived,
+			MessagesSent:     messagesSent,
+			WsErrors:         wsErrors,
+		}
+
+		// Create polling handler metrics
+		pollRequests, _ := cfg.Meter.Int64Counter(realtime.MetricPollRequests)
+		pollEventsDelivered, _ := cfg.Meter.Int64Counter(realtime.MetricPollEventsDelivered)
+		bufferResyncRequired, _ := cfg.Meter.Int64Counter(realtime.MetricBufferResyncRequired)
+
 		// WebSocket — no auth middleware, auth via first message
-		r.Get("/api/ws", realtime.HandleWebSocket(cfg.Hub, cfg.TokenService))
+		r.Get("/api/ws", realtime.HandleWebSocket(cfg.Hub, cfg.TokenService, wsDeps))
 
 		// Polling — protected by auth middleware
 		r.Group(func(r chi.Router) {
 			r.Use(authMw.RequireAuth())
-			r.Get("/api/realtime/updates", realtime.HandlePolling(cfg.Hub))
+			r.Get("/api/realtime/updates", realtime.HandlePolling(cfg.Hub, pollRequests, pollEventsDelivered, bufferResyncRequired, cfg.Tracer))
 		})
 	}
 

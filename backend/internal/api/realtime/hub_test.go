@@ -286,7 +286,7 @@ func TestHub_Concurrent_RegisterUnregister(t *testing.T) {
 				userID:      userID,
 				role:        model.RoleUser,
 				topics:      make(map[string]struct{}),
-				send:        make(chan []byte, sendChannelSize),
+				send:        make(chan []byte, WS_SEND_CHANNEL_SIZE),
 				connectedAt: time.Now(),
 				hub:         h,
 			}

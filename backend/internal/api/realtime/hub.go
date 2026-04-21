@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,13 +12,15 @@ import (
 	"go.uber.org/zap"
 
 	"ace/internal/api/model"
+	"ace/internal/telemetry"
 )
 
-const maxTopicsPerClient = 50
+// maxTopicsPerClient is the max topics per connection (used when config not available).
+const maxTopicsPerClient = WS_MAX_SUBSCRIPTIONS
 
 // Hub manages all active WebSocket clients and routes NATS events to them.
 type Hub struct {
-	mu     sync.RWMutex
+	mu sync.RWMutex
 	// clients maps userID → active connections for that user
 	clients map[string][]*Client
 
@@ -26,6 +29,19 @@ type Hub struct {
 	buffer *SeqBuffer
 	logger *zap.Logger
 	meter  metric.Meter
+
+	// Metrics instruments
+	connectionsActive    metric.Int64UpDownCounter
+	messagesSent         metric.Int64Counter
+	messagesReceived     metric.Int64Counter
+	wsErrors             metric.Int64Counter
+	pollRequests         metric.Int64Counter
+	pollEventsDelivered  metric.Int64Counter
+	bufferReplayEvents   metric.Int64Counter
+	bufferResyncRequired metric.Int64Counter
+
+	// Usage publisher for connection time events
+	usagePublisher *telemetry.UsagePublisher
 }
 
 // NewHub creates a Hub wired to the given NATS connection.
@@ -38,7 +54,23 @@ func NewHub(natsConn *nats.Conn, logger *zap.Logger, meter metric.Meter) *Hub {
 		meter:   meter,
 	}
 	h.topics = NewTopicReg(natsConn, h.dispatchNATSEvent, logger)
+
+	// Initialize metrics instruments
+	h.connectionsActive, _ = meter.Int64UpDownCounter(MetricWSConnectionsActive)
+	h.messagesSent, _ = meter.Int64Counter(MetricWSMessagesSent)
+	h.messagesReceived, _ = meter.Int64Counter(MetricWSMessagesReceived)
+	h.wsErrors, _ = meter.Int64Counter(MetricWSErrors)
+	h.pollRequests, _ = meter.Int64Counter(MetricPollRequests)
+	h.pollEventsDelivered, _ = meter.Int64Counter(MetricPollEventsDelivered)
+	h.bufferReplayEvents, _ = meter.Int64Counter(MetricBufferReplayEvents)
+	h.bufferResyncRequired, _ = meter.Int64Counter(MetricBufferResyncRequired)
+
 	return h
+}
+
+// SetUsagePublisher sets the usage event publisher for connection time tracking.
+func (h *Hub) SetUsagePublisher(publisher *telemetry.UsagePublisher) {
+	h.usagePublisher = publisher
 }
 
 // Register adds a client to the hub and sends auth_ok.
@@ -49,9 +81,13 @@ func (h *Hub) Register(c *Client) {
 
 	c.Send(NewAuthOkMessage(c.id))
 	h.logger.Info("client registered",
-		zap.String("client_id", c.id),
+		zap.String("connection_id", c.id),
 		zap.String("user_id", c.userID),
+		zap.String("role", string(c.role)),
 	)
+
+	// Increment active connections metric
+	h.connectionsActive.Add(context.Background(), 1)
 }
 
 // Unregister removes a client, cleans up its topic subscriptions, and closes its send channel.
@@ -71,6 +107,9 @@ func (h *Hub) Unregister(c *Client) {
 	}
 	h.mu.Unlock()
 
+	durationMs := time.Since(c.connectedAt).Milliseconds()
+	topicCount := len(c.topics)
+
 	// Remove all topic refs held by this client.
 	for topic := range c.topics {
 		if err := h.topics.Remove(topic); err != nil {
@@ -83,10 +122,32 @@ func (h *Hub) Unregister(c *Client) {
 
 	close(c.send)
 	h.logger.Info("client unregistered",
-		zap.String("client_id", c.id),
+		zap.String("connection_id", c.id),
 		zap.String("user_id", c.userID),
-		zap.Duration("duration", time.Since(c.connectedAt)),
+		zap.Int64("duration_ms", durationMs),
+		zap.Int("topics_count", topicCount),
 	)
+
+	// Decrement active connections metric
+	h.connectionsActive.Add(context.Background(), -1)
+
+	// Emit usage event for connection time
+	if h.usagePublisher != nil {
+		go func() {
+			ctx := context.Background()
+			_ = h.usagePublisher.Publish(ctx, telemetry.UsageEvent{
+				OperationType: telemetry.OperationTypeNATSPublish,
+				ResourceType:  telemetry.ResourceTypeMessaging,
+				DurationMs:    durationMs,
+				Metadata: map[string]string{
+					"user_id":       c.userID,
+					"connection_id": c.id,
+					"transport":     "websocket",
+					"topics_count":  fmt.Sprintf("%d", topicCount),
+				},
+			})
+		}()
+	}
 }
 
 // Subscribe adds topics to a client and creates NATS subscriptions as needed.
@@ -153,10 +214,12 @@ func (h *Hub) Replay(c *Client, topic string, sinceSeq uint64) {
 	entries, err := h.buffer.Replay(topic, sinceSeq)
 	if err != nil {
 		c.Send(NewResyncRequiredMessage([]string{topic}))
+		h.bufferResyncRequired.Add(context.Background(), 1)
 		return
 	}
 	for _, e := range entries {
 		c.Send(NewEventMessage(topic, e.Seq, "replay", e.Data))
+		h.bufferReplayEvents.Add(context.Background(), 1)
 	}
 }
 
@@ -253,4 +316,19 @@ func (h *Hub) isAuthorized(userID string, role model.UserRole, topic string) boo
 	}
 	resourceID := parts[1]
 	return resourceID == userID
+}
+
+// IsRunning returns true if the hub has active clients.
+func (h *Hub) IsRunning() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.clients) > 0 || h.topics != nil
+}
+
+// NATSConnected returns true if the NATS connection is alive.
+func (h *Hub) NATSConnected() bool {
+	if h.nats == nil {
+		return false
+	}
+	return !h.nats.IsClosed()
 }

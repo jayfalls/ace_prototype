@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	db "ace/internal/api/repository/generated"
 	"ace/internal/api/realtime"
+	db "ace/internal/api/repository/generated"
 	"ace/internal/api/router"
 	"ace/internal/api/service"
 	"ace/internal/caching"
@@ -202,6 +202,8 @@ func (a *App) Serve() error {
 		Cache:        a.Cache,
 		Hub:          a.Hub,
 		SPAHandler:   frontend.Handler(),
+		Meter:        a.Telemetry.Meter,
+		Tracer:       a.Telemetry.Tracer,
 	}
 
 	r, err := router.New(routeCfg)

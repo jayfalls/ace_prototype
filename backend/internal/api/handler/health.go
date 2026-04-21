@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"ace/internal/api/realtime"
 	"ace/internal/api/response"
 	"ace/internal/messaging"
 	"ace/internal/telemetry"
@@ -15,10 +16,12 @@ type HealthHandler struct {
 	pool      *pgxpool.Pool
 	nats      messaging.Client
 	telemetry *telemetry.Telemetry
+	hub       *realtime.Hub
 }
 
-func NewHealthHandler(pool *pgxpool.Pool, nats messaging.Client, telemetry *telemetry.Telemetry) *HealthHandler {
-	return &HealthHandler{pool: pool, nats: nats, telemetry: telemetry}
+// NewHealthHandler creates a new HealthHandler.
+func NewHealthHandler(pool *pgxpool.Pool, nats messaging.Client, telemetry *telemetry.Telemetry, hub *realtime.Hub) *HealthHandler {
+	return &HealthHandler{pool: pool, nats: nats, telemetry: telemetry, hub: hub}
 }
 
 // @Summary Liveness probe
@@ -33,11 +36,6 @@ func (h *HealthHandler) Live(w http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Readiness probe (includes DB and NATS checks)
-// @Tags health
-// @Produce json
-// @Success 200 {object} map[string]any
-// @Failure 503 {object} map[string]any
-// @Router /health/ready [get]
 func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 	type checkResult struct {
 		Status string `json:"status"`
@@ -62,6 +60,20 @@ func (h *HealthHandler) Ready(w http.ResponseWriter, r *http.Request) {
 		if err := h.nats.HealthCheck(); err != nil {
 			overallStatus = "degraded"
 			checks["nats"] = checkResult{Status: "fail", Reason: err.Error()}
+			httpStatus = http.StatusServiceUnavailable
+		}
+	}
+
+	// Realtime hub check - verifies hub is running and NATS connection is alive
+	if h.hub != nil {
+		checks["realtime"] = checkResult{Status: "ok"}
+		if !h.hub.IsRunning() {
+			overallStatus = "degraded"
+			checks["realtime"] = checkResult{Status: "fail", Reason: "hub not running"}
+			httpStatus = http.StatusServiceUnavailable
+		} else if !h.hub.NATSConnected() {
+			overallStatus = "degraded"
+			checks["realtime"] = checkResult{Status: "fail", Reason: "NATS not connected"}
 			httpStatus = http.StatusServiceUnavailable
 		}
 	}
