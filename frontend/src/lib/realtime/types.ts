@@ -1,4 +1,4 @@
-export type ConnectionStatus = 'connecting' | 'connected' | 'polling' | 'disconnected';
+export type ConnectionStatus = 'connecting' | 'connected' | 'polling' | 'disconnected' | 'reconnecting';
 
 // Client → Server
 export interface AuthMessage { type: 'auth'; token: string; }
@@ -31,6 +31,13 @@ export type ServerMessage =
 	| ResyncRequiredMessage
 	| PongMessage
 	| ErrorMessage;
+
+export interface TopicEvent {
+	type: string;
+	topic: string;
+	seq: number;
+	data: unknown;
+}
 
 export interface PollingResponse {
 	events: Array<{ topic: string; seq: number; data: unknown }>;

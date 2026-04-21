@@ -1,11 +1,18 @@
 import { WebSocketConnection } from './connection.svelte';
+import { ReconnectManager } from './reconnect';
+import { PollingClient } from './polling';
+import { parseTopic } from './topics';
 import type {
 	ClientMessage,
 	ConnectionStatus,
 	EventMessage,
 	ServerMessage,
-	SubscribeMessage
+	SubscribeMessage,
+	TopicEvent
 } from './types';
+
+const MAX_WS_RECONNECT_INTERVAL_MS = 30_000;
+const POLLING_RECONNECT_INTERVAL_MS = 30_000;
 
 class RealtimeManager {
 	status = $state<ConnectionStatus>('disconnected');
@@ -17,9 +24,20 @@ class RealtimeManager {
 	private handlers = new Map<string, Set<(data: unknown) => void>>();
 	private sendQueue: ClientMessage[] = [];
 
+	private reconnectManager = new ReconnectManager();
+	private pollingClient = new PollingClient();
+	private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	private pollingReconnectTimer: ReturnType<typeof setInterval> | null = null;
+	private currentToken = '';
+
 	connect(token: string): void {
 		if (typeof location === 'undefined') return;
 
+		this.currentToken = token;
+		this.doConnect();
+	}
+
+	private doConnect(): void {
 		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
 		const url = `${protocol}//${location.host}/api/ws`;
 
@@ -30,10 +48,13 @@ class RealtimeManager {
 		conn.onMessage((msg) => this.dispatchEvent(msg));
 
 		conn
-			.connect(url, token)
+			.connect(url, this.currentToken)
 			.then(() => {
 				this.status = 'connected';
+				this.reconnectManager.reset();
 				this.reconnectAttempts = 0;
+				this.stopPollingReconnectTimer();
+				this.pollingClient.stop();
 
 				for (const msg of this.sendQueue) {
 					conn.send(msg);
@@ -45,12 +66,153 @@ class RealtimeManager {
 				}
 			})
 			.catch(() => {
-				this.status = 'disconnected';
-				this.connection = null;
+				this.handleDisconnect();
 			});
 	}
 
+	private handleDisconnect(): void {
+		this.connection = null;
+		const attempt = this.reconnectManager.incrementAttempt();
+
+		if (this.reconnectManager.shouldRetry(attempt)) {
+			this.status = 'reconnecting';
+			this.reconnectAttempts = attempt;
+			const delay = this.reconnectManager.getDelay(attempt);
+
+			this.reconnectTimer = setTimeout(() => {
+				this.doConnect();
+			}, delay);
+		} else {
+			this.status = 'polling';
+			this.startPollingFallback();
+			this.startPollingReconnectTimer();
+		}
+	}
+
+	private startPollingFallback(): void {
+		this.pollingClient.start(
+			[...this.subscriptions],
+			this.lastSeq,
+			(events: TopicEvent[]) => this.handlePolledEvents(events),
+			(topics: string[]) => this.handleResyncRequired(topics)
+		);
+	}
+
+	private startPollingReconnectTimer(): void {
+		this.pollingReconnectTimer = setInterval(() => {
+			if (this.status === 'polling') {
+				this.attemptWebSocketReconnect();
+			}
+		}, POLLING_RECONNECT_INTERVAL_MS);
+	}
+
+	private stopPollingReconnectTimer(): void {
+		if (this.pollingReconnectTimer !== null) {
+			clearInterval(this.pollingReconnectTimer);
+			this.pollingReconnectTimer = null;
+		}
+	}
+
+	private attemptWebSocketReconnect(): void {
+		if (this.status !== 'polling') return;
+
+		this.status = 'connecting';
+		const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const url = `${protocol}//${location.host}/api/ws`;
+
+		const conn = new WebSocketConnection();
+		this.connection = conn;
+		conn.onMessage((msg) => this.dispatchEvent(msg));
+
+		conn
+			.connect(url, this.currentToken)
+			.then(() => {
+				this.status = 'connected';
+				this.reconnectManager.reset();
+				this.reconnectAttempts = 0;
+				this.stopPollingReconnectTimer();
+				this.pollingClient.stop();
+
+				if (this.subscriptions.size > 0) {
+					conn.send({ type: 'subscribe', topics: [...this.subscriptions] });
+				}
+			})
+			.catch(() => {
+				this.handleDisconnect();
+			});
+	}
+
+	private handlePolledEvents(events: TopicEvent[]): void {
+		for (const event of events) {
+			if (event.seq > (this.lastSeq[event.topic] ?? 0)) {
+				this.lastSeq = { ...this.lastSeq, [event.topic]: event.seq };
+			}
+
+			const handlers = this.handlers.get(event.topic);
+			if (handlers) {
+				for (const h of handlers) {
+					h(event.data);
+				}
+			}
+		}
+	}
+
+	private handleResyncRequired(topics: string[]): void {
+		for (const topic of topics) {
+			this.resyncTopic(topic);
+		}
+	}
+
+	async resyncTopic(topic: string): Promise<void> {
+		const endpoint = this.getResyncEndpoint(topic);
+		if (!endpoint) return;
+
+		try {
+			const response = await fetch(`/api${endpoint}`, {
+				headers: {
+					Authorization: `Bearer ${this.currentToken}`
+				}
+			});
+
+			if (!response.ok) return;
+
+			const data = await response.json();
+			const handlers = this.handlers.get(topic);
+			if (handlers) {
+				for (const h of handlers) {
+					h(data);
+				}
+			}
+		} catch {
+			// Swallow errors silently
+		}
+	}
+
+	private getResyncEndpoint(topic: string): string | null {
+		const parsed = parseTopic(topic);
+		if (!parsed) return null;
+
+		const { resourceType, resourceId } = parsed;
+
+		switch (resourceType) {
+			case 'agent':
+				return `/agents/${resourceId}`;
+			case 'system':
+				return '/health';
+			case 'usage':
+				return `/usage/${resourceId}`;
+			default:
+				return null;
+		}
+	}
+
 	disconnect(): void {
+		if (this.reconnectTimer !== null) {
+			clearTimeout(this.reconnectTimer);
+			this.reconnectTimer = null;
+		}
+		this.stopPollingReconnectTimer();
+		this.pollingClient.stop();
 		this.connection?.close();
 		this.connection = null;
 		this.status = 'disconnected';
@@ -89,6 +251,11 @@ class RealtimeManager {
 	}
 
 	private dispatchEvent(message: ServerMessage): void {
+		if (message.type === 'resync_required') {
+			this.handleResyncRequired(message.resync_required);
+			return;
+		}
+
 		if (message.type !== 'event') return;
 
 		const evt = message as EventMessage;
