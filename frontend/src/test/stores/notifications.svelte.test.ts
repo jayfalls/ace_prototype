@@ -3,6 +3,20 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // We need to test the actual module, so we import it directly
 // But we need to reset the module between tests to avoid state leakage
 
+// Mock realtimeManager before importing the module
+let statusChangeHandler: ((data: { status: string; previous: string }) => void) | null = null;
+
+vi.mock('$lib/realtime/manager.svelte', () => ({
+	realtimeManager: {
+		on: vi.fn((eventType: string, handler: (data: unknown) => void) => {
+			if (eventType === 'connection_status') {
+				statusChangeHandler = handler as (data: { status: string; previous: string }) => void;
+			}
+			return () => {};
+		})
+	}
+}));
+
 describe('NotificationStore', () => {
 	let notificationStore: {
 		toasts: unknown[];
@@ -17,6 +31,10 @@ describe('NotificationStore', () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		vi.useFakeTimers();
+		statusChangeHandler = null;
+
+		// Reset module cache to get fresh import
+		vi.resetModules();
 
 		// Clear module cache to get fresh instance
 		const mod = await import('$lib/stores/notifications.svelte');
@@ -146,6 +164,81 @@ describe('NotificationStore', () => {
 			const toast = notificationStore.toasts[0] as Record<string, unknown>;
 			expect(toast.variant).toBe('info');
 			expect(toast.title).toBe('Info');
+		});
+	});
+
+	describe('connection status notifications', () => {
+		it('shows warning when status transitions to disconnected', () => {
+			// Trigger the status listener setup by calling add, then clear the toast
+			notificationStore.add('Init');
+			notificationStore.toasts = [];
+
+			expect(statusChangeHandler).not.toBeNull();
+
+			// Simulate disconnected from connected
+			statusChangeHandler!({ status: 'disconnected', previous: 'connected' });
+
+			expect(notificationStore.toasts).toHaveLength(1);
+			const toast = notificationStore.toasts[0] as Record<string, unknown>;
+			expect(toast.variant).toBe('warning');
+			expect(toast.title).toBe('Connection lost. Reconnecting...');
+		});
+
+		it('shows success when status transitions to connected from disconnected', () => {
+			notificationStore.add('Init');
+			notificationStore.toasts = [];
+
+			expect(statusChangeHandler).not.toBeNull();
+
+			// Simulate connected from disconnected
+			statusChangeHandler!({ status: 'connected', previous: 'disconnected' });
+
+			expect(notificationStore.toasts).toHaveLength(1);
+			const toast = notificationStore.toasts[0] as Record<string, unknown>;
+			expect(toast.variant).toBe('success');
+			expect(toast.title).toBe('Connected');
+		});
+
+		it('shows success when status transitions to connected from polling', () => {
+			notificationStore.add('Init');
+			notificationStore.toasts = [];
+
+			expect(statusChangeHandler).not.toBeNull();
+
+			// Simulate connected from polling
+			statusChangeHandler!({ status: 'connected', previous: 'polling' });
+
+			expect(notificationStore.toasts).toHaveLength(1);
+			const toast = notificationStore.toasts[0] as Record<string, unknown>;
+			expect(toast.variant).toBe('success');
+			expect(toast.title).toBe('Connected');
+		});
+
+		it('shows info when status transitions to polling', () => {
+			notificationStore.add('Init');
+			notificationStore.toasts = [];
+
+			expect(statusChangeHandler).not.toBeNull();
+
+			// Simulate polling
+			statusChangeHandler!({ status: 'polling', previous: 'connected' });
+
+			expect(notificationStore.toasts).toHaveLength(1);
+			const toast = notificationStore.toasts[0] as Record<string, unknown>;
+			expect(toast.variant).toBe('info');
+			expect(toast.title).toBe('Using polling mode');
+		});
+
+		it('does not show notification when status stays the same', () => {
+			notificationStore.add('Init');
+			notificationStore.toasts = [];
+
+			expect(statusChangeHandler).not.toBeNull();
+
+			// Simulate disconnected from disconnected (no change)
+			statusChangeHandler!({ status: 'disconnected', previous: 'disconnected' });
+
+			expect(notificationStore.toasts).toHaveLength(0);
 		});
 	});
 });
