@@ -13,85 +13,23 @@ NC := $(shell printf '\033[0m')
 
 .PHONY: help dev agent agent-stop ace test
 
-##@ OpenCode Development Environment
-
-dev: ## Setup distrobox for OpenCode instance
-	@echo "$(BLUE)Setting up development environment...$(NC)"
-	@echo ""
-	@if ! command -v distrobox &> /dev/null; then \
-		echo "$(RED)Error: distrobox not installed. Install with: pipx install distrobox$(NC)"; \
-		exit 1; \
-	fi
-	@REPO_DIR="$(shell pwd)"; \
-	if ! distrobox list | grep -q "$(DISTROBOX_NAME)"; then \
-		echo "Creating distrobox '$(DISTROBOX_NAME)'..."; \
-		distrobox create --name $(DISTROBOX_NAME) --image $(DISTROBOX_IMAGE); \
-		echo "Distrobox created."; \
-	fi; \
-	echo "Installing dependencies..."; \
-	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && .dev/distrobox-setup.sh"
-	@echo ""
-	@echo "$(GREEN)Installing pre-commit hook...$(NC)"
-	@ln -sf "$(pwd)/.dev/pre-commit.sh" "$(pwd)/.git/hooks/pre-commit"
-	@echo ""
-	@echo "$(GREEN)Development environment ready!$(NC)"
-	@echo ""
-	@echo "To start OpenCode, run:"
-	@echo "  $(YELLOW)make agent$(NC)"
-
-agent: ## Run OpenCode agent in distrobox
-	@echo "$(BLUE)Starting OpenCode in distrobox...$(NC)"
-	@if ! distrobox list | grep -q "$(DISTROBOX_NAME)"; then \
-		echo "$(RED)Distrobox '$(DISTROBOX_NAME)' does not exist. Run 'make dev' first.$(NC)"; \
-		exit 1; \
-	fi
-	@REPO_DIR="$(shell pwd)"; \
-	echo "Entering distrobox and starting OpenCode..."; \
-	echo "$(GREEN)Distrobox will open with OpenCode. Your host is protected!$(NC)"; \
-	distrobox enter --name $(DISTROBOX_NAME) -- /bin/sh -c "cd $$REPO_DIR && export PATH=\"\$$HOME/.opencode/bin:\$$PATH\" && exec opencode web"
-
-agent-stop: ## Stop OpenCode agent in distrobox
-	@echo "$(BLUE)Stopping OpenCode...$(NC)"
-	@distrobox enter --name $(DISTROBOX_NAME) -- pkill -f "opencode" 2>/dev/null || echo "No opencode process found"
-
-##@ Application Development
-
-ace: ## Run ace backend and frontend with hot reloading (dev mode)
-	@echo "$(BLUE)Starting ACE in dev mode...$(NC)"
-	@echo "$(YELLOW)Backend will auto-reload with Air$(NC)"
-	@echo "$(YELLOW)Frontend hot reload on http://localhost:5173$(NC)"
-	@echo "$(YELLOW)Press Ctrl+C to stop both$(NC)"
-	@echo ""
-	@# Store PIDs to kill them later
-	@( \
-		trap 'echo ""; echo "$(RED)Stopping ACE...$(NC)"; kill $$AIR_PID 2>/dev/null || true; kill -9 $$AIR_PID 2>/dev/null || true; pkill -9 -f "bin/ace" 2>/dev/null || true; pkill -9 -f "ace/ace" 2>/dev/null || true; kill $$VITE_PID 2>/dev/null || true; sleep 1; exit' INT; \
-		echo "$(GREEN)[BACKEND]$(NC) Starting Air hot reload..."; \
-		(cd backend && air) & \
-		AIR_PID=$$!; \
-		sleep 2; \
-		echo "$(GREEN)[FRONTEND]$(NC) Starting Vite dev server..."; \
-		(cd frontend && npm run dev) & \
-		VITE_PID=$$!; \
-		wait \
-	)
-
-test: ## Run full validation pipeline (build, lint, test, git add)
-	@echo "=== Swag Init ==="
+test: ## Run full validation pipeline
+	@echo "$(GREEN)=== Swag Init ===$(NC)"
 	cd backend && swag init -g ./cmd/ace/main.go -o ./docs
 	@echo ""
-	@echo "=== Go Build ==="
+	@echo "$(GREEN)=== Go Build ===$(NC)"
 	cd backend && go build ./...
 	@echo ""
-	@echo "=== Go Vet ==="
+	@echo "$(GREEN)=== Go Vet ===$(NC)"
 	cd backend && go vet ./...
 	@echo ""
-	@echo "=== Go Test ==="
+	@echo "$(GREEN)=== Go Test ===$(NC)"
 	cd backend && go test -short ./...
 	@echo ""
-	@echo "=== SQLC Generate ==="
+	@echo "$(GREEN)=== SQLC Generate ===$(NC)"
 	cd backend && sqlc generate
 	@echo ""
-	@echo "=== Docs Generate ==="
+	@echo "$(GREEN)=== Docs Generate ===$(NC)"
 	@echo "Starting ACE server for docs generation..."
 	cd backend && go run ./cmd/ace > /dev/null 2>&1 & \
 	ACE_PID=$$!; \
@@ -100,18 +38,14 @@ test: ## Run full validation pipeline (build, lint, test, git add)
 	kill $$ACE_PID 2>/dev/null || true; \
 	sleep 1
 	@echo ""
-	@echo "=== Frontend Check ==="
+	@echo "$(GREEN)=== Frontend Check ===$(NC)"
 	cd frontend && npm run check
 	@echo ""
-	@echo "=== Frontend Test ==="
+	@echo "$(GREEN)=== Frontend Test ===$(NC)"
 	cd frontend && npm run test:run
 	@echo ""
-	@echo "=== Git Add ==="
+	@echo "$(GREEN)=== Git Add ===$(NC)"
 	git add .
-
-test-realtime: ## Run realtime WebSocket integration tests
-	@echo "$(BLUE)=== Realtime Integration Tests ===$(NC)"
-	cd backend && go test -v -run TestIntegration ./internal/api/realtime/
 
 help: ## Show this help message
 	@echo ""
@@ -125,5 +59,4 @@ help: ## Show this help message
 	@echo "$(GREEN)Application Development:$(NC)"
 	@echo "  $(YELLOW)make ace$(NC)           - Run backend + frontend with hot reload"
 	@echo "  $(YELLOW)make test$(NC)          - Run full validation pipeline"
-	@echo "  $(YELLOW)make test-realtime$(NC)  - Run realtime WebSocket integration tests"
 	@echo ""

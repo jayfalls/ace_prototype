@@ -300,6 +300,27 @@ stats, _ := cache.Stats(ctx)  // HitCount, MissCount, HitRate
 
 Full documentation: [documentation/caching.md](../documentation/caching.md)
 
+### Real-time Bridge Pattern
+
+The API server bridges NATS events to WebSocket clients through a Hub+Client+TopicReg architecture:
+
+```
+NATS → TopicReg (ref-counted subscriptions) → Hub (fan-out, auth filter) → Client (write pump) → WebSocket
+                              ↓
+                        SeqBuffer (per-topic ring buffer, replay on reconnect)
+```
+
+- **Hub** — Central registry. Manages client lifecycle, fans out NATS events to authorized subscribers, tracks active connections.
+- **Client** — Per-connection state. Read pump (incoming messages), write pump (outgoing events), rate limiting (100 msg/s).
+- **TopicReg** — NATS subscription registry with reference counting. Maps public topics (`agent:{id}:status`) to NATS subjects (`ace.engine.{id}.layer.>`).
+- **SeqBuffer** — Bounded per-topic ring buffer. Enables replay on reconnect; returns `resync_required` when buffer exceeded.
+
+**Authentication:** JWT in first WebSocket message (not URL query). Polling endpoint uses existing Bearer token middleware.
+
+**Frontend:** `RealtimeManager` (Svelte 5 rune class) manages connection lifecycle with exponential backoff reconnect and adaptive polling fallback.
+
+Full documentation: [documentation/realtime.md](../documentation/realtime.md)
+
 ### `services/api` Handler Pattern
 
 ```go
@@ -383,6 +404,7 @@ All development tasks are driven through the Makefile. The Makefile is the singl
 | `make agent-stop` | Stop OpenCode agent | Stop AI agent |
 | `make ace` | Run ACE with hot reload (backend + frontend) | Start development |
 | `make test` | Run full validation pipeline | Run tests |
+| `make test-realtime` | Run realtime integration tests only | Run realtime tests |
 | `make help` | Show help message | Get help |
 
 ### Development Environment
