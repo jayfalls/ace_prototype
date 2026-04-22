@@ -31,12 +31,13 @@ The ACE Framework frontend is a modern, themeable, responsive SPA built with Sve
 frontend/src/
 ├── lib/
 │   ├── api/           # API client and types
+│   ├── realtime/      # Real-time: manager, connection, reconnect, polling, topics
 │   ├── components/
 │   │   ├── layout/    # Sidebar, AppShell, NavItem
 │   │   ├── telemetry/ # HealthCards
 │   │   ├── shared/    # DataState, Pagination
 │   │   └── ui/        # shadcn components
-│   ├── stores/        # Svelte 5 rune-based stores
+│   ├── stores/        # Svelte 5 rune-based stores (auth, agents, usage, notifications, ui)
 │   ├── themes/        # 45 theme definitions
 │   ├── utils/         # Helpers, formatters, constants
 │   └── validation/    # Zod schemas
@@ -144,11 +145,13 @@ Button, Card, Input, Badge, Select, Dialog, Tabs, Table, Avatar, Skeleton, Separ
 | Component | Purpose |
 |-----------|---------|
 | `AppShell` | Layout wrapper with sidebar + main content |
-| `Sidebar` | Collapsible navigation |
+| `Sidebar` | Collapsible navigation (includes ConnectionIndicator) |
 | `NavItem` | Navigation link with icon |
-| `HealthCards` | System health status display |
+| `HealthCards` | System health status display (real-time via WebSocket) |
 | `DataState` | Loading/error/empty state wrapper |
-| `Toaster` | Global toast notifications |
+| `Toaster` | Global toast notifications (includes connection status toasts) |
+| `ConnectionIndicator` | Real-time connection status badge |
+| `LiveBadge` | Pulsing green dot for active connections |
 
 ---
 
@@ -199,7 +202,7 @@ const form = useForm({
 
 ### Test Coverage
 
-- **210 tests** across 19 test files
+- **331 tests** across 30 test files (includes realtime unit tests)
 - Unit tests for stores, API, utilities
 - Integration tests for auth flow
 - Component tests for layout
@@ -240,3 +243,4 @@ npm run build      # Static adapter output
 - [design/units/frontend-design/architecture.md](../design/units/frontend-design/architecture.md)
 - [design/units/frontend-design/fsd.md](../design/units/frontend-design/fsd.md)
 - [design/units/frontend-design/implementation_plan.md](../design/units/frontend-design/implementation_plan.md)
+- [realtime.md](./realtime.md) — Real-time UI updates, WebSocket/polling, reconnection

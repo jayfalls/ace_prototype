@@ -88,6 +88,9 @@ test: ## Run full validation pipeline (build, lint, test, git add)
 	@echo "=== Go Test ==="
 	cd backend && go test -short ./...
 	@echo ""
+	@echo "$(BLUE)=== Realtime Integration Tests ===$(NC)"
+	cd backend && go test -run TestIntegration ./internal/api/realtime/
+	@echo ""
 	@echo "=== SQLC Generate ==="
 	cd backend && sqlc generate
 	@echo ""
@@ -108,10 +111,6 @@ test: ## Run full validation pipeline (build, lint, test, git add)
 	@echo ""
 	@echo "=== Git Add ==="
 	git add .
-
-test-realtime: ## Run realtime WebSocket integration tests
-	@echo "$(BLUE)=== Realtime Integration Tests ===$(NC)"
-	cd backend && go test -v -run TestIntegration ./internal/api/realtime/
 
 help: ## Show this help message
 	@echo ""
