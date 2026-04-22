@@ -246,7 +246,6 @@ defer hub.Close()
 
 ```bash
 make test              # Full suite
-make test-realtime     # Backend realtime integration tests only
 ```
 
 ---

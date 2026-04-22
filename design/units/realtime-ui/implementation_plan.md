@@ -303,7 +303,6 @@ Depends on: All prior slices
     - Test: Token refresh via auth message → connection continues without reconnect
     - Test: Hub graceful shutdown closes all client connections cleanly
     - Test: Concurrent fan-out (100 events/second) — verify no drops for critical messages
-  - Add `make test-realtime` target for running just the realtime tests
 - **Frontend:**
   - Create `frontend/src/lib/realtime/integration.test.ts`:
     - Test: Full lifecycle — connect → subscribe → receive events → disconnect → reconnect → replay

@@ -404,7 +404,6 @@ All development tasks are driven through the Makefile. The Makefile is the singl
 | `make agent-stop` | Stop OpenCode agent | Stop AI agent |
 | `make ace` | Run ACE with hot reload (backend + frontend) | Start development |
 | `make test` | Run full validation pipeline | Run tests |
-| `make test-realtime` | Run realtime integration tests only | Run realtime tests |
 | `make help` | Show help message | Get help |
 
 ### Development Environment
