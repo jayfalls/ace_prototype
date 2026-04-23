@@ -9,7 +9,7 @@ Deliver a comparative architectural study of existing agent frameworks, speciali
 ### In Scope
 - Analysis of 7 agent frameworks and 6 specialized systems listed in `problem_space.md`.
 - Synthesis of 5 research papers.
-- Cross-cutting comparison across 10 dimensions: architecture, memory, delegation, tools/skills, communication, self-improvement, UX/DX, strengths/weaknesses, user feedback, research synthesis.
+- Cross-cutting comparison across initial dimensions: architecture, memory, delegation, tools/skills, communication, self-improvement, UX/DX, strengths/weaknesses, user feedback, research synthesis. Additional dimensions will be added as research uncovers new comparison axes.
 
 ### Out of Scope
 - Implementation of any ACE subsystem.
@@ -18,7 +18,7 @@ Deliver a comparative architectural study of existing agent frameworks, speciali
 
 ## Success Criteria
 
-1. Every listed system is analyzed across all 10 output dimensions.
+1. Every listed system is analyzed across all output dimensions (initial list below, expanded as research uncovers new axes).
 2. Each output file contains specific, comparable design decisions (not surface-level summaries).
 3. Findings explicitly map to ACE design choices: **adopt**, **avoid**, or **adapt**.
 4. User feedback (community complaints/praise) is documented with evidence.
@@ -57,3 +57,5 @@ Without this study, ACE risks spending weeks on approaches the community has alr
 | `study/strengths-weaknesses.md` | Comparative analysis of what works and what doesn't |
 | `study/user-feedback.md` | Community complaints, compliments, common issues |
 | `study/research-synthesis.md` | Key findings from research papers and their implications for ACE |
+
+**Note:** The deliverables list is the initial set. Additional files will be added as research uncovers dimensions not captured above (e.g., self-improvement to the scaffold itself, safety/guardrails patterns, evaluation frameworks).
