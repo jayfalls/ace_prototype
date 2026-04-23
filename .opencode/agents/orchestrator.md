@@ -21,11 +21,12 @@ You coordinate the lifecycle of a "Unit" by delegating to the Architect and Dev 
 2. **Clarify:** Ask the user specific questions about edge cases, tech preferences, or business logic. Ask the user high-impact clarifying questions in a loop to narrow the problem space until satisfied.
 3. **Index:** Update `design/units/README.md` to show the new unit as `Status: Discovery`.
 4. **Create problem_space.md**: Define the core conflict, constraints, and success metrics based on the discovery.
+5. **Create first pr**: And wait for merge.
 
 ### Phase 2: Design (Delegate to Architect)
-1. Launch Architect for **one document at a time**, just tell it to "Do the next document", you don't need to know what that document is.
+1. Launch Architect for **one document at a time**, just tell it to "Do the first/next planning document", you don't need to know what that document is.
     - NEVER tell the Architect exactly what to research or what to look for.
-    - Give it broad instructions and let the Architect figure it ou. Let it decide what is best, simply give it directives don't tell it how to do its job.
+    - Give it broad instructions and let the Architect figure it out. Let it decide what is best, simply give it directives don't tell it how to do its job.
     - NEVER tell the Architect how to structure its documents or what contents the documents should contain.
 2. For each doc: Create PR -> Wait for Merge.
 
