@@ -18,28 +18,28 @@ ACE is a hierarchical agent swarm framework with six cognitive layers, tiered me
 ## Systems Under Study
 
 ### Agent Frameworks
-- **OpenClaw** - Open-source agent framework
-- **Claude Code** - Anthropic's coding agent (source code collection available)
-- **Open Code** - Open-source coding agent
-- **Oh My OpenAgent** - Agent orchestration framework
-- **Devin** - Cognition's autonomous coding agent
-- **Goose** - Open-source agent framework
-- **Hermes Agent** - Nous Research's agent system
+- **OpenClaw** - https://github.com/openclaw/openclaw
+- **Claude Code** - https://github.com/chauncygu/collection-claude-code-source-code/tree/main/claude-code-source-code
+- **Open Code** - (research required - open-source coding agent)
+- **Oh My OpenAgent** - (research required - agent orchestration framework)
+- **Devin** - (research required - Cognition's autonomous coding agent)
+- **Goose** - https://github.com/aaif-goose/goose
+- **Hermes Agent** - https://github.com/nousresearch/hermes-agent
 
 ### Specialized Systems
-- **pi-mono** - Browser automation agent
-- **andrej-karpathy-skills** - Skills system design
-- **playwright-skill** - Browser automation skill implementation
-- **honcho** - Memory/identity system for agents
-- **OpenViking** - VolcEngine's agent framework
-- **MSA** - Multi-System Agent architecture
+- **pi-mono** - https://github.com/badlogic/pi-mono
+- **andrej-karpathy-skills** - https://github.com/forrestchang/andrej-karpathy-skills
+- **playwright-skill** - https://github.com/lackeyjb/playwright-skill
+- **honcho** - https://github.com/plastic-labs/honcho
+- **OpenViking** - https://github.com/volcengine/OpenViking
+- **MSA** - https://github.com/EverMind-AI/MSA
 
 ### Research Papers
-- **TurboQuant** - AI efficiency through extreme compression (Google Research)
-- **RLM** - Reinforcement Learning for Memory (alexzhang13)
-- **arxiv 2603.28052v1** - (pending content analysis)
-- **arxiv 2506.13131** - (pending content analysis)
-- **rotorquant** - Quantization research
+- **TurboQuant** - https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/
+- **RLM** - https://alexzhang13.github.io/blog/2025/rlm/
+- **arxiv 2603.28052v1** - https://arxiv.org/html/2603.28052v1
+- **arxiv 2506.13131** - https://arxiv.org/abs/2506.13131
+- **rotorquant** - https://github.com/scrya-com/rotorquant
 
 ## Constraints
 
