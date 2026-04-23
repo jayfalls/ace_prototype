@@ -49,9 +49,11 @@ Without this study, ACE risks spending weeks on approaches the community has alr
 |------|-----------|
 | `study/architecture.md` | Core architecture patterns, system topology, design philosophies |
 | `study/memory.md` | Memory systems, context management, retrieval strategies, consolidation |
+| `study/compaction.md` | Context compaction, summarization strategies, token budget management |
 | `study/delegation.md` | Agent delegation, orchestration, multi-agent coordination |
 | `study/tools-skills.md` | Tool execution, skill systems, capability management |
 | `study/communication.md` | Internal communication, context passing, message patterns |
+| `study/loops.md` | Agent loops, execution cycles, concurrency models, iteration patterns |
 | `study/self-improvement.md` | Learning loops, self-modification, fine-tuning, prompt evolution |
 | `study/ux-dx.md` | Developer experience, user interfaces, configuration, debugging |
 | `study/strengths-weaknesses.md` | Comparative analysis of what works and what doesn't |
