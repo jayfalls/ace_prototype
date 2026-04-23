@@ -2,11 +2,11 @@
 
 **Unit:** agents-study  
 **Type:** Pure research unit — zero code dependencies  
-**Goal:** Produce 12 cross-cutting comparison documents that analyze 13 systems and 5 research papers across dimensional axes, feeding actionable adopt/avoid/adapt recommendations into ACE's upcoming cognitive units.
+**Goal:** Produce 14 cross-cutting comparison documents that analyze 13 systems and 5 research papers across dimensional axes, feeding actionable adopt/avoid/adapt recommendations into ACE's upcoming cognitive units.
 
 **Critical Correction:** `research.md` is a high-level MAP, not the deliverable. The Dev Loop performs the actual deep research for each slice by cloning codebases, reading source files, and fetching full papers. Each slice produces exactly one file in `study/`.
 
-**Slice Ordering Principle:** Architecture first (foundational topology), then core runtime dimensions (memory, compaction, loops), then coordination dimensions (delegation, tools-skills, communication), then meta dimensions (self-improvement, ux-dx), then synthesis dimensions (strengths-weaknesses, user-feedback), then research-synthesis last (depends on all prior slices).
+**Slice Ordering Principle:** Architecture first (foundational topology), then core runtime dimensions (memory, compaction, loops), then coordination dimensions (delegation, tools-skills, browser-automation, computer-use, communication), then meta dimensions (self-improvement, ux-dx), then synthesis dimensions (strengths-weaknesses, user-feedback), then research-synthesis last (depends on all prior slices).
 
 ---
 
@@ -16,8 +16,8 @@
 |---|--------|---------------|
 | 1 | **OpenClaw** | `https://github.com/openclaw/openclaw` |
 | 2 | **Claude Code** | `https://github.com/chauncygu/collection-claude-code-source-code` |
-| 3 | **Open Code** | Research required — open-source coding agent |
-| 4 | **Oh My OpenAgent** | Research required — OpenCode plugin, agent orchestration |
+| 3 | **Open Code** | `https://github.com/anomalyco/opencode` |
+| 4 | **Oh My OpenAgent** | `https://github.com/code-yeongyu/oh-my-openagent` |
 | 5 | **Devin** | Research required — Cognition's autonomous coding agent |
 | 6 | **Goose** | `https://github.com/aaif-goose/goose` |
 | 7 | **Hermes Agent** | `https://github.com/nousresearch/hermes-agent` |
@@ -27,6 +27,9 @@
 | 11 | **honcho** | `https://github.com/plastic-labs/honcho` |
 | 12 | **OpenViking** | `https://github.com/volcengine/OpenViking` |
 | 13 | **MSA** | `https://github.com/EverMind-AI/MSA` |
+
+**Additional Repo for Study:**
+| **karpathy/autoresearch** | `https://github.com/karpathy/autoresearch` |
 
 ## Research Papers (5)
 
@@ -42,20 +45,65 @@
 
 ## Vertical Slices
 
+### Slice 0: Research Environment Setup (NO PR)
+
+**Output File:** None — this is a one-time setup step.
+
+**Backend:** Clone all codebases and fetch all papers into `design/units/agents-study/research/` so subsequent slices do not re-clone.
+
+**Codebases to Clone:**
+```bash
+mkdir -p design/units/agents-study/research/
+cd design/units/agents-study/research/
+git clone https://github.com/openclaw/openclaw
+git clone https://github.com/chauncygu/collection-claude-code-source-code
+git clone https://github.com/anomalyco/opencode
+git clone https://github.com/code-yeongyu/oh-my-openagent
+git clone https://github.com/aaif-goose/goose
+git clone https://github.com/nousresearch/hermes-agent
+git clone https://github.com/badlogic/pi-mono
+git clone https://github.com/forrestchang/andrej-karpathy-skills
+git clone https://github.com/lackeyjb/playwright-skill
+git clone https://github.com/plastic-labs/honcho
+git clone https://github.com/volcengine/OpenViking
+git clone https://github.com/EverMind-AI/MSA
+git clone https://github.com/karpathy/autoresearch
+git clone https://github.com/scrya-com/rotorquant
+```
+
+**Papers to Fetch:**
+```bash
+mkdir -p design/units/agents-study/research/papers/
+cd design/units/agents-study/research/papers/
+# TurboQuant blog post (fetch as markdown)
+# RLM / RISE blog + paper (fetch as markdown)
+# Meta-Harness (arxiv 2603.28052v1)
+# AlphaEvolve (arxiv 2506.13131)
+# Devin architecture / UX blog posts (fetch as markdown)
+# Google Stitch blog posts / docs (fetch as markdown)
+# Claude Computer Use, Claude Cowork, Claude Design docs (fetch as markdown)
+```
+
+**Frontend:** N/A
+
+**Test:** All repos cloned successfully (no shallow clones — full history needed for blame/annotation). All papers downloaded and readable. Directory structure verified.
+
+---
+
 ### Slice 1: `study/architecture.md` — Core Architecture Patterns
 
 **Output File:** `design/units/agents-study/study/architecture.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect gateway process, session routing, adapter pattern, deployment model
 - `aaif-goose/goose` — inspect desktop/CLI/API surface separation, extension loading, MCP integration topology
 - `nousresearch/hermes-agent` — inspect gateway daemon structure, 15+ surface routing, messaging layer
 - `badlogic/pi-mono` — inspect `pi-agent-core` vs surfaces (CLI, TUI, Web, Slack), runtime separation
 - `chauncygu/collection-claude-code-source-code` — inspect SDK architecture, AsyncGenerator loop, client/server boundary
+- `anomalyco/opencode` — inspect client/server architecture, agent process topology, deployment model
+- `code-yeongyu/oh-my-openagent` — inspect three-layer architecture (Planning / Execution / Worker), Intent Gate, 160k LOC structure
 
 **Research to Fetch:**
-- Open Code architecture docs (official docs, GitHub README, blog posts on client/server model)
-- Oh My OpenAgent architecture overview (OpenCode plugin docs, GitHub repo if found)
 - Devin architecture blog posts / technical reports (Cognition Labs)
 
 **Investigation Instructions:**
@@ -79,17 +127,19 @@
 
 **Output File:** `design/units/agents-study/study/memory.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect memory file structure, compaction logic, semantic search implementation
 - `nousresearch/hermes-agent` — inspect session memory (SQLite + FTS5), persistent memory (Markdown files), Honcho integration
 - `plastic-labs/honcho` — inspect entity-centric memory, peer modeling, async reasoning, `context` endpoint, collections, metamessages
 - `volcengine/OpenViking` — inspect virtual filesystem (`viking://`), L0/L1/L2 tiers, directory retrieval, two-stage retrieval
 - `EverMind-AI/MSA` — inspect differentiable attention integration, chunk-mean pooling, router projector, Memory Parallel
 - `chauncygu/collection-claude-code-source-code` — inspect MEM.md, LLM-powered recall, four memory types, staleness warnings
+- `anomalyco/opencode` — inspect plugin memory systems (`opencode-working-memory`, `open-mem`) if available in repo or plugin docs
 
 **Research to Fetch:**
 - Open Code plugin memory systems: `opencode-working-memory` and `open-mem` repositories / docs
 - Claude Code memory SDK docs (official)
+- **RLM paper:** `https://alexzhang13.github.io/blog/2025/rlm/` — read full paper on Recursive Language Models. How does recursive processing of long documents relate to memory architecture? What is the recursion depth? How does it manage context windows?
 
 **Investigation Instructions:**
 - **OpenClaw:** How are memory files structured? What is the compaction trigger? How does semantic search work vs keyword? What are community workarounds for fragility?
@@ -99,8 +149,9 @@
 - **OpenViking:** How does the `viking://` virtual filesystem unify memory/resources/skills? What is L0/L1/L2 progressive loading? How does two-stage retrieval (vector + rerank) work?
 - **MSA:** How is retrieval embedded inside Transformer attention? What is chunk-mean pooling? How does the router projector select Top-k? What hardware does it require?
 - **Open Code (plugins):** How does `opencode-working-memory` implement four-tier memory? What are smart slots and exponential decay? How does `open-mem` compress into typed observations? What is the progressive disclosure model?
+- **RLM:** How does the recursive language model handle document memory? What is the recursive decomposition strategy? How does it compare to embedding-based retrieval (OpenViking) and native sparse attention (MSA)? What implications does it have for ACE's L2/L3 summarization tiers?
 
-**Frontend (Document):** Write cross-cutting comparison of storage backends, retrieval strategies, attribution models, tier structures, consolidation approaches, and compression ratios.
+**Frontend (Document):** Write cross-cutting comparison of storage backends, retrieval strategies, attribution models, tier structures, consolidation approaches, compression ratios, and recursive memory models.
 
 **Test:** All 13 systems analyzed across memory dimensions; ACE L1–L4 alignment recommendations are explicit and traceable to specific system patterns.
 
@@ -110,7 +161,7 @@
 
 **Output File:** `design/units/agents-study/study/compaction.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect auto-compaction logic, stream events, retry reset behavior
 - `nousresearch/hermes-agent` — inspect preflight compression check, ephemeral prompt layers, prompt caching markers
 - `chauncygu/collection-claude-code-source-code` — inspect 4-layer compression (snip, microcompact, collapse, autocompact), slot reservation, `compact_boundary` events
@@ -136,18 +187,18 @@
 
 **Output File:** `design/units/agents-study/study/loops.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect dual-loop design (outer task loop + inner ReAct loop), lifecycle events, stream events, serialization per session key
 - `nousresearch/hermes-agent` — inspect `AIAgent` class loop, delegation-driven multi-step mechanism, concurrent tool execution via `ThreadPoolExecutor`, rejection of ReAct
 - `aaif-goose/goose` — inspect standard conversation loop, extension loading → system prompt → stream LLM → dispatch tools → feed results
 - `badlogic/pi-mono` — inspect `pi-agent-core` turn loop: context shaping → LLM call → tool execution → continuation decision
 - `chauncygu/collection-claude-code-source-code` — inspect `AsyncGenerator` in `query.ts`, speculative execution, error recovery, tool partitioning by safety classification
+- `anomalyco/opencode` — inspect `plan` vs `code` agent modes, `@general` subagent, permission filtering before model sees tools
+- `code-yeongyu/oh-my-openagent` — inspect Intent Gate → Prometheus plan → Atlas execute → workers loop chain
 
 **Research to Fetch:**
 - Karpathy autoresearch loop: `https://github.com/karpathy/autoresearch` — clone and inspect the 630-line experiment loop
 - Devin loop architecture (blog posts, technical reports on distributed orchestrator evolution)
-- Oh My OpenAgent loop: how does the three-layer loop work (Intent Gate → Prometheus plan → Atlas execute → workers)?
-- Open Code loop: `plan` vs `code` agent modes, `@general` subagent, permission filtering before model sees tools
 
 **Investigation Instructions:**
 - **OpenClaw:** How does the outer loop select tasks vs the inner ReAct loop execute them? What are lifecycle/stream events? How does auto-compaction trigger retry?
@@ -157,6 +208,7 @@
 - **Devin:** How did the loop evolve from single-agent to distributed orchestrator? How does the manager monitor worker progress?
 - **pi-mono:** What is the explicit turn loop structure? How does the same core power multiple surfaces?
 - **Oh My OpenAgent:** How does the Intent Gate classify requests before the loop starts? How does Atlas distribute tasks to workers by category? How do background agents run in parallel?
+- **Open Code:** What is the loop structure for `plan` vs `code` modes? How does `@general` subagent invocation work?
 - **autoresearch:** What is the exact loop: read → propose → commit → run 5 min → measure → keep/reset? How does error recovery work? What is the "NEVER STOP" principle?
 
 **Frontend (Document):** Compare execution cycles, concurrency models, speculative execution, error recovery, iteration patterns, and loop architectures (ReAct, AsyncGenerator, delegation, dual-loop, fixed-time experiment).
@@ -169,15 +221,15 @@
 
 **Output File:** `design/units/agents-study/study/delegation.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `nousresearch/hermes-agent` — inspect `tools/delegate_tool.py`, child agent spawning, isolated context, restricted toolsets, max depth of 2
 - `aaif-goose/goose` — inspect subagent delegation, natural language spawning, internal/external subagents, Goosetown "flocks" and "Town Wall"
 - `openclaw/openclaw` — inspect subagent support, gateway single-agent-per-session limitation
+- `anomalyco/opencode` — inspect native agents vs file-based agents, `@general` subagent, plan/code mode switching
+- `code-yeongyu/oh-my-openagent` — inspect 11 built-in agents, role separation, parallel background execution
 
 **Research to Fetch:**
 - Devin manager/worker hierarchy (technical reports, blog posts on VM isolation, up to 10 workers)
-- Oh My OpenAgent specialized-agent delegation: 11 built-in agents, role separation, parallel background execution
-- Open Code native agents vs file-based agents, `@general` subagent, plan/code mode switching
 
 **Investigation Instructions:**
 - **Devin:** How does the manager distribute tasks? How are up to 10 workers monitored? How are conflicts resolved? What is the VM isolation boundary?
@@ -197,17 +249,17 @@
 
 **Output File:** `design/units/agents-study/study/tools-skills.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `aaif-goose/goose` — inspect MCP extension loading, recipe system, skill sharing
 - `nousresearch/hermes-agent` — inspect 47 registered tools across 19 toolsets, self-registration, YAML-frontmatter skills, auto-generation from trajectories, `tools/skill_manager_tool.py`, `tools/skills_hub.py`
 - `openclaw/openclaw` — inspect YAML + Markdown skills folder, skill injection at runtime, marketplace model
 - `badlogic/pi-mono` — inspect `ToolDefinition` registry, custom rendering functions, built-in tool lifecycle
 - `forrestchang/andrej-karpathy-skills` — inspect `SKILL.md` packaging, agentskills.io compatibility, multi-platform wrappers
 - `lackeyjb/playwright-skill` — inspect model-invoked dynamic execution, `run.js` universal executor, progressive disclosure, `SKILL.md` + `API_REFERENCE.md`
+- `code-yeongyu/oh-my-openagent` — inspect three-tier MCP system, built-in remote MCPs, `.mcp.json` integrations, `SkillMcpManager`, `ToolRegistry` factory pattern
+- `anomalyco/opencode` — inspect two-phase permission filtering, `plan` mode restrictions
 
 **Research to Fetch:**
-- Oh My OpenAgent three-tier MCP system: built-in remote MCPs, `.mcp.json` integrations, `SkillMcpManager` (stdio + HTTP), 26 custom tools, `ToolRegistry` factory pattern
-- Open Code tool permission pipeline: two-phase filtering, `plan` mode restrictions
 - Claude Code tool classification and permission pipeline
 
 **Investigation Instructions:**
@@ -219,6 +271,7 @@
 - **playwright-skill:** How does the agent generate custom Playwright code per request? How does the universal executor work? What is progressive disclosure?
 - **Oh My OpenAgent:** How does the three-tier MCP system work? What is the `ToolRegistry` factory pattern? How are skill-embedded MCPs managed?
 - **Claude Code:** How are tools classified by safety? What is the 14-step permission pipeline?
+- **Open Code:** How does two-phase permission filtering work? What tools are hidden from the model in `plan` mode?
 
 **Frontend (Document):** Compare tool discovery, execution models, sandboxing, interoperability (MCP), auto-generation, security models, and skill packaging standards.
 
@@ -226,19 +279,81 @@
 
 ---
 
-### Slice 7: `study/communication.md` — Internal Communication Patterns
+### Slice 7: `study/browser-automation.md` — Browser Automation & Frontend Testing
+
+**Output File:** `design/units/agents-study/study/browser-automation.md`
+
+**Codebases to Clone (from Slice 0):**
+- `lackeyjb/playwright-skill` — inspect model-invoked dynamic browser automation, `run.js` executor, progressive disclosure
+- `badlogic/pi-mono` — inspect web surface capabilities, how the agent interacts with browser contexts
+- `anomalyco/opencode` — inspect browser tools, any built-in web automation or testing capabilities
+- `aaif-goose/goose` — inspect browser extensions, MCP-based web tools
+- `chauncygu/collection-claude-code-source-code` — inspect browser capabilities, any web-based tool execution
+
+**Research to Fetch:**
+- **Google Stitch** — search and fetch docs/blog posts on Google's browser/UI generation tool. How does it generate UIs from prompts? What is its automation model?
+- **Devin browser use** — how does Devin interact with browsers in its VM environment?
+- **Claude Code browser tools** — any official documentation on browser-based tool usage
+
+**Investigation Instructions:**
+- **playwright-skill:** How does the agent generate custom Playwright code per request? What is the `run.js` universal executor? How does it handle safe cleanup and auto-detection of dev servers?
+- **pi-mono:** Does the web surface enable browser automation? How does the agent core interact with web contexts?
+- **Open Code:** Are there built-in browser tools? How does the agent handle web-based tasks?
+- **Goose:** What browser extensions exist? How does MCP enable web tool interoperability?
+- **Claude Code:** Are there browser-based tools? How does the SDK handle web automation?
+- **Google Stitch:** What is the architecture? How does it generate or manipulate browser UIs? What primitives does it expose?
+- **Devin:** How does it use browsers within its VM? Is there a dedicated browser automation skill?
+- **Cross-system:** Compare approaches: dynamic code generation (playwright-skill) vs MCP extensions (Goose) vs UI generation (Google Stitch) vs VM-based browsing (Devin).
+
+**Frontend (Document):** Compare browser automation strategies, frontend testing capabilities, web tool interoperability, UI generation vs automation, and security models for web execution.
+
+**Test:** All systems with browser capabilities are analyzed; Google Stitch is documented; ACE recommendations for web tool integration are explicit.
+
+---
+
+### Slice 8: `study/computer-use.md` — Computer Use & Desktop Automation
+
+**Output File:** `design/units/agents-study/study/computer-use.md`
+
+**Codebases to Clone (from Slice 0):**
+- `aaif-goose/goose` — inspect desktop app, OS-level automation capabilities
+- `badlogic/pi-mono` — inspect desktop surface capabilities, any OS interaction primitives
+- `chauncygu/collection-claude-code-source-code` — inspect any computer-use or desktop automation features
+
+**Research to Fetch:**
+- **Claude Computer Use** — Anthropic's computer-use API/docs. How does it control GUIs, screen coordinates, mouse/keyboard?
+- **Claude Cowork** — search for this product. How does it differ from Computer Use? What is its collaboration model?
+- **Claude Design** — search for this product. How does it handle design/UI tasks?
+- **Devin VM desktop** — how does Devin interact with the desktop environment in its VM? Screen recording, GUI automation?
+
+**Investigation Instructions:**
+- **Claude Computer Use:** What is the API? How are screen coordinates mapped? What OS-level primitives are exposed (screenshot, click, type, scroll)? How is safety handled?
+- **Claude Cowork:** What is the product? How does it enable multi-agent or human-agent collaboration on desktop tasks?
+- **Claude Design:** What is the scope? How does it handle design tools (Figma, etc.)?
+- **Goose desktop:** What desktop automation does the Goose desktop app provide? Is it limited to terminal or does it interact with native OS APIs?
+- **pi-mono desktop:** What does the desktop surface enable? Any OS-level tool integration?
+- **Devin:** How does the VM desktop work? Can it see the screen? Does it use VNC, RDP, or native APIs?
+- **Cross-system:** Compare screen-coordinate-based control (Claude) vs API-based desktop integration (Goose/pi-mono) vs VM sandboxing (Devin). Which approach aligns with ACE's single-binary model?
+
+**Frontend (Document):** Compare desktop automation strategies, GUI interaction models, OS-level primitives, sandboxing approaches, and security implications.
+
+**Test:** Claude Computer Use, Cowork, and Design are all documented; Devin VM desktop is analyzed; ACE recommendations for desktop tool integration are explicit.
+
+---
+
+### Slice 9: `study/communication.md` — Internal Communication Patterns
 
 **Output File:** `design/units/agents-study/study/communication.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect Gateway message routing, channel adapters, normalization, session routing
 - `aaif-goose/goose` — inspect MCP tool communication, "Town Wall" broadcast channel in Goosetown
 - `badlogic/pi-mono` — inspect runtime/surface separation, how `pi-agent-core` communicates with CLI/TUI/Web/Slack
 - `nousresearch/hermes-agent` — inspect gateway daemon routing to 15+ surfaces
+- `anomalyco/opencode` — inspect client/server protocol, TUI-to-agent communication
+- `code-yeongyu/oh-my-openagent` — inspect inter-layer communication, 46 lifecycle hooks propagation
 
 **Research to Fetch:**
-- Open Code client/server protocol — how does the TUI communicate with the agent process?
-- Oh My OpenAgent inter-layer communication — how do Planning, Execution, and Worker layers communicate?
 - Devin inter-VM communication — how does the manager communicate with worker VMs?
 
 **Investigation Instructions:**
@@ -257,20 +372,19 @@
 
 ---
 
-### Slice 8: `study/self-improvement.md` — Self-Improvement & Learning Loops
+### Slice 10: `study/self-improvement.md` — Self-Improvement & Learning Loops
 
 **Output File:** `design/units/agents-study/study/self-improvement.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `nousresearch/hermes-agent` — inspect trajectory-to-skill capture, `tools/skill_manager_tool.py`, `tools/skills_hub.py`, agent editing its own skill files
-- `forrestchang/andrej-karpathy-skills` — inspect autoresearch loop (clone `karpathy/autoresearch` if available separately, or infer from research)
+- `karpathy/autoresearch` — inspect `program.md`, `train.py`, `prepare.py`, full 630-line experiment loop
 
 **Research to Fetch:**
 - **RLM / RISE paper:** `https://alexzhang13.github.io/blog/2025/rlm/` — read full paper on Recursive IntroSpEction, multi-turn MDP, online imitation learning
 - **AlphaEvolve paper:** `https://arxiv.org/abs/2506.13131` — read full paper on evolutionary coding agent, evaluators, algorithmic discovery
 - **Meta-Harness paper:** `https://arxiv.org/html/2603.28052v1` — read full paper on harness auto-optimization, filesystem-access agent, raw execution traces
 - **Devin playbook system** — blog posts / technical reports on playbooks, knowledge management, deduplication
-- **Karpathy autoresearch** — clone `https://github.com/karpathy/autoresearch`, read `program.md`, `train.py`, `prepare.py`, full loop
 
 **Investigation Instructions:**
 - **Hermes Agent:** How does it capture trajectories as skills after tool-heavy turns? What is the skill quality like? How does persistent memory accumulate validated workflows?
@@ -288,19 +402,20 @@
 
 ---
 
-### Slice 9: `study/ux-dx.md` — Developer Experience & User Interfaces
+### Slice 11: `study/ux-dx.md` — Developer Experience & User Interfaces
 
 **Output File:** `design/units/agents-study/study/ux-dx.md`
 
-**Codebases to Clone:**
+**Codebases to Clone (from Slice 0):**
 - `openclaw/openclaw` — inspect `openclaw.json`, `SOUL.md`, `HEARTBEAT.md` configuration files, setup friction
 - `nousresearch/hermes-agent` — inspect interactive wizard (~3,100 lines), multi-surface gateway setup
 - `chauncygu/collection-claude-code-source-code` — inspect SDK typed events, CLI vs headless modes
 - `aaif-goose/goose` — inspect desktop app, CLI/TUI, API surfaces, `~/.config/goose/` profiles, multi-provider support
+- `anomalyco/opencode` — inspect TUI, client/server remote access, LSP support, `CLAUDE.md` / `AGENTS.md` project-local config
+- `code-yeongyu/oh-my-openagent` — inspect OpenCode plugin experience, 46 hooks configuration
 
 **Research to Fetch:**
-- Open Code UX/DX: TUI, client/server remote access, LSP support, `CLAUDE.md` / `AGENTS.md` project-local config, terminal-first philosophy
-- Oh My OpenAgent UX: OpenCode plugin experience, 46 hooks configuration
+- Devin UX/DX: cloud VM interface, manager dashboard, worker monitoring UI, onboarding flow (blog posts, demo videos, reviews)
 - Community sentiment on setup friction (Reddit, Discord, GitHub issues for OpenClaw, Hermes, Goose)
 
 **Investigation Instructions:**
@@ -311,18 +426,19 @@
 - **Open Code:** What is the TUI experience? How does remote driving work? What is the LSP integration? How do `CLAUDE.md` / `AGENTS.md` files merge with global settings?
 - **Oh My OpenAgent:** What is the plugin installation process? How are the 46 hooks configured?
 - **pi-mono:** How do CLI, TUI, Web, and Slack surfaces differ in UX?
+- **Devin:** What does the cloud VM interface look like? How does the manager dashboard display worker progress? What is the onboarding experience? How do users interact with the VM desktop? What are the reported UX pain points from early access users?
 
-**Frontend (Document):** Compare setup friction, configuration models, debugging surfaces, multi-client support, developer onboarding, and project-local vs global configuration.
+**Frontend (Document):** Compare setup friction, configuration models, debugging surfaces, multi-client support, developer onboarding, cloud VM interfaces, and project-local vs global configuration.
 
-**Test:** All UX patterns covered; ACE frontend/backend separation and project-local config recommendations are explicit.
+**Test:** All UX patterns covered, including Devin; ACE frontend/backend separation and project-local config recommendations are explicit.
 
 ---
 
-### Slice 10: `study/strengths-weaknesses.md` — Comparative Strengths & Weaknesses
+### Slice 12: `study/strengths-weaknesses.md` — Comparative Strengths & Weaknesses
 
 **Output File:** `design/units/agents-study/study/strengths-weaknesses.md`
 
-**Dependencies:** Requires completion of Slices 1–9 (architecture, memory, compaction, loops, delegation, tools-skills, communication, self-improvement, ux-dx).
+**Dependencies:** Requires completion of Slices 1–11 (all dimensional slices before synthesis).
 
 **Codebases:** No new clones required — synthesize from prior slice research.
 
@@ -331,7 +447,7 @@
 - Cross-reference with `research.md` map for any gaps.
 
 **Investigation Instructions:**
-- Synthesize findings from Slices 1–9 into two structured lists: **What Works** and **What Doesn't Work**.
+- Synthesize findings from Slices 1–11 into two structured lists: **What Works** and **What Doesn't Work**.
 - For each item, identify the specific system(s), the dimensional source (architecture, memory, etc.), and the evidence (source file, issue number, quote).
 - Map each finding to an ACE decision: **adopt**, **avoid**, or **adapt**.
 - Identify contradictions between systems (e.g., one system's strength is another's weakness).
@@ -343,17 +459,17 @@
 
 ---
 
-### Slice 11: `study/user-feedback.md` — Community User Feedback
+### Slice 13: `study/user-feedback.md` — Community User Feedback
 
 **Output File:** `design/units/agents-study/study/user-feedback.md`
 
-**Dependencies:** Best done after Slice 10 (strengths-weaknesses) to guide targeted sentiment search, but can run in parallel if resources allow.
+**Dependencies:** Best done after Slice 12 (strengths-weaknesses) to guide targeted sentiment search, but can run in parallel if resources allow.
 
 **Codebases:** No new clones required.
 
 **Research to Fetch (Systematic Web Research):**
-- **GitHub Issues:** Search `repo:openclaw/openclaw`, `repo:aaif-goose/goose`, `repo:nousresearch/hermes-agent`, `repo:badlogic/pi-mono`, `repo:plastic-labs/honcho`, `repo:volcengine/OpenViking`, `repo:EverMind-AI/MSA` for labels like `bug`, `feature request`, `help wanted`, `security`
-- **Reddit:** Search r/LocalLLaMA, r/artificial, r/MachineLearning for threads on Claude Code, Devin, OpenClaw, Goose, Open Code
+- **GitHub Issues:** Search `repo:openclaw/openclaw`, `repo:aaif-goose/goose`, `repo:nousresearch/hermes-agent`, `repo:badlogic/pi-mono`, `repo:plastic-labs/honcho`, `repo:volcengine/OpenViking`, `repo:EverMind-AI/MSA`, `repo:anomalyco/opencode`, `repo:code-yeongyu/oh-my-openagent` for labels like `bug`, `feature request`, `help wanted`, `security`
+- **Reddit:** Search r/LocalLLaMA, r/artificial, r/MachineLearning for threads on Claude Code, Devin, OpenClaw, Goose, Open Code, Oh My OpenAgent
 - **Discord:** Search official servers (Goose, Hermes, OpenClaw) for common complaints and praise
 - **Hacker News:** Search for Show HN and discussion threads on each system
 - **Security Reports:** CVE-2026-25253 details for OpenClaw, Cisco security assessment
@@ -371,11 +487,11 @@
 
 ---
 
-### Slice 12: `study/research-synthesis.md` — Research Papers Synthesis
+### Slice 14: `study/research-synthesis.md` — Research Papers Synthesis
 
 **Output File:** `design/units/agents-study/study/research-synthesis.md`
 
-**Dependencies:** Requires completion of Slices 1–9 (context from all dimensional slices) and Slice 8 (self-improvement, which covers AlphaEvolve, Meta-Harness, RISE).
+**Dependencies:** Requires completion of all prior dimensional slices (1–11) and Slice 10 (self-improvement, which covers AlphaEvolve, Meta-Harness, RISE).
 
 **Research to Fetch (Full Papers):**
 - **TurboQuant:** `https://research.google/blog/turboquant-redefining-ai-efficiency-with-extreme-compression/` — read full technical details, numbers (6x memory, 8x speedup, ~3 bits, near-zero loss)
@@ -401,19 +517,19 @@
 
 ## Unit-Level Success Criteria
 
-1. All 12 deliverable files exist in `design/units/agents-study/study/`.
+1. All 14 deliverable files exist in `design/units/agents-study/study/`.
 2. Every listed system is analyzed across every relevant output dimension.
 3. Each file contains specific, comparable design decisions (not surface summaries).
 4. Findings explicitly map to ACE design choices: **adopt**, **avoid**, or **adapt**.
-5. User feedback is documented with evidence (Slice 11).
-6. Self-improvement mechanisms are thoroughly compared where present (Slice 8).
+5. User feedback is documented with evidence (Slice 13).
+6. Self-improvement mechanisms are thoroughly compared where present (Slice 10).
 7. All cross-cutting documents use consistent structure: per-system detail → trade-off matrix → ACE Recommendation.
 8. Every slice specifies exact codebases to clone and exact files/functions to investigate.
 
 ---
 
 **Deliverable:** `implementation_plan.md`  
-**Vertical Status:** 12/12 Slices Planned  
+**Vertical Status:** 14/14 Slices Planned  
 **Files Affected:**
 - `/home/jay/programming/ace_prototype/design/units/agents-study/implementation_plan.md`
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/architecture.md` (planned)
@@ -422,6 +538,8 @@
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/loops.md` (planned)
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/delegation.md` (planned)
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/tools-skills.md` (planned)
+- `/home/jay/programming/ace_prototype/design/units/agents-study/study/browser-automation.md` (planned)
+- `/home/jay/programming/ace_prototype/design/units/agents-study/study/computer-use.md` (planned)
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/communication.md` (planned)
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/self-improvement.md` (planned)
 - `/home/jay/programming/ace_prototype/design/units/agents-study/study/ux-dx.md` (planned)
