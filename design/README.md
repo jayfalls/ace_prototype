@@ -91,7 +91,9 @@ The **Learning Loop** processes feedback signals from completed cycles — expli
 
 ---
 
-## Shared Package Interfaces
+## Internal Package Interfaces
+
+The following packages are internal to the ACE binary. They provide the messaging, telemetry, and caching interfaces used by all embedded components within the single-process architecture.
 
 ### `shared/messaging`
 
@@ -438,7 +440,7 @@ The pre-commit hook runs quality gates including:
 
 **Usage events are non-negotiable.** Every LLM call, memory read, tool execution, and database query on the agent processing path emits a UsageEvent to `ace.usage.event`. This is not monitoring overhead — it is the data layer that powers user-facing features.
 
-**Services communicate via NATS, not HTTP or shared databases.** This keeps services independently deployable and independently scalable.
+**Within the single binary, components communicate via internal Go packages. NATS is used for the external-facing real-time bridge (WebSocket) only.** This keeps the internal path fast and the external interface event-driven.
 
 **`shared/` packages are transport-agnostic.** They never import `net/http`, NATS, or any transport. HTTP adapters live in `services/api/internal/middleware/`. This allows shared packages to be imported by any future service without dragging in irrelevant dependencies.
 
