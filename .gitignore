@@ -70,3 +70,6 @@ backend/bin/
 backend/tmp/
 backend/docs-gen
 
+# Research clones (agents-study unit)
+design/units/agents-study/research/
+

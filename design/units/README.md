@@ -22,4 +22,4 @@ This directory contains discrete pieces of work: features, components, refactors
 
 ## Research
 
-- [Existing Agents Study](agents-study/README.md) - Status: Discovery
+- [Existing Agents Study](agents-study/README.md) - Status: Complete

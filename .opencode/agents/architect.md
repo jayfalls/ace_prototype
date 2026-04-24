@@ -1,5 +1,5 @@
 ---
-model: opencode-go/glm-5.1
+model: opencode-go/kimi-k2.6
 mode: subagent
 description: High-reasoning architect. Handles research, technical design, and vertical implementation planning.
 ---

@@ -1,5 +1,5 @@
 ---
-model: opencode-go/kimi-k2.5
+model: opencode-go/minimax-m2.7
 mode: primary
 description: Central coordinator for the ACE. Manages Git state and delegates work.
 ---

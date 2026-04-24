@@ -91,9 +91,11 @@ The **Learning Loop** processes feedback signals from completed cycles — expli
 
 ---
 
-## Shared Package Interfaces
+## Internal Package Interfaces
 
-### `shared/messaging`
+The following packages are internal to the ACE binary. They provide the messaging, telemetry, and caching interfaces used by all embedded components within the single-process architecture.
+
+### `internal/messaging`
 
 ```go
 // Create a client on service startup
@@ -151,7 +153,7 @@ err = messaging.ForwardMessage(client, incomingMsg, newSubject)
 env := messaging.CreateRequestEnvelope(incomingMsg, agentID, cycleID, "my-service")
 ```
 
-Subject constants are typed `Subject` values in `shared/messaging/subjects.go` with a `.Format(args...)` method for interpolation — never construct subject strings by hand, because typos produce silent routing failures with no compile-time detection.
+Subject constants are typed `Subject` values in `internal/messaging/subjects.go` with a `.Format(args...)` method for interpolation — never construct subject strings by hand, because typos produce silent routing failures with no compile-time detection.
 
 **Available Subjects:**
 - `SubjectEngineLayerInput` — `ace.engine.%s.layer.%s.input`
@@ -177,7 +179,7 @@ Subject constants are typed `Subject` values in `shared/messaging/subjects.go` w
 - `SYSTEM` — System events (10MB, work queue policy)
 - `DLQ` — Dead letter queue for failed messages
 
-### `shared/telemetry`
+### `internal/telemetry`
 
 ```go
 // Initialise once on service startup
@@ -260,16 +262,17 @@ router.Use(telemetry.LoggerMiddleware(cfg.ServiceName)) // logs HTTP requests
 - `ResourceTypeDatabase` — Database resources
 - `ResourceTypeMessaging` — Messaging resources
 
-### `shared/caching`
+### `internal/caching`
 
 ```go
-// Create cache on service startup using Ristretto (in-process)
-cache := caching.NewCache(caching.RistrettoConfig{
+// Initialize cache backend (platform/cache) — returns caching.CacheBackend
+backend, err := cache.Init(&cache.Config{
     MaxCost:     1 << 30, // 1GB max cost
     Metrics:     true,
-    AgentID:     agentID,
-    DefaultTTL:  5 * time.Minute,
 })
+
+// Wrap with full caching API (internal/caching)
+cache := caching.NewCache(backend, caching.WithAgentID(agentID))
 
 // Core operations
 cache.Set(ctx, "user:123", value, caching.WithTags("user"))
@@ -438,9 +441,9 @@ The pre-commit hook runs quality gates including:
 
 **Usage events are non-negotiable.** Every LLM call, memory read, tool execution, and database query on the agent processing path emits a UsageEvent to `ace.usage.event`. This is not monitoring overhead — it is the data layer that powers user-facing features.
 
-**Services communicate via NATS, not HTTP or shared databases.** This keeps services independently deployable and independently scalable.
+**Within the single binary, components communicate via internal Go packages. NATS is used for the external-facing real-time bridge (WebSocket) only.** This keeps the internal path fast and the external interface event-driven.
 
-**`shared/` packages are transport-agnostic.** They never import `net/http`, NATS, or any transport. HTTP adapters live in `services/api/internal/middleware/`. This allows shared packages to be imported by any future service without dragging in irrelevant dependencies.
+**`internal/` packages are transport-agnostic.** They never import `net/http`, NATS, or any transport. HTTP adapters live in `services/api/internal/middleware/`. This allows shared packages to be imported by any future service without dragging in irrelevant dependencies.
 
 **No `interface{}` or `any`.** Explicit types throughout — `map[string]string` not `map[string]interface{}`.
 
@@ -456,6 +459,27 @@ The pre-commit hook runs quality gates including:
 
 ---
 
+## Existing Agents Study
+
+The following documents in `design/units/agents-study/study/` capture cross-cutting research used to inform ACE architecture decisions:
+
+- **[architecture.md](units/agents-study/study/architecture.md)** — Cross-cutting comparison of 8 agent systems' architectures, topology, deployment models, and surface separation patterns
+- **[memory.md](units/agents-study/study/memory.md)** — Memory system analysis across 8 systems: storage backends, retrieval strategies, tier structures, consolidation approaches, and compression ratios
+- **[compaction.md](units/agents-study/study/compaction.md)** — Context compaction strategies: 4-layer graduated compression, token budget management, pressure monitoring, and KV cache quantization research
+- **[loops.md](units/agents-study/study/loops.md)** — Agent loop architectures: ReAct vs delegation-driven vs AsyncGenerator vs dual-loop, concurrency models, speculative execution, error recovery
+- **[delegation.md](units/agents-study/study/delegation.md)** — Multi-agent delegation patterns: hierarchy models, context isolation, parallel execution, conflict resolution, depth limits across 6 systems
+- **[tools-skills.md](units/agents-study/study/tools-skills.md)** — Tool/skill systems: discovery mechanisms, MCP integration, auto-generation, security models, SKILL.md packaging standards across 8 systems
+- **[browser-automation.md](units/agents-study/study/browser-automation.md)** — Browser automation approaches: Playwright-based, screenshot-based, DOM-based, progressive disclosure, Google Stitch comparison
+- **[computer-use.md](units/agents-study/study/computer-use.md)** — Desktop automation: screen-coordinate vision-based, OS-level API scripting, VM sandboxing, Claude Computer Use, Goose computercontroller
+- **[communication.md](units/agents-study/study/communication.md)** — Internal communication patterns: message passing, context propagation, broadcast patterns, surface independence, NATS validation
+- **[self-improvement.md](units/agents-study/study/self-improvement.md)** — Learning loops: trajectory-to-skill capture, fixed-time experiments, git-based rollback, population-based search, RL fine-tuning
+- **[ux-dx.md](units/agents-study/study/ux-dx.md)** — Developer experience: setup friction, configuration models, debugging surfaces, multi-client support, project-local vs global config
+- **[strengths-weaknesses.md](units/agents-study/study/strengths-weaknesses.md)** — Synthesis of 85+ adopt, 30+ adapt, 25+ avoid patterns with cross-system convergence analysis and contradiction matrix
+- **[user-feedback.md](units/agents-study/study/user-feedback.md)** — Community feedback from Reddit, X, YouTube, GitHub issues: complaints, praise, pricing concerns, setup friction, security incidents
+- **[research-synthesis.md](units/agents-study/study/research-synthesis.md)** — Research paper analysis: TurboQuant, RLM/RISE, Meta-Harness, AlphaEvolve, RotorQuant with ACE implications for each
+
+---
+
 ## Unit Status
 
 This section tracks the completion status of each design unit. Units are completed in order of dependencies.
@@ -468,9 +492,9 @@ This section tracks the completion status of each design unit. Units are complet
 | **Core Infrastructure** | ✅ Complete | Foundation services and infrastructure |
 | **API Design** | ✅ Complete | API patterns, structure, tools, and libraries |
 | **Integrate Agent Tools (Agency Agents)** | ✅ Complete | Agent tool integration patterns |
-| **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`shared/messaging`) |
+| **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`internal/messaging`) |
 | **OpenCode Migration** | ✅ Complete | OpenCode integration and migration |
-| **Observability** | ✅ Complete | Observability primitives (`shared/telemetry`) |
+| **Observability** | ✅ Complete | Observability primitives (`internal/telemetry`) |
 | **Database Design & API/DB Documentation** | ✅ Complete | Database design documentation and API/DB specification |
 | **Caching Strategies** | ✅ Complete | Ristretto-backed in-process cache with tag-based invalidation, stampede protection, warming |
 | **Users & Auth (JWT, SSO)** | ✅ Complete | Authentication and authorization system (18 micro-PRs, all merged) |
@@ -486,7 +510,7 @@ This section tracks the completion status of each design unit. Units are complet
 
 | Unit | Status | Description |
 |------|--------|-------------|
-| **Existing Agents Study** | 📋 Planned | Study of OpenClaw, Claude Code, Open Code, Oh My OpenAgent, Devin |
+| **Existing Agents Study** | ✅ Complete | Study of OpenClaw, Claude Code, Open Code, Oh My OpenAgent, Devin |
 
 ### Planned Units — Core Cognitive
 
