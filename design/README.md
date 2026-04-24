@@ -95,7 +95,7 @@ The **Learning Loop** processes feedback signals from completed cycles — expli
 
 The following packages are internal to the ACE binary. They provide the messaging, telemetry, and caching interfaces used by all embedded components within the single-process architecture.
 
-### `shared/messaging`
+### `internal/messaging`
 
 ```go
 // Create a client on service startup
@@ -153,7 +153,7 @@ err = messaging.ForwardMessage(client, incomingMsg, newSubject)
 env := messaging.CreateRequestEnvelope(incomingMsg, agentID, cycleID, "my-service")
 ```
 
-Subject constants are typed `Subject` values in `shared/messaging/subjects.go` with a `.Format(args...)` method for interpolation — never construct subject strings by hand, because typos produce silent routing failures with no compile-time detection.
+Subject constants are typed `Subject` values in `internal/messaging/subjects.go` with a `.Format(args...)` method for interpolation — never construct subject strings by hand, because typos produce silent routing failures with no compile-time detection.
 
 **Available Subjects:**
 - `SubjectEngineLayerInput` — `ace.engine.%s.layer.%s.input`
@@ -179,7 +179,7 @@ Subject constants are typed `Subject` values in `shared/messaging/subjects.go` w
 - `SYSTEM` — System events (10MB, work queue policy)
 - `DLQ` — Dead letter queue for failed messages
 
-### `shared/telemetry`
+### `internal/telemetry`
 
 ```go
 // Initialise once on service startup
@@ -262,16 +262,17 @@ router.Use(telemetry.LoggerMiddleware(cfg.ServiceName)) // logs HTTP requests
 - `ResourceTypeDatabase` — Database resources
 - `ResourceTypeMessaging` — Messaging resources
 
-### `shared/caching`
+### `internal/caching`
 
 ```go
-// Create cache on service startup using Ristretto (in-process)
-cache := caching.NewCache(caching.RistrettoConfig{
+// Initialize cache backend (platform/cache) — returns caching.CacheBackend
+backend, err := cache.Init(&cache.Config{
     MaxCost:     1 << 30, // 1GB max cost
     Metrics:     true,
-    AgentID:     agentID,
-    DefaultTTL:  5 * time.Minute,
 })
+
+// Wrap with full caching API (internal/caching)
+cache := caching.NewCache(backend, caching.WithAgentID(agentID))
 
 // Core operations
 cache.Set(ctx, "user:123", value, caching.WithTags("user"))
@@ -442,7 +443,7 @@ The pre-commit hook runs quality gates including:
 
 **Within the single binary, components communicate via internal Go packages. NATS is used for the external-facing real-time bridge (WebSocket) only.** This keeps the internal path fast and the external interface event-driven.
 
-**`shared/` packages are transport-agnostic.** They never import `net/http`, NATS, or any transport. HTTP adapters live in `services/api/internal/middleware/`. This allows shared packages to be imported by any future service without dragging in irrelevant dependencies.
+**`internal/` packages are transport-agnostic.** They never import `net/http`, NATS, or any transport. HTTP adapters live in `services/api/internal/middleware/`. This allows shared packages to be imported by any future service without dragging in irrelevant dependencies.
 
 **No `interface{}` or `any`.** Explicit types throughout — `map[string]string` not `map[string]interface{}`.
 
@@ -491,9 +492,9 @@ This section tracks the completion status of each design unit. Units are complet
 | **Core Infrastructure** | ✅ Complete | Foundation services and infrastructure |
 | **API Design** | ✅ Complete | API patterns, structure, tools, and libraries |
 | **Integrate Agent Tools (Agency Agents)** | ✅ Complete | Agent tool integration patterns |
-| **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`shared/messaging`) |
+| **Messaging Paradigm** | ✅ Complete | NATS communication contracts (`internal/messaging`) |
 | **OpenCode Migration** | ✅ Complete | OpenCode integration and migration |
-| **Observability** | ✅ Complete | Observability primitives (`shared/telemetry`) |
+| **Observability** | ✅ Complete | Observability primitives (`internal/telemetry`) |
 | **Database Design & API/DB Documentation** | ✅ Complete | Database design documentation and API/DB specification |
 | **Caching Strategies** | ✅ Complete | Ristretto-backed in-process cache with tag-based invalidation, stampede protection, warming |
 | **Users & Auth (JWT, SSO)** | ✅ Complete | Authentication and authorization system (18 micro-PRs, all merged) |
