@@ -78,6 +78,51 @@ LOOP FOREVER:
 
 **Evaluation:** This is the gold standard for disciplined self-improvement loops. The fixed budget eliminates iteration-time reasoning overhead. Git-based rollback is trivial and reliable. The simplicity criterion prevents feature accumulation. The untracked results.tsv provides a permanent record outside the git history. The "NEVER STOP" directive ensures continuous experimentation.
 
+### 2.2.1 Karpathy's "AI Psychosis" and the Loopy Era
+
+**Source:** No Priors podcast (March 2026), Karpathy's loopy era talks
+
+Karpathy describes a fundamental shift in his workflow since December 2025:
+
+> "I don't think I've typed a line of code probably since December... this is an extremely large change... I kind of feel like I was in this perpetual, I still am often in this state of AI psychosis."
+
+**The transition:**
+- **Before:** 80% code written by hand, 20% delegation to agents
+- **After:** Effectively 0% hand-coding — entirely agent-delegated
+- **Reason:** The unlock in coding agents around December 2025 was dramatic and sudden
+
+**"Claws" — Persistent Agent Entities:**
+
+Karpathy uses the term "claw" for persistent, semi-autonomous agents that run continuously:
+
+> "The LLM sort of part is now taken for granted. The agent part is now taken for granted. Now the claw-like entities are taken for granted and now you can have multiple of them."
+
+Example: "Dobby the Elf" — a home automation agent controlled via WhatsApp:
+- Scans LAN for smart devices
+- Reverses APIs for Sonos/lights
+- Builds WhatsApp control portal
+- Integrates Quinn vision model alerts
+- Controls everything in natural language
+
+**The leverage equation:**
+- **Human input:** Small number of tokens, arranged once
+- **Agent output:** Massive amounts of work done on behalf of human
+- **The metric:** Token throughput per human involvement ratio
+
+**Program.md as organizational spec:**
+
+The `program.md` concept extends beyond research to organizational description:
+
+> "Focus on designing metrics, automation loops, and `program.md`-style specifications for orgs/agents."
+
+A `program.md` is an executable specification of how an organization or process should run — written in markdown, interpreted by agents, optimized by the loop.
+
+**Implications for ACE's self-improvement:**
+1. **Maximum leverage = minimum human in loop** — design for autonomous operation
+2. **Claws as persistent agents** — ACE should support long-running persistent agents, not just one-shot invocations
+3. **The human as metric designer** — not code writer; humans own objectives, agents own execution
+4. **Program.md as loop protocol** — ACE should implement executable organizational specs that agents interpret
+
 ### 2.3 OpenClaw — Heartbeat Rules and Scheduled Tasks
 
 **Source:** `openclaw/docs/start/openclaw.md`, `openclaw/docs/gateway/heartbeat`, `openclaw/docs/reference/templates/HEARTBEAT.md`, `openclaw/docs/reference/templates/AGENTS.md`

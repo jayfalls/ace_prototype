@@ -98,6 +98,24 @@ read → propose → commit → run 5 min → measure → keep/reset → repeat
 
 This is the only system where the agent loop IS the outer experiment loop, not embedded within a host process.
 
+### 1.5.1 Karpathy's "Loopy Era" Perspective (2026)
+
+Andrej Karpathy describes the current moment as the "loopy era" — a fundamental shift where humans transition from writing code to orchestrating agentic systems:
+
+- **The shift:** Since December 2025, Karpathy reports going from 80% hand-coding to effectively 0% — delegating entirely to agents (Claude Code, Codex)
+- **"AI psychosis":** A state of perpetual amazement at how dramatically agentic systems have changed workflows
+- **The bottleneck moves:** From typing speed to the ability to direct agents and design metrics
+- **Parallelization is key:** Running multiple agents simultaneously across repos (the "Peter Steinberg" approach)
+- **The goal:** Maximum token throughput with minimum human involvement — arrange once, hit go
+
+> "The name of the game now is how can you get more agents running for longer periods of time without your involvement doing stuff on your behalf."
+
+Key practical patterns from the loopy era:
+- Define objective + metric + boundaries, then let agents run experiments
+- Small autonomous experiments extrapolate to frontier scales
+- Education and docs become "agent-targeted artifacts" (agents teach humans)
+- Program.md as executable organization specification
+
 ### 1.6 Effect-Based Service Loop (opencode)
 
 opencode uses the fp-ts `Effect` framework as a purely functional runtime. Agents are services (not objects) with modes:
