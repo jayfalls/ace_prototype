@@ -407,6 +407,145 @@
 
 ---
 
+## 7.5 Karpathy's LLM Wiki Pattern (April 2026)
+
+**Source:** https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+
+### Core Concept
+
+The LLM Wiki pattern is a personal knowledge base where an LLM **incrementally builds and maintains a persistent wiki** — structured markdown files that sit between you and raw sources.
+
+**Key insight:** "The wiki is a persistent, compounding artifact. Cross-references are already there. Contradictions have already been flagged. The synthesis already reflects everything you've read."
+
+### Three-Layer Architecture
+
+```
+Raw Sources (immutable) → LLM Wiki (agent-owned) → Schema (AGENTS.md/CLAUDE.md)
+     (articles, papers)         (summaries, entities)      (instructions)
+```
+
+1. **Raw sources** — immutable source documents. The source of truth.
+2. **Wiki** — LLM-generated markdown files. Summaries, entity pages, concept pages. LLM owns this layer entirely.
+3. **Schema** — tells the LLM how the wiki is structured, conventions, workflows. Co-evolved with the LLM.
+
+### Operations
+
+**Ingest:** Drop source → LLM reads → writes summary page → updates index → updates entity/concept pages → appends log entry. Single source might touch 10-15 wiki pages.
+
+**Query:** LLM searches index → drills into relevant pages → synthesizes answer with citations. **Good answers should be filed back into the wiki** as new pages — explorations compound in the knowledge base.
+
+**Lint:** Periodic health-check — contradictions, stale claims, orphan pages, missing cross-references, data gaps.
+
+### Special Files
+
+- **`index.md`** — content-oriented catalog. Lists every page with link, one-line summary, metadata. LLM updates on every ingest. Works well at moderate scale (~100 sources, hundreds of pages).
+- **`log.md`** — chronological append-only record. Ingest events, queries, lint passes. Parseable with `grep "^## \[" log.md | tail -5`.
+
+### Optional: CLI Tools
+
+- **qmd** — local search engine for markdown with hybrid BM25/vector search and LLM re-ranking. Has CLI and MCP server.
+- **Obsidian** — the IDE for the wiki. LLM is the programmer; wiki is the codebase; Obsidian is the viewing window.
+- **Obsidian Web Clipper** — browser extension to convert articles to markdown.
+- **Marp** — markdown-based slide deck format.
+
+### Why This Works
+
+> "The tedious part of maintaining a knowledge base is not the reading or the thinking — it's the bookkeeping. LLMs don't get bored, don't forget to update a cross-reference, and can touch 15 files in one pass."
+
+The human's job: curate sources, direct analysis, ask good questions, think about what it all means.
+The LLM's job: everything else.
+
+Related to Vannevar Bush's Memex (1945) — "private, actively curated, with connections between documents as valuable as the documents themselves." Bush couldn't solve who does the maintenance. The LLM handles that.
+
+### Community Implementations
+
+Several projects have built on this pattern:
+- **llmwiki-cli** — Node.js CLI with GitHub sync, graph visualization
+- **BrainDB** — 5,420 memories, 6 AI agents, self-healing knowledge graph
+- **Synthadoc** — production-ready engine with domain specificity, multi-model hot-swap
+- **claude-obsidian** — emphasizes hot cache as highest-leverage file, memory layer above wiki (DragonScale extension)
+
+### Research Synthesis Connections
+
+The LLM Wiki pattern connects to several themes from the research papers:
+
+1. **Meta-Harness insight** (raw traces > summaries): The wiki IS the trace storage mechanism. Each page is a synthesized trace of what was learned from sources.
+
+2. **RLM's context decomposition**: The wiki's recursive structure (entities link to concepts link to sources) mirrors RLM's approach — never show entire context, decompose instead.
+
+3. **AlphaEvolve's population**: A wiki with multiple perspectives on the same topic (different page authors) mirrors population-based search.
+
+4. **Autoresearch's never-stop**: The lint operation is the never-stop loop for the wiki — periodic health checks without human intervention.
+
+---
+
+## 7.6 The "Loopy Era" — Agentic Systems Research Synthesis
+
+**Source:** No Priors podcast with Andrej Karpathy (March 2026), YouTube summaries
+
+### Key Themes
+
+**1. The Fundamental Shift**
+
+> "I don't think I've typed a line of code probably since December... I kind of feel like I was in this perpetual, I still am often in this state of AI psychosis."
+
+The shift from hand-coding to agent-delegation is dramatic and sudden (around December 2025). The bottleneck moved from typing speed to orchestrating agents and designing metrics.
+
+**2. "Claws" — Persistent Agent Entities**
+
+> "The LLM sort of part is now taken for granted. The agent part is now taken for granted. Now the claw-like entities are taken for granted and now you can have multiple of them."
+
+"Claws" are persistent, semi-autonomous agents running continuous loops. Example: "Dobby the Elf" (home automation) — controlled via WhatsApp, scans LAN, reverses APIs, integrates vision model alerts. Replaces 6+ separate apps.
+
+**3. The Leverage Equation**
+
+- **Input:** Small number of tokens, arranged once
+- **Output:** Massive amounts of work done on behalf of human
+- **Goal:** Maximum token throughput with minimum human involvement
+
+> "The name of the game now is how can you get more agents running for longer periods of time without your involvement doing stuff on your behalf?"
+
+**4. AutoResearch as the Pure Expression**
+
+AutoResearch is the clearest example:
+- Define objective + metric + boundaries
+- Let agents run experiments, tune hyperparameters, iterate without humans in the loop
+- AutoResearch discovered non-obvious hyperparameter improvements (weight decay on value embeddings, Adam betas) that Karpathy missed after two decades of manual tuning
+
+**5. Program.md as Executable Organization**
+
+> "Focus on designing metrics, automation loops, and `program.md`-style specifications for orgs/agents."
+
+`program.md` is an executable specification — written in markdown, interpreted by agents, optimized by the loop. This extends the concept from research to organizational description.
+
+**6. Multi-Agent Parallelization**
+
+The "Peter Steinberg" approach: running multiple Codex sessions simultaneously across different repos. Software development as macro actions (entire features, research tasks) rather than individual lines of code.
+
+**7. Agent-Targeted Artifacts**
+
+> "Education is going to be reshuffled by this quite substantially. Less explaining things directly to people, more: does the agent get it? If the agent gets it, they'll do the explanation."
+
+Docs and education become designed for agent consumption, not just human reading.
+
+### Architectural Implications
+
+| Pattern | Evidence | Implication |
+|---------|----------|-------------|
+| Persistent claws | Dobby the Elf | ACE should support long-running agents, not just one-shot |
+| Autonomy sliders | Cursor: Tab → Cmd+K → Cmd+L | ACE should expose adjustable autonomy levels |
+| Multi-agent parallelization | Peter Steinberg approach | ACE should support parallel agent execution |
+| Program.md as spec | Organization description executable by agents | ACE should implement executable organizational specs |
+| Agent-targeted artifacts | llms.txt, documentation for agents | ACE should generate machine-readable interfaces |
+
+### Key Quote
+
+> "The customer is not the human anymore. It's agents who are acting on behalf of humans."
+
+This reframes who the system is designed for. ACE should optimize for agent consumers, not just human operators.
+
+---
+
 ## Appendix: Quick Reference Table
 
 | Paper | Core contribution | ACE unit | Recommendation |
@@ -425,3 +564,6 @@
 - Meta-Harness: https://arxiv.org/html/2603.28052v1
 - AlphaEvolve: https://arxiv.org/abs/2506.13131
 - RotorQuant: https://github.com/scrya-com/rotorquant (rotorquant.tex + rotorquant_README.md)
+- Karpathy LLM Wiki: https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f
+- Karpathy on Code Agents, AutoResearch, and the Loopy Era of AI (No Priors podcast, March 2026): https://www.youtube.com/watch?v=kwSVtQ7dziU
+- Karpathy "Software Is Changing (Again)": https://www.youtube.com/watch?v=LCEmiRjPEtQ

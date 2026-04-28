@@ -540,6 +540,104 @@ All surfaces share `crates/goose/` — the core agent logic is surface-agnostic.
 
 ---
 
+## 11.1 Karpathy's Software 3.0 and the Loopy Era (2026)
+
+**Source:** No Priors podcast, "Software Is Changing (Again)" talk, Twitter/X posts
+
+### The Software Evolution Arc
+
+Karpathy frames the history of programming as three paradigms:
+
+| Era | Programming Method | Example |
+|-----|-------------------|---------|
+| Software 1.0 | Code (C++, Python) programs the computer | Traditional programming |
+| Software 2.0 | Weights (neural nets) program the computer | ML models |
+| Software 3.0 | Prompts (natural language) program the LLM | Current era |
+
+> "We're literally programming in English. The same shift that replaced Tesla's C++ Autopilot stack is happening everywhere."
+
+### The "Loopy Era" of Agentic Systems
+
+Karpathy describes the current moment as the "loopy era" — where agents, persistent "claws," and automated research loops are chained, optimized, and parallelized:
+
+**Key characteristics:**
+- **Agents as primary manipulators** — LLMs now manipulate digital content, joining humans (via GUIs) and programs (via APIs) as a third category
+- **The customer is not the human anymore** — it's agents acting on behalf of humans
+- **Maximum leverage** — minimal token input, massive output, zero human in the loop
+- **"AI psychosis"** — the perpetual state of amazement at how powerful these systems have become
+
+**The shift in engineering workflow:**
+- Before December 2025: ~80% code written by hand, 20% delegation to agents
+- After December 2025: Effectively 0% hand-coding — entirely delegation
+
+> "I don't think I've typed a line of code probably since December, basically, which is an extremely large change."
+
+### The Iron Man Model: Partial Autonomy
+
+Karpathy's key insight for agent design is the **Iron Man analogy**:
+
+- The Iron Man suit = Agent + Augmentation
+- Can act autonomously but is most effective when paired with Tony Stark
+- **The future lies in tight human-AI feedback loops**
+- Autonomy should be **adjustable** — not all-or-nothing
+
+**Cursor as the pattern:**
+- `Tab` → `Cmd+K` → `Cmd+L` → full background agent mode
+- The autonomy slider is the key UX innovation
+
+### Design Implications from Software 3.0
+
+**1. Build for agents, not just humans:**
+- Agents are a new category of digital content manipulator
+- Create markdown-readable interfaces, machine-consumable documentation (`llms.txt`)
+- Avoid GUI-only affordances
+- Examples: `git.ingest`, DeepWiki
+
+**2. The Autonomy Slider pattern:**
+- Not binary (manual vs autonomous)
+- A spectrum of control that users can adjust per-context
+- The cursor pattern: Tab (suggest) → Cmd+K (agent) → Cmd+L (background)
+
+**3. Agent-targeted documentation:**
+- Education and docs become "agent-targeted artifacts" (agents teach humans)
+- Program.md as executable organizational specification
+- Skills and procedures written for both human and agent consumption
+
+### The "Claw" Pattern: Persistent Agents
+
+**"Claws"** are persistent, semi-autonomous agent entities that run continuously:
+
+> "The LLM sort of part is now taken for granted. The agent part is now taken for granted. Now the claw-like entities are taken for granted and now you can have multiple of them."
+
+**Dobby the Elf example** (home automation claw):
+- Controlled via WhatsApp natural language interface
+- Scans LAN for smart devices
+- Reverses APIs for Sonos/lights
+- Builds control portal integrating multiple systems
+- Vision model for alerts (Quinn)
+- Replaces 6+ separate apps with single natural language interface
+
+**Key insight:** Claws run as continuous loops in sandboxes, not one-shot invocations. ACE should support persistent agent lifetimes, not just request-response cycles.
+
+### Architectural Implications for ACE
+
+| Pattern | Karpathy's Evidence | ACE Recommendation |
+|---------|-------------------|-------------------|
+| Autonomy sliders | Cursor: Tab → Cmd+K → Cmd+L | **ADOPT** — ACE should expose adjustable autonomy levels |
+| Agent-targeted docs | llms.txt, git.ingest | **ADOPT** — ACE should generate machine-readable interface specs |
+| Persistent claws | Dobby the Elf | **ADOPT** — ACE should support long-running agent lifetimes |
+| Human as metric designer | Program.md philosophy | **ADOPT** — ACE's human roles should be objective-setting, not code-writing |
+| Loopy era orchestration | Multiple agents in parallel | **ADOPT** — ACE should support multi-agent parallel execution with coordination |
+| Bounded autonomy | Fixed 5-min loop + program.md | **ADOPT** — ACE agents should have clear boundaries and objectives |
+
+### Key Quote
+
+> "The name of the game now is how can you get more agents running for longer periods of time without your involvement doing stuff on your behalf?"
+
+This defines the central optimization target: **maximize token throughput per human token invested**.
+
+---
+
 ## 11. Cross-Cutting Analysis
 
 ### System Topology Summary
