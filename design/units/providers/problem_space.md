@@ -76,13 +76,18 @@ A: **AES-256-GCM with a master key from environment config** — The master encr
 
 #### 3. Provider Group Routing Strategies
 **Q: What routing strategies should be supported for provider groups?**
-A: Three strategies based on common patterns:
+A: **To be determined in research phase** — Possible strategies to explore include (not exhaustive):
 
 - **Round Robin** — Distributes requests evenly across providers in the group. Each request advances a counter and selects the next provider. Simple load balancing across multiple API keys or endpoints.
 - **Sequential** — Always selects the first provider in the group list. If it fails (error, rate limit, timeout), tries the next. Useful for primary/fallback patterns (e.g., try GPT-4 first, fall back to GPT-4-mini on rate limit).
 - **Failover** — Always uses the primary provider. On any failure, marks it as degraded and switches to the next provider for a cooldown period, then retries the primary. More sophisticated than sequential — adds circuit-breaker semantics.
+- **Weighted** — Providers are assigned weights (e.g., based on cost, speed, or reliability); requests are distributed proportionally.
+- **Latency-based** — Routes to the provider with the lowest recent observed latency. Requires tracking per-provider response time metrics.
+- **Cost-optimized** — Routes to the cheapest eligible provider that meets the request's requirements (context window size, capability requirements).
+- **Least-loaded** — Routes to the provider with the fewest current in-flight requests. Requires active request tracking.
+- **Priority + failover** — Strict priority order with conditional fallback rules (e.g., "use provider A if under 50% rate limit usage, otherwise B, then C").
 
-Strategy state (counters, health status) must be tracked in-memory per group, with eventual consistency for multi-replica deployments via NATS messages.
+The research phase should investigate these and any other relevant strategies, evaluate tradeoffs (complexity vs usefulness, state requirements, observability), and recommend a set to implement. Strategies with state (counters, health status, latency history) must be tracked in-memory per group, with eventual consistency for multi-replica deployments via NATS messages.
 
 #### 4. Provider Group Usage Contexts
 **Q: Where are provider groups selected?**
@@ -187,7 +192,7 @@ The following functional requirements will feed directly into the BSD. Each is n
 - **FR-3**: The system SHALL support the following provider types: openai, anthropic, google, azure, bedrock, groq, together, mistral, cohere, xai, deepseek, alibaba, baidu, bytedance, zhipu, 01ai, nvidia, openrouter, ollama, llamacpp, custom (OpenAI-compatible)
 - **FR-4**: Each provider type SHALL have an adapter that translates normalized LLM requests into the provider's native API format and normalizes responses back
 - **FR-5**: The system SHALL support creating named provider groups and assigning providers to them with an order/priority
-- **FR-6**: Provider groups SHALL support routing strategies: round-robin, sequential, failover
+- **FR-6**: Provider groups SHALL support multiple routing strategies with the specific set to be determined during the research phase (candidates: round-robin, sequential, failover, weighted, latency-based, cost-optimized, least-loaded, priority+failover)
 - **FR-7**: The system SHALL allow testing a provider configuration from the UI by sending the prompt "Respond with the word 'Working' and nothing else." and displaying the response or error
 - **FR-8**: The system SHALL provide an LLM Gateway service that subscribes to `ace.llm.{agentId}.request`, resolves the provider group, makes the API call, and publishes the response on `ace.llm.{agentId}.response`
 - **FR-9**: The LLM Gateway SHALL enforce rate limits at three levels: per-provider (RPM/TPM), per-group (RPM/TPM), and per-user (RPM/TPM)
@@ -257,11 +262,13 @@ The following are explicitly out of scope for this unit:
 9. **NATS message format**: What fields go in the `ace.llm.{agentId}.request` and `ace.llm.{agentId}.response` message bodies? The envelope headers are defined; the payload schema needs design.
 10. **Pricing auto-fetch schedule**: How often to refresh pricing data? On provider update? On a schedule? Manual trigger?
 11. **Encryption key rotation**: Does the master key support rotation without re-encrypting all stored keys? (A wrapping key pattern — each API key encrypted with a random data key, data key encrypted with master key — enables key rotation without re-encrypting all values.)
+12. **Routing strategies**: Which strategies beyond the examples (round-robin, sequential, failover) are worth implementing? Weighted, latency-based, cost-optimized, least-loaded, priority+failover — evaluate tradeoffs and recommend a set.
 
 ## Next Steps
 
 1. Proceed to BSD (Behavioral System Design) with the problem space clarified
 2. Research phase should evaluate:
+   - Provider group routing strategies — research, compare, and recommend the final set beyond the initial examples
    - Streaming support in the LLM gateway
    - Retry and timeout strategies per provider type
    - Token counting approach (provider-reported vs local tokenization)
