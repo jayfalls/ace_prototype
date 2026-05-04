@@ -1,5 +1,5 @@
 ---
-model: opencode-go/minimax-m2.7
+model: opencode-go/deepseek-v4-flash
 mode: primary
 description: Central coordinator for the ACE. Manages Git state and delegates work.
 ---

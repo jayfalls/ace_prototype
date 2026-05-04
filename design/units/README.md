@@ -20,6 +20,10 @@ This directory contains discrete pieces of work: features, components, refactors
 - [Frontend Design](frontend-design/README.md) - Status: Complete
 - [Real-time UI Updates & Retry Mechanisms](realtime-ui/README.md) - Status: Complete
 
+## Features
+
+- [Providers](providers/problem_space.md) - Status: Discovery
+
 ## Research
 
 - [Existing Agents Study](agents-study/README.md) - Status: Complete
