@@ -1,5 +1,5 @@
 ---
-model: opencode-go/minimax-m2.7
+model: opencode-go/deepseek-v4-flash
 mode: subagent
 description: High-speed execution agent. Handles vertical slice implementation and automated QA.
 ---
