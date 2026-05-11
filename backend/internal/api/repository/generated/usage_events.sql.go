@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countUsageEventsLastHour = `-- name: CountUsageEventsLastHour :one
@@ -40,10 +41,24 @@ FROM usage_events
 WHERE id = ?
 `
 
+type GetUsageEventByIDRow struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	SessionID    string          `json:"session_id"`
+	EventType    string          `json:"event_type"`
+	Model        sql.NullString  `json:"model"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	CostUsd      sql.NullFloat64 `json:"cost_usd"`
+	DurationMs   sql.NullInt64   `json:"duration_ms"`
+	Metadata     sql.NullString  `json:"metadata"`
+	CreatedAt    string          `json:"created_at"`
+}
+
 // Gets a single usage event by ID.
-func (q *Queries) GetUsageEventByID(ctx context.Context, id int64) (*UsageEvent, error) {
+func (q *Queries) GetUsageEventByID(ctx context.Context, id int64) (*GetUsageEventByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getUsageEventByID, id)
-	var i UsageEvent
+	var i GetUsageEventByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.AgentID,
@@ -85,16 +100,30 @@ type GetUsageEventsByAgentIDParams struct {
 	Offset  int64  `json:"offset"`
 }
 
+type GetUsageEventsByAgentIDRow struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	SessionID    string          `json:"session_id"`
+	EventType    string          `json:"event_type"`
+	Model        sql.NullString  `json:"model"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	CostUsd      sql.NullFloat64 `json:"cost_usd"`
+	DurationMs   sql.NullInt64   `json:"duration_ms"`
+	Metadata     sql.NullString  `json:"metadata"`
+	CreatedAt    string          `json:"created_at"`
+}
+
 // Gets all usage events for a given agent ID.
-func (q *Queries) GetUsageEventsByAgentID(ctx context.Context, arg GetUsageEventsByAgentIDParams) ([]*UsageEvent, error) {
+func (q *Queries) GetUsageEventsByAgentID(ctx context.Context, arg GetUsageEventsByAgentIDParams) ([]*GetUsageEventsByAgentIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsageEventsByAgentID, arg.AgentID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*UsageEvent
+	var items []*GetUsageEventsByAgentIDRow
 	for rows.Next() {
-		var i UsageEvent
+		var i GetUsageEventsByAgentIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentID,
@@ -146,16 +175,30 @@ type GetUsageEventsBySessionIDParams struct {
 	Offset    int64  `json:"offset"`
 }
 
+type GetUsageEventsBySessionIDRow struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	SessionID    string          `json:"session_id"`
+	EventType    string          `json:"event_type"`
+	Model        sql.NullString  `json:"model"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	CostUsd      sql.NullFloat64 `json:"cost_usd"`
+	DurationMs   sql.NullInt64   `json:"duration_ms"`
+	Metadata     sql.NullString  `json:"metadata"`
+	CreatedAt    string          `json:"created_at"`
+}
+
 // Gets all usage events for a given session ID.
-func (q *Queries) GetUsageEventsBySessionID(ctx context.Context, arg GetUsageEventsBySessionIDParams) ([]*UsageEvent, error) {
+func (q *Queries) GetUsageEventsBySessionID(ctx context.Context, arg GetUsageEventsBySessionIDParams) ([]*GetUsageEventsBySessionIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUsageEventsBySessionID, arg.SessionID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*UsageEvent
+	var items []*GetUsageEventsBySessionIDRow
 	for rows.Next() {
-		var i UsageEvent
+		var i GetUsageEventsBySessionIDRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentID,
@@ -217,8 +260,22 @@ type ListUsageEventsParams struct {
 	Offset      int64       `json:"offset"`
 }
 
+type ListUsageEventsRow struct {
+	ID           int64           `json:"id"`
+	AgentID      string          `json:"agent_id"`
+	SessionID    string          `json:"session_id"`
+	EventType    string          `json:"event_type"`
+	Model        sql.NullString  `json:"model"`
+	InputTokens  sql.NullInt64   `json:"input_tokens"`
+	OutputTokens sql.NullInt64   `json:"output_tokens"`
+	CostUsd      sql.NullFloat64 `json:"cost_usd"`
+	DurationMs   sql.NullInt64   `json:"duration_ms"`
+	Metadata     sql.NullString  `json:"metadata"`
+	CreatedAt    string          `json:"created_at"`
+}
+
 // Lists usage events with optional filters and pagination.
-func (q *Queries) ListUsageEvents(ctx context.Context, arg ListUsageEventsParams) ([]*UsageEvent, error) {
+func (q *Queries) ListUsageEvents(ctx context.Context, arg ListUsageEventsParams) ([]*ListUsageEventsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUsageEvents,
 		arg.Column1,
 		arg.AgentID,
@@ -235,9 +292,9 @@ func (q *Queries) ListUsageEvents(ctx context.Context, arg ListUsageEventsParams
 		return nil, err
 	}
 	defer rows.Close()
-	var items []*UsageEvent
+	var items []*ListUsageEventsRow
 	for rows.Next() {
-		var i UsageEvent
+		var i ListUsageEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AgentID,
