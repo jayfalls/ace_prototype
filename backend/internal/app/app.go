@@ -4,6 +4,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"ace/internal/api/handler"
 	"ace/internal/api/realtime"
 	db "ace/internal/api/repository/generated"
 	"ace/internal/api/router"
@@ -187,6 +189,22 @@ func (a *App) Serve() error {
 	// Create realtime hub
 	a.Hub = realtime.NewHub(a.NATSConn, a.logger, a.Telemetry.Meter)
 
+	// Create provider service and handler
+	masterKey, err := hex.DecodeString(a.Config.ProviderEncryptionKey)
+	if err != nil {
+		return fmt.Errorf("decode provider encryption key: %w", err)
+	}
+
+	providerService, err := service.NewProviderService(queries, masterKey)
+	if err != nil {
+		return fmt.Errorf("create provider service: %w", err)
+	}
+
+	providerHandler, err := handler.NewProviderHandler(providerService)
+	if err != nil {
+		return fmt.Errorf("create provider handler: %w", err)
+	}
+
 	// Create router
 	routeCfg := &router.Config{
 		App: &router.AppConfig{
@@ -202,6 +220,7 @@ func (a *App) Serve() error {
 		Cache:        a.Cache,
 		Hub:          a.Hub,
 		SPAHandler:   frontend.Handler(),
+		ProviderHandler: providerHandler,
 		Meter:        a.Telemetry.Meter,
 		Tracer:       a.Telemetry.Tracer,
 	}

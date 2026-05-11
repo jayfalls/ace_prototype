@@ -52,17 +52,18 @@ type HealthStatus struct {
 
 // Config holds all dependencies needed to create the router.
 type Config struct {
-	App          *AppConfig
-	Queries      *db.Queries
-	AuthService  *service.AuthService
-	TokenService *service.TokenService
-	DB           *sql.DB
-	NATSConn     *nats.Conn
-	Cache        caching.CacheBackend
-	Hub          *realtime.Hub
-	SPAHandler   http.Handler // Serves the SPA (embedded assets or Vite proxy)
-	Meter        metric.Meter
-	Tracer       trace.Tracer
+	App             *AppConfig
+	Queries         *db.Queries
+	AuthService     *service.AuthService
+	TokenService    *service.TokenService
+	DB              *sql.DB
+	NATSConn        *nats.Conn
+	Cache           caching.CacheBackend
+	Hub             *realtime.Hub
+	SPAHandler      http.Handler // Serves the SPA (embedded assets or Vite proxy)
+	ProviderHandler *handler.ProviderHandler
+	Meter           metric.Meter
+	Tracer          trace.Tracer
 }
 
 // AppConfig holds the basic app configuration needed for the router.
@@ -197,6 +198,18 @@ func New(cfg *Config) (*chi.Mux, error) {
 			r.Get("/usage", telemetryHandler.Usage)
 			r.Get("/health", telemetryHandler.Health)
 		})
+
+		// Provider routes (auth required)
+		if cfg.ProviderHandler != nil {
+			r.Route("/providers", func(r chi.Router) {
+				r.Use(authMw.RequireAuth())
+				r.Get("/", cfg.ProviderHandler.List)
+				r.Post("/", cfg.ProviderHandler.Create)
+				r.Get("/{id}", cfg.ProviderHandler.Get)
+				r.Put("/{id}", cfg.ProviderHandler.Update)
+				r.Delete("/{id}", cfg.ProviderHandler.Delete)
+			})
+		}
 	})
 
 	// Realtime routes
