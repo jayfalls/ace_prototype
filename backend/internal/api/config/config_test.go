@@ -13,6 +13,7 @@ func clearEnv(t *testing.T) {
 		"API_HOST", "API_PORT", "CORS_ALLOWED_ORIGINS",
 		"LOG_LEVEL", "JWT_SECRET", "JWT_EXPIRATION_HOURS",
 		"ENVIRONMENT", "OTLP_ENDPOINT",
+		"PROVIDER_ENCRYPTION_KEY",
 	} {
 		os.Unsetenv(key)
 	}
@@ -30,6 +31,7 @@ func setPostgresVars(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 }
 
 func setRequiredEnvVars(t *testing.T) {
@@ -40,6 +42,7 @@ func setRequiredEnvVars(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 }
 
 func TestLoadWithPostgresVars(t *testing.T) {
@@ -80,6 +83,7 @@ func TestLoadWithDatabaseURL(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cfg, err := Load()
 	if err != nil {
@@ -166,6 +170,7 @@ func TestLoadWithCORSOrigins(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cfg, err := Load()
 	if err != nil {
@@ -227,6 +232,7 @@ func TestLoadWithJWTSecret(t *testing.T) {
 	os.Setenv("JWT_EXPIRATION_HOURS", "48")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cfg, err := Load()
 	if err != nil {
@@ -251,6 +257,7 @@ func TestLoadDefaultValues(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cfg, err := Load()
 	if err != nil {
@@ -302,6 +309,7 @@ func TestLoadValidLogLevels(t *testing.T) {
 		os.Setenv("LOG_LEVEL", level)
 		os.Setenv("ENVIRONMENT", "development")
 		os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+		os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 		cfg, err := Load()
 		if err != nil {
@@ -328,6 +336,7 @@ func TestLoadWithPostgresSSLMode(t *testing.T) {
 	os.Setenv("JWT_SECRET", "this-is-a-very-long-secret-key-32chars")
 	os.Setenv("ENVIRONMENT", "development")
 	os.Setenv("OTLP_ENDPOINT", "localhost:4317")
+	os.Setenv("PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cfg, err := Load()
 	if err != nil {

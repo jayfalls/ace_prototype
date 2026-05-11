@@ -4,6 +4,7 @@ package app
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,6 +51,9 @@ type Config struct {
 
 	// Auth configuration (from config file only, not CLI flags)
 	Auth AuthConfig
+
+	// Provider encryption configuration
+	ProviderEncryptionKey string
 }
 
 // AuthConfig holds authentication configuration loaded from config file.
@@ -82,6 +86,11 @@ type configFile struct {
 	Auth        authConfig        `yaml:"auth"`
 	Logging     loggingConfig     `yaml:"logging"`
 	Development developmentConfig `yaml:"development"`
+	Provider    providerConfig    `yaml:"provider"`
+}
+
+type providerConfig struct {
+	EncryptionKey string `yaml:"encryption_key"`
 }
 
 type serverConfig struct {
@@ -314,6 +323,11 @@ func applyFileConfig(cfg *Config, fileCfg *configFile) {
 	if fileCfg.Development.Dev {
 		cfg.Dev = true
 	}
+
+	// Provider encryption config
+	if fileCfg.Provider.EncryptionKey != "" {
+		cfg.ProviderEncryptionKey = fileCfg.Provider.EncryptionKey
+	}
 }
 
 func applyEnvConfig(cfg *Config) {
@@ -377,6 +391,11 @@ func applyEnvConfig(cfg *Config) {
 	// Development mode
 	if v := os.Getenv("ACE_DEV"); v != "" {
 		cfg.Dev = parseBool(v)
+	}
+
+	// Provider encryption key
+	if v := os.Getenv("ACE_PROVIDER_ENCRYPTION_KEY"); v != "" {
+		cfg.ProviderEncryptionKey = v
 	}
 }
 
@@ -466,6 +485,18 @@ func validateConfig(cfg *Config) error {
 	}
 	if len(cfg.Auth.JWTSecret) < 32 {
 		return fmt.Errorf("config: jwt_secret must be at least 32 characters (got %d)", len(cfg.Auth.JWTSecret))
+	}
+
+	// Validate provider encryption key
+	if cfg.ProviderEncryptionKey == "" {
+		return fmt.Errorf("config: provider_encryption_key is required")
+	}
+	decodedKey, err := hex.DecodeString(cfg.ProviderEncryptionKey)
+	if err != nil {
+		return fmt.Errorf("config: provider_encryption_key must be hex-encoded: %w", err)
+	}
+	if len(decodedKey) != 32 {
+		return fmt.Errorf("config: provider_encryption_key must decode to exactly 32 bytes, got %d", len(decodedKey))
 	}
 
 	return nil
