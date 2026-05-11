@@ -20,7 +20,8 @@
 		MessageSquare,
 		HardDrive,
 		LogOut,
-		User
+		User,
+		BrainCircuit
 	} from 'lucide-svelte';
 
 	let collapsed = $derived(uiStore.sidebarCollapsed);
@@ -39,6 +40,7 @@
 		{ href: '/chat', icon: MessageSquare, label: 'Chat', adminOnly: false, disabled: true },
 		{ href: '/memory', icon: HardDrive, label: 'Memory', adminOnly: false, disabled: true },
 		{ href: '/telemetry', icon: Activity, label: 'Telemetry', adminOnly: false },
+		{ href: '/providers', icon: BrainCircuit, label: 'LLM Providers', adminOnly: false },
 		{ href: '/admin/users', icon: Shield, label: 'Admin', adminOnly: true }
 	]);
 

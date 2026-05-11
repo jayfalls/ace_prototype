@@ -10,6 +10,7 @@ const navItems = [
 	{ href: '/chat', label: 'Chat', adminOnly: false, disabled: true },
 	{ href: '/memory', label: 'Memory', adminOnly: false, disabled: true },
 	{ href: ROUTES.TELEMETRY, label: 'Telemetry', adminOnly: false },
+	{ href: ROUTES.PROVIDERS, label: 'LLM Providers', adminOnly: false },
 	{ href: ROUTES.ADMIN_USERS, label: 'Admin', adminOnly: true }
 ];
 

@@ -10,6 +10,7 @@ describe('constants', () => {
 			expect(ROUTES.PROFILE).toBe('/profile');
 			expect(ROUTES.ADMIN_USERS).toBe('/admin/users');
 			expect(ROUTES.TELEMETRY).toBe('/telemetry');
+			expect(ROUTES.PROVIDERS).toBe('/providers');
 			expect(ROUTES.SETTINGS).toBe('/settings');
 		});
 	});
