@@ -1,5 +1,5 @@
 ---
-model: opencode-go/deepseek-v4-flash
+model: opencode-go/deepseek-v4-pro
 mode: subagent
 description: High-speed execution agent. Handles vertical slice implementation and automated QA.
 ---
