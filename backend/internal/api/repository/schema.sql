@@ -107,6 +107,81 @@ CREATE INDEX IF NOT EXISTS idx_ott_metrics_name ON ott_metrics(name);
 CREATE INDEX IF NOT EXISTS idx_ott_metrics_created_at ON ott_metrics(created_at);
 
 -- =============================================================================
+-- providers table (provider configurations with encrypted API keys)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS providers (
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL UNIQUE,
+    provider_type       TEXT NOT NULL,
+    base_url            TEXT NOT NULL,
+    encrypted_api_key   BLOB NOT NULL,
+    api_key_nonce       BLOB NOT NULL,
+    encrypted_dek       BLOB NOT NULL,
+    dek_nonce           BLOB NOT NULL,
+    encryption_version  INTEGER NOT NULL DEFAULT 1,
+    config_json         TEXT NOT NULL DEFAULT '{}',
+    is_enabled          INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_providers_type ON providers(provider_type);
+CREATE INDEX IF NOT EXISTS idx_providers_enabled ON providers(is_enabled);
+
+-- =============================================================================
+-- provider_models table (per-provider model metadata and capabilities)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS provider_models (
+    id                  TEXT PRIMARY KEY,
+    provider_id         TEXT NOT NULL,
+    model_id            TEXT NOT NULL,
+    display_name        TEXT NOT NULL,
+    context_limit       INTEGER,
+    features_json       TEXT NOT NULL DEFAULT '{}',
+    pricing_json        TEXT NOT NULL DEFAULT '{}',
+    parameters_json     TEXT NOT NULL DEFAULT '{}',
+    is_user_edited      INTEGER NOT NULL DEFAULT 0,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    UNIQUE(provider_id, model_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_models_provider_id ON provider_models(provider_id);
+
+-- =============================================================================
+-- provider_groups table (groups of providers for routing/load balancing)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS provider_groups (
+    id              TEXT PRIMARY KEY,
+    name            TEXT NOT NULL UNIQUE,
+    strategy        TEXT NOT NULL,
+    config_json     TEXT NOT NULL DEFAULT '{}',
+    is_default      INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_groups_default ON provider_groups(is_default);
+
+-- =============================================================================
+-- provider_group_members table (membership of providers in groups)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS provider_group_members (
+    id          TEXT PRIMARY KEY,
+    group_id    TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    priority    INTEGER NOT NULL DEFAULT 0,
+    created_at  TEXT NOT NULL,
+    FOREIGN KEY (group_id) REFERENCES provider_groups(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    UNIQUE(group_id, provider_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_group_members_group_id ON provider_group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_provider_group_members_priority ON provider_group_members(group_id, priority);
+
+-- =============================================================================
 -- usage_events table (cost attribution data)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS usage_events (
@@ -120,9 +195,15 @@ CREATE TABLE IF NOT EXISTS usage_events (
     cost_usd REAL,
     duration_ms INTEGER,
     metadata TEXT,
+    provider_id TEXT,
+    provider_group_id TEXT,
+    cached_tokens INTEGER DEFAULT 0,
+    retry_count INTEGER DEFAULT 0,
     created_at TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_usage_events_agent_id ON usage_events(agent_id);
 CREATE INDEX IF NOT EXISTS idx_usage_events_event_type ON usage_events(event_type);
 CREATE INDEX IF NOT EXISTS idx_usage_events_created_at ON usage_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_events_provider_id ON usage_events(provider_id);
+CREATE INDEX IF NOT EXISTS idx_usage_events_provider_group_id ON usage_events(provider_group_id);

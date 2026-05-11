@@ -33,6 +33,54 @@ type OttSpan struct {
 	CreatedAt     string         `json:"created_at"`
 }
 
+type Provider struct {
+	ID                string `json:"id"`
+	Name              string `json:"name"`
+	ProviderType      string `json:"provider_type"`
+	BaseUrl           string `json:"base_url"`
+	EncryptedApiKey   []byte `json:"encrypted_api_key"`
+	ApiKeyNonce       []byte `json:"api_key_nonce"`
+	EncryptedDek      []byte `json:"encrypted_dek"`
+	DekNonce          []byte `json:"dek_nonce"`
+	EncryptionVersion int64  `json:"encryption_version"`
+	ConfigJson        string `json:"config_json"`
+	IsEnabled         int64  `json:"is_enabled"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
+}
+
+type ProviderGroup struct {
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Strategy   string `json:"strategy"`
+	ConfigJson string `json:"config_json"`
+	IsDefault  int64  `json:"is_default"`
+	CreatedAt  string `json:"created_at"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
+type ProviderGroupMember struct {
+	ID         string `json:"id"`
+	GroupID    string `json:"group_id"`
+	ProviderID string `json:"provider_id"`
+	Priority   int64  `json:"priority"`
+	CreatedAt  string `json:"created_at"`
+}
+
+type ProviderModel struct {
+	ID             string        `json:"id"`
+	ProviderID     string        `json:"provider_id"`
+	ModelID        string        `json:"model_id"`
+	DisplayName    string        `json:"display_name"`
+	ContextLimit   sql.NullInt64 `json:"context_limit"`
+	FeaturesJson   string        `json:"features_json"`
+	PricingJson    string        `json:"pricing_json"`
+	ParametersJson string        `json:"parameters_json"`
+	IsUserEdited   int64         `json:"is_user_edited"`
+	CreatedAt      string        `json:"created_at"`
+	UpdatedAt      string        `json:"updated_at"`
+}
+
 type ResourcePermission struct {
 	ID              string         `json:"id"`
 	UserID          string         `json:"user_id"`
@@ -55,17 +103,21 @@ type Session struct {
 }
 
 type UsageEvent struct {
-	ID           int64           `json:"id"`
-	AgentID      string          `json:"agent_id"`
-	SessionID    string          `json:"session_id"`
-	EventType    string          `json:"event_type"`
-	Model        sql.NullString  `json:"model"`
-	InputTokens  sql.NullInt64   `json:"input_tokens"`
-	OutputTokens sql.NullInt64   `json:"output_tokens"`
-	CostUsd      sql.NullFloat64 `json:"cost_usd"`
-	DurationMs   sql.NullInt64   `json:"duration_ms"`
-	Metadata     sql.NullString  `json:"metadata"`
-	CreatedAt    string          `json:"created_at"`
+	ID              int64           `json:"id"`
+	AgentID         string          `json:"agent_id"`
+	SessionID       string          `json:"session_id"`
+	EventType       string          `json:"event_type"`
+	Model           sql.NullString  `json:"model"`
+	InputTokens     sql.NullInt64   `json:"input_tokens"`
+	OutputTokens    sql.NullInt64   `json:"output_tokens"`
+	CostUsd         sql.NullFloat64 `json:"cost_usd"`
+	DurationMs      sql.NullInt64   `json:"duration_ms"`
+	Metadata        sql.NullString  `json:"metadata"`
+	CreatedAt       string          `json:"created_at"`
+	ProviderID      sql.NullString  `json:"provider_id"`
+	ProviderGroupID sql.NullString  `json:"provider_group_id"`
+	CachedTokens    sql.NullInt64   `json:"cached_tokens"`
+	RetryCount      sql.NullInt64   `json:"retry_count"`
 }
 
 type User struct {
