@@ -2,6 +2,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strconv"
@@ -62,6 +63,9 @@ type Config struct {
 	// Telemetry configuration
 	Environment  string
 	OTLPEndpoint string
+
+	// Provider encryption configuration
+	ProviderEncryptionKey string
 }
 
 // Load loads configuration from environment variables.
@@ -146,6 +150,19 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("OTLP_ENDPOINT is required")
 	}
 
+	// Provider encryption key
+	providerEncryptionKey := os.Getenv("PROVIDER_ENCRYPTION_KEY")
+	if providerEncryptionKey == "" {
+		return nil, fmt.Errorf("PROVIDER_ENCRYPTION_KEY is required")
+	}
+	decodedKey, err := hex.DecodeString(providerEncryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("PROVIDER_ENCRYPTION_KEY must be hex-encoded: %w", err)
+	}
+	if len(decodedKey) != 32 {
+		return nil, fmt.Errorf("PROVIDER_ENCRYPTION_KEY must decode to exactly 32 bytes, got %d", len(decodedKey))
+	}
+
 	return &Config{
 		DatabaseURL:           dbURL,
 		APIHost:               apiHost,
@@ -175,6 +192,7 @@ func Load() (*Config, error) {
 		NATSURL:               natsURL,
 		Environment:           environment,
 		OTLPEndpoint:          otlpEndpoint,
+		ProviderEncryptionKey: providerEncryptionKey,
 	}, nil
 }
 

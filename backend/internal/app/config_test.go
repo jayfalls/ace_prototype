@@ -7,8 +7,9 @@ import (
 )
 
 func TestResolveConfig_Defaults(t *testing.T) {
-	// Set a valid JWT secret for validation
+	// Set required env vars for validation
 	os.Setenv("ACE_JWT_SECRET", "this-is-a-valid-secret-that-is-at-least-32-chars")
+	os.Setenv("ACE_PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	cliCfg := &Config{}
 	cfg, err := ResolveConfig(cliCfg)
@@ -158,6 +159,7 @@ cache:
 
 func TestValidateConfig_Errors(t *testing.T) {
 	validJWTSecret := "this-is-a-valid-secret-that-is-32-chars"
+	validEncryptionKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 
 	tests := []struct {
 		name   string
@@ -167,99 +169,146 @@ func TestValidateConfig_Errors(t *testing.T) {
 		{
 			name: "invalid port too low",
 			config: &Config{
-				Port: 0,
-				Auth: AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 0,
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "invalid port: 0",
 		},
 		{
 			name: "invalid port too high",
 			config: &Config{
-				Port: 99999,
-				Auth: AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 99999,
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "invalid port: 99999",
 		},
 		{
 			name: "invalid db mode",
 			config: &Config{
-				Port:   8080,
-				DBMode: "invalid",
-				Auth:   AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 8080,
+				DBMode:               "invalid",
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "invalid db-mode",
 		},
 		{
 			name: "external db without url",
 			config: &Config{
-				Port:          8080,
-				DBMode:        "external",
-				NATSMode:      "embedded",
-				CacheMode:     "embedded",
-				TelemetryMode: "embedded",
-				Auth:          AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 8080,
+				DBMode:               "external",
+				NATSMode:             "embedded",
+				CacheMode:            "embedded",
+				TelemetryMode:        "embedded",
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "db-url is required",
 		},
 		{
 			name: "external nats without url",
 			config: &Config{
-				Port:          8080,
-				DBMode:        "embedded",
-				NATSMode:      "external",
-				CacheMode:     "embedded",
-				TelemetryMode: "embedded",
-				Auth:          AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 8080,
+				DBMode:               "embedded",
+				NATSMode:             "external",
+				CacheMode:            "embedded",
+				TelemetryMode:        "embedded",
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "nats-url is required",
 		},
 		{
 			name: "external cache without url",
 			config: &Config{
-				Port:          8080,
-				DBMode:        "embedded",
-				NATSMode:      "embedded",
-				CacheMode:     "external",
-				TelemetryMode: "embedded",
-				Auth:          AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 8080,
+				DBMode:               "embedded",
+				NATSMode:             "embedded",
+				CacheMode:            "external",
+				TelemetryMode:        "embedded",
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "cache-url is required",
 		},
 		{
 			name: "external telemetry without endpoint",
 			config: &Config{
-				Port:          8080,
-				DBMode:        "embedded",
-				NATSMode:      "embedded",
-				CacheMode:     "embedded",
-				TelemetryMode: "external",
-				Auth:          AuthConfig{JWTSecret: validJWTSecret},
+				Port:                 8080,
+				DBMode:               "embedded",
+				NATSMode:             "embedded",
+				CacheMode:            "embedded",
+				TelemetryMode:        "external",
+				Auth:                 AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "otlp-endpoint is required",
 		},
 		{
 			name: "missing jwt secret",
 			config: &Config{
-				Port:          8080,
-				DBMode:        "embedded",
-				NATSMode:      "embedded",
-				CacheMode:     "embedded",
-				TelemetryMode: "embedded",
-				Auth:          AuthConfig{JWTSecret: ""},
+				Port:                 8080,
+				DBMode:               "embedded",
+				NATSMode:             "embedded",
+				CacheMode:            "embedded",
+				TelemetryMode:        "embedded",
+				Auth:                 AuthConfig{JWTSecret: ""},
+				ProviderEncryptionKey: validEncryptionKey,
 			},
 			errMsg: "jwt_secret is required",
 		},
 		{
 			name: "jwt secret too short",
 			config: &Config{
+				Port:                 8080,
+				DBMode:               "embedded",
+				NATSMode:             "embedded",
+				CacheMode:            "embedded",
+				TelemetryMode:        "embedded",
+				Auth:                 AuthConfig{JWTSecret: "short"},
+				ProviderEncryptionKey: validEncryptionKey,
+			},
+			errMsg: "jwt_secret must be at least 32 characters",
+		},
+		{
+			name: "missing provider encryption key",
+			config: &Config{
 				Port:          8080,
 				DBMode:        "embedded",
 				NATSMode:      "embedded",
 				CacheMode:     "embedded",
 				TelemetryMode: "embedded",
-				Auth:          AuthConfig{JWTSecret: "short"},
+				Auth:          AuthConfig{JWTSecret: validJWTSecret},
 			},
-			errMsg: "jwt_secret must be at least 32 characters",
+			errMsg: "provider_encryption_key is required",
+		},
+		{
+			name: "provider encryption key not hex",
+			config: &Config{
+				Port:                  8080,
+				DBMode:                "embedded",
+				NATSMode:              "embedded",
+				CacheMode:             "embedded",
+				TelemetryMode:         "embedded",
+				Auth:                  AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: "not-hex-gggg",
+			},
+			errMsg: "provider_encryption_key must be hex-encoded",
+		},
+		{
+			name: "provider encryption key wrong length",
+			config: &Config{
+				Port:                  8080,
+				DBMode:                "embedded",
+				NATSMode:              "embedded",
+				CacheMode:             "embedded",
+				TelemetryMode:         "embedded",
+				Auth:                  AuthConfig{JWTSecret: validJWTSecret},
+				ProviderEncryptionKey: "aabbccdd", // 4 bytes, not 32
+			},
+			errMsg: "provider_encryption_key must decode to exactly 32 bytes",
 		},
 	}
 
@@ -277,6 +326,7 @@ func TestValidateConfig_Errors(t *testing.T) {
 }
 
 func TestValidateConfig_InvalidModeValues(t *testing.T) {
+	validEncryptionKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 	tests := []struct {
 		modeField string
 		value     string
@@ -290,7 +340,8 @@ func TestValidateConfig_InvalidModeValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.modeField, func(t *testing.T) {
 			cfg := &Config{
-				Auth: AuthConfig{JWTSecret: "this-is-a-valid-secret-that-is-32-chars"},
+				Auth:                  AuthConfig{JWTSecret: "this-is-a-valid-secret-that-is-32-chars"},
+				ProviderEncryptionKey: validEncryptionKey,
 			}
 			switch tt.modeField {
 			case "db-mode":
@@ -314,7 +365,11 @@ func TestValidateConfig_InvalidModeValues(t *testing.T) {
 func TestResolveAndValidate_Integration(t *testing.T) {
 	// Test that resolve + validate works correctly for a valid config
 	os.Setenv("ACE_JWT_SECRET", "this-is-a-valid-secret-that-is-at-least-32-chars")
-	defer os.Unsetenv("ACE_JWT_SECRET")
+	os.Setenv("ACE_PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	defer func() {
+		os.Unsetenv("ACE_JWT_SECRET")
+		os.Unsetenv("ACE_PROVIDER_ENCRYPTION_KEY")
+	}()
 
 	// CLI config with port 0 (zero value, won't override defaults)
 	cliCfg := &Config{
@@ -341,7 +396,11 @@ func TestResolveAndValidate_Integration(t *testing.T) {
 func TestResolveAndValidate_InvalidPort(t *testing.T) {
 	// Test that an explicitly invalid port fails validation
 	os.Setenv("ACE_JWT_SECRET", "this-is-a-valid-secret-that-is-at-least-32-chars")
-	defer os.Unsetenv("ACE_JWT_SECRET")
+	os.Setenv("ACE_PROVIDER_ENCRYPTION_KEY", "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	defer func() {
+		os.Unsetenv("ACE_JWT_SECRET")
+		os.Unsetenv("ACE_PROVIDER_ENCRYPTION_KEY")
+	}()
 
 	cfg := &Config{
 		Port: 99999, // Invalid port
