@@ -3,7 +3,6 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Select, SelectOption } from '$lib/components/ui/select';
-	import { Textarea } from '$lib/components/ui/textarea';
 	import { Button } from '$lib/components/ui/button';
 	import type { ProviderCreateRequest, ProviderResponse, ProviderUpdateRequest } from '$lib/api/types';
 
@@ -16,7 +15,11 @@
 	] as const;
 
 	const TYPES_WITHOUT_API_KEY = new Set(['ollama', 'llamacpp']);
-	const emptyJsonPlaceholder = '{}';
+
+	const OPENAI_COMPATIBLE_TYPES = new Set([
+		'openai', 'groq', 'together', 'mistral', 'cohere', 'xai',
+		'deepseek', 'alibaba', 'bytedance', 'zhipu', '01ai', 'nvidia', 'openrouter', 'custom'
+	]);
 
 	const DEFAULT_BASE_URLS: Record<string, string> = {
 		openai: 'https://api.openai.com/v1',
@@ -56,19 +59,36 @@
 	let providerType = $state('openai');
 	let baseUrl = $state('');
 	let apiKey = $state('');
-	let configJson = $state('');
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
 
+	// Config field state
+	let timeoutMs = $state('');
+	let defaultModel = $state('');
+	let extraHeaders = $state<{ name: string; value: string }[]>([]);
+	let deploymentId = $state('');
+	let accessKeyId = $state('');
+	let secretAccessKey = $state('');
+	let region = $state('');
+
 	const isEdit = $derived(provider !== undefined);
 	const title = $derived(isEdit ? 'Edit Provider' : 'Add Provider');
+	const showExtraHeaders = $derived(OPENAI_COMPATIBLE_TYPES.has(providerType));
+	const showAzureFields = $derived(providerType === 'azure');
+	const showBedrockFields = $derived(providerType === 'bedrock');
 
 	function resetForm() {
 		name = '';
 		providerType = 'openai';
 		baseUrl = DEFAULT_BASE_URLS['openai'];
 		apiKey = '';
-		configJson = '';
+		timeoutMs = '';
+		defaultModel = '';
+		extraHeaders = [];
+		deploymentId = '';
+		accessKeyId = '';
+		secretAccessKey = '';
+		region = '';
 		errors = {};
 		isSubmitting = false;
 	}
@@ -78,7 +98,20 @@
 		providerType = p.provider_type;
 		baseUrl = p.base_url;
 		apiKey = '';
-		configJson = Object.keys(p.config_json).length > 0 ? JSON.stringify(p.config_json, null, 2) : '';
+		const c = p.config_json;
+		timeoutMs = typeof c.timeout_ms === 'number' ? String(c.timeout_ms) : '';
+		defaultModel = typeof c.default_model === 'string' ? c.default_model : '';
+		if (c.extra_headers && typeof c.extra_headers === 'object' && !Array.isArray(c.extra_headers)) {
+			extraHeaders = Object.entries(c.extra_headers as Record<string, unknown>)
+				.filter(([, v]) => typeof v === 'string')
+				.map(([k, v]) => ({ name: k, value: v as string }));
+		} else {
+			extraHeaders = [];
+		}
+		deploymentId = typeof c.deployment_id === 'string' ? c.deployment_id : '';
+		accessKeyId = typeof c.access_key_id === 'string' ? c.access_key_id : '';
+		secretAccessKey = typeof c.secret_access_key === 'string' ? c.secret_access_key : '';
+		region = typeof c.region === 'string' ? c.region : '';
 	}
 
 	$effect(() => {
@@ -92,11 +125,33 @@
 	});
 
 	$effect(() => {
-		// Auto-fill base URL when type changes in create mode
 		if (!isEdit && providerType && DEFAULT_BASE_URLS[providerType] !== undefined) {
 			baseUrl = DEFAULT_BASE_URLS[providerType];
 		}
 	});
+
+	function buildConfigJson(): Record<string, unknown> {
+		const config: Record<string, unknown> = {};
+		if (timeoutMs.trim()) {
+			const n = parseInt(timeoutMs, 10);
+			if (!isNaN(n) && n > 0) config.timeout_ms = n;
+		}
+		if (defaultModel.trim()) config.default_model = defaultModel.trim();
+		if (extraHeaders.length > 0) {
+			const headers: Record<string, string> = {};
+			for (const h of extraHeaders) {
+				if (h.name.trim() && h.value.trim()) headers[h.name.trim()] = h.value.trim();
+			}
+			if (Object.keys(headers).length > 0) config.extra_headers = headers;
+		}
+		if (providerType === 'azure' && deploymentId.trim()) config.deployment_id = deploymentId.trim();
+		if (providerType === 'bedrock') {
+			if (accessKeyId.trim()) config.access_key_id = accessKeyId.trim();
+			if (secretAccessKey.trim()) config.secret_access_key = secretAccessKey.trim();
+			if (region.trim()) config.region = region.trim();
+		}
+		return config;
+	}
 
 	function validate(): boolean {
 		const newErrors: Record<string, string> = {};
@@ -117,15 +172,21 @@
 			newErrors.apiKey = 'API key is required for this provider type';
 		}
 
-		if (configJson.trim()) {
-			try {
-				const parsed = JSON.parse(configJson);
-				if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-					newErrors.configJson = 'Config JSON must be a valid JSON object';
-				}
-			} catch {
-				newErrors.configJson = 'Invalid JSON';
+		if (timeoutMs.trim()) {
+			const n = parseInt(timeoutMs, 10);
+			if (isNaN(n) || n <= 0 || String(n) !== timeoutMs.trim()) {
+				newErrors.timeoutMs = 'Timeout must be a positive integer';
 			}
+		}
+
+		if (providerType === 'azure' && !deploymentId.trim()) {
+			newErrors.deploymentId = 'Deployment ID is required for Azure';
+		}
+
+		if (providerType === 'bedrock') {
+			if (!accessKeyId.trim()) newErrors.accessKeyId = 'Access Key ID is required for Bedrock';
+			if (!secretAccessKey.trim()) newErrors.secretAccessKey = 'Secret Access Key is required for Bedrock';
+			if (!region.trim()) newErrors.region = 'Region is required for Bedrock';
 		}
 
 		errors = newErrors;
@@ -138,13 +199,14 @@
 
 		isSubmitting = true;
 		try {
+			const newConfig = buildConfigJson();
 			if (isEdit && provider) {
 				const updateData: ProviderUpdateRequest = {};
 				if (name.trim() !== provider.name) updateData.name = name.trim();
 				if (baseUrl.trim() !== provider.base_url) updateData.base_url = baseUrl.trim();
 				if (apiKey.trim()) updateData.api_key = apiKey.trim();
-				if (configJson.trim()) {
-					updateData.config_json = JSON.parse(configJson);
+				if (Object.keys(newConfig).length > 0) {
+					updateData.config_json = newConfig;
 				} else if (Object.keys(provider.config_json).length > 0) {
 					updateData.config_json = {};
 				}
@@ -156,8 +218,8 @@
 					base_url: baseUrl.trim(),
 					api_key: apiKey.trim()
 				};
-				if (configJson.trim()) {
-					createData.config_json = JSON.parse(configJson);
+				if (Object.keys(newConfig).length > 0) {
+					createData.config_json = newConfig;
 				}
 				await onsave(createData);
 			}
@@ -171,6 +233,14 @@
 
 	function handleCancel() {
 		open = false;
+	}
+
+	function addHeader() {
+		extraHeaders = [...extraHeaders, { name: '', value: '' }];
+	}
+
+	function removeHeader(i: number) {
+		extraHeaders = extraHeaders.filter((_, idx) => idx !== i);
 	}
 </script>
 
@@ -235,18 +305,110 @@
 				{/if}
 			</div>
 
-			<div class="flex flex-col gap-1.5">
-				<Label for="provider-config-json">Config JSON</Label>
-				<Textarea
-					id="provider-config-json"
-					bind:value={configJson}
-					placeholder={emptyJsonPlaceholder}
-					class="font-mono text-sm"
-				/>
-				{#if errors.configJson}
-					<p class="text-sm text-destructive">{errors.configJson}</p>
+			<fieldset class="border rounded-md p-4 flex flex-col gap-3">
+				<legend class="text-sm font-medium px-1">Advanced Configuration</legend>
+
+				<div class="flex flex-col gap-1.5">
+					<Label for="provider-timeout">Timeout (ms)</Label>
+					<Input
+						id="provider-timeout"
+						bind:value={timeoutMs}
+						placeholder="60000"
+						inputmode="numeric"
+					/>
+					<p class="text-xs text-muted-foreground">Request timeout in milliseconds</p>
+					{#if errors.timeoutMs}
+						<p class="text-sm text-destructive">{errors.timeoutMs}</p>
+					{/if}
+				</div>
+
+				<div class="flex flex-col gap-1.5">
+					<Label for="provider-default-model">Default Model</Label>
+					<Input
+						id="provider-default-model"
+						bind:value={defaultModel}
+						placeholder="gpt-4o"
+					/>
+				</div>
+
+				{#if showExtraHeaders}
+					<div class="flex flex-col gap-2">
+						<Label>Extra Headers</Label>
+						{#each extraHeaders as header, i (i)}
+							<div class="flex items-center gap-2">
+								<Input bind:value={header.name} placeholder="Header name" class="flex-1" />
+								<Input bind:value={header.value} placeholder="Header value" class="flex-1" />
+								<Button
+									variant="ghost"
+									size="icon"
+									type="button"
+									onclick={() => removeHeader(i)}
+									aria-label="Remove header"
+								>
+									&times;
+								</Button>
+							</div>
+						{/each}
+						<Button variant="outline" size="sm" type="button" onclick={addHeader}>
+							Add Header
+						</Button>
+					</div>
 				{/if}
-			</div>
+
+				{#if showAzureFields}
+					<div class="flex flex-col gap-1.5">
+						<Label for="provider-deployment-id">Deployment ID</Label>
+						<Input
+							id="provider-deployment-id"
+							bind:value={deploymentId}
+							placeholder="my-deployment"
+						/>
+						{#if errors.deploymentId}
+							<p class="text-sm text-destructive">{errors.deploymentId}</p>
+						{/if}
+					</div>
+				{/if}
+
+				{#if showBedrockFields}
+					<div class="flex flex-col gap-1.5">
+						<Label for="provider-access-key-id">Access Key ID</Label>
+						<Input
+							id="provider-access-key-id"
+							type="password"
+							bind:value={accessKeyId}
+							placeholder="AKIA..."
+						/>
+						{#if errors.accessKeyId}
+							<p class="text-sm text-destructive">{errors.accessKeyId}</p>
+						{/if}
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<Label for="provider-secret-access-key">Secret Access Key</Label>
+						<Input
+							id="provider-secret-access-key"
+							type="password"
+							bind:value={secretAccessKey}
+							placeholder="••••••••"
+						/>
+						{#if errors.secretAccessKey}
+							<p class="text-sm text-destructive">{errors.secretAccessKey}</p>
+						{/if}
+					</div>
+
+					<div class="flex flex-col gap-1.5">
+						<Label for="provider-region">Region</Label>
+						<Input
+							id="provider-region"
+							bind:value={region}
+							placeholder="us-east-1"
+						/>
+						{#if errors.region}
+							<p class="text-sm text-destructive">{errors.region}</p>
+						{/if}
+					</div>
+				{/if}
+			</fieldset>
 
 			<div class="flex items-center justify-end gap-2 pt-2">
 				<Button variant="outline" type="button" onclick={handleCancel}>Cancel</Button>
