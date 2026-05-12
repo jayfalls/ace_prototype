@@ -64,7 +64,6 @@
 
 	// Config field state
 	let timeoutMs = $state('');
-	let defaultModel = $state('');
 	let extraHeaders = $state<{ name: string; value: string }[]>([]);
 	let deploymentId = $state('');
 	let accessKeyId = $state('');
@@ -83,7 +82,6 @@
 		baseUrl = DEFAULT_BASE_URLS['openai'];
 		apiKey = '';
 		timeoutMs = '';
-		defaultModel = '';
 		extraHeaders = [];
 		deploymentId = '';
 		accessKeyId = '';
@@ -100,7 +98,6 @@
 		apiKey = '';
 		const c = p.config_json;
 		timeoutMs = typeof c.timeout_ms === 'number' ? String(c.timeout_ms) : '';
-		defaultModel = typeof c.default_model === 'string' ? c.default_model : '';
 		if (c.extra_headers && typeof c.extra_headers === 'object' && !Array.isArray(c.extra_headers)) {
 			extraHeaders = Object.entries(c.extra_headers as Record<string, unknown>)
 				.filter(([, v]) => typeof v === 'string')
@@ -136,7 +133,6 @@
 			const n = parseInt(timeoutMs, 10);
 			if (!isNaN(n) && n > 0) config.timeout_ms = n;
 		}
-		if (defaultModel.trim()) config.default_model = defaultModel.trim();
 		if (extraHeaders.length > 0) {
 			const headers: Record<string, string> = {};
 			for (const h of extraHeaders) {
@@ -320,15 +316,6 @@
 					{#if errors.timeoutMs}
 						<p class="text-sm text-destructive">{errors.timeoutMs}</p>
 					{/if}
-				</div>
-
-				<div class="flex flex-col gap-1.5">
-					<Label for="provider-default-model">Default Model</Label>
-					<Input
-						id="provider-default-model"
-						bind:value={defaultModel}
-						placeholder="gpt-4o"
-					/>
 				</div>
 
 				{#if showExtraHeaders}
