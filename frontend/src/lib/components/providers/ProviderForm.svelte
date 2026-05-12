@@ -18,6 +18,30 @@
 	const TYPES_WITHOUT_API_KEY = new Set(['ollama', 'llamacpp']);
 	const emptyJsonPlaceholder = '{}';
 
+	const DEFAULT_BASE_URLS: Record<string, string> = {
+		openai: 'https://api.openai.com/v1',
+		anthropic: 'https://api.anthropic.com/v1',
+		google: 'https://generativelanguage.googleapis.com',
+		azure: '',
+		bedrock: '',
+		groq: 'https://api.groq.com/openai/v1',
+		together: 'https://api.together.xyz/v1',
+		mistral: 'https://api.mistral.ai/v1',
+		cohere: 'https://api.cohere.ai/v1',
+		xai: 'https://api.x.ai/v1',
+		deepseek: 'https://api.deepseek.com/v1',
+		alibaba: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+		baidu: 'https://aip.baidubce.com',
+		bytedance: 'https://ark.cn-beijing.volces.com/api/v3',
+		zhipu: 'https://open.bigmodel.cn/api/paas/v4',
+		'01ai': 'https://api.01.ai/v1',
+		nvidia: 'https://integrate.api.nvidia.com/v1',
+		openrouter: 'https://openrouter.ai/api/v1',
+		ollama: 'http://localhost:11434',
+		llamacpp: 'http://localhost:8080/v1',
+		custom: ''
+	};
+
 	let {
 		open = $bindable(false),
 		provider = undefined,
@@ -42,7 +66,7 @@
 	function resetForm() {
 		name = '';
 		providerType = 'openai';
-		baseUrl = '';
+		baseUrl = DEFAULT_BASE_URLS['openai'];
 		apiKey = '';
 		configJson = '';
 		errors = {};
@@ -64,6 +88,13 @@
 			} else {
 				resetForm();
 			}
+		}
+	});
+
+	$effect(() => {
+		// Auto-fill base URL when type changes in create mode
+		if (!isEdit && providerType && DEFAULT_BASE_URLS[providerType] !== undefined) {
+			baseUrl = DEFAULT_BASE_URLS[providerType];
 		}
 	});
 
