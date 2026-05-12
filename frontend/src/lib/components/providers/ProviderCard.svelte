@@ -1,10 +1,17 @@
 <script lang="ts">
 	import type { ProviderResponse } from '$lib/api/types';
+	import { Button } from '$lib/components/ui/button';
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Globe, Key } from 'lucide-svelte';
+	import { Globe, Key, Pencil } from 'lucide-svelte';
 
-	let { provider }: { provider: ProviderResponse } = $props();
+	let {
+		provider,
+		onedit
+	}: {
+		provider: ProviderResponse;
+		onedit?: (provider: ProviderResponse) => void;
+	} = $props();
 </script>
 
 <Card>
@@ -21,9 +28,21 @@
 		</CardDescription>
 	</CardHeader>
 	<CardContent>
-		<div class="flex items-center gap-1 text-sm text-muted-foreground">
-			<Key class="h-3 w-3" />
-			{provider.api_key_masked}
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-1 text-sm text-muted-foreground">
+				<Key class="h-3 w-3" />
+				{provider.api_key_masked}
+			</div>
+			{#if onedit}
+				<Button
+					variant="ghost"
+					size="icon"
+					aria-label="Edit provider"
+					onclick={() => onedit(provider)}
+				>
+					<Pencil class="h-4 w-4" />
+				</Button>
+			{/if}
 		</div>
 	</CardContent>
 </Card>
