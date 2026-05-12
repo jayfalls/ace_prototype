@@ -8,7 +8,6 @@
 	import NavItem from './NavItem.svelte';
 	import { Avatar } from '$lib/components/ui/avatar';
 	import { Button } from '$lib/components/ui/button';
-	import { ConnectionIndicator } from '$lib/components/realtime';
 	import {
 		LayoutDashboard,
 		Bot,
@@ -133,8 +132,6 @@
 				label=""
 				active={isActive('/settings')}
 			/>
-
-			<ConnectionIndicator />
 
 			<div class="relative flex-1">
 			<button
