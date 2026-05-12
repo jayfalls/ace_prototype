@@ -113,6 +113,9 @@ func New(cfg *Config) (*chi.Mux, error) {
 		return nil, err
 	}
 
+	// Create agent handler (stub)
+	agentHandler := handler.NewAgentHandler()
+
 	// Create telemetry handler
 	telemetryHandler, err := handler.NewTelemetryHandler(
 		cfg.Queries,
@@ -176,6 +179,8 @@ func New(cfg *Config) (*chi.Mux, error) {
 			r.Get("/auth/me", sessionHandler.Me)
 			r.Get("/auth/me/sessions", sessionHandler.ListSessions)
 			r.Delete("/auth/me/sessions/{id}", sessionHandler.RevokeSession)
+
+			r.Get("/agents", agentHandler.List)
 		})
 
 		// Admin routes (auth + admin role required)

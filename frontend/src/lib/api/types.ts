@@ -220,6 +220,27 @@ export interface SystemHealthResponse {
 	checks: Record<string, SystemHealthCheck>;
 }
 
+// --- Providers ---
+export interface ProviderResponse {
+	id: string;
+	name: string;
+	provider_type: string;
+	base_url: string;
+	api_key_masked: string;
+	config_json: Record<string, unknown>;
+	is_enabled: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ProviderCreateRequest {
+	name: string;
+	provider_type: string;
+	base_url: string;
+	api_key?: string;
+	config_json?: Record<string, unknown>;
+}
+
 // --- Query Params ---
 export interface SpanQueryParams {
 	service?: string;

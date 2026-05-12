@@ -10,7 +10,8 @@ export const ROUTES = {
 	TELEMETRY_SPANS: '/telemetry/spans',
 	TELEMETRY_METRICS: '/telemetry/metrics',
 	TELEMETRY_USAGE: '/telemetry/usage',
-	SETTINGS: '/settings'
+	SETTINGS: '/settings',
+	PROVIDERS: '/providers'
 } as const;
 
 // App info
