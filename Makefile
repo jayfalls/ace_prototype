@@ -124,5 +124,4 @@ help: ## Show this help message
 	@echo "$(GREEN)Application Development:$(NC)"
 	@echo "  $(YELLOW)make ace$(NC)           - Run backend + frontend with hot reload"
 	@echo "  $(YELLOW)make test$(NC)          - Run full validation pipeline"
-	@echo "  $(YELLOW)make test-realtime$(NC)  - Run realtime WebSocket integration tests"
 	@echo ""

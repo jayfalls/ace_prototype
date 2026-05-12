@@ -241,6 +241,14 @@ export interface ProviderCreateRequest {
 	config_json?: Record<string, unknown>;
 }
 
+export interface ProviderUpdateRequest {
+	name?: string;
+	base_url?: string;
+	api_key?: string;
+	config_json?: Record<string, unknown>;
+	is_enabled?: boolean;
+}
+
 // --- Query Params ---
 export interface SpanQueryParams {
 	service?: string;
