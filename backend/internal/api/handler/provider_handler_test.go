@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,6 +24,7 @@ type mockProviderService struct {
 	ListProvidersFunc  func(ctx context.Context) ([]model.ProviderResponse, error)
 	UpdateProviderFunc func(ctx context.Context, id string, req model.ProviderUpdateRequest) (*model.ProviderResponse, error)
 	DeleteProviderFunc func(ctx context.Context, id string) error
+	TestProviderFunc   func(ctx context.Context, id string) (*service.TestProviderResult, error)
 }
 
 func (m *mockProviderService) CreateProvider(ctx context.Context, req model.ProviderCreateRequest) (*model.ProviderResponse, error) {
@@ -43,6 +45,10 @@ func (m *mockProviderService) UpdateProvider(ctx context.Context, id string, req
 
 func (m *mockProviderService) DeleteProvider(ctx context.Context, id string) error {
 	return m.DeleteProviderFunc(ctx, id)
+}
+
+func (m *mockProviderService) TestProvider(ctx context.Context, id string) (*service.TestProviderResult, error) {
+	return m.TestProviderFunc(ctx, id)
 }
 
 func newMockProviderService() *mockProviderService {
@@ -370,6 +376,147 @@ func TestProviderHandler_Delete(t *testing.T) {
 
 		if w.Code != http.StatusNotFound {
 			t.Errorf("expected 404, got %d", w.Code)
+		}
+	})
+}
+
+// TestProviderHandler_TestProvider tests the TestProvider handler.
+func TestProviderHandler_TestProvider(t *testing.T) {
+	t.Run("successful test returns 200 with result", func(t *testing.T) {
+		mock := newMockProviderService()
+		mock.TestProviderFunc = func(ctx context.Context, id string) (*service.TestProviderResult, error) {
+			return &service.TestProviderResult{
+				ResponseText: "Working",
+				Model:        "gpt-4o-mini",
+				DurationMs:   1234,
+			}, nil
+		}
+
+		h, err := NewProviderHandler(mock)
+		if err != nil {
+			t.Fatalf("failed to create handler: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/providers/test-id/test", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "test-id")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		h.TestProvider(w, r)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected 200, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := decodeResponse(t, w.Body)
+		if !resp.Success {
+			t.Errorf("expected success, got error: %+v", resp.Error)
+		}
+	})
+
+	t.Run("provider not found returns 404", func(t *testing.T) {
+		mock := newMockProviderService()
+		mock.TestProviderFunc = func(ctx context.Context, id string) (*service.TestProviderResult, error) {
+			return nil, service.ErrProviderNotFound
+		}
+
+		h, err := NewProviderHandler(mock)
+		if err != nil {
+			t.Fatalf("failed to create handler: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/providers/nonexistent/test", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "nonexistent")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		h.TestProvider(w, r)
+
+		if w.Code != http.StatusNotFound {
+			t.Errorf("expected 404, got %d: %s", w.Code, w.Body.String())
+		}
+	})
+
+	t.Run("unsupported provider returns 400", func(t *testing.T) {
+		mock := newMockProviderService()
+		mock.TestProviderFunc = func(ctx context.Context, id string) (*service.TestProviderResult, error) {
+			return nil, fmt.Errorf("%w: direct testing not yet supported for anthropic; use the model management interface", service.ErrTestNotSupported)
+		}
+
+		h, err := NewProviderHandler(mock)
+		if err != nil {
+			t.Fatalf("failed to create handler: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/providers/ant-id/test", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "ant-id")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		h.TestProvider(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := decodeResponse(t, w.Body)
+		if resp.Error == nil || resp.Error.Code != "test_not_supported" {
+			t.Errorf("expected test_not_supported error, got: %+v", resp.Error)
+		}
+	})
+
+	t.Run("no test model returns 400", func(t *testing.T) {
+		mock := newMockProviderService()
+		mock.TestProviderFunc = func(ctx context.Context, id string) (*service.TestProviderResult, error) {
+			return nil, fmt.Errorf("%w: test not available for llamacpp; configure models and test via the model management interface", service.ErrTestNoModel)
+		}
+
+		h, err := NewProviderHandler(mock)
+		if err != nil {
+			t.Fatalf("failed to create handler: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/providers/llamacpp-id/test", nil)
+		rctx := chi.NewRouteContext()
+		rctx.URLParams.Add("id", "llamacpp-id")
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+
+		h.TestProvider(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
+		}
+
+		resp := decodeResponse(t, w.Body)
+		if resp.Error == nil || resp.Error.Code != "test_no_model" {
+			t.Errorf("expected test_no_model error, got: %+v", resp.Error)
+		}
+	})
+
+	t.Run("missing id returns 400", func(t *testing.T) {
+		mock := newMockProviderService()
+		mock.TestProviderFunc = func(ctx context.Context, id string) (*service.TestProviderResult, error) {
+			t.Error("service should not be called when id is missing")
+			return nil, nil
+		}
+
+		h, err := NewProviderHandler(mock)
+		if err != nil {
+			t.Fatalf("failed to create handler: %v", err)
+		}
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodPost, "/api/providers//test", nil)
+		// No route context params - simulates missing id
+
+		h.TestProvider(w, r)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected 400, got %d: %s", w.Code, w.Body.String())
 		}
 	})
 }

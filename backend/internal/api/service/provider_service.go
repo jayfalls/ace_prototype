@@ -1,10 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -21,6 +24,74 @@ var ErrProviderNotFound = errors.New("provider not found")
 
 // ErrDuplicateName is returned when a provider name already exists.
 var ErrDuplicateName = errors.New("provider name already exists")
+
+// ErrTestNotSupported is returned when direct testing is not available for a provider type.
+var ErrTestNotSupported = errors.New("direct testing not supported for this provider type")
+
+// ErrTestNoModel is returned when no default test model is available for a provider type.
+var ErrTestNoModel = errors.New("no test model configured for this provider type")
+
+// TestProviderResult is returned by the TestProvider service method.
+type TestProviderResult struct {
+	ResponseText string `json:"response_text"`
+	Model        string `json:"model"`
+	DurationMs   int64  `json:"duration_ms"`
+}
+
+// providerTestModels maps provider types to their default test model names.
+var providerTestModels = map[model.ProviderType]string{
+	model.ProviderOpenAI:     "gpt-4o-mini",
+	model.ProviderAnthropic:  "claude-3-haiku-20240307",
+	model.ProviderGoogle:     "gemini-1.5-flash",
+	model.ProviderAzure:      "gpt-4o-mini",
+	model.ProviderGroq:       "llama-3.3-70b-versatile",
+	model.ProviderTogether:   "mistralai/Mixtral-8x7B-Instruct-v0.1",
+	model.ProviderMistral:    "mistral-small-latest",
+	model.ProviderCohere:     "command-r-plus",
+	model.ProviderXAI:        "grok-1",
+	model.ProviderDeepSeek:   "deepseek-chat",
+	model.ProviderAlibaba:    "qwen-turbo",
+	model.ProviderOpenRouter: "gpt-4o-mini",
+	model.ProviderOllama:     "llama3.2",
+	model.ProviderLLamacpp:   "",
+}
+
+// unsupportedDirectTestProviders is the set of provider types that do not support
+// OpenAI-compatible chat completions and are not directly testable yet.
+var unsupportedDirectTestProviders = map[model.ProviderType]bool{
+	model.ProviderAnthropic: true,
+	model.ProviderGoogle:    true,
+	model.ProviderAzure:     true,
+	model.ProviderBedrock:   true,
+	model.ProviderBaidu:     true,
+}
+
+// openaiChatRequest is the request body for OpenAI-compatible chat completions.
+type openaiChatRequest struct {
+	Model    string          `json:"model"`
+	Messages []chatMessage   `json:"messages"`
+}
+
+type chatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// openaiChatResponse is the success response from OpenAI-compatible chat completions.
+type openaiChatResponse struct {
+	Model   string              `json:"model"`
+	Choices []chatChoice        `json:"choices"`
+	Error   *openaiErrorDetail  `json:"error,omitempty"`
+}
+
+type chatChoice struct {
+	Message chatMessage `json:"message"`
+}
+
+type openaiErrorDetail struct {
+	Message string `json:"message"`
+	Type    string `json:"type"`
+}
 
 // ProviderService handles provider business logic and encryption.
 type ProviderService struct {
@@ -207,6 +278,125 @@ func (s *ProviderService) DeleteProvider(ctx context.Context, id string) error {
 		return fmt.Errorf("delete provider: %w", err)
 	}
 	return nil
+}
+
+// TestProvider sends a test chat completion request to the provider and returns the result.
+// This makes a direct HTTP call to the provider's API without using the adapter layer.
+func (s *ProviderService) TestProvider(ctx context.Context, id string) (*TestProviderResult, error) {
+	dbProvider, err := s.queries.GetProvider(ctx, id)
+	if err != nil {
+		if strings.Contains(err.Error(), "no rows") {
+			return nil, ErrProviderNotFound
+		}
+		return nil, fmt.Errorf("get provider for test: %w", err)
+	}
+
+	providerType := model.ProviderType(dbProvider.ProviderType)
+
+	// Block unsupported providers
+	if unsupportedDirectTestProviders[providerType] {
+		return nil, fmt.Errorf("%w: direct testing not yet supported for %s; use the model management interface", ErrTestNotSupported, providerType)
+	}
+
+	// Determine test model
+	testModel, ok := providerTestModels[providerType]
+	if !ok || testModel == "" {
+		return nil, fmt.Errorf("%w: test not available for %s; configure models and test via the model management interface", ErrTestNoModel, providerType)
+	}
+
+	// Decrypt API key
+	apiKey, err := s.decryptAPIKey(dbProvider)
+	if err != nil {
+		return nil, fmt.Errorf("decrypt API key: %w", err)
+	}
+
+	// Build chat completion request
+	chatReq := openaiChatRequest{
+		Model: testModel,
+		Messages: []chatMessage{
+			{Role: "user", Content: "Respond with the word 'Working' and nothing else."},
+		},
+	}
+
+	reqBody, err := json.Marshal(chatReq)
+	if err != nil {
+		return nil, fmt.Errorf("marshal chat request: %w", err)
+	}
+
+	// Build HTTP request
+	baseURL := strings.TrimRight(dbProvider.BaseUrl, "/")
+	chatURL := baseURL + "/chat/completions"
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, chatURL, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("create HTTP request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	// Execute with 30s timeout
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	httpReq = httpReq.WithContext(ctxWithTimeout)
+
+	start := time.Now()
+	resp, err := http.DefaultClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("provider request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	durationMs := time.Since(start).Milliseconds()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read response body: %w", err)
+	}
+
+	// Parse response
+	var chatResp openaiChatResponse
+	if err := json.Unmarshal(respBody, &chatResp); err != nil {
+		return nil, fmt.Errorf("parse provider response: %w", err)
+	}
+
+	// Check for API-level error
+	if chatResp.Error != nil {
+		return nil, fmt.Errorf("provider returned error: %s (type: %s)", chatResp.Error.Message, chatResp.Error.Type)
+	}
+
+	if len(chatResp.Choices) == 0 {
+		return nil, errors.New("provider returned no choices in response")
+	}
+
+	return &TestProviderResult{
+		ResponseText: chatResp.Choices[0].Message.Content,
+		Model:        chatResp.Model,
+		DurationMs:   durationMs,
+	}, nil
+}
+
+// decryptAPIKey decrypts the provider's stored API key.
+func (s *ProviderService) decryptAPIKey(dbProvider *db.Provider) (string, error) {
+	if len(dbProvider.EncryptedApiKey) == 0 {
+		return "", nil
+	}
+
+	field := crypto.EncryptedField{
+		Ciphertext:        dbProvider.EncryptedApiKey,
+		Nonce:             dbProvider.ApiKeyNonce,
+		EncryptedDEK:      dbProvider.EncryptedDek,
+		DEKNonce:          dbProvider.DekNonce,
+		EncryptionVersion: int(dbProvider.EncryptionVersion),
+	}
+
+	plaintext, err := crypto.DecryptField(field, s.masterKey)
+	if err != nil {
+		return "", fmt.Errorf("decrypt field: %w", err)
+	}
+
+	return plaintext, nil
 }
 
 // validateCreateRequest validates the required fields for creating a provider.

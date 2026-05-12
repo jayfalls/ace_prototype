@@ -213,6 +213,7 @@ func New(cfg *Config) (*chi.Mux, error) {
 				r.Get("/{id}", cfg.ProviderHandler.Get)
 				r.Put("/{id}", cfg.ProviderHandler.Update)
 				r.Delete("/{id}", cfg.ProviderHandler.Delete)
+				r.Post("/{id}/test", cfg.ProviderHandler.TestProvider)
 			})
 		}
 	})

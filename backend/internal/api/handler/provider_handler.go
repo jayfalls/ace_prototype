@@ -20,6 +20,7 @@ type ProviderServiceImpl interface {
 	ListProviders(ctx context.Context) ([]model.ProviderResponse, error)
 	UpdateProvider(ctx context.Context, id string, req model.ProviderUpdateRequest) (*model.ProviderResponse, error)
 	DeleteProvider(ctx context.Context, id string) error
+	TestProvider(ctx context.Context, id string) (*service.TestProviderResult, error)
 }
 
 // ProviderHandler handles HTTP requests for provider management.
@@ -142,4 +143,33 @@ func (h *ProviderHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// TestProvider handles POST /api/providers/{id}/test
+func (h *ProviderHandler) TestProvider(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		response.BadRequest(w, "invalid_request", "Provider ID is required")
+		return
+	}
+
+	result, err := h.svc.TestProvider(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, service.ErrProviderNotFound) {
+			response.NotFound(w, "Provider not found")
+			return
+		}
+		if errors.Is(err, service.ErrTestNotSupported) {
+			response.BadRequest(w, "test_not_supported", err.Error())
+			return
+		}
+		if errors.Is(err, service.ErrTestNoModel) {
+			response.BadRequest(w, "test_no_model", err.Error())
+			return
+		}
+		response.InternalError(w, "Provider test failed: "+err.Error())
+		return
+	}
+
+	response.Success(w, result)
 }
