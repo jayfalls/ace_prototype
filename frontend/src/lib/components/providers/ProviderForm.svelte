@@ -4,6 +4,8 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Select, SelectOption } from '$lib/components/ui/select';
 	import { Button } from '$lib/components/ui/button';
+	import TestButton from './TestButton.svelte';
+	import { CircleCheck } from 'lucide-svelte';
 	import type { ProviderCreateRequest, ProviderResponse, ProviderUpdateRequest } from '$lib/api/types';
 
 	const PROVIDER_TYPES = [
@@ -52,7 +54,7 @@
 	}: {
 		open?: boolean;
 		provider?: ProviderResponse;
-		onsave: (data: ProviderCreateRequest | ProviderUpdateRequest) => Promise<void>;
+		onsave: (data: ProviderCreateRequest | ProviderUpdateRequest) => Promise<ProviderResponse | void>;
 	} = $props();
 
 	let name = $state('');
@@ -61,6 +63,10 @@
 	let apiKey = $state('');
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
+
+	// Test step state
+	let step = $state<'form' | 'test'>('form');
+	let createdProvider = $state<ProviderResponse | null>(null);
 
 	// Config field state
 	let timeoutMs = $state('');
@@ -89,6 +95,8 @@
 		region = '';
 		errors = {};
 		isSubmitting = false;
+		step = 'form';
+		createdProvider = null;
 	}
 
 	function populateFromProvider(p: ProviderResponse) {
@@ -207,6 +215,7 @@
 					updateData.config_json = {};
 				}
 				await onsave(updateData);
+				open = false;
 			} else {
 				const createData: ProviderCreateRequest = {
 					name: name.trim(),
@@ -217,9 +226,12 @@
 				if (Object.keys(newConfig).length > 0) {
 					createData.config_json = newConfig;
 				}
-				await onsave(createData);
+				const result = await onsave(createData);
+				if (result) {
+					createdProvider = result;
+					step = 'test';
+				}
 			}
-			open = false;
 		} catch (err) {
 			errors.form = err instanceof Error ? err.message : 'Save failed';
 		} finally {
@@ -242,9 +254,26 @@
 
 <Dialog bind:open>
 	<div class="flex flex-col gap-4">
-		<h2 class="text-lg font-semibold">{title}</h2>
+		{#if step === 'test' && createdProvider}
+			<div class="flex items-center gap-2 text-green-600">
+				<CircleCheck class="h-5 w-5" />
+				<h2 class="text-lg font-semibold">Provider Created</h2>
+			</div>
+			<p class="text-sm text-muted-foreground">
+				{createdProvider.name}
+				<span class="text-xs">({createdProvider.provider_type})</span>
+			</p>
+			<div class="mt-2">
+				<TestButton providerId={createdProvider.id} />
+			</div>
+			<div class="flex items-center justify-end gap-2 pt-4">
+				<Button variant="outline" type="button" onclick={handleCancel}>Cancel</Button>
+				<Button type="button" onclick={handleCancel}>Done</Button>
+			</div>
+		{:else}
+			<h2 class="text-lg font-semibold">{title}</h2>
 
-		<form onsubmit={handleSubmit} class="flex flex-col gap-4">
+			<form onsubmit={handleSubmit} class="flex flex-col gap-4">
 			{#if errors.form}
 				<p class="text-sm text-destructive">{errors.form}</p>
 			{/if}
@@ -408,5 +437,6 @@
 				</Button>
 			</div>
 		</form>
+	{/if}
 	</div>
 </Dialog>

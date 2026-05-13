@@ -36,13 +36,16 @@
 		showForm = true;
 	}
 
-	async function handleSave(data: ProviderCreateRequest | ProviderUpdateRequest) {
+	async function handleSave(data: ProviderCreateRequest | ProviderUpdateRequest): Promise<ProviderResponse | void> {
 		if (editingProvider) {
 			await updateProvider(editingProvider.id, data as ProviderUpdateRequest);
+			showForm = false;
+			await loadProviders();
 		} else {
-			await createProvider(data as ProviderCreateRequest);
+			const created = await createProvider(data as ProviderCreateRequest);
+			await loadProviders();
+			return created;
 		}
-		await loadProviders();
 	}
 
 	onMount(() => {
