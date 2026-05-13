@@ -27,3 +27,7 @@ export async function testProvider(id: string): Promise<ProviderTestResult> {
 		path: `/providers/${id}/test`
 	});
 }
+
+export async function deleteProvider(id: string): Promise<void> {
+	return apiClient.request<void>({ method: 'DELETE', path: `/providers/${id}` });
+}

@@ -36,11 +36,12 @@
 		showForm = true;
 	}
 
-	async function handleSave(data: ProviderCreateRequest | ProviderUpdateRequest): Promise<ProviderResponse | void> {
+	async function handleSave(data: ProviderCreateRequest | ProviderUpdateRequest): Promise<ProviderResponse> {
 		if (editingProvider) {
-			await updateProvider(editingProvider.id, data as ProviderUpdateRequest);
+			const updated = await updateProvider(editingProvider.id, data as ProviderUpdateRequest);
 			showForm = false;
 			await loadProviders();
+			return updated;
 		} else {
 			const created = await createProvider(data as ProviderCreateRequest);
 			await loadProviders();
