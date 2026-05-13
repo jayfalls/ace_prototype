@@ -221,6 +221,12 @@ export interface SystemHealthResponse {
 }
 
 // --- Providers ---
+export interface ProviderTestResult {
+	response_text: string;
+	model: string;
+	duration_ms: number;
+}
+
 export interface ProviderResponse {
 	id: string;
 	name: string;

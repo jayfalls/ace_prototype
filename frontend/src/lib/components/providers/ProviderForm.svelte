@@ -4,7 +4,9 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Select, SelectOption } from '$lib/components/ui/select';
 	import { Button } from '$lib/components/ui/button';
-	import type { ProviderCreateRequest, ProviderResponse, ProviderUpdateRequest } from '$lib/api/types';
+	import { CircleX } from 'lucide-svelte';
+	import type { ProviderCreateRequest, ProviderResponse, ProviderTestResult, ProviderUpdateRequest } from '$lib/api/types';
+	import { testProvider, deleteProvider } from '$lib/api/providers';
 
 	const PROVIDER_TYPES = [
 		'openai', 'anthropic', 'google', 'azure', 'bedrock',
@@ -52,7 +54,7 @@
 	}: {
 		open?: boolean;
 		provider?: ProviderResponse;
-		onsave: (data: ProviderCreateRequest | ProviderUpdateRequest) => Promise<void>;
+		onsave: (data: ProviderCreateRequest | ProviderUpdateRequest) => Promise<ProviderResponse>;
 	} = $props();
 
 	let name = $state('');
@@ -61,6 +63,11 @@
 	let apiKey = $state('');
 	let isSubmitting = $state(false);
 	let errors = $state<Record<string, string>>({});
+
+	// Test state (create mode only)
+	let testResult = $state<ProviderTestResult | null>(null);
+	let testError = $state<string | null>(null);
+	let isTesting = $state(false);
 
 	// Config field state
 	let timeoutMs = $state('');
@@ -89,6 +96,9 @@
 		region = '';
 		errors = {};
 		isSubmitting = false;
+		testResult = null;
+		testError = null;
+		isTesting = false;
 	}
 
 	function populateFromProvider(p: ProviderResponse) {
@@ -193,20 +203,22 @@
 		e.preventDefault();
 		if (!validate()) return;
 
+		testError = null;
 		isSubmitting = true;
 		try {
-			const newConfig = buildConfigJson();
+			const configJson = buildConfigJson();
 			if (isEdit && provider) {
 				const updateData: ProviderUpdateRequest = {};
 				if (name.trim() !== provider.name) updateData.name = name.trim();
 				if (baseUrl.trim() !== provider.base_url) updateData.base_url = baseUrl.trim();
 				if (apiKey.trim()) updateData.api_key = apiKey.trim();
-				if (Object.keys(newConfig).length > 0) {
-					updateData.config_json = newConfig;
+				if (Object.keys(configJson).length > 0) {
+					updateData.config_json = configJson;
 				} else if (Object.keys(provider.config_json).length > 0) {
 					updateData.config_json = {};
 				}
 				await onsave(updateData);
+				open = false;
 			} else {
 				const createData: ProviderCreateRequest = {
 					name: name.trim(),
@@ -214,12 +226,30 @@
 					base_url: baseUrl.trim(),
 					api_key: apiKey.trim()
 				};
-				if (Object.keys(newConfig).length > 0) {
-					createData.config_json = newConfig;
+				if (Object.keys(configJson).length > 0) {
+					createData.config_json = configJson;
 				}
-				await onsave(createData);
+				const created = await onsave(createData);
+				isSubmitting = false;
+				isTesting = true;
+				try {
+					testResult = await testProvider(created.id);
+					// Test passed — close dialog
+					open = false;
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : 'Test failed';
+					testError = msg;
+					// Rollback: delete the provider
+					try {
+						await deleteProvider(created.id);
+					} catch {
+						// Silently ignore delete failure
+					}
+				} finally {
+					isTesting = false;
+				}
+				return;
 			}
-			open = false;
 		} catch (err) {
 			errors.form = err instanceof Error ? err.message : 'Save failed';
 		} finally {
@@ -247,6 +277,13 @@
 		<form onsubmit={handleSubmit} class="flex flex-col gap-4">
 			{#if errors.form}
 				<p class="text-sm text-destructive">{errors.form}</p>
+			{/if}
+
+			{#if testError}
+				<div class="flex items-center gap-2 text-destructive border border-destructive rounded-md p-3">
+					<CircleX class="h-4 w-4 flex-shrink-0" />
+					<span class="text-sm">Connection failed: {testError}. The provider has been removed.</span>
+				</div>
 			{/if}
 
 			<div class="flex flex-col gap-1.5">
@@ -399,11 +436,15 @@
 
 			<div class="flex items-center justify-end gap-2 pt-2">
 				<Button variant="outline" type="button" onclick={handleCancel}>Cancel</Button>
-				<Button type="submit" disabled={isSubmitting}>
-					{#if isSubmitting}
+				<Button type="submit" disabled={isSubmitting || isTesting}>
+					{#if isTesting}
+						Testing...
+					{:else if isSubmitting}
 						Saving...
-					{:else}
+					{:else if isEdit}
 						Save
+					{:else}
+						Test & Save
 					{/if}
 				</Button>
 			</div>
