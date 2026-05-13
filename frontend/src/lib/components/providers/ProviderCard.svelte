@@ -4,6 +4,7 @@
 	import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Globe, Key, Pencil } from 'lucide-svelte';
+	import TestButton from './TestButton.svelte';
 
 	let {
 		provider,
@@ -43,6 +44,9 @@
 					<Pencil class="h-4 w-4" />
 				</Button>
 			{/if}
+		</div>
+		<div class="pt-2 border-t">
+			<TestButton providerId={provider.id} />
 		</div>
 	</CardContent>
 </Card>
