@@ -1,144 +1,265 @@
-# ACE v0.6 Core Architecture Specification: Godot-Style Composite Engine, Deterministic Connectome Map & Sensorium
+# ACE v0.6 Master Architecture Specification & Opus Review Handoff
 
-## 1. Executive Summary & Empirical Grounding
+## 0. Purpose & Context of This Document
+This specification consolidates all empirical findings from **ACE Generations `v0.1` $\rightarrow$ `v0.4`** (`7,909` recorded cognitive thought traces across `83+` hours of autonomous operation) and defines the complete architecture for **`ACE v0.6`** (plus the forward interface for **`ACE v0.7` Automatic Procedural Wiki-Skill Compilation**).
 
-Across `7,909` historical thought traces (`v0.1`: `6,639` traces; `v0.2`: `741` traces; `v0.3`: `529` traces), empirical trace forensics revealed the single strongest determinant of autonomous agent efficiency:
-
-| L6 Starting Context State (`n = 717` execution cycles) | Mean L6 Steps | Mean Prompt Tokens | Mean Output Tokens | First-Cycle Milestone Pass Rate |
-| :--- | :---: | :---: | :---: | :---: |
-| **Turn-0 Context Complete (`0` reach-out turns needed, `n=413`)** | **`1.92`** | `39,838` | `6,737` | **`77.5%`** |
-| **Missing Turn-0 Context (`1+` reach-out/read turns needed, `n=304`)** | `2.35` | `42,658` | `1,968` | **`9.2%`** *(8.4× collapse)* |
-
-**Core Law of ACE v0.6**: *An agent's effectiveness and path to minimum steps is governed by Turn-0 / Step-0.5 context completeness.* Rather than relying on the LLM to guess which files it hasn't read or perform blind sequential reach-outs, ACE v0.6 introduces a **Godot-Style Composite Architecture** where every cognitive layer is composed of reusable, bounded **Components** (`Sensorium`, `ConnectomeMap`, `SpecDistiller`, `AsyncTaskScheduler`, `AAIndexModelRouter`) that deterministically populate **Step 0**, **Step 0.5**, and **Step 1** context slots before the thinker emits a single token.
+It is designed as a **zero-gap architectural blueprint** for adversarial design review with **Claude Opus** before implementation begins.
 
 ---
 
-## 2. Godot-Style Composite Architecture (`internal/composite/`)
+## 1. Empirical Ground Truth Across Generations (`v0.1` $\rightarrow$ `v0.4`)
 
-Instead of monolithic per-layer switch statements, ACE v0.6 structures the cognitive runtime around 4 composable primitives (inspired by Godot's `Node` + `Component` + `Signal` + `Resource` pattern):
+### 1.1 Historical Generation Ledger (`github.com:jayfalls/ace_prototype.git`, Tags `v0.1`–`v0.4`)
 
-1. **`Component` Interface (Bounded Context & Capability Plugins)**:
-   ```go
-   type ContextPhase int
-   const (
-       PhaseStep0_StaticPrefix   ContextPhase = iota // Immutable across turns/layers (KV prefix cached)
-       PhaseStep0_5_DeterministicROI                 // Pre-LLM deterministic Connectome 2-hop slice
-       PhaseStep1_ActiveDelta                        // Dynamic turn feedback, uncertainty delta & async events
-   )
+| Generation | Runtime & Scope | Traces / Cycles | Prompt Tokens (KV Cache Hit %) | Output Tokens | Mean Cost on DeepSeek V4.1 Flash (24/7 Blended) | Key Architectural Outcome & Bottleneck Discovered |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| **`v0.1`** | `51.5h` soak (B2B Micro-SaaS + initial 6-layer loop) | `6,639` / `2,523` | `75.29M` (`50.4%`) | `4.47M` | `$9.64` (`$0.187/hr`, `$0.803/milestone`) | Proved `bwrap` + `os.Root` host isolation and local GPU gate; suffered from **Cross-Cycle Amnesia** and masked shell pipeline exit codes. |
+| **`v0.2`** | `23.9h` soak (Cordis Runtime + Mode-3 Gate + 2-Stage SLA Compiler) | `741` / `456` | `15.99M` (`86.7%`) | `2.72M` | `$2.29` (`$0.096/hr`, `$0.051/milestone`) | Solved KV cache stability (`86.7%`) and substance verification (`45` axes verified), but stagnated on compliance-checklist audit scripts instead of architectural evolution. |
+| **`v0.3`** | `7.9h` run (6-Layer Scientific State Machine + Harness^2 Improver) | `529` / `118` | `7.46M` (`67.0%` overall, `96%+` post-session-split) | `0.95M` | `$1.09` (`$0.138/hr`, `$0.044/milestone`) | Verified `25/26` milestones (`59,553` empirical dataset records, `2.6×` faster step latency at `11.4s`), but relied heavily on threshold calibration over deep problem-space mapping and hit SQLite/rate-limit contention. |
+| **`v0.4`** | Multi-Vertical Web/GitHub/arXiv Discovery + `13` SOTA Public Benchmarks | Live baseline | Pre-cached `13` SOTA benchmarks (`80` rows each, 75/25 SHA-256 splits) | — | — | Added multi-vertical discovery (`DuckDuckGo`, `GitHub`, `OpenAlex/arXiv`, `HuggingFace`, `Wikipedia`, `HN`) and `13` public SOTA benchmarks (`SWE-bench Verified`, `Terminal-Bench 2.1`, `GPQA-Diamond`, `HLE`, `MATH-500`, `MMLU-Pro`, etc.). |
 
-   type LayerComponent interface {
-       ID() string
-       ByteBudget(layer core.LayerID, phase ContextPhase) int
-       RenderContext(ctx context.Context, state *CycleState, layer core.LayerID, phase ContextPhase) (string, error)
-       Tools(layer core.LayerID) []ToolDescriptor
-       ExecuteTool(ctx context.Context, state *CycleState, call core.LayerAction) (string, bool, error)
-   }
-   ```
-   - Every layer (`L1`..`L6`) is simply an ordered composition of `LayerComponent` attachments with strict, tunable byte budgets (`ByteBudget`), guaranteeing least privilege and zero unbound prompt growth.
+### 1.2 The Turn-0 Context Completeness Cliff (`n = 717` Multi-Step Execution Cycles)
+Forensic analysis of all `717` multi-step `L6` execution cycles across `v0.1`–`v0.3` revealed the single largest predictor of first-cycle task completion:
 
-2. **`SignalBus` (Typed Northbound / Southbound / Lateral Signals)**:
-   - Standardized pub/sub connector bus where components emit typed signals (`SignalUncertaintyOpened`, `SignalContradictionDetected`, `SignalSpecDistilled`, `SignalAsyncTaskCompleted`, `SignalHumanReplyReceived`, `SignalQuotaWarning`) without tight coupling.
+| Worker Starting Context State | Cycles (`n`) | Mean Worker Steps | Mean Prompt Tokens | Mean Output Tokens | First-Cycle Milestone Pass Rate |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Turn-0 Context Complete (`0` reach-out reads on Turn 1)** | `413` | **`1.92`** | `39,838` | `6,737` | **`77.5%`** |
+| **Missing Turn-0 Context (`1+` reach-out `workspace_read`/`wiki_read`/`ls` on Turn 1)** | `304` | `2.35` | `42,658` | `1,968` | **`9.2%`** *(8.4× collapse, $p < 10^{-70}$)* |
 
----
+**Architectural Law #1 (Context Saturation Law)**:
+When the primary worker LLM has to spend its first turn figuring out *what files exist*, *how symbols connect*, or *what the spec requires*, single-cycle success collapses by **8.4× (`77.5%` $\rightarrow$ `9.2%`)**. Therefore, context saturation must happen **before** the worker LLM takes its first turn, via a structured **`Turn 0 (Deterministic)` $\rightarrow$ `Turn 0.5 (Automatic Retrieval Routing)` $\rightarrow$ `Turn 1 (Active Search & Execution)`** pipeline.
 
-## 3. Pillar 1: Deterministic Problem-Space Connectome & Uncertainty Map (`ConnectomeComponent`)
-
-### 3.1 Why LLM File-Lists Fail & How the Connectome Solves It
-Asking an LLM to "list files it hasn't explored" fails because the LLM cannot know the topology of what it hasn't seen. Instead, ACE v0.6 builds a **Deterministic Cross-Cutting Connectome Graph** (`/workspace/.harness_d/connectome_map.json`) in Go/Python before LLM invocation:
-
-* **Connectoid Node Types**:
-  1. `code_module`: `/workspace/**/*.py` or `.go` with AST functions, classes, and line hashes.
-  2. `symbol_fn`: Individual callable functions/methods and their signatures.
-  3. `dataset`: Registered datasets in `/workspace/benchmarks/registry.json` + SQLite tables.
-  4. `spec_section`: Sections of the active Living Spec (`/wiki/specs/<id>.md`).
-  5. `test_gate`: `--selftest` assertions, Mode-3 invariants, and held-out benchmark evaluators.
-  6. `uncertainty_node`: Explicitly tracked assumptions, unmeasured metrics, or contradictions.
-* **Directed Connectome Edges**:
-  - `IMPORTS`, `CALLS`, `READS_DATASET`, `WRITES_ARTIFACT`, `SPECIFIED_BY`, `VERIFIED_BY`, `BLOCKED_BY_UNCERTAINTY`.
-
-### 3.2 Step 0 $\rightarrow$ Step 0.5 $\rightarrow$ Step 1 Deterministic ROI Tree Search
-1. **Step 0 (Anchor ROI Seed)**:
-   - Deterministic extraction of the Region of Interest (ROI) anchor nodes from the active milestone in `goals.md` and `/wiki/specs/<id>.md`.
-2. **Step 0.5 (Pre-LLM Deterministic Downstream Tree Search)**:
-   - Before calling the LLM, the engine runs a deterministic BFS/DFS traversal downstream from the ROI anchors across all edges (`IMPORTS`, `CALLS`, `READS_DATASET`, `SPECIFIED_BY`, `VERIFIED_BY`).
-   - **Empirical Size**: Across the entire `v0.3` 11-module, 193-edge codebase, the full workspace Connectome is `10,815B` (`~2,703` tokens), and a **2-Hop ROI Connectome Slice** for a target module (`harness2_improver.py` + `ace_rlm.py` + dataset schemas + open uncertainties) is only **`2,217 bytes` (`~554` tokens)** while covering **100% of downstream dependencies**.
-   - Every node in the ROI slice is tagged with its live epistemic state:
-     - `[VERIFIED]`, `[INSPECTED]`, `[UNINSPECTED_DOWNSTREAM]`, `[ASSUMPTION_UNVALIDATED]`, or `[CONTRADICTION_OPEN]`.
-3. **Step 1 (Guided Uncertainty Closure)**:
-   - If any node in the downstream ROI tree is `[UNINSPECTED_DOWNSTREAM]`, `[ASSUMPTION_UNVALIDATED]`, or `[CONTRADICTION_OPEN]`, the Connectome component highlights the exact missing branch at Step 1 and blocks premature checkoff until the branch is empirically tested or resolved.
+**Architectural Law #2 (Empirical Derivation Law — Never Hardcode What Can Be Measured)**:
+No behavioral parameter, circadian window, model capability score, or context threshold may be hardcoded if it can be empirically derived from live telemetry, historical traces, OS/environment signals, or provider catalogs.
 
 ---
 
-## 4. Pillar 2: Measured & Tunable Spec Distillation Flow (`SpecDistillerComponent`)
+## 2. Core Topology of ACE v0.6: Dual-Gated Parallel Cluster & Isolated Task Workpads
 
-### 4.1 Empirical Byte-Budget Optimization
-Across `40` real milestone notes and domain syntheses (`min=32B`, `median=2,054B`, `p90=4,257B`, `max=6,965B`):
-* A `1,200B` limit truncates `82.5%` of real specs.
-* **`2,800 bytes` (`~700` tokens, `8.8%` of a 32KB prompt window)** is the Pareto knee: it fits `70.0%` of raw notes untruncated and **100% of distilled 5-section specs** without wasting KV cache space.
-* **Tunable Configuration**: Exposed via `ACE_SPEC_DISTILL_MAX_BYTES` (default `2800`, tunable per layer/task between `1600` and `4800` bytes).
+ACE v0.6 replaces the linear 6-layer waterfall with a **Dual-Gated Parallel Cluster Topology** modeled on Godot-style composition (`Node` + `Component` + `SignalBus` + `Shared/Local Resource Spaces`):
 
-### 4.2 Two-Stage Gather $\rightarrow$ Distill Pipeline
-* **Raw Scratchpad (`/workspace/.harness_d/raw/<task_id>.md`)**: Web searches, paper extracts, and exploratory probes land here first and never pollute the permanent prompt prefix.
-* **Distilled Spec (`/wiki/specs/<task_id>.md`)**: Compressed via Tier-1 high-RPS models (`Beam Free` / `LongCat 2.5`) into a strict 5-section contract that plugs directly into the Connectome Map:
-  1. `In-Scope & Out-of-Scope` (bulleted, zero historical narrative of how decisions were reached),
-  2. `Verified Facts & Measured Baselines` (exact numbers + provenance),
-  3. `Connectome ROI & Target Interfaces` (exact module/function/dataset nodes),
-  4. `Nuances, Invariants & Edge Cases`,
-  5. `Open Uncertainties & Contradictions` (linked by ID to `connectome_map.json`).
+```
+                      ┌──────────────────────────────────────────────────┐
+                      │           LAYER 1: ASPIRATIONAL SOVEREIGN        │
+                      │   (Constitution, Epistemic Integrity, Mission,   │
+                      │    Human Alignment & Contradiction Resolution)   │
+                      └────────────────────────▲─────────────────────────┘
+                                               │ Northbound Escalations
+                                               ▼ Southbound Imperatives
+                      ┌──────────────────────────────────────────────────┐
+                      │     GATE 1.5: CONSTITUTIONAL & CONTRADICTION     │
+                      │            DECISION GATE (/v1/systemone)         │
+                      │  • Filters L2-L4 northbound signals for genuine  │
+                      │    contradictions, scope drift, or human blockers│
+                      │  • Escalates irreconcilable contradictions to    │
+                      │    L1 -> Human (Telegram) in plain English       │
+                      └────────────────────────▲─────────────────────────┘
+                                               │
+        ┌──────────────────────────────────────┼──────────────────────────────────────┐
+        │                  SHARED L2–L4 CLUSTER MAP & LIVING SPEC SPACE               │
+        │        (Shared Connectome Graph, Living Specs /wiki/specs/*, Wiki, KB)      │
+        │  ┌─────────────────────┐   ┌─────────────────────┐   ┌───────────────────┐  │
+        │  │  LAYER 2: STRATEGY  │◄─►│ LAYER 3: AGENT MODEL│◄─►│ LAYER 4: EXECUTIVE│  │
+        │  │  • External World & │   │ • Proprioceptive    │   │ • Project Manager │  │
+        │  │    Literature Map   │   │   Vitals & Capacity │   │ • Dependency &    │  │
+        │  │  • Competitor/Web   │   │ • Skill & Dataset   │   │   Risk Connectome │  │
+        │  │    Sensing          │   │   Connectome Map    │   │ • Living Spec     │  │
+        │  │  • Layer-2 Sub-Map  │   │ • Layer-3 Sub-Map   │   │   Owner (2,800B)  │  │
+        │  └─────────────────────┘   └─────────────────────┘   └───────────────────┘  │
+        └──────────────────────────────────────▲──────────────────────────────────────┘
+                                               │ Northbound Consolidated Task Deltas
+                                               ▼ Southbound Task Specs + ROI Connectome
+                      ┌──────────────────────────────────────────────────┐
+                      │      LAYER 5: TACTICAL GATE, MULTI-TASK          │
+                      │     SCHEDULER & NORTHBOUND CONSOLIDATOR          │
+                      │  • Enforces Spec Completeness & Anti-Cheating    │
+                      │  • Runs Turn 0.5 Retrieval Router to saturate    │
+                      │    each L6 worker's context before Turn 1        │
+                      │  • Coordinates Async / Polling / Human-Waiting   │
+                      │    tasks & consolidates L6 outputs back to Spec  │
+                      └───────┬────────────────────────┬─────────────────┘
+                              │                        │
+              ┌───────────────▼───────┐        ┌───────▼───────────────┐
+              │   L6 WORKER #1        │        │   L6 WORKER #2        │
+              │ • Isolated Workpad:   │  ...   │ • Isolated Workpad:   │
+              │   .workpads/task_A/   │        │   .workpads/task_B/   │
+              │ • Private Scratchpad, │        │ • Private Scratchpad, │
+              │   Local Map & History │        │   Local Map & History │
+              └───────────────────────┘        └───────────────────────┘
+```
+
+### 2.1 Why This Topology Works
+1. **Parallel Interconnected `L2 || L3 || L4` Cluster**:
+   * `L2` (External Strategy & Web/Literature Grounding), `L3` (Self-Referential Agent Model, Hardware/LLM Capacity & Dataset/Skill Inventory), and `L4` (Executive Project Manager, Risk/Dependency Planner & Living Spec Owner) operate **in parallel** over a **Shared Cluster Connectome & Living Spec Space**, while each maintains its own specialized **Layer Sub-Map**.
+2. **Gate `L1.5` (Constitutional & Contradiction Gate)**:
+   * Sits between `L1` and the `L2–L4` cluster using a fast `/v1/systemone` decision model (`jev-1.13-free` / `mercury-decide` / local 4-bit GPU gate).
+   * Prevents routine tactical chatter from triggering expensive `L1` invocations, while immediately catching **contradictions** (conflicting empirical data, conflicting spec clauses, or ambiguous user goals) and routing them to `L1` $\rightarrow$ **Human via Telegram**.
+3. **Gate `L5` (Tactical Gate, Multi-Task Coordinator & Consolidator)**:
+   * Sits between the `L2–L4` cluster and `L6` Task Prosecutors.
+   * **Southbound**: Refuses to launch an `L6` task unless its **Living Spec (`2,800B`)** and **Turn 0 + Turn 0.5 Connectome Context** are saturated.
+   * **Northbound**: Tracks multiple concurrent/async/polling `L6` tasks, verifies that `L6` outputs conform to the Living Spec (or triggers a **Living Spec Consolidation** if empirical findings require updating the Spec), and reports clean deltas up to `L2–L4`.
+4. **Isolated `L6` Task Workpads (`.workpads/<task_id>/`)**:
+   * Every individual task at `L6` gets its own isolated workpad directory, episodic scratchpad, local Connectome subgraph, and Cordis revertible fiber so tasks never cross-contaminate each other's context window or file state.
 
 ---
 
-## 5. Pillar 3: Shared `AsyncTaskScheduler` & Time-Aware Human Escalation (`TelegramComponent`)
+## 3. The 3-Stage Context Saturation Pipeline: `Turn 0` $\rightarrow$ `Turn 0.5` $\rightarrow$ `Turn 1`
 
-### 5.1 Unified Per-Layer & Cross-Layer `AsyncTaskScheduler`
-A single shared composite service (`internal/composite/scheduler.go`, backed by SQLite `async_tasks`) manages all non-instantaneous work across all 6 layers:
-* **Task Kinds**:
-  - `CONTINUOUS_DAEMON` (e.g., background benchmark/market monitor),
-  - `POLLING_PROBE` (e.g., waiting on external API/rate-limit window or long simulation),
-  - `RESUMABLE_PIPELINE` (multi-step research/experiment checkpointed across cycles),
-  - `HUMAN_TELEGRAM_WAIT` (awaiting user reply on a contradiction or scope question).
-* **Non-Blocking State Machine**: When a task enters `WAITING_POLL` or `WAITING_HUMAN`, `L5` (Cognitive Control) automatically parks that branch and switches `L6` to the next unblocked ROI branch or milestone, resuming seamlessly the moment the poll condition or Telegram reply arrives.
+Every layer invocation is structured into three distinct context-assembly stages, divided into **hierarchical bounded sub-buckets**:
 
-### 5.2 Time-Aware, Plain-English Telegram Contradiction Escalation
-* **Restored Credentials**: Bot token (`89853393...`) and Chat ID (`7223316734`) are restored in `.ace-sandbox/ace.db` (`channel_settings`).
-* **When Used**: Triggered via `ask_human_telegram` when `L1`/`L2`/`L4` encounters an irreconcilable contradiction, ambiguous scope boundary, or blocked external uncertainty.
-* **Strict Plain-English Format (`<= 4` short lines)**:
-  - No internal layer jargon (`L4`, `LTL G4`, `Mode-3`).
-  - Plain English: *(1) What I'm working on, (2) The contradiction/question, (3) Option A vs Option B, and (4) What I'm working on in the background while waiting for your reply.*
-* **Real-World Time & Human Circadian Awareness**:
-  - The `Sensorium` injects local wall-clock time (`SAST / UTC+2`), elapsed time since last cycle/user message, and human circadian state (`SLEEP_WINDOW: 23:00–07:30 local` vs `AWAKE_WINDOW`).
-  - During `SLEEP_WINDOW` (or when `last_user_reply_ago > 30m`), the agent sends at most 1 concise message per blocker, sets expected reply horizon to `6h–10h`, and continues autonomous background work without nagging.
+### 3.1 `Turn 0`: Deterministic Zero-LLM Sub-Buckets
+Populated in `<5ms` purely by deterministic Go/AST/MVCC lookups (preserving the `95%+` KV prefix cache):
+* `SubBucket 0.1 — Constitutional & Role Prefix`: Canonical `soul.md` + `index.md` + `goals.md` active milestone.
+* `SubBucket 0.2 — Living Spec (`2,800B` enforced)`: The active task's `/wiki/specs/<task_id>.md`.
+* `SubBucket 0.3 — Deterministic Connectome ROI Anchor (`~2,200B`)`: 1-hop AST/symbol/dataset/test neighborhood around the files/entities named in the Living Spec.
+* `SubBucket 0.4 — Focused Episodic/Semantic Memory & Task Workpad`: The layer's or `L6` task's private `.workpads/<task_id>/state.json` + attempt ledger.
+* `SubBucket 0.5 — Sensorium Digest (Proprioception + Exteroception)`: Bounded hardware/OS/GPU/LLM vitals + derived temporal/human-availability posterior.
+
+### 3.2 `Turn 0.5`: Automatic Retrieval Routing (Pre-Worker Context Saturation)
+* **What Problem It Solves**: Deterministic `Turn 0` knows explicit links (imports, named files), but cannot always know *which semantic memory query, which corpus paper section, which specific line range of a 600-line dependency, or which public dataset schema* the worker LLM will need on Turn 1.
+* **How `Turn 0.5` Works**:
+  1. Before the primary worker LLM (`DeepSeek V4.1 Flash`) is called, a **Hybrid Cheap/Decision Router** runs (`<300ms` via local 4-bit GPU gate, `jev-1.13-free`, `mercury-decide`, or `beam-free`/`longcat-2.5-preview-free`).
+  2. It inspects `(Active Task + Living Spec + Turn 0 Connectome Map)` and emits **structured tool-input parameters** for read-only context-gathering actuators:
+     ```json
+     {
+       "connectome_expand_nodes": ["ace_core/router.py::score_candidate", "dataset:public_swe_bench_verified"],
+       "file_line_slices": [{"path": "ace_core/router.py", "start": 45, "end": 120}],
+       "memory_fts_queries": ["pareto guard calibration failure"],
+       "corpus_search_queries": ["Harness^2 propose probe compose"],
+       "spec_clauses_to_pin": ["Section 3: Interfaces", "Section 5: Open Uncertainties"]
+     }
+     ```
+  3. The harness executes all of those read-only retrievals in parallel in Go and **injects the results directly into the worker LLM's initial prompt (`Step 0.5 Saturated Context Sub-Bucket`)**.
+  4. **Result**: When the worker LLM (`DeepSeek V4.1 Flash`) runs its very first inference call, it sees a **100% pre-saturated context** as if it were Turn 0 — eliminating the `8.4×` reach-out penalty without burning a worker turn!
+
+### 3.3 `Turn 1`: Active Search, Uncertainty Closure & Execution
+* With `Turn 0` (deterministic) + `Turn 0.5` (routed retrieval) already in its context window, the worker LLM on `Turn 1` either:
+  1. **Executes directly** (writing/editing code + running verification in a single batched turn), OR
+  2. **Performs targeted external search** (`web_search`, `web_fetch`, simulation probe) *only* for genuine external unknowns marked `[UNINSPECTED_DOWNSTREAM]` or `[ASSUMPTION_UNVALIDATED]` on the Connectome Map.
 
 ---
 
-## 6. Pillar 4: Composite `Sensorium` (Proprioception + Exteroception) & Least-Privilege Layer Matrix
+## 4. Pillar 1: Composite Problem-Space Connectome Map (Shared + Per-Layer Sub-Maps)
 
-### 6.1 Dual-Mode `SensoriumComponent`
+Instead of asking an LLM to "list files it hasn't read", ACE v0.6 maintains a deterministic **Multi-Layer Connectome Graph**:
+
+### 4.1 Connectoid Node & Edge Schema
+* **Node Types**:
+  - `FILE_MODULE` (`/workspace/...`), `AST_SYMBOL` (`fn`/`class`/`struct` with signature & line hash), `DATASET_SCHEMA` (`registry.json` + DB tables), `SPEC_CLAUSE` (`/wiki/specs/<id>.md#section`), `TEST_INVARIANT` (`--selftest` / Mode-3 check), `ASSUMPTION_NODE`, `CONTRADICTION_NODE`, `ASYNC_TASK_NODE`.
+* **Directed Edges**:
+  - `IMPORTS`, `CALLS`, `READS_DATA`, `PRODUCES_ARTIFACT`, `GOVERNED_BY_SPEC`, `TESTED_BY`, `DEPENDS_ON_ASSUMPTION`, `HAS_CONTRADICTION`.
+* **Deterministic Epistemic Coverage States on Every Node**:
+  - `UNEXPLORED` $\rightarrow$ `INSPECTED` $\rightarrow$ `IMPLEMENTED` $\rightarrow$ `EMPIRICALLY_VERIFIED` (or `FALSIFIED` / `CONTRADICTED`).
+
+### 4.2 Shared Cluster Map vs. Per-Layer Composite Views
+* **Shared Cluster Connectome**: Stored in the concurrent MVCC graph store; links all specs, modules, datasets, assumptions, and tests.
+* **Per-Layer Composite Map Projections**:
+  - **L2 Map View**: External dependencies, research corpus citations, competitor benchmarks, market/web nodes.
+  - **L3 Map View**: Hardware/compute nodes, LLM model-tier nodes, dataset splits, and procedural skill nodes.
+  - **L4 Map View**: Critical-path dependency tree, assumption validation status, risk/contingency branches, and Living Spec links.
+  - **L6 Task Workpad Map View**: The 2-hop downstream call/data/test subgraph for that specific task's Region of Interest (ROI).
+* **Tree-Search Completeness Law**: A task cannot transition to `DONE` while any node reachable downstream of its ROI anchor in the Connectome Graph remains in state `UNEXPLORED`, `ASSUMPTION_UNVALIDATED`, or `CONTRADICTED`.
+
+---
+
+## 5. Pillar 2: `2,800B` Enforced Living Spec & Anti-Cheating Consolidation Flow
+
+### 5.1 The `2,800-Byte` Living Spec Contract (`/wiki/specs/<task_id>.md`)
+Empirically calibrated across our milestone corpus (`2,800B` $\approx 700$ tokens = `8.8%` of a 32KB prompt window, tunable via `ACE_SPEC_DISTILL_MAX_BYTES`), every active task must have a **Living Spec** containing 5 mandatory sections:
+1. **`## 1. Scope Boundaries`**: Explicit `IN_SCOPE` and `OUT_OF_SCOPE` bullets (zero narrative history of how decisions were made).
+2. **`## 2. Verified Facts & Empirical Baselines`**: Measured numbers, dataset split sizes, and hardware/latency constraints with provenance.
+3. **`## 3. Target Connectome & Interfaces`**: Exact file paths, function signatures, input/output schemas, and Connectome node IDs.
+4. **`## 4. Nuances, Edge Cases & Failure Modes`**: Specific invariants, boundary conditions, and concurrency/security constraints.
+5. **`## 5. Uncertainty & Contradiction Ledger`**: Explicit list of assumptions to validate, simulations to run, and open contradictions (must all reach `[CLOSED: empirical_proof_ref]` before task completion).
+
+### 5.2 Anti-Cheating & Bidirectional Spec Consolidation Gate (Enforced by `L5` & Mode-3)
+LLMs frequently try to "cheat" specs either by writing vague 3-line specs or by changing code behavior/interfaces during debugging without updating the spec (or watering down the spec to match broken code). ACE v0.6 blocks both:
+1. **Pre-Execution Spec Gate (`L5` Southbound)**:
+   * Rejects any Spec missing any of the 5 sections, lacking concrete function/file/dataset interfaces in Section 3, or containing unlinked prose instead of Connectome node bindings.
+2. **Post-Execution AST-to-Spec Conformance Audit (`L5` Northbound & Mode-3)**:
+   * Deterministically parses the AST of modified `/workspace` files and JSON outputs and verifies that every file, function signature, dataset split, and statistical test declared in `Section 3` and `Section 4` of the Living Spec actually exists and passes.
+3. **Living Spec Consolidation Loop**:
+   * If empirical execution in `L6` proves that an interface or parameter in the Spec *must* change to satisfy $H_1$ on held-out data, `L5` triggers `SpecDistillerComponent` to consolidate the empirical delta back into `/wiki/specs/<task_id>.md` (recording a cryptographic diff in change control), **unless** the change violates `Section 1 (Scope Boundaries)` or lowers the acceptance bar (which is flagged as a `CONTRADICTION_NODE` and escalated to `L1.5` $\rightarrow$ Human).
+4. **Human Final Sign-Off Law**:
+   * Specs remain in `STATUS: LIVING` (and stay eligible for iterative refinement) until **the Human explicitly marks the overarching goal/spec `DONE`** (or approves completion via Telegram/Cockpit).
+
+---
+
+## 6. Pillar 3 & 4: Godot-Style Composite Systems, Derived Circadian Sensorium & Concurrent Storage
+
+### 6.1 Moving Beyond Single-Writer SQLite: Composite MVCC + JetStream Storage Engine
+With `L2 || L3 || L4` running in parallel, `Turn 0.5` firing concurrent retrieval probes, multiple `L6` task workpads executing simultaneously, and `AsyncTaskScheduler` + `TelegramBridge` polling continuously, **standard SQLite becomes a concurrency bottleneck (`SQLITE_BUSY` single-writer lock contention)**.
+
+ACE v0.6 introduces a clean **`StorageEngine` Composite Interface** backed by pure-Go concurrent engines:
+1. **Hot Concurrent State & Graph Store — `BadgerDB v4` / CockroachDB `Pebble` (Embedded Pure-Go MVCC LSM Store)**:
+   * Zero CGO, full multi-reader / concurrent atomic write batching (`WriteBatch`) with **zero `SQLITE_BUSY` lock contention**.
+   * Stores: `ConnectomeGraph` nodes/edges, `L6` isolated workpad state (`workpad:<task_id>:*`), `AsyncTaskScheduler` state machine, KV prompt/response radix cache, and high-frequency telemetry spans.
+2. **Typed Inter-Layer Bus & Reactive Streams — Embedded `NATS JetStream` (or in-process ring-buffer bus with Pebble WAL)**:
+   * Powers the `L1 <-> L1.5 <-> L2||L3||L4 <-> L5 <-> L6_k` pub/sub signal channels with mandatory attribution headers (`AgentID`, `CycleID`, `LayerID`, `TaskID`, `CorrelationID`).
+3. **Analytical & Full-Text Search Store — Read-Optimized SQLite WAL (with single serialized writer actor) / DuckDB**:
+   * Used strictly for append-only archival `thought_traces`, FTS5 semantic memory search, and offline benchmark analytics where a single background writer channel drains batches every `500ms` without ever blocking cognitive goroutines.
+
+### 6.2 `SensoriumComponent`: Proprioception (Self) + Exteroception (World & Derived Human Circadian Model)
 1. **Proprioception (Self-Referential Vitals)**:
-   - **OS/Hardware (`htop` digest)**: Host/sandbox CPU load (`/proc/loadavg`, core count), RAM used/available (`/proc/meminfo`), RTX 3050 GPU VRAM & health (`127.0.0.1:8091/health`), `/workspace` disk free (`syscall.Statfs`), and network egress latency.
-   - **Cognitive & LLM Vitals**: Active model tier, rolling `5h` / `7d` / `30d` token & dollar burn (`$16/5h`, `$40/wk`, `$80/mo` OpenCode Go gauge), KV prefix cache hit %, and per-layer step latency.
-2. **Exteroception (Externally-Referential Senses)**:
-   - **Temporal & Circadian Sense**: Real-world timestamp, day-of-week, human sleep/awake window, delta since last cycle and last user message.
-   - **Environmental & Benchmark Sense**: Reachable external APIs, public SOTA dataset cache status, and incoming Telegram/Web chat signals.
-
-### 6.2 Least-Privilege Layer Plugin & Tool Matrix
-
-| Layer | Step 0 / 0.5 / 1 Auto-Injected Composite Slots | Dedicated Least-Privilege Tools (Reach-Out Only When Needed) |
-| :--- | :--- | :--- |
-| **L1 Aspirational** | `Soul` + `Goals` + `Exteroception:Temporal/Human` + `Connectome:Contradictions` | `audit_contradictions`, `ask_human_telegram` |
-| **L2 Global Strategy** | `DistilledSpec` + `CorpusIndex` + `Connectome:MacroGraph` | `web_search`, `web_fetch`, `distill_spec` |
-| **L3 Agent Model** | `Proprioception:OS_GPU_LLM_Vitals` + `Connectome:SkillAndDataInventory` | `probe_vitals`, `curate_skill`, `memory_search` |
-| **L4 Executive** | `DistilledSpec` + `Connectome:2Hop_ROI_Slice` + `AsyncTaskLedger` | `update_connectome_uncertainty`, `schedule_async_task`, `ask_human_telegram` |
-| **L5 Cognitive Control** | `Proprioception:Valence_Quota` + `AsyncTaskLedger` + `Exteroception:Circadian` | `switch_active_branch`, `select_model_tier` |
-| **L6 Task Prosecution** | `DistilledSpec` + `Connectome:2Hop_ROI_Slice` + `HotFilePreInjection` + `OracleGate` | `workspace_read`, `workspace_edit`, `workspace_write`, `sandbox_sh`, `web_search`, `web_fetch` |
+   * **OS & Compute (`htop` Sensor)**: Live CPU load average & core utilization (`/proc/loadavg`, `/proc/stat`), RAM used/available (`/proc/meminfo`), RTX 3050 GPU VRAM free/used & gate latency (`127.0.0.1:8091/health`), `/workspace` disk free/iops (`syscall.Statfs`), and network RTT.
+   * **LLM Capacity & Economics Sensor**: Live OpenCode Go rolling-window burn (`5h: $X / $16`, `7d: $Y / $40`, `30d: $Z / $80`), active model tier health posteriors `Beta(α, β)`, KV prefix cache hit %, and token velocity (`tok/s`).
+2. **Exteroception (Externally-Referential Senses & Empirical Human Circadian Derivation)**:
+   * **Zero Hardcoded Sleep Windows**: Instead of hardcoding `23:00–07:30`, the `CircadianDerivationSensor` computes a real-time **24-hour Bayesian Activity Posterior** $P(\text{human\_active} \mid h_{\text{local}}, d_{\text{week}}, \Delta t_{\text{idle}})$ derived from all observable human timestamps:
+     1. Historical timestamps & inter-reply latencies of your **Telegram messages** (`channel_settings` / message log),
+     2. **Web Cockpit chat & API interactions**,
+     3. **Local Git commit timestamps** (`git log --format=%aI`), and
+     4. **Local Workstation Session Idle Signals** (`loginctl` / systemd-logind `IdleHint` & `IdleSinceHintMonotonic` / active PTY modification times when running on your machine).
+   * From this derived posterior, every layer sees:
+     * `LocalTime: Fri 2026-10-23 00:42 SAST`,
+     * `DerivedHumanAvailability: P(active_now)=0.12 | LastHumanSignalAgo=8m | ExpectedReplyLatency_p50=6.4h (low-activity window derived from 30d history)`.
+   * **Telegram Plain-English Contradiction Protocol**:
+     * When `L1.5` or `L4` escalates a contradiction or unresolvable uncertainty via `ask_human_telegram`:
+       - Sends **1 short, plain-English message (`<= 4` lines)** explaining the contradiction and options A vs B.
+       - Sets the task's `AsyncTaskScheduler` expectation horizon to the derived $\mathbb{E}[\Delta t_{\text{reply}}]$ (so it never nags or double-texts while you sleep), parks the blocked branch as `WAITING_HUMAN`, and immediately routes `L6` to unblocked workpads.
 
 ---
 
-## 7. Dynamic Model Catalog & Artificial Analysis (AA) Index Router (`AAIndexRouterComponent`)
+## 7. Model Economics, OpenCode Go, `Mercury Decide` & `v0.7` Skill Roadmap
 
-To ensure ACE never breaks when promotional models (`Beam Free`, `LongCat 2.5 Preview Free`) expire or new models launch:
-* **Capability Slots (Decoupled from Hardcoded Model IDs)**:
-  1. `Slot:System1_DecisionGate`: Local 4-bit GPU Gate (`Qwen3.5-0.8B` / `d1` on `:8091`, `<2ms` cached) with optional cloud fallback to OpenRouter `inception/mercury-decide:free` (`66K` context, `$0`, `14 decisions/sec` calibrated probabilities via `/v1/systemone`).
-  2. `Slot:HighRPS_Distiller_Verifier`: Routes to zero-marginal-cost / high-throughput models on OpenCode Go (`beam-free`, `longcat-2.5-preview-free`, `glm-5.3-flash`) for Spec Distillation, Connectome summarization, and CRUD checks.
-  3. `Slot:Frontier_Thinker`: Routes to highest **Artificial Analysis (AA) Intelligence Index / Cost-per-Task** model (`deepseek-v4.1-flash-1017`: AA Intelligence Index **`45` [#2/121]**, `209.4 tok/s`, `1M` context, `98%` cache discount at `$0.003/1M` cached).
-* **Live Catalog & Drift Resilience**: Queries `/zen/v1/models` + OpenRouter catalog on startup and every 6 hours, scoring models by `AA_Score / Effective_Cached_Cost` combined with our online Bayesian `Beta(alpha, beta)` success tracker so deprecated or rate-limited models are swapped out automatically with zero code changes.
+### 7.1 Answer on `inception/mercury-decide:free` & OpenCode Go Model Tiering
+1. **How long will `inception/mercury-decide:free` stay free & what is the catch?**
+   * On OpenRouter, `inception/mercury-decide:free` has **no fixed expiration date**, **but** it has two strict catches:
+     1. **Rate limit**: Capped at **`20 req/min` and `50 req/day`** on free OpenRouter accounts (rises to **`1,000 req/day`** once your OpenRouter account has purchased $\ge \$10$ in lifetime credits).
+     2. **Data policy**: OpenRouter marks `inception/mercury-decide:free` as `Privacy: Trains` (prompts may be used for training), whereas the paid `inception/mercury-decide` (`$0.02 / 1M` input tokens, **`$0 / 1M` output tokens**, **`$0 / 1M` cache read**, zero training retention) costs virtually nothing (`$0.02` per million input tokens!).
+   * Furthermore, OpenCode itself now hosts **`jev-1.13-free` (`OpenCode · Jev 1.13`)**, which uses the **exact same `/v1/systemone` structured decision schema** (`choice`, `score`, `noul` yes/no probabilities) as `Mercury Decide`!
+2. **Now That You Have OpenCode Go (`$10/mo` = `$80/mo` DeepSeek V4.1 Flash + `∞` Beam/LongCat)**:
+   * **Capability Slot 1 — `System1_Gate` (`L1.5`, `L5`, `Turn 0.5` fast scoring)**:
+     * Primary: Local 4-bit GPU Gate on RTX 3050 (`127.0.0.1:8091`, `<2ms` cached, `$0`).
+     * Cloud co-processor: OpenCode `jev-1.13-free` / OpenRouter `inception/mercury-decide` (`/v1/systemone`).
+   * **Capability Slot 2 — `Turn0_5_Router_And_SpecDistiller` (`Turn 0.5` retrieval routing, `2,800B` Spec distillation, AST/spec audits)**:
+     * Primary: OpenCode Go **`Beam Free` (`1M` context, `∞` allowance)** & **`LongCat 2.5 Preview Free` (`1M` context, `∞` allowance)**, with automatic AA-Index failover to `GLM-5.3-Flash` / `MiMo-V2.6-Flash` (`30,100 req/5h` on Go).
+   * **Capability Slot 3 — `Frontier_Thinker` (`L1`, `L2||L3||L4` synthesis, complex `L6` code/experiment synthesis)**:
+     * Primary: OpenCode Go **`DeepSeek V4.1 Flash 1017`** (**AA Intelligence Index `45` [#2/121 globally]**, `209 tok/s`, `1M` context, `$80/mo` included allowance on Go = `~38,700` traces/month).
+
+---
+
+## 8. Penned-In Roadmap for `ACE v0.7` (Post-`v0.6` Run & Learnings)
+
+Once `ACE v0.6` has run and accumulated empirical traces under the new Composite + Connectome + Turn 0.5 architecture, **`ACE v0.7`** will introduce an **Automatic Skill Management & Procedural Wiki-Skill Compilation System** (inspired by Google's Wiki-Skill / Voyager / Harness^2 C6 continual library):
+1. **Automatic Trajectory-to-Skill Distillation**:
+   * Whenever an `L6` workpad resolves a non-trivial uncertainty branch or passes a Mode-3 gate after overcoming a failure, a background compiler extracts the verified sequence `(Problem Signature, Preconditions, Parameterized Code/Tool Template, Verification Test, Anti-Patterns)` into a versioned `/wiki/skills/<domain>/<skill_id>.md` + executable `/workspace/skills/<skill_id>.py`.
+2. **Connectome-Indexed Skill Graph**:
+   * Skills become first-class `SKILL_NODE`s in the Connectome Graph with `SOLVES_PROBLEM_CLASS` and `COMPOSES_WITH_SKILL` edges, automatically retrieved at **`Turn 0.5`** whenever a matching problem signature appears.
+3. **Empirical Skill Evolution, ELO/Beta Scoring & Garbage Collection**:
+   * Every skill tracks its own `Beta(α, β)` pass-rate posterior and token-savings delta across cycles. Skills that regress or become superseded are automatically refactored or retired via Replace-Never-Layer change control.
+
+---
+
+## 9. Specific Review Questions for Claude Opus
+
+When reviewing this blueprint, please stress-test and critique the following 5 architectural questions:
+1. **`Turn 0` $\rightarrow$ `Turn 0.5` $\rightarrow$ `Turn 1` Retrieval Router Contract**:
+   * What failure modes exist when a cheap/decision model (`Turn 0.5`) selects the retrieval tool inputs (`connectome_expand_nodes`, `file_line_slices`, `memory_fts_queries`) for a frontier thinker (`Turn 1`)? How should we bound false-negative omissions at `Turn 0.5` so the thinker isn't blinded by an overly narrow `Turn 0.5` filter?
+2. **Parallel `L2 || L3 || L4` Cluster Synchronization & Shared Connectome Consistency**:
+   * When `L2` (External Strategy), `L3` (Self-Model/Capabilities), and `L4` (Executive Spec Owner) run concurrently and mutate/annotate the Shared Cluster Map, what conflict-resolution invariant should `L5` (Southbound) and `L1.5` (Northbound) enforce when `L2` and `L3` emit competing constraints?
+3. **Anti-Cheating Enforcement on the `2,800B` Living Spec**:
+   * What adversarial loopholes could an LLM exploit to satisfy a syntactic AST-to-Spec conformance check while still subtly drifting from the user's true intent, and what deterministic check closes those loopholes without requiring a human in the loop on every micro-step?
+4. **Storage Architecture (`BadgerDB`/`Pebble` MVCC + Embedded NATS JetStream vs. Actor-Serialized SQLite WAL)**:
+   * For a single-binary Go autonomous agent running parallel `L2–L4` + `N` concurrent `L6` workpads + high-frequency telemetry spans, is pure-Go **`Pebble`/`BadgerDB` MVCC + in-process typed pub/sub** the cleanest zero-CGO foundation, or is there a sharper hybrid pattern?
+5. **Derived Bayesian Circadian & Availability Model**:
+   * Are there edge cases in deriving $P(\text{human\_active\_now})$ and $\mathbb{E}[\Delta t_{\text{reply}}]$ from `(Telegram timestamps + Cockpit activity + Git commits + OS loginctl IdleHint)` (e.g., travel/timezone shifts or long deep-work blocks) that we should guard against in the escalation scheduler?
