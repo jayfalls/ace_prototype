@@ -212,9 +212,10 @@ ACE v0.6 introduces a clean **`StorageEngine` Composite Interface** backed by pu
    * From this derived posterior, every layer sees:
      * `LocalTime: Fri 2026-10-23 00:42 SAST`,
      * `DerivedHumanAvailability: P(active_now)=0.12 | LastHumanSignalAgo=8m | ExpectedReplyLatency_p50=6.4h (low-activity window derived from 30d history)`.
-   * **Telegram Plain-English Contradiction Protocol**:
+   * **Telegram Plain-English Contradiction Protocol + `anatomy` Isometric Machine Figures (`https://github.com/wheresryan22/anatomy`)**:
      * When `L1.5` or `L4` escalates a contradiction or unresolvable uncertainty via `ask_human_telegram`:
        - Sends **1 short, plain-English message (`<= 4` lines)** explaining the contradiction and options A vs B.
+       - **Mandatory `anatomy` Visual Conceptualization for Complex Components**: Whenever the bot needs to convey a complex component, architectural trade-off, or multi-part interaction on Telegram, it **ALWAYS** uses the `anatomy` framework (`/home/jay/.pi/agent/skills/anatomy/`, `https://github.com/wheresryan22/anatomy`) to conceptualize the idea as a crafted, four-tone shaded isometric physical bench instrument (a test rig, dial gauge, pin-tumbler lock, gantry router, or valve manifold verified with `kit/audit.mjs`), rendering and sending the figure (`sendPhoto` / interactive HTML/PDF via `sendDocument`) alongside the concise 3–4 line plain-English message rather than dumping walls of text or flat box diagrams.
        - Sets the task's `AsyncTaskScheduler` expectation horizon to the derived $\mathbb{E}[\Delta t_{\text{reply}}]$ (so it never nags or double-texts while you sleep), parks the blocked branch as `WAITING_HUMAN`, and immediately routes `L6` to unblocked workpads.
 
 ---
@@ -241,13 +242,24 @@ ACE v0.6 introduces a clean **`StorageEngine` Composite Interface** backed by pu
 
 ## 8. Penned-In Roadmap for `ACE v0.7` (Post-`v0.6` Run & Learnings)
 
-Once `ACE v0.6` has run and accumulated empirical traces under the new Composite + Connectome + Turn 0.5 architecture, **`ACE v0.7`** will introduce an **Automatic Skill Management & Procedural Wiki-Skill Compilation System** (inspired by Google's Wiki-Skill / Voyager / Harness^2 C6 continual library):
+Once `ACE v0.6` has run and accumulated empirical traces under the new Composite + Connectome + Turn 0.5 architecture, **`ACE v0.7`** will introduce two flagship upgrades grounded in `v0.6` operational data:
+
+### 8.1 Automatic Skill Management & Procedural Wiki-Skill Compilation System
+Inspired by Google's Wiki-Skill / Voyager / Harness^2 C6 continual library:
 1. **Automatic Trajectory-to-Skill Distillation**:
    * Whenever an `L6` workpad resolves a non-trivial uncertainty branch or passes a Mode-3 gate after overcoming a failure, a background compiler extracts the verified sequence `(Problem Signature, Preconditions, Parameterized Code/Tool Template, Verification Test, Anti-Patterns)` into a versioned `/wiki/skills/<domain>/<skill_id>.md` + executable `/workspace/skills/<skill_id>.py`.
 2. **Connectome-Indexed Skill Graph**:
    * Skills become first-class `SKILL_NODE`s in the Connectome Graph with `SOLVES_PROBLEM_CLASS` and `COMPOSES_WITH_SKILL` edges, automatically retrieved at **`Turn 0.5`** whenever a matching problem signature appears.
 3. **Empirical Skill Evolution, ELO/Beta Scoring & Garbage Collection**:
    * Every skill tracks its own `Beta(α, β)` pass-rate posterior and token-savings delta across cycles. Skills that regress or become superseded are automatically refactored or retired via Replace-Never-Layer change control.
+
+### 8.2 Full Isometric `anatomy` Physical-Machine WebUI (`https://github.com/wheresryan22/anatomy`)
+In `ACE v0.7`, the Glass-Box WebUI (`http://localhost:8080`) will be rebuilt from the ground up as a live, interactive **`anatomy` Isometric Physical Machine** (`https://github.com/wheresryan22/anatomy`):
+* **The Object Is the Explanation**: Instead of flat dashboard cards and tables, the entire ACE cognitive engine is rendered as a dense, crafted isometric bench machine with four-tone shading, true painter's depth order (`kit/audit.mjs`), and optional world-space WebGL shaders:
+  - **`Turn 0 / Turn 0.5` Context Lock**: A physical pin-tumbler lock & gantry carriage that visibly aligns pins as `Turn 0` (deterministic) and `Turn 0.5` (`Beam` retrieval router) saturate context slots before theplug turns to fire `Turn 1`.
+  - **`L1` Sovereign & `L1.5` Gate**: An upper balance beam and escapement gate with live tension springs.
+  - **`L2 || L3 || L4` Parallel Cluster Manifold**: Three coupled rotary drums/drawers sharing a physical pantograph map table (the Shared Connectome Graph).
+  - **`L5` Tactical Gate & `L6` Workpad Lathes**: Individual removable workpad carriages on rails, with dial gauges (`Sensorium` CPU/RAM/VRAM/KV-cache/Quota indicators) whose needles move in real time from the exact same telemetry model that drives the engine.
 
 ---
 
