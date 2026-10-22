@@ -232,7 +232,8 @@ ACE v0.6 introduces a clean **`StorageEngine` Composite Interface** backed by pu
      * Primary: Local 4-bit GPU Gate on RTX 3050 (`127.0.0.1:8091`, `<2ms` cached, `$0`).
      * Cloud co-processor: OpenCode `jev-1.13-free` / OpenRouter `inception/mercury-decide` (`/v1/systemone`).
    * **Capability Slot 2 — `Turn0_5_Router_And_SpecDistiller` (`Turn 0.5` retrieval routing, `2,800B` Spec distillation, AST/spec audits)**:
-     * Primary: OpenCode Go **`Beam Free` (`1M` context, `∞` allowance)** & **`LongCat 2.5 Preview Free` (`1M` context, `∞` allowance)**, with automatic AA-Index failover to `GLM-5.3-Flash` / `MiMo-V2.6-Flash` (`30,100 req/5h` on Go).
+     * **Speed-First Primary**: OpenCode Go **`Beam` (`beam-free`, `1M` context, `∞` allowance)** — empirically **5.6× to 10.8× faster in `tok/s` (`250.4–485.7 tok/s` vs `30–45 tok/s`)** and **16.5× faster in median step latency (`2.76s` vs `45.46s`, `420–600ms` TTFT)** than `LongCat 2.5 Preview` (`1.6T/48B` MoE, `6.4s` TTFT).
+     * **Speed-Ordered Fallbacks**: `Step 5 Preview` (`217.4 tok/s`, `898ms` TTFT, AA `43.7`) $\rightarrow$ `GLM-5.3-Flash` (`132.6 tok/s`, AA `41.8`) $\rightarrow$ `LongCat 2.5 Preview Free` (`44.6 tok/s`, `∞` allowance, AA est. `~36.2`).
    * **Capability Slot 3 — `Frontier_Thinker` (`L1`, `L2||L3||L4` synthesis, complex `L6` code/experiment synthesis)**:
      * Primary: OpenCode Go **`DeepSeek V4.1 Flash 1017`** (**AA Intelligence Index `45` [#2/121 globally]**, `209 tok/s`, `1M` context, `$80/mo` included allowance on Go = `~38,700` traces/month).
 
