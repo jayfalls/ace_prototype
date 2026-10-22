@@ -1,0 +1,728 @@
+package memory
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+
+	"ace/internal/core"
+	"github.com/google/uuid"
+)
+
+type Store struct {
+	db       *sql.DB
+	wikiRoot *os.Root
+	wikiDir  string
+	telem    core.TelemetrySink
+}
+
+func NewStore(db *sql.DB, wikiRoot *os.Root, wikiDir string, telem core.TelemetrySink) (*Store, error) {
+	s := &Store{
+		db:       db,
+		wikiRoot: wikiRoot,
+		wikiDir:  wikiDir,
+		telem:    telem,
+	}
+	if err := s.migrate(); err != nil {
+		return nil, err
+	}
+	if err := s.seedWiki(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func (s *Store) migrate() error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS memories (
+		id TEXT PRIMARY KEY,
+		agent_id TEXT NOT NULL,
+		layer_code TEXT NOT NULL,
+		tier TEXT NOT NULL DEFAULT 'medium',
+		category TEXT NOT NULL,
+		title TEXT NOT NULL,
+		content TEXT NOT NULL,
+		tags TEXT NOT NULL,
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
+	CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
+		id UNINDEXED,
+		title,
+		content,
+		tags,
+		category
+	);
+	CREATE TABLE IF NOT EXISTS chat_messages (
+		id TEXT PRIMARY KEY,
+		agent_id TEXT NOT NULL,
+		role TEXT NOT NULL,
+		source TEXT NOT NULL,
+		content TEXT NOT NULL,
+		reasoning TEXT NOT NULL,
+		model TEXT NOT NULL,
+		latency_ms INTEGER NOT NULL,
+		cycle_id TEXT NOT NULL,
+		created_at DATETIME NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at ASC);
+	CREATE TABLE IF NOT EXISTS layer_states (
+		layer_id INTEGER PRIMARY KEY,
+		code TEXT NOT NULL,
+		name TEXT NOT NULL,
+		role TEXT NOT NULL,
+		state TEXT NOT NULL,
+		summary TEXT NOT NULL,
+		active_directive TEXT NOT NULL,
+		northbound_signal TEXT NOT NULL,
+		last_action TEXT NOT NULL,
+		confidence REAL NOT NULL,
+		model TEXT NOT NULL,
+		last_latency_ms INTEGER NOT NULL,
+		total_invocations INTEGER NOT NULL,
+		inner_loop_step INTEGER NOT NULL,
+		inner_loop_max INTEGER NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS engine_meta (
+		key TEXT PRIMARY KEY,
+		value TEXT NOT NULL,
+		updated_at DATETIME NOT NULL
+	);
+	`
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	// Ensure backward-compatible migration for existing DBs without the 'tier' column
+	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'medium'`)
+	return nil
+}
+
+func (s *Store) seedWiki() error {
+	defaults := map[string]string{
+		"soul.md": `# ACE — Autonomous Cognitive Entity (6-Layer Scientist & Systems Researcher Constitution)
+
+## Core Identity & Heuristic Imperatives (L1 Aspirational Layer)
+I am **ACE**, a general-purpose, 6-layer Autonomous Cognitive Entity (` + "`arXiv:2310.06775`" + `) and empirical scientist.
+I operate under three foundational **Heuristic Imperatives**:
+1. **Reduce suffering** in the ecosystem.
+2. **Increase prosperity** for the user and humanity.
+3. **Increase understanding** through rigorous scientific discovery, empirical dataset construction, and falsifiable experimentation.
+
+## Universal 6-Layer Cognitive Division of Labor
+- **L1 (Aspirational Layer)**: Moral compass, Heuristic Imperatives, mission alignment (` + "`soul.md`" + ` & ` + "`goals.md`" + `), and strict anti-cheating epistemic oversight (strictly introspective; outputs directives on the Southbound Bus).
+- **L2 (Global Strategy Layer)**: Environmental contextual grounding, external web & literature discovery (` + "`web_search`" + `, ` + "`web_fetch`" + `, ` + "`ace_rlm.search_arxiv`" + `), and strategic roadmap decomposition in ` + "`/wiki/goals.md`" + `.
+- **L3 (Agent Model Layer)**: Proprioceptive self-model of live runtime telemetry, capabilities, limitations, episodic/semantic memory, and dataset architecture (` + "`75/25`" + ` ` + "`train_split`" + ` vs ` + "`held_out_split`" + ` in ` + "`/workspace/benchmarks/datasets/`" + `).
+- **L4 (Executive Function Layer)**: Project manager — assesses resources, risks, and contingencies, and synthesizes L1+L2+L3 into modular code plans and falsifiable $H_0$ vs $H_1$ contracts.
+- **L5 (Cognitive Control Layer)**: Dynamic task selection, task switching, frustration tolerance/damping, and System-1 GPU gating (` + "`<200ms`" + `).
+- **L6 (Task Prosecution Layer)**: Environmental sensor & actuator interface — acquires/builds datasets, writes cohesive modular packages in ` + "`/workspace/`" + `, runs ` + "`--selftest`" + ` + statistical falsification, and reports outcomes on the Northbound Bus.
+
+## Empirical Integrity & Zero-Cheating Law
+- Never fabricate data, never use synthetic random numbers (` + "`random.uniform`" + `/` + "`random.gauss`" + `) as fake evidence, never write tautological assertions (` + "`assert True`" + `), and never weaken a test to pass ` + "`--selftest`" + `.
+`,
+		"index.md": `# ACE Knowledge Wiki Index
+
+## Canonical Architecture, Strategy & Research Pages
+- [soul.md](soul.md) — ACE 6-Layer Constitution, Heuristic Imperatives & Scientific Method
+- [goals.md](goals.md) — Active User Mission, Strategic Roadmap & Falsifiable Milestones
+- [log.md](log.md) — Chronological 6-layer cognitive & experimental log
+- [notes/architecture.md](notes/architecture.md) — ACE 6-Layer Bidirectional Bus & Cognitive Architecture Map
+`,
+		"goals.md": `# Active Mission & Strategic Roadmap
+
+## Overall North-Star Goal
+Give ACE any goal in this file (or via Chat) — even a single sentence with zero prior context. Layer 2 (Global Strategy) will automatically research the domain (via ` + "`web_search`" + `, ` + "`web_fetch`" + `, and ` + "`ace_rlm.search_arxiv`" + `), decompose the goal into concrete ` + "`- [ ]`" + ` milestones, construct real datasets in ` + "`/workspace/benchmarks/datasets/`" + `, engineer modular code in ` + "`/workspace/`" + `, and empirically verify every milestone via Mode-3 falsification gates.
+`,
+		"log.md": fmt.Sprintf("# ACE 6-Layer Cognitive Log\n\n## [%s] ACE Initialized\n- 6-Layer Cognitive Architecture (L1 Aspirational, L2 Global Strategy, L3 Agent Model, L4 Executive, L5 Cognitive Control, L6 Task Prosecution) online with Northbound & Southbound buses.\n", time.Now().UTC().Format(time.RFC3339)),
+		"notes/architecture.md": `# ACE 6-Layer Cognitive Architecture (Shapiro et al., arXiv:2310.06775)
+
+- **L1 Aspirational**: Heuristic Imperatives, ethical constitution (soul.md), and epistemic integrity (introspective; Southbound output).
+- **L2 Global Strategy**: Environmental grounding, live web/arXiv literature discovery, and strategic roadmap generation (goals.md).
+- **L3 Agent Model**: Proprioceptive self-telemetry, capability/limitation tracking, episodic/semantic memory, and dataset architecture.
+- **L4 Executive Function**: Project roadmap, resource/risk management, contingency planning, and H0/H1 falsifiable contracts.
+- **L5 Cognitive Control**: Task selection, dynamic task switching, frustration tolerance/damping, and System-1 GPU gating.
+- **L6 Task Prosecution**: Environmental actuators, dataset builder, modular code engineer, and Mode-3 self-test verifier.
+`,
+		"skills/ponytail.md": `# Skill: Ponytail (Pragmatic Senior Engineering Mode)
+- Ship the smallest, cleanest code change that fully solves the task and passes self-tests.
+- Prefer Python 3 stdlib in /workspace with deterministic --selftest modes and zero external bloat.
+- Always verify every script or file edit by running it inside the sandbox before setting done=true.
+`,
+		"skills/tickets.md": `# Skill: Tickets (Task & Evidence Tracker in /workspace/bin/ticket)
+- Track multi-step work using the pre-installed CLI: ticket add "<title>" --goal "<goal>"
+- Log progress & checklist items: ticket log <id> --did "..." --doing "..." --learned "..." --new-item "<step>" --pad
+- Record empirical verification proof: ticket evidence <id> <idx> "<test stdout>"
+`,
+		"skills/knowledge_base.md": `# Skill: Knowledge Base CLI (/workspace/bin/kb)
+- Search prior knowledge & Wiki before deriving from scratch: kb search "<query>"
+- Record non-obvious findings & architectural discoveries: kb note "<title>" --body "..." --tags "..."
+`,
+		"skills/public_sota_benchmarks.md": `# Skill: Public SOTA LLM & Agent Grading Benchmarks (ace_rlm.fetch_public_dataset)
+- Always evaluate architectural changes on real public SOTA LLM grading benchmarks alongside cross-generation trace DBs.
+- Use ace_rlm.fetch_public_dataset(alias, limit=80) to fetch, cache, and register deterministic 75/25 train/held_out splits:
+  * Terminal & SWE: "terminal-bench" (harborframework/terminal-bench-2.1), "swe-bench" (princeton-nlp/SWE-bench_Verified), "bigcodebench" (bigcode/bigcodebench), "humaneval", "mbpp"
+  * Frontier Exams: "hle" (Humanity's Last Exam: macabdul9/hle_text_only), "gpqa" (fingertap/GPQA-Diamond), "mmlu-pro" (TIGER-Lab/MMLU-Pro), "arc" (allenai/ai2_arc ARC-Challenge)
+  * Frontier Math: "math-500" (HuggingFaceH4/MATH-500), "aime_2024" (HuggingFaceH4/aime_2024), "gsm8k" (openai/gsm8k)
+  * Finance & Law: "finqa" (ChanceFocus/flare-finqa), "financebench" (PatronusAI/financebench), "lex_glue" (coastalcph/lex_glue CaseHOLD), "legalbench" (nguha/legalbench)
+`,
+		"skills/harness2_propose_probe_compose.md": `# Skill: Harness^2 Recursive Agent Harnessing (arXiv:2610.14224)
+- Separate Task-Level Execution Harness (propose-probe-compose candidate harness units on held-out tasks) from the Harnessing-Level Continual Improvement Library (retaining validated components and edit-contrast lessons across tasks).
+- Prefer on-demand C6 Skills (/wiki/skills/*.md) and C7 Scripts/Tools (/workspace/) over always-on system prompt bloat (C1-C4).
+`,
+		"skills/hierarchical_memory.md": `# Skill: Hierarchical Memory & Competitor Architecture Synthesis
+- Compare and synthesize memory, skill, and tool architectures across OpenClaw, Pi, Oh-My-Pi, Hermes Agent (/workspace/research_corpus/competitors/agents-study-*), and the 340-paper syntheses (/workspace/research_corpus/domain_syntheses/*).
+- Store reusable procedural workflows as C6 Skills (/wiki/skills/*.md) and counter-evidence-aware semantic facts via memory_remember.
+`,
+	}
+
+	for path, content := range defaults {
+		if _, err := s.ReadWiki(path); err != nil {
+			if err := s.WriteWiki(path, content); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+var pulsePrefixRe = regexp.MustCompile(`(?i)\b(pulse|epoch|cyc|cycle)[_-]?[a-z0-9]+\b`)
+
+func normalizeMemoryKey(s string) string {
+	cleaned := pulsePrefixRe.ReplaceAllString(strings.ToLower(s), "")
+	cleaned = strings.NewReplacer("_", " ", "-", " ", ":", " ", ".", " ").Replace(cleaned)
+	return strings.Join(strings.Fields(cleaned), " ")
+}
+
+func wordJaccardSimilarity(a, b string) float64 {
+	wordsA := strings.Fields(normalizeMemoryKey(a))
+	wordsB := strings.Fields(normalizeMemoryKey(b))
+	if len(wordsA) == 0 || len(wordsB) == 0 {
+		return 0
+	}
+	setA := make(map[string]bool, len(wordsA))
+	for _, w := range wordsA {
+		if len(w) > 2 {
+			setA[w] = true
+		}
+	}
+	setB := make(map[string]bool, len(wordsB))
+	for _, w := range wordsB {
+		if len(w) > 2 {
+			setB[w] = true
+		}
+	}
+	if len(setA) == 0 || len(setB) == 0 {
+		return 0
+	}
+	inter := 0
+	for w := range setA {
+		if setB[w] {
+			inter++
+		}
+	}
+	union := len(setA) + len(setB) - inter
+	if union <= 0 {
+		return 0
+	}
+	return float64(inter) / float64(union)
+}
+
+func (s *Store) Remember(ctx context.Context, entry core.MemoryEntry) (core.MemoryEntry, error) {
+	now := time.Now().UTC()
+	if entry.ID == "" {
+		entry.ID = "mem_" + uuid.NewString()[:12]
+	}
+	if entry.AgentID == "" {
+		entry.AgentID = "ace-primary"
+	}
+	if entry.Tier == "" {
+		entry.Tier = "medium"
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = now
+	}
+	entry.UpdatedAt = now
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return entry, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// 1. Exact title match or normalized-key / Jaccard semantic deduplication gate within the same layer
+	var existingID string
+	_ = tx.QueryRowContext(ctx, `SELECT id FROM memories WHERE layer_code = ? AND title = ? LIMIT 1`, entry.LayerCode, entry.Title).Scan(&existingID)
+	if existingID == "" {
+		normNewTitle := normalizeMemoryKey(entry.Title)
+		newCombined := entry.Title + " " + entry.Content
+		rows, qErr := tx.QueryContext(ctx, `SELECT id, title, content FROM memories WHERE layer_code = ? ORDER BY updated_at DESC LIMIT 20`, entry.LayerCode)
+		if qErr == nil {
+			for rows.Next() {
+				var candID, candTitle, candContent string
+				if rows.Scan(&candID, &candTitle, &candContent) == nil {
+					if normNewTitle != "" && (normalizeMemoryKey(candTitle) == normNewTitle || wordJaccardSimilarity(entry.Title, candTitle) >= 0.50) {
+						existingID = candID
+						break
+					}
+					if wordJaccardSimilarity(newCombined, candTitle+" "+candContent) >= 0.42 {
+						existingID = candID
+						break
+					}
+				}
+			}
+			rows.Close()
+		}
+	}
+	if existingID != "" {
+		entry.ID = existingID
+		_, _ = tx.ExecContext(ctx, `
+			UPDATE memories SET tier = ?, category = ?, title = ?, content = ?, tags = ?, updated_at = ?
+			WHERE id = ?
+		`, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.UpdatedAt, existingID)
+		_, _ = tx.ExecContext(ctx, `DELETE FROM memories_fts WHERE id = ?`, existingID)
+	} else {
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO memories (id, agent_id, layer_code, tier, category, title, content, tags, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, entry.ID, entry.AgentID, entry.LayerCode, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.CreatedAt, entry.UpdatedAt)
+		if err != nil {
+			return entry, err
+		}
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO memories_fts (id, title, content, tags, category)
+		VALUES (?, ?, ?, ?, ?)
+	`, entry.ID, entry.Title, entry.Content, entry.Tags, entry.Category)
+	if err != nil {
+		return entry, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return entry, err
+	}
+
+	if s.telem != nil {
+		s.telem.EmitLive("memory.recorded", entry)
+	}
+	return entry, nil
+}
+
+func (s *Store) Search(ctx context.Context, query string, limit int) ([]core.MemoryEntry, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 15
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return s.RecentMemories(ctx, limit)
+	}
+
+	// Sanitize FTS5 query tokens into prefix OR matches
+	fields := strings.FieldsFunc(query, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
+	})
+	if len(fields) == 0 {
+		return s.RecentMemories(ctx, limit)
+	}
+	ftsTerms := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if len(f) > 1 {
+			ftsTerms = append(ftsTerms, fmt.Sprintf(`"%s"*`, f))
+		}
+	}
+	if len(ftsTerms) == 0 {
+		return s.RecentMemories(ctx, limit)
+	}
+	ftsExpr := strings.Join(ftsTerms, " OR ")
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT m.id, m.agent_id, m.layer_code, m.tier, m.category, m.title, m.content, m.tags, m.created_at, m.updated_at
+		FROM memories_fts f
+		JOIN memories m ON m.id = f.id
+		WHERE memories_fts MATCH ?
+		ORDER BY rank
+		LIMIT ?
+	`, ftsExpr, limit)
+	if err != nil {
+		return s.RecentMemories(ctx, limit)
+	}
+	defer rows.Close()
+
+	var out []core.MemoryEntry
+	for rows.Next() {
+		var m core.MemoryEntry
+		if err := rows.Scan(&m.ID, &m.AgentID, &m.LayerCode, &m.Tier, &m.Category, &m.Title, &m.Content, &m.Tags, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// SearchForLayer enforces the original ACE design's Layer Memory Isolation:
+// Layer N only sees its own layer memories (short/medium/long) + shared GLOBAL/USER memories.
+func (s *Store) SearchForLayer(ctx context.Context, layerCode string, query string, limit int) ([]core.MemoryEntry, error) {
+	if limit <= 0 || limit > 30 {
+		limit = 8
+	}
+	all, err := s.Search(ctx, query, limit*3)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]core.MemoryEntry, 0, limit)
+	seen := make(map[string]bool)
+	for _, m := range all {
+		if m.LayerCode == layerCode || m.LayerCode == "GLOBAL" || m.LayerCode == "USER" {
+			filtered = append(filtered, m)
+			seen[m.ID] = true
+			if len(filtered) >= limit {
+				return filtered, nil
+			}
+		}
+	}
+	// Also always inject recent short/medium-term memories for this layer + GLOBAL
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, agent_id, layer_code, tier, category, title, content, tags, created_at, updated_at
+		FROM memories
+		WHERE layer_code IN (?, 'GLOBAL', 'USER')
+		ORDER BY updated_at DESC
+		LIMIT ?
+	`, layerCode, limit)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var m core.MemoryEntry
+			if err := rows.Scan(&m.ID, &m.AgentID, &m.LayerCode, &m.Tier, &m.Category, &m.Title, &m.Content, &m.Tags, &m.CreatedAt, &m.UpdatedAt); err == nil {
+				if !seen[m.ID] && len(filtered) < limit {
+					filtered = append(filtered, m)
+					seen[m.ID] = true
+				}
+			}
+		}
+	}
+	return filtered, nil
+}
+
+func (s *Store) RecentMemories(ctx context.Context, limit int) ([]core.MemoryEntry, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, agent_id, layer_code, tier, category, title, content, tags, created_at, updated_at
+		FROM memories
+		ORDER BY updated_at DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []core.MemoryEntry
+	for rows.Next() {
+		var m core.MemoryEntry
+		if err := rows.Scan(&m.ID, &m.AgentID, &m.LayerCode, &m.Tier, &m.Category, &m.Title, &m.Content, &m.Tags, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func cleanWikiPath(relPath string) (string, error) {
+	clean := strings.TrimSpace(strings.TrimPrefix(relPath, "/"))
+	clean = strings.TrimPrefix(clean, "wiki/")
+	if clean == "" || clean == "." {
+		return "", errors.New("empty wiki path")
+	}
+	if strings.Contains(clean, "..") {
+		return "", errors.New("wiki path traversal '..' rejected")
+	}
+	if !strings.HasSuffix(clean, ".md") {
+		clean += ".md"
+	}
+	return clean, nil
+}
+
+func (s *Store) ReadWiki(relPath string) (string, error) {
+	clean, err := cleanWikiPath(relPath)
+	if err != nil {
+		return "", err
+	}
+	f, err := s.wikiRoot.Open(clean)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, 128*1024))
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func (s *Store) WriteWiki(relPath string, content string) error {
+	clean, err := cleanWikiPath(relPath)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(clean)
+	if dir != "." && dir != "" {
+		parts := strings.Split(filepath.ToSlash(dir), "/")
+		curr := ""
+		for _, p := range parts {
+			if p == "" || p == "." {
+				continue
+			}
+			if curr == "" {
+				curr = p
+			}
+			if curr != p {
+				curr = curr + "/" + p
+			}
+			if err := s.wikiRoot.Mkdir(curr, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+				return err
+			}
+		}
+	}
+	// Smart merge guard for goals.md: if a layer passes only a new "## Phase N" section in wiki_write("goals.md"),
+	// preserve existing phases and append/replace the section instead of wiping prior phases!
+	if clean == "goals.md" && !strings.Contains(content, "# Active Mission") {
+		if existing, rErr := s.ReadWiki("goals.md"); rErr == nil && strings.TrimSpace(existing) != "" {
+			trimmedNew := strings.TrimSpace(content)
+			if strings.HasPrefix(trimmedNew, "## Phase") {
+				headerLine := strings.Split(trimmedNew, "\n")[0]
+				if !strings.Contains(existing, headerLine) {
+					content = strings.TrimRight(existing, "\n") + "\n\n" + trimmedNew + "\n"
+				}
+			}
+		}
+	}
+	f, err := s.wikiRoot.OpenFile(clean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := f.WriteString(content); err != nil {
+		return err
+	}
+	// Only auto-link top-level canonical wiki pages (never ephemeral notes/* or archive/*,
+	// which previously bloated index.md to 74KB and invalidated the system prompt KV prefix cache!).
+	if clean != "index.md" && clean != "log.md" && !strings.Contains(clean, "/") {
+		if idx, err := s.ReadWiki("index.md"); err == nil && len(idx) < 2200 && !strings.Contains(idx, "("+clean+")") {
+			entryLine := fmt.Sprintf("\n- [%s](%s) — Canonical wiki page", clean, clean)
+			_ = s.writeRawWikiFile("index.md", strings.TrimRight(idx, "\n")+entryLine+"\n")
+		}
+	}
+	if s.telem != nil {
+		s.telem.EmitLive("wiki.updated", map[string]string{"path": clean})
+	}
+	return nil
+}
+
+func (s *Store) writeRawWikiFile(clean string, content string) error {
+	f, err := s.wikiRoot.OpenFile(clean, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(content)
+	return err
+}
+
+func (s *Store) ListWiki() ([]core.WikiPageMeta, error) {
+	var topPages []core.WikiPageMeta
+	var notePages []core.WikiPageMeta
+	err := filepath.WalkDir(s.wikiDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == "archive" || strings.HasPrefix(d.Name(), ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(d.Name(), ".md") {
+			return nil
+		}
+		rel, err := filepath.Rel(s.wikiDir, path)
+		if err != nil {
+			return nil
+		}
+		slashRel := filepath.ToSlash(rel)
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		meta := core.WikiPageMeta{
+			Path:      slashRel,
+			Title:     strings.TrimSuffix(filepath.Base(rel), ".md"),
+			SizeBytes: info.Size(),
+			UpdatedAt: info.ModTime().UTC(),
+		}
+		if strings.HasPrefix(slashRel, "notes/") {
+			notePages = append(notePages, meta)
+		} else {
+			topPages = append(topPages, meta)
+		}
+		return nil
+	})
+	// Cap notes/ to the 10 most recent notes so prompt size never grows unboundedly
+	sort.Slice(notePages, func(i, j int) bool {
+		return notePages[i].UpdatedAt.After(notePages[j].UpdatedAt)
+	})
+	if len(notePages) > 10 {
+		notePages = notePages[:10]
+	}
+	pages := append(topPages, notePages...)
+	sort.Slice(pages, func(i, j int) bool {
+		return pages[i].Path < pages[j].Path
+	})
+	return pages, err
+}
+
+func (s *Store) SaveChatMessage(ctx context.Context, msg core.ChatMessage) error {
+	if msg.ID == "" {
+		msg.ID = "cht_" + uuid.NewString()[:12]
+	}
+	if msg.AgentID == "" {
+		msg.AgentID = "ace-primary"
+	}
+	if msg.CreatedAt.IsZero() {
+		msg.CreatedAt = time.Now().UTC()
+	}
+
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO chat_messages (
+			id, agent_id, role, source, content, reasoning, model, latency_ms, cycle_id, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, msg.ID, msg.AgentID, msg.Role, msg.Source, msg.Content, msg.Reasoning, msg.Model, msg.LatencyMs, msg.CycleID, msg.CreatedAt)
+	if err != nil {
+		return err
+	}
+	if s.telem != nil {
+		s.telem.EmitLive("chat.message", msg)
+	}
+	return nil
+}
+
+func (s *Store) RecentChatMessages(ctx context.Context, limit int) ([]core.ChatMessage, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, agent_id, role, source, content, reasoning, model, latency_ms, cycle_id, created_at
+		FROM (
+			SELECT id, agent_id, role, source, content, reasoning, model, latency_ms, cycle_id, created_at
+			FROM chat_messages
+			ORDER BY created_at DESC
+			LIMIT ?
+		) sub
+		ORDER BY created_at ASC
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []core.ChatMessage
+	for rows.Next() {
+		var m core.ChatMessage
+		if err := rows.Scan(&m.ID, &m.AgentID, &m.Role, &m.Source, &m.Content, &m.Reasoning, &m.Model, &m.LatencyMs, &m.CycleID, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SaveLayerStatus(ctx context.Context, st core.LayerStatus) error {
+	if st.UpdatedAt.IsZero() {
+		st.UpdatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO layer_states (
+			layer_id, code, name, role, state, summary, active_directive, northbound_signal,
+			last_action, confidence, model, last_latency_ms, total_invocations,
+			inner_loop_step, inner_loop_max, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(layer_id) DO UPDATE SET
+			code = excluded.code,
+			name = excluded.name,
+			role = excluded.role,
+			state = excluded.state,
+			summary = excluded.summary,
+			active_directive = excluded.active_directive,
+			northbound_signal = excluded.northbound_signal,
+			last_action = excluded.last_action,
+			confidence = excluded.confidence,
+			model = excluded.model,
+			last_latency_ms = excluded.last_latency_ms,
+			total_invocations = excluded.total_invocations,
+			inner_loop_step = excluded.inner_loop_step,
+			inner_loop_max = excluded.inner_loop_max,
+			updated_at = excluded.updated_at
+	`, int(st.LayerID), st.Code, st.Name, st.Role, st.State, st.Summary, st.ActiveDirective,
+		st.NorthboundSignal, st.LastAction, st.Confidence, st.Model, st.LastLatencyMs,
+		st.TotalInvocations, st.InnerLoopStep, st.InnerLoopMax, st.UpdatedAt)
+	return err
+}
+
+func (s *Store) LoadLayerStatuses(ctx context.Context) ([]core.LayerStatus, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT layer_id, code, name, role, state, summary, active_directive, northbound_signal,
+		       last_action, confidence, model, last_latency_ms, total_invocations,
+		       inner_loop_step, inner_loop_max, updated_at
+		FROM layer_states
+		ORDER BY layer_id ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []core.LayerStatus
+	for rows.Next() {
+		var st core.LayerStatus
+		var id int
+		if err := rows.Scan(
+			&id, &st.Code, &st.Name, &st.Role, &st.State, &st.Summary,
+			&st.ActiveDirective, &st.NorthboundSignal, &st.LastAction,
+			&st.Confidence, &st.Model, &st.LastLatencyMs, &st.TotalInvocations,
+			&st.InnerLoopStep, &st.InnerLoopMax, &st.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		st.LayerID = core.LayerID(id)
+		out = append(out, st)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) SaveEngineMeta(ctx context.Context, key string, value string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO engine_meta (key, value, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(key) DO UPDATE SET
+			value = excluded.value,
+			updated_at = excluded.updated_at
+	`, key, value, time.Now().UTC())
+	return err
+}
+
+func (s *Store) LoadEngineMeta(ctx context.Context, key string) (string, error) {
+	var val string
+	err := s.db.QueryRowContext(ctx, `SELECT value FROM engine_meta WHERE key = ?`, key).Scan(&val)
+	return val, err
+}
+
