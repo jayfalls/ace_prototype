@@ -264,11 +264,12 @@ CPU/RAM (`/proc`), GPU gate health and latency, disk free, network RTT, model he
   code. Routing uses **live measured** tok/s, success rate and latency from 7.1, not published benchmark
   numbers. (Several handoff figures were wrong: "Beam Max" does not exist, and Step 5 Preview's speed was
   refuted.)
-- **Quota meter:** OpenCode Go per-model caps where 5h = 20% and week = 50% of the monthly cap. Track
-  spend per window, downshift to cheaper slots at 80% of a window.
-- **Free tiers are fragile:** the public no-login free quota was exhausted during testing, and Beam
-  Free / LongCat are marked "limited time". Use the Go subscription as the primary path, free models only
-  as a bonus, and log the reason for every fallback.
+- **Strict Tier Isolation Law (Free -> Free ONLY; Never Escalate Cost on Fallback):**
+  - **Free Tier (`router` / `distiller` / high-RPS slots, `$0/$0` models only):** A free-tier slot (`opencode-go/beam-free` -> `opencode-go/cat-jam-free` -> local 4-bit GPU gate / `inception/mercury-decide:free`) MUST **only** fall back to other `$0` free models (`cost.input == 0 && cost.output == 0`). A free model fallback is strictly forbidden from crossing into any paid/metered model.
+  - **Subscription Allowance Tier (`worker` / `thinker` slots):** Uses `opencode-go/deepseek-v4.1-flash` (`$0.15/$0.60`, `$0.003/1M` cached input; fallback to `opencode-go/glm-5.3-flash` / `opencode-go/mimo-v2.6-flash` at equal/lower `$0.14–$0.15/1M` tier), and when approaching window budget caps (`80%` of `$16/5h`, `$40/week`, or `$80/month`), **downshifts into the Free Tier** (`beam-free` / `cat-jam-free`), never upward to higher-cost models (`deepseek-v4-pro`, `kimi-k3`, etc.).
+- **Live OpenCode Go OAuth Credential (`opencode.db`) & Endpoint Probing:**
+  - Read the active OAuth token directly from `~/.local/share/opencode/opencode.db` (`credential` table, `integration_id='opencode'`) with mandatory `x-opencode-session` and `x-opencode-request` headers against `https://opencode.ai/inference/go/openai/v1/chat/completions`.
+  - Automatically quarantine deprecated/unavailable models (`410 ModelDeprecated` on `minimax-m3.1-flash-free`, `400/402` on `step-5-preview-free` / `longcat-2.5-preview-free`) and detect workspace privacy-region errors (`400: This Go model requires Global regions` on `deepseek-v4.1-flash`) on startup.
 - **Mercury Decide:** `inception/mercury-decide:free` (OpenRouter) is an optional `router` backend: no
   stated end date, 50 req/day under 10 lifetime credits, 1,000/day at 10+.
 
