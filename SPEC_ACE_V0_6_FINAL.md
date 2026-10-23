@@ -264,9 +264,9 @@ CPU/RAM (`/proc`), GPU gate health and latency, disk free, network RTT, model he
   code. Routing uses **live measured** tok/s, success rate and latency from 7.1, not published benchmark
   numbers. (Several handoff figures were wrong: "Beam Max" does not exist, and Step 5 Preview's speed was
   refuted.)
-- **Strict Tier Isolation Law (Free -> Free ONLY; Never Escalate Cost on Fallback):**
-  - **Free Tier (`router` / `distiller` / high-RPS slots, `$0/$0` models only):** A free-tier slot (`opencode-go/beam-free` -> `opencode-go/cat-jam-free` -> local 4-bit GPU gate / `inception/mercury-decide:free`) MUST **only** fall back to other `$0` free models (`cost.input == 0 && cost.output == 0`). A free model fallback is strictly forbidden from crossing into any paid/metered model.
-  - **Subscription Allowance Tier (`worker` / `thinker` slots):** Uses `opencode-go/deepseek-v4.1-flash` (`$0.15/$0.60`, `$0.003/1M` cached input; fallback to `opencode-go/glm-5.3-flash` / `opencode-go/mimo-v2.6-flash` at equal/lower `$0.14–$0.15/1M` tier), and when approaching window budget caps (`80%` of `$16/5h`, `$40/week`, or `$80/month`), **downshifts into the Free Tier** (`beam-free` / `cat-jam-free`), never upward to higher-cost models (`deepseek-v4-pro`, `kimi-k3`, etc.).
+- **Strict Two-Way Tier Isolation Law (Free <-> Main Subscription NEVER Cross):**
+  - **Free Tier (`router` / `distiller` / high-RPS slots, `$0/$0` models only):** Uses `opencode-go/beam-free` -> `opencode-go/cat-jam-free` -> local 4-bit GPU gate / `inception/mercury-decide:free`. Must **only** fall back to other `$0` free models (`cost.input == 0 && cost.output == 0`), never into a paid model.
+  - **Main Subscription Tier (`worker` / `thinker` slots):** Uses `opencode-go/deepseek-v4.1-flash` directly until subscription usage is exhausted (with same-tier Go subscription fallbacks `glm-5.3-flash`, `mimo-v2.6-flash`, `minimax-m3.1-flash` only on transient 5xx). **Never** falls back or downshifts the main model to a free model; if subscription usage is exhausted, it pauses and waits for the window reset (`Retry-After`).
 - **Live OpenCode Go OAuth Credential (`opencode.db`) & Endpoint Probing:**
   - Read the active OAuth token directly from `~/.local/share/opencode/opencode.db` (`credential` table, `integration_id='opencode'`) with mandatory `x-opencode-session` and `x-opencode-request` headers against `https://opencode.ai/inference/go/openai/v1/chat/completions`.
   - Automatically quarantine deprecated/unavailable models (`410 ModelDeprecated` on `minimax-m3.1-flash-free`, `400/402` on `step-5-preview-free` / `longcat-2.5-preview-free`) and detect workspace privacy-region errors (`400: This Go model requires Global regions` on `deepseek-v4.1-flash`) on startup.
@@ -304,8 +304,10 @@ Each item is a metric emitted as a span or time series; together they define suc
 Each step ships with one runnable check (`go test`) and is demoed on a fresh empty workspace with a
 goal that is not about ACE itself.
 
-## 11. Out of scope for v0.6 (v0.7)
+## 11. Out of scope for v0.6 (Penned In for the v0.7 Rewrite)
 
-- Automatic skill management (Wiki-Skill style, arXiv 2608.27454): `SKILL` nodes, distillation from
-  passed gates, pass-rate tracking, retirement.
-- Anatomy-style WebUI built from the same pure-Go figure kit.
+- **Automatic Skill Management (Wiki-Skill style, arXiv 2608.27454):** `SKILL` nodes in the Connectome, automatic trajectory-to-skill distillation from passed Mode-3 gates, `Beta(α, β)` pass-rate tracking, and Replace-Never-Layer retirement.
+- **Full Isometric `anatomy` Physical-Machine WebUI:** Rebuilding the ACE Glass-Box WebUI (`http://localhost:8080`) from the pure-Go/SVG `anatomy` figure kit so every layer, gate, workpad carriage, Turn 0/0.5 context lock, and Sensorium dial indicator is a live interactive physical bench rig driven 1:1 by telemetry.
+- **Universal Pluggable Internal (Proprioceptive) & External (Exteroceptive) Sensorium + Reality Replicas / Digital Twins:**
+  - **Internal Senses (`PROPRIOCEPTIVE`):** Self-referential compute/RAM/disk/GPU/SQLite/LLM-quota vitals, plus embodied robotics proprioception (joint encoders, motor torque/current, vestibular IMU **gyroscopes & accelerometers**, internal bus/battery telemetry).
+  - **External Senses (`EXTEROCEPTIVE`):** Pluggable system-to-system hardware/environmental/peripheral sensors (**touch/tactile force arrays**, **GPS/GNSS/RTK**, **LiDAR/ToF/depth**, thermal/infrared, UV/ambient light, air quality/VOC/barometer, audio/video/computer-use, radio/SDR, access control, derived human circadian patterns), plus **Reality Replicas / Digital Twins** (`/workspace/.harness_d/reality_replica/*.json` & live physics/world-state mirrors) that let ACE sense, simulate, and test actions against a synchronized replica of physical or external reality before actuating in the real world.

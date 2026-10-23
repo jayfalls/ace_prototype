@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,11 +26,45 @@ import (
 )
 
 const (
-	defaultOpenCodeEndpoint = "https://opencode.ai/inference/openai/v1/chat/completions"
-	openCodeUserAgent       = "opencode/1.18.21 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"
-	openCodeGatePreamble    = "You are opencode, an interactive CLI tool that helps users with software engineering tasks. Use the following instructions. Respond ONLY with a single raw JSON object in assistant text content. Never invoke tool_calls."
-	base62Chars             = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	defaultOpenCodeEndpoint   = "https://opencode.ai/inference/openai/v1/chat/completions"
+	defaultOpenCodeGoEndpoint = "https://opencode.ai/inference/go/openai/v1/chat/completions"
+	openCodeUserAgent         = "opencode/1.18.21 ai-sdk/provider-utils/4.0.23 runtime/bun/1.3.14"
+	openCodeGatePreamble      = "You are opencode, an interactive CLI tool that helps users with software engineering tasks. Use the following instructions. Respond ONLY with a single raw JSON object in assistant text content. Never invoke tool_calls."
+	base62Chars               = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 )
+
+// resolveOpenCodeCredential checks env vars first, then ~/.local/share/opencode/opencode.db (populated by `opencode auth login`).
+func resolveOpenCodeCredential() (apiKey string, isGoSub bool) {
+	for _, k := range []string{"ACE_LLM_API_KEY", "OPENCODE_API_KEY", "OPENAI_API_KEY"} {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" && v != "public" {
+			return v, strings.HasPrefix(v, "st_") || strings.HasPrefix(v, "oc_")
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return "public", false
+	}
+	dbPath := filepath.Join(home, ".local", "share", "opencode", "opencode.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return "public", false
+	}
+	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
+	if err != nil {
+		return "public", false
+	}
+	defer db.Close()
+	var raw string
+	if err := db.QueryRow(`SELECT value FROM credential WHERE active = 1 ORDER BY time_updated DESC LIMIT 1`).Scan(&raw); err != nil {
+		return "public", false
+	}
+	var cred struct {
+		Access string `json:"access"`
+	}
+	if json.Unmarshal([]byte(raw), &cred) == nil && strings.TrimSpace(cred.Access) != "" {
+		return strings.TrimSpace(cred.Access), true
+	}
+	return "public", false
+}
 
 var stubToolNames = []string{
 	"bash", "edit", "glob", "grep", "read", "skill", "task", "todowrite", "webfetch", "websearch", "write",
@@ -98,6 +134,38 @@ type OpenCodeFreeProvider struct {
 }
 
 func DefaultModels() []core.ModelInfo {
+	_, isGoSub := resolveOpenCodeCredential()
+	if isGoSub {
+		return []core.ModelInfo{
+			{
+				ID:          "deepseek-v4.1-flash",
+				Name:        "DeepSeek V4.1 Flash (OpenCode Go 1M)",
+				Provider:    "opencode-go",
+				Modalities:  []string{"text", "image"},
+				Reasoning:   true,
+				ContextSize: 1000000,
+				OutputSize:  384000,
+			},
+			{
+				ID:          "beam-free",
+				Name:        "Beam Fast (OpenCode Go Free)",
+				Provider:    "opencode-go-free",
+				Modalities:  []string{"text"},
+				Reasoning:   true,
+				ContextSize: 1048576,
+				OutputSize:  131072,
+			},
+			{
+				ID:          "cat-jam-free",
+				Name:        "Cat Jam (OpenCode Go Free)",
+				Provider:    "opencode-go-free",
+				Modalities:  []string{"text"},
+				Reasoning:   true,
+				ContextSize: 1048576,
+				OutputSize:  131072,
+			},
+		}
+	}
 	return []core.ModelInfo{
 		{
 			ID:          "deepseek-v4.1-flash-free",
@@ -198,6 +266,8 @@ func NewOpenCodeFreeProvider(endpoint string) *OpenCodeFreeProvider {
 			endpoint = envEP
 		} else if envBase := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL")); envBase != "" {
 			endpoint = strings.TrimRight(envBase, "/") + "/chat/completions"
+		} else if _, isGo := resolveOpenCodeCredential(); isGo {
+			endpoint = defaultOpenCodeGoEndpoint
 		} else {
 			endpoint = defaultOpenCodeEndpoint
 		}
@@ -366,6 +436,11 @@ func (p *OpenCodeFreeProvider) RecordTaskOutcome(modelID string, passed bool) {
 	}
 	h.taskBeta += 1.0
 	h.consecutiveTaskFailures++
+	// If the main model is a subscription model (e.g. deepseek-v4.1-flash), NEVER switch activeModel to a free model!
+	if len(p.models) > 0 && !isFreeTierModelID(p.models[0].ID) {
+		p.activeModel = p.models[0].ID
+		return
+	}
 	// If a model fails >= 2 consecutive L6 task steps, put it on a 3-minute task cooldown and promote the best healthy Reasoning model!
 	if h.consecutiveTaskFailures >= 2 {
 		h.cooldownUntil = time.Now().Add(3 * time.Minute)
@@ -392,46 +467,36 @@ func (p *OpenCodeFreeProvider) RecordTaskOutcome(modelID string, passed bool) {
 	}
 }
 
+func isFreeTierModelID(id string) bool {
+	id = strings.ToLower(strings.TrimSpace(id))
+	return strings.HasSuffix(id, "-free") || id == "big-pickle" || id == "grok-code"
+}
+
 func (p *OpenCodeFreeProvider) FallbackChain(preferred string) []string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	primary := preferred
+	primary := strings.TrimSpace(preferred)
 	if primary == "" {
 		primary = p.activeModel
 	}
-	// Fix S19: Always prefer the #1 primary Reasoning model (deepseek-v4.1-flash-free) whenever its cooldown has expired,
-	// so a single transient failover to a slower fallback model never permanently hijacks activeModel!
-	if preferred == "" && len(p.models) > 0 {
-		now := time.Now()
-		topID := p.models[0].ID
-		if h := p.health[topID]; h == nil || !now.Before(h.cooldownUntil) {
-			primary = topID
-		} else {
-			isActiveNonReasoning := false
-			for _, m := range p.models {
-				if m.ID == primary && !m.Reasoning {
-					isActiveNonReasoning = true
-					break
-				}
-			}
-			if isActiveNonReasoning {
-				for _, m := range p.models {
-					if m.Reasoning {
-						if mh := p.health[m.ID]; mh == nil || !now.Before(mh.cooldownUntil) {
-							primary = m.ID
-							break
-						}
-					}
-				}
-			}
-		}
+
+	// STRICT TWO-WAY TIER ISOLATION LAW (SPEC_ACE_V0_6_FINAL.md §8):
+	// 1. If the caller requested the main OpenCode Go subscription model (`deepseek-v4.1-flash`),
+	//    NEVER fall back to a free model! Use `deepseek-v4.1-flash` until subscription usage is done.
+	if !isFreeTierModelID(primary) {
+		return []string{primary}
 	}
 
+	// 2. If the caller requested a Free-tier model (e.g. `beam-free` for Turn 0.5 router),
+	//    ONLY fall back to other `$0` Free-tier models (`beam-free` -> `cat-jam-free`), NEVER into a paid model!
 	now := time.Now()
 	var closedChain []string
 	var openChain []string
 
 	addCandidate := func(id string) {
+		if !isFreeTierModelID(id) {
+			return
+		}
 		h := p.health[id]
 		if h != nil && now.Before(h.cooldownUntil) {
 			openChain = append(openChain, id)
@@ -441,7 +506,7 @@ func (p *OpenCodeFreeProvider) FallbackChain(preferred string) []string {
 	}
 	addCandidate(primary)
 	for _, m := range p.models {
-		if m.ID != primary {
+		if m.ID != primary && isFreeTierModelID(m.ID) {
 			addCandidate(m.ID)
 		}
 	}
@@ -461,6 +526,11 @@ func (p *OpenCodeFreeProvider) recordModelOutcome(modelID string, ok bool, laten
 		h.consecutiveFailures = 0
 		h.totalLatencyMs += latencyMs
 		h.cooldownUntil = time.Time{}
+		// If primary model is a subscription model (deepseek-v4.1-flash), never let a free router call (beam-free) hijack activeModel!
+		if len(p.models) > 0 && !isFreeTierModelID(p.models[0].ID) {
+			p.activeModel = p.models[0].ID
+			return
+		}
 		// Only sticky-promote a model if it is a Reasoning model OR no Reasoning model is currently healthy (Fix S19)
 		isReasoning := false
 		for _, m := range p.models {
@@ -870,8 +940,8 @@ func (p *OpenCodeFreeProvider) callSingleModel(
 	callTimeout := 60 * time.Second
 	maxReasoningChars := 14000
 	if maxTokens > 8192 {
-		if modelID == "deepseek-v4.1-flash-free" {
-			callTimeout = 75 * time.Second
+		if strings.HasPrefix(modelID, "deepseek-v4.1-flash") {
+			callTimeout = 95 * time.Second
 			maxReasoningChars = 36000
 		} else {
 			callTimeout = 45 * time.Second
@@ -890,13 +960,7 @@ func (p *OpenCodeFreeProvider) callSingleModel(
 		return core.CompletionResponse{}, err
 	}
 
-	apiKey := "public"
-	for _, k := range []string{"ACE_LLM_API_KEY", "OPENCODE_API_KEY", "OPENAI_API_KEY"} {
-		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-			apiKey = v
-			break
-		}
-	}
+	apiKey, _ := resolveOpenCodeCredential()
 	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("User-Agent", openCodeUserAgent)

@@ -98,6 +98,67 @@ func (s *Store) migrate() error {
 		value TEXT NOT NULL,
 		updated_at DATETIME NOT NULL
 	);
+	CREATE TABLE IF NOT EXISTS connectome_nodes (
+		id TEXT PRIMARY KEY,
+		kind TEXT NOT NULL,
+		path TEXT NOT NULL DEFAULT '',
+		symbol TEXT NOT NULL DEFAULT '',
+		summary TEXT NOT NULL DEFAULT '',
+		hash TEXT NOT NULL DEFAULT '',
+		size_bytes INTEGER NOT NULL DEFAULT 0,
+		state TEXT NOT NULL DEFAULT 'UNEXPLORED',
+		owner_layer INTEGER NOT NULL DEFAULT 0,
+		blocking_weight REAL NOT NULL DEFAULT 1.0,
+		info_value REAL NOT NULL DEFAULT 1.0,
+		expected_cost REAL NOT NULL DEFAULT 1.0,
+		evidence_ref TEXT NOT NULL DEFAULT '',
+		cycle_epoch INTEGER NOT NULL DEFAULT 0,
+		updated_at DATETIME NOT NULL
+	);
+	CREATE INDEX IF NOT EXISTS idx_connectome_nodes_kind ON connectome_nodes(kind, state);
+	CREATE TABLE IF NOT EXISTS connectome_edges (
+		src TEXT NOT NULL,
+		dst TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		weight REAL NOT NULL DEFAULT 1.0,
+		updated_at DATETIME NOT NULL,
+		PRIMARY KEY (src, dst, kind)
+	);
+	CREATE INDEX IF NOT EXISTS idx_connectome_edges_dst ON connectome_edges(dst);
+	CREATE TABLE IF NOT EXISTS spec_registry (
+		milestone_id TEXT PRIMARY KEY,
+		spec_path TEXT NOT NULL,
+		frozen_hash TEXT NOT NULL,
+		size_bytes INTEGER NOT NULL,
+		status TEXT NOT NULL DEFAULT 'LIVING',
+		human_approval_ref TEXT NOT NULL DEFAULT '',
+		updated_at DATETIME NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS file_leases (
+		path TEXT PRIMARY KEY,
+		task_id TEXT NOT NULL,
+		leased_at DATETIME NOT NULL,
+		expires_at DATETIME NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS veto_ledger (
+		veto_hash TEXT PRIMARY KEY,
+		milestone_id TEXT NOT NULL,
+		veto_kind TEXT NOT NULL,
+		target_path TEXT NOT NULL,
+		count INTEGER NOT NULL DEFAULT 0,
+		last_reason TEXT NOT NULL DEFAULT '',
+		last_cycle_id TEXT NOT NULL DEFAULT '',
+		disputed INTEGER NOT NULL DEFAULT 0,
+		updated_at DATETIME NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS human_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		source TEXT NOT NULL,
+		event_ts DATETIME NOT NULL,
+		hour_utc INTEGER NOT NULL,
+		reply_latency_sec REAL NOT NULL DEFAULT 0
+	);
+	CREATE INDEX IF NOT EXISTS idx_human_events_hour ON human_events(hour_utc);
 	`
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
@@ -710,6 +771,7 @@ func (s *Store) LoadLayerStatuses(ctx context.Context) ([]core.LayerStatus, erro
 }
 
 func (s *Store) SaveEngineMeta(ctx context.Context, key string, value string) error {
+	t0 := time.Now()
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO engine_meta (key, value, updated_at)
 		VALUES (?, ?, ?)
@@ -717,7 +779,20 @@ func (s *Store) SaveEngineMeta(ctx context.Context, key string, value string) er
 			value = excluded.value,
 			updated_at = excluded.updated_at
 	`, key, value, time.Now().UTC())
+	if waitMs := time.Since(t0).Milliseconds(); waitMs >= 5 && s.telem != nil {
+		_ = s.telem.RecordSpan(ctx, core.TelemetrySpan{
+			Operation:  "db_write_wait_ms",
+			LayerCode:  "SYS",
+			Status:     "ok",
+			DurationMs: waitMs,
+			Detail:     fmt.Sprintf("key=%s wait_ms=%d", key, waitMs),
+		})
+	}
 	return err
+}
+
+func (s *Store) DB() *sql.DB {
+	return s.db
 }
 
 func (s *Store) LoadEngineMeta(ctx context.Context, key string) (string, error) {
