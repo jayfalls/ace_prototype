@@ -621,6 +621,13 @@ func (e *Engine) runTurn05RetrievalRouter(ctx context.Context, cycleID string, d
 	if e.llm == nil || len(top40) == 0 {
 		return nil
 	}
+	e.mu.RLock()
+	if cycleID != "" && e.lastTurn05CycleID == cycleID {
+		cached := e.lastTurn05Picked
+		e.mu.RUnlock()
+		return cached
+	}
+	e.mu.RUnlock()
 	var candLines strings.Builder
 	for i, n := range top40 {
 		candLines.WriteString(fmt.Sprintf("%d. %s\n", i+1, n.Summary))
@@ -687,6 +694,12 @@ func (e *Engine) runTurn05RetrievalRouter(ctx context.Context, cycleID string, d
 			DurationMs: time.Since(t0).Milliseconds(),
 			Detail:     fmt.Sprintf("model=%s picked=%d/%d", resp.Model, len(picked), len(top40)),
 		})
+	}
+	if cycleID != "" {
+		e.mu.Lock()
+		e.lastTurn05CycleID = cycleID
+		e.lastTurn05Picked = picked
+		e.mu.Unlock()
 	}
 	return picked
 }

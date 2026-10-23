@@ -30,7 +30,7 @@ import (
 func main() {
 	defaultPort := envOr("ACE_PORT", "8080")
 	defaultSandbox := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
-	defaultModel := envOr("ACE_MODEL", "deepseek-v4.1-flash-free")
+	defaultModel := envOr("ACE_MODEL", "deepseek-v4.1-flash")
 	defaultTgToken := envOr("ACE_TELEGRAM_TOKEN", "")
 	defaultTgChats := envOr("ACE_TELEGRAM_CHAT_IDS", "")
 

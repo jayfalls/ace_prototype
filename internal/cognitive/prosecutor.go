@@ -182,7 +182,8 @@ func (e *Engine) runPiProsecutorLoop(
 			e.lastL6ReconMilestone = ""
 			e.mu.Unlock()
 		}
-		alreadyVerifiedInBatch := hasMutated && strings.Contains(trace.ActionType, "sandbox_sh")
+		alreadyVerifiedInBatch := hasMutated && strings.Contains(trace.ActionType, "sandbox_sh") &&
+			(strings.Contains(trace.ActionTarget, "--selftest") || strings.Contains(trace.ActionTarget, "py_compile"))
 		needsVerification := !alreadyVerifiedInBatch &&
 			(strings.Contains(actType, "workspace_write") || strings.Contains(actType, "workspace_edit")) &&
 			(strings.Contains(trace.ActionTarget, ".py") || strings.Contains(trace.ActionTarget, ".sh"))
@@ -362,7 +363,7 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 	handoff *CrossCycleHandoffPacket,
 	traces []core.ThoughtTrace,
 ) {
-	if strings.TrimSpace(activeMilestone) == "" {
+	if strings.TrimSpace(activeMilestone) == "" || len(traces) == 0 || ctx.Err() != nil {
 		return
 	}
 	wsDir, wikiDir := e.resolveSandboxDirs()
@@ -1378,23 +1379,26 @@ func (e *Engine) dispatchLayerAction(
 			}
 			return fmt.Sprintf("=== /wiki/%s (%d bytes) ===\n%s", wikiRel, len(wData), truncateText(wData, 64000))
 		}
-		// Support optional line-range syntax on workspace_read (e.g. "pkg/module.py:300-440" or "path.py:300:440")
+		// Support optional line-range syntax on workspace_read (e.g. "pkg/module.py:300-440", "path.py:300:440", or "path.py#1-180" / "path.py#0")
 		readTarget := strings.TrimSpace(act.Target)
 		startLine, endLine := 0, 0
-		if colonIdx := strings.Index(readTarget, ":"); colonIdx > 0 {
-			filePart := strings.TrimSpace(readTarget[:colonIdx])
-			rangePart := strings.TrimSpace(readTarget[colonIdx+1:])
+		delimIdx := strings.IndexAny(readTarget, ":#")
+		if delimIdx > 0 {
+			filePart := strings.TrimSpace(readTarget[:delimIdx])
+			rangePart := strings.TrimSpace(readTarget[delimIdx+1:])
 			sep := "-"
 			if strings.Contains(rangePart, ":") {
 				sep = ":"
 			}
 			parts := strings.SplitN(rangePart, sep, 2)
-			if s, sErr := strconv.Atoi(strings.TrimSpace(parts[0])); sErr == nil && s > 0 {
-				startLine = s
+			if s, sErr := strconv.Atoi(strings.TrimSpace(parts[0])); sErr == nil {
 				readTarget = filePart
-				if len(parts) == 2 {
-					if eLine, eErr := strconv.Atoi(strings.TrimSpace(parts[1])); eErr == nil && eLine >= s {
-						endLine = eLine
+				if s > 0 {
+					startLine = s
+					if len(parts) == 2 {
+						if eLine, eErr := strconv.Atoi(strings.TrimSpace(parts[1])); eErr == nil && eLine >= s {
+							endLine = eLine
+						}
 					}
 				}
 			}
@@ -1749,6 +1753,10 @@ func (e *Engine) dispatchLayerAction(
 			} else if cmdStr == "" || cmdStr == "sh" || cmdStr == "bash" || cmdStr == "/bin/sh" || strings.Contains(bodyStr, "\n") {
 				cmdStr = bodyStr
 			}
+		}
+		if strings.Contains(cmdStr, "python") && strings.Contains(cmdStr, "-c") && strings.Contains(cmdStr, `\n`) {
+			cmdStr = strings.ReplaceAll(cmdStr, `;\n`, "; ")
+			cmdStr = strings.ReplaceAll(cmdStr, `\n`, "\n")
 		}
 		res, err := e.sandbox.Exec(ctx, cmdStr)
 		e.telem.EmitLive("sandbox.exec", res)

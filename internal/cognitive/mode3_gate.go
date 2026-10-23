@@ -137,11 +137,11 @@ func discoverWorkspacePackageDirs(workspaceDir string) []string {
 // ResolveWorkspaceArtifactPath resolves bare filenames (e.g. "harness2_improver.py") to "<pkg>/harness2_improver.py"
 // (or vice versa) across any discovered workspace package directory, preventing split-brain path mismatches.
 func ResolveWorkspaceArtifactPath(workspaceDir string, wf string) string {
-	wf = strings.TrimSuffix(normalizeRelPath(wf), ".")
+	wf = strings.TrimSuffix(strings.TrimSuffix(normalizeRelPath(wf), "."), "/")
 	if workspaceDir == "" || wf == "" {
 		return wf
 	}
-	if info, err := os.Stat(filepath.Join(workspaceDir, wf)); err == nil && info.Size() > 0 {
+	if info, err := os.Stat(filepath.Join(workspaceDir, wf)); err == nil && (info.IsDir() || info.Size() > 0) {
 		return wf
 	}
 	if !strings.Contains(wf, "/") {
@@ -191,7 +191,7 @@ func BuildMilestoneOraclePacket(milestoneLine string, workspaceDir string, wikiD
 		wf := ResolveWorkspaceArtifactPath(workspaceDir, rawWf)
 		abs := filepath.Join(workspaceDir, wf)
 		info, err := os.Stat(abs)
-		if err != nil || info.Size() == 0 {
+		if err != nil || (!info.IsDir() && info.Size() == 0) {
 			checks = append(checks, fmt.Sprintf("[MISSING:/workspace/%s]", wf))
 		} else {
 			checks = append(checks, fmt.Sprintf("[OK:/workspace/%s]", wf))
@@ -282,6 +282,14 @@ func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandb
 	// Stage 1: Artifact existence & non-empty verification (JSON substance verified after Stage 2 --selftest runs)
 	for _, wf := range wsFiles {
 		abs := filepath.Join(workspaceDir, wf)
+		if info, sErr := os.Stat(abs); sErr == nil && info.IsDir() {
+			entries, dErr := os.ReadDir(abs)
+			if dErr != nil || len(entries) == 0 {
+				res.Passed = false
+				res.MissingArtifacts = append(res.MissingArtifacts, "/workspace/"+wf)
+			}
+			continue
+		}
 		data, err := os.ReadFile(abs)
 		if err != nil || len(strings.TrimSpace(string(data))) == 0 {
 			res.Passed = false

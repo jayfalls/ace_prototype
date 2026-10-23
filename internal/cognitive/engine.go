@@ -51,6 +51,8 @@ type Engine struct {
 	lastL6ReconTurns        []core.ChatTurn
 	l6MutatedInCycle        bool
 	lastPreloadedConnectome map[string]bool
+	lastTurn05CycleID       string
+	lastTurn05Picked        []ConnectomeNode
 }
 
 func NewEngine(

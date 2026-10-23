@@ -653,9 +653,8 @@ func (p *OpenCodeFreeProvider) StreamComplete(
 		if err == nil && expectJSON && !isValidDecisionJSON(resp.Content) {
 			err = fmt.Errorf("model %s truncated before action/decision JSON fields (len=%d)", modelID, len(resp.Content))
 		}
-		// Sticky 1-Retry Jitter (providers/research.md §4.2): ONLY retry if the primary warm-cache model failed FAST (<8s, e.g. transient 502/EOF),
-		// NEVER retry if it stalled/timed out (>8s)!
-		if (err != nil || strings.TrimSpace(resp.Content) == "") && idx == 0 && ctx.Err() == nil && time.Since(attemptStart) < 8*time.Second {
+		// Sticky 1-Retry Jitter: retry once if the primary model failed fast (<8s) OR if there is only 1 candidate in the tier (subscription mode) and parent ctx is still live!
+		if (err != nil || strings.TrimSpace(resp.Content) == "") && idx == 0 && ctx.Err() == nil && (time.Since(attemptStart) < 8*time.Second || len(candidates) == 1) {
 			errStr := ""
 			if err != nil {
 				errStr = err.Error()
@@ -937,20 +936,20 @@ func (p *OpenCodeFreeProvider) callSingleModel(
 	}
 	p.mu.RUnlock()
 
-	callTimeout := 60 * time.Second
-	maxReasoningChars := 14000
+	callTimeout := 75 * time.Second
+	maxReasoningChars := 18000
 	if maxTokens > 8192 {
 		if strings.HasPrefix(modelID, "deepseek-v4.1-flash") {
-			callTimeout = 95 * time.Second
-			maxReasoningChars = 36000
+			callTimeout = 150 * time.Second
+			maxReasoningChars = 42000
 		} else {
-			callTimeout = 45 * time.Second
-			maxReasoningChars = 16000
+			callTimeout = 60 * time.Second
+			maxReasoningChars = 18000
 		}
 	}
 	callCtx, cancelCall := context.WithTimeout(ctx, callTimeout)
 	defer cancelCall()
-	idleTimer := time.AfterFunc(25*time.Second, func() {
+	idleTimer := time.AfterFunc(65*time.Second, func() {
 		cancelCall()
 	})
 	defer idleTimer.Stop()
@@ -990,7 +989,7 @@ func (p *OpenCodeFreeProvider) callSingleModel(
 	scanner := bufio.NewScanner(resp.Body)
 	scanner.Buffer(make([]byte, 0, 128*1024), 2*1024*1024)
 	for scanner.Scan() {
-		idleTimer.Reset(25 * time.Second)
+		idleTimer.Reset(35 * time.Second)
 		line := strings.TrimSpace(scanner.Text())
 		if !strings.HasPrefix(line, "data: ") {
 			continue

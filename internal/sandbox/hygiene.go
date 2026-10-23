@@ -1213,7 +1213,7 @@ def audit_script_mutants(script_path: str, max_mutants: int = 6) -> dict[str, An
     # Snapshot existing benchmark/dataset JSON artifacts in memory before running mutants so no mutant or timeout can corrupt them
     json_backups: dict[str, bytes] = {}
     if candidates:
-        for bdir in ("/workspace/benchmarks", "/workspace/benchmarks/datasets"):
+        for bdir in ("/workspace/benchmarks", "/workspace/benchmarks/datasets", "/workspace/benchmarks/results", "/workspace/skills"):
             if os.path.isdir(bdir):
                 for fn in os.listdir(bdir):
                     if fn.endswith(".json"):
