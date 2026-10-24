@@ -171,7 +171,7 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 		"Working on: %s\nWhat happened: %s\nHow would you like to proceed? Reply 'A' to adjust the target threshold/path, or 'B' to skip this task.\nStatus: Paused this task and moved on to the next item.",
 		title, blocker,
 	)
-	e.DispatchHumanContradictionAlert(ctx, cycleID, nodeID, msg, targetPath)
+	e.DispatchHumanContradictionAlert(ctx, cycleID, nodeID, msg)
 	return nil
 }
 
@@ -180,7 +180,7 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 func (e *Engine) RunL6PreGateSelfCheck(milestone string) (bool, string) {
 	wsDir, _ := e.resolveSandboxDirs()
 	if wsDir == "" {
-		return true, "ok"
+		return false, "[L6 Self-Check] workspace root unresolved — cannot verify declared artifacts"
 	}
 	paths, _ := ExtractMilestoneArtifacts(milestone)
 	for _, rel := range paths {

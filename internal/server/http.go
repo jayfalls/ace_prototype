@@ -17,14 +17,15 @@ import (
 )
 
 type Server struct {
-	engine   *cognitive.Engine
-	llm      core.LLMProvider
-	bus      core.Bus
-	memory   core.MemoryStore
-	jail     *sandbox.Jail
-	telem    core.TelemetrySink
-	telegram *channels.TelegramBridge
-	webFS    fs.FS
+	engine    *cognitive.Engine
+	llm       core.LLMProvider
+	bus       core.Bus
+	memory    core.MemoryStore
+	jail      *sandbox.Jail
+	telem     core.TelemetrySink
+	telegram  *channels.TelegramBridge
+	webFS     fs.FS
+	authToken string
 }
 
 func NewServer(
@@ -36,16 +37,18 @@ func NewServer(
 	telem core.TelemetrySink,
 	telegram *channels.TelegramBridge,
 	webFS fs.FS,
+	authToken string,
 ) *Server {
 	return &Server{
-		engine:   engine,
-		llm:      llm,
-		bus:      bus,
-		memory:   mem,
-		jail:     jail,
-		telem:    telem,
-		telegram: telegram,
-		webFS:    webFS,
+		engine:    engine,
+		llm:       llm,
+		bus:       bus,
+		memory:    mem,
+		jail:      jail,
+		telem:     telem,
+		telegram:  telegram,
+		webFS:     webFS,
+		authToken: authToken,
 	}
 }
 
@@ -107,7 +110,7 @@ func (s *Server) Handler() http.Handler {
 		})
 	}
 
-	return corsMiddleware(mux)
+	return corsMiddleware(s.mutatingAuth(mux))
 }
 
 func (s *Server) handleGetState(w http.ResponseWriter, r *http.Request) {
@@ -578,19 +581,6 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 func nonNilSlice[T any](s []T) []T {

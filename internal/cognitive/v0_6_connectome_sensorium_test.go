@@ -59,7 +59,7 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.Error(t, err)
 
 	// 2. Verify Living Spec 2,800B budget + Frozen SHA-256(§1 || §5) (§4)
-	milestone := "- [ ] **Axis 7.1 — Connectome & Router Verification**: Implement `/workspace/router_eval.py` and verify."
+	milestone := "- [ ] **Milestone 7.1 — Connectome & Router Verification**: Implement `/workspace/router_eval.py` and verify."
 	specID, specText := eng.EnsureLivingSpecForMilestone(ctx, milestone)
 	require.NotEmpty(t, specID)
 	require.LessOrEqual(t, len(specText), 2800)
@@ -74,8 +74,8 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.True(t, preloaded["/workspace/router_eval.py"])
 
 	// 4. Verify Stuck Detector: 3 vetoes only forces local L4 strategy reflection (false), 5 vetoes escalates (§6.1)
-	_, _, jsonPath := ComputeVetoReasonHash(milestone, "missing artifact /workspace/benchmarks/results/v07_axis8_1_task_decomposer.json")
-	require.Equal(t, "/workspace/benchmarks/results/v07_axis8_1_task_decomposer.json", jsonPath)
+	_, _, jsonPath := ComputeVetoReasonHash(milestone, "missing artifact /workspace/results/task_decomposer_eval.json")
+	require.Equal(t, "/workspace/results/task_decomposer_eval.json", jsonPath)
 
 	for i := 1; i <= 5; i++ {
 		stuck, count := eng.RecordGateVetoAndCheckStuck(ctx, "cyc_test01", milestone, "missing artifact /workspace/missing_file.py", "I already created it")
@@ -93,7 +93,7 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.True(t, ok)
 	require.Greater(t, routed.PosteriorMean(), 0.70)
 
-	// 5. Verify Pluggable Sensorium (Internal Proprioceptive + External Exteroceptive + Reality Replica + Circadian + Anatomy SVG) (§7)
+	// 5. Verify Pluggable Sensorium (Internal Proprioceptive + External Exteroceptive + Reality Replica + Circadian) (§7)
 	eng.RecordHumanInteractionEvent(ctx, "telegram", time.Now().UTC(), 14.5)
 	snap := eng.CollectSensoriumSnapshot(ctx)
 	require.Greater(t, snap.HumanProbActiveNow, 0.0)
@@ -104,8 +104,4 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.Contains(t, promptLine, "Extero:")
 	require.Contains(t, promptLine, "uv_air_lab")
 	require.Contains(t, promptLine, "arm_sim_v1")
-
-	svg := BuildAnatomyIsometricSVG("contradiction:test", "/workspace/router_eval.py", "Line 1\nLine 2\nLine 3")
-	require.Contains(t, string(svg), "<svg")
-	require.Contains(t, string(svg), "SHEAR-LINE GATE RIG")
 }

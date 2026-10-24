@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"ace/internal/core"
-	_ "modernc.org/sqlite"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func TestMemoryBusPublishSubscribeRecent(t *testing.T) {

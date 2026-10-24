@@ -33,7 +33,7 @@ func isIgnoredOrWildcardArtifact(p string) bool {
 	}
 	base := filepath.Base(p)
 	// Ignore pre-existing reference corpus papers, domain syntheses, and competitor studies mentioned in "Grounded in ..." clauses
-	if strings.HasPrefix(p, "research_corpus/") ||
+	if strings.HasPrefix(p, "corpus/") ||
 		strings.HasPrefix(base, "domain-synthesis-") ||
 		strings.HasPrefix(base, "agents-study-") ||
 		strings.HasPrefix(base, "extract-") ||
@@ -43,11 +43,8 @@ func isIgnoredOrWildcardArtifact(p string) bool {
 		return true
 	}
 	switch p {
-	case "ace_v1_traces.db", "ace_v0_1_traces.db", "ace_rlm.py", "goals.md", "soul.md", "index.md", "log.md", "README.md",
-		"benchmarks/ace_v0_1_traces.db", "benchmarks/ace_v0_2_traces.db", "benchmarks/ace_v0_3_traces.db", "benchmarks/ace_v0_3_live_traces.db",
-		"benchmarks/ace_v0_6_traces.db", "ace_v0_6_traces.db", "benchmarks/v06_final_layer_telemetry.json", "v06_final_layer_telemetry.json",
-		"benchmarks/live_traces.db", "benchmarks/v0_1_benchmark_suite.json", "benchmarks/registry.json", "registry.json",
-		"research_corpus/CORPUS_INDEX.md", "CORPUS_INDEX.md":
+	case "workspace_audit.py", "goals.md", "soul.md", "index.md", "log.md", "README.md",
+		"live_traces.db", "registry.json":
 		return true
 	}
 	return false
@@ -166,7 +163,7 @@ func discoverWorkspacePackageDirs(workspaceDir string) []string {
 			continue
 		}
 		name := e.Name()
-		if name == "archive" || name == "bin" || name == "research_corpus" || name == "benchmarks" {
+		if name == "archive" || name == "bin" || name == "datasets" || name == "results" {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(workspaceDir, name, "__init__.py")); err == nil {
@@ -191,7 +188,7 @@ func ResolveWorkspaceArtifactPath(workspaceDir string, wf string) string {
 		return wf
 	}
 	if !strings.Contains(wf, "/") {
-		for _, sub := range []string{"benchmarks/datasets", "benchmarks/results", "benchmarks"} {
+		for _, sub := range []string{"datasets", "results", "modules"} {
 			cand := filepath.Join(sub, wf)
 			if info, err := os.Stat(filepath.Join(workspaceDir, cand)); err == nil && info.Size() > 0 {
 				return filepath.ToSlash(cand)
@@ -208,7 +205,7 @@ func ResolveWorkspaceArtifactPath(workspaceDir string, wf string) string {
 		if info, err := os.Stat(filepath.Join(workspaceDir, base)); err == nil && info.Size() > 0 {
 			return base
 		}
-		for _, sub := range []string{"benchmarks/datasets", "benchmarks/results", "benchmarks"} {
+		for _, sub := range []string{"datasets", "results", "modules"} {
 			cand := filepath.Join(sub, base)
 			if info, err := os.Stat(filepath.Join(workspaceDir, cand)); err == nil && info.Size() > 0 {
 				return filepath.ToSlash(cand)
@@ -253,7 +250,7 @@ func BuildMilestoneOraclePacket(milestoneLine string, workspaceDir string, wikiD
 		}
 	}
 	var dbList []string
-	for _, sub := range []string{"", "benchmarks"} {
+	for _, sub := range []string{"", "datasets", "results"} {
 		dir := filepath.Join(workspaceDir, sub)
 		if entries, err := os.ReadDir(dir); err == nil {
 			for _, e := range entries {
@@ -272,11 +269,11 @@ func BuildMilestoneOraclePacket(milestoneLine string, workspaceDir string, wikiD
 			}
 		}
 	}
-	dbSummary := "none yet (use web_search/web_fetch, ace_rlm.search_arxiv, or ace_rlm.build_and_register_dataset)"
+	dbSummary := "none yet (use web_search/web_fetch or build a dataset under /workspace/datasets/)"
 	if len(dbList) > 0 {
 		dbSummary = strings.Join(dbList, ", ")
 	}
-	out := "OracleGate{" + strings.Join(checks, ", ") + " | SDK:/workspace/ace_rlm.py[web_search(query,max_results=5)->list[dict], web_fetch(url,max_chars=24000)->str, fetch_public_dataset(dataset_id,limit=80)->dict, search_corpus(query,max_hits=8)->list[dict], search_arxiv(query,max_results=5)->list[dict], discover_sqlite_dbs()->list[str], inspect_db_schema(db_path)->dict, query_sqlite(sql,params,db_path)->list[dict], query_traces(sql,generation)->list[dict], build_and_register_dataset(dataset_id,version,records,provenance)->dict, load_dataset(dataset_id,split='held_out')->list[dict], load_dataset_split(dataset_id,split='both')->dict|list, beta_ci(k,n,alpha_level=0.05)->(mean,ci_low,ci_high), mcnemar_exact_p(b,c)->float, wilcoxon_signed_rank(xs,ys)->dict{w_stat,z_score,p_value,n_nonzero}, audit_script_mutants(path)->dict, audit_conceptual_flows(path)->dict] | DataSources:[" + dbSummary + "] | DatasetStandard:/workspace/benchmarks/datasets/<name>.json{dataset_id,version,provenance,train_split:[>=5],held_out_split:[>=5]} + /workspace/benchmarks/registry.json}"
+	out := "OracleGate{" + strings.Join(checks, ", ") + " | AuditSDK:/workspace/workspace_audit.py[audit_script_mutants(path)->dict, audit_conceptual_flows(path)->dict] | DataSources:[" + dbSummary + "] | DatasetStandard:/workspace/datasets/<name>.json{dataset_id,version,provenance,train_split:[>=5],held_out_split:[>=5]} + /workspace/registry.json}"
 	if len(out) > 1300 {
 		out = out[:1300]
 	}
@@ -288,7 +285,7 @@ func BuildMilestoneOraclePacket(milestoneLine string, workspaceDir string, wikiD
 // 2. AST Non-Vacuity & Zero-Mocking Audit on target `.py` scripts
 // 3. Independent `--selftest` Execution (`f2p` verification) inside `bwrap` (`exit == 0`)
 // 4. `p2p` Regression Suite across previously verified active scripts
-// 5. 4-Pass `AST-PDG` Conceptual Flow & Unused-Import Hygiene Audit (`ace_rlm.audit_conceptual_flows`)
+// 5. 4-Pass `AST-PDG` Conceptual Flow & Unused-Import Hygiene Audit (`workspace_audit.audit_conceptual_flows`)
 func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandbox core.Sandbox, workspaceDir string, wikiDir string, verifiedFiles []string) Mode3GateResult {
 	rawWsFiles, wikiFiles := ExtractMilestoneArtifacts(milestoneLine)
 	var wsFiles []string
@@ -301,19 +298,19 @@ func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandb
 		}
 	}
 	// If the milestone identifies an Axis/Milestone (e.g., "axis 8.1"), also attach any existing matching JSON result file
-	// under benchmarks/results/ so truncated milestone lines can never bypass ValidateJSONExperimentSubstance.
+	// under results/ so truncated milestone lines can never bypass ValidateJSONExperimentSubstance.
 	if axisID := extractMilestoneIdentifier(milestoneLine); axisID != "" && workspaceDir != "" {
 		parts := strings.Fields(axisID)
 		if len(parts) == 2 {
 			slug := parts[0] + strings.ReplaceAll(parts[1], ".", "_")
-			resDir := filepath.Join(workspaceDir, "benchmarks", "results")
+			resDir := filepath.Join(workspaceDir, "results")
 			if entries, err := os.ReadDir(resDir); err == nil {
 				for _, e := range entries {
 					if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
 						continue
 					}
 					if strings.Contains(strings.ToLower(e.Name()), slug) {
-						rel := filepath.ToSlash(filepath.Join("benchmarks", "results", e.Name()))
+						rel := filepath.ToSlash(filepath.Join("results", e.Name()))
 						if !seenResolved[rel] {
 							seenResolved[rel] = true
 							wsFiles = append(wsFiles, rel)
@@ -442,7 +439,7 @@ func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandb
 			hygCmd := fmt.Sprintf(`python3 -c '
 import ast, json, sys
 sys.path.insert(0, "/workspace")
-import ace_rlm
+import workspace_audit
 
 path = "/workspace/%s"
 run_mutants = %s
@@ -467,11 +464,11 @@ for node in ast.walk(tree):
                 tautologies.append(f"line {node.lineno}: constant/self comparison")
 
 # 2. Check AST-PDG conceptual cleanliness
-flow_rep = ace_rlm.audit_conceptual_flows(path)
+flow_rep = workspace_audit.audit_conceptual_flows(path)
 
 # 3. Run SWE-Mutation falsification check (must kill >= 1 mutant if mutants exist)
 if run_mutants:
-    mut_rep = ace_rlm.audit_script_mutants(path, max_mutants=2)
+    mut_rep = workspace_audit.audit_script_mutants(path, max_mutants=2)
     mut_ok = (mut_rep["total_mutants"] == 0) or (mut_rep["killed"] > 0)
 else:
     mut_rep = {"total_mutants": 0, "killed": 0, "skipped_secondary": True}
@@ -533,7 +530,7 @@ sys.exit(0 if ok else 2)
 		}
 		for i := len(verifiedFiles) - 1; i >= 0 && len(regTargets) < 5; i-- {
 			clean := normalizeRelPath(verifiedFiles[i])
-			if !strings.HasSuffix(clean, ".py") || strings.HasSuffix(clean, "__init__.py") || clean == "ace_rlm.py" || clean == runnerRel {
+			if !strings.HasSuffix(clean, ".py") || strings.HasSuffix(clean, "__init__.py") || clean == "workspace_audit.py" || clean == runnerRel {
 				continue
 			}
 			alreadyInWs := false
@@ -598,7 +595,7 @@ func verifyDatasetOrExperimentJSON(relPath string, data []byte) string {
 	}
 
 	norm := filepath.ToSlash(relPath)
-	if strings.HasPrefix(norm, "benchmarks/datasets/") {
+	if strings.HasPrefix(norm, "datasets/") {
 		if _, ok := parsed["dataset_id"]; !ok {
 			return "dataset JSON missing required 'dataset_id' field"
 		}
@@ -622,17 +619,17 @@ func verifyDatasetOrExperimentJSON(relPath string, data []byte) string {
 		}
 	}
 
-	if norm == "benchmarks/registry.json" {
+	if norm == "registry.json" {
 		if ds, ok := parsed["datasets"].([]interface{}); ok {
 			if len(ds) == 0 {
-				return "benchmarks/registry.json has empty 'datasets' list"
+				return "registry.json has empty 'datasets' list"
 			}
 		} else if dsMap, ok := parsed["datasets"].(map[string]interface{}); ok {
 			if len(dsMap) == 0 {
-				return "benchmarks/registry.json has empty 'datasets' map"
+				return "registry.json has empty 'datasets' map"
 			}
 		} else {
-			return "benchmarks/registry.json must contain a non-empty 'datasets' list or map"
+			return "registry.json must contain a non-empty 'datasets' list or map"
 		}
 	}
 

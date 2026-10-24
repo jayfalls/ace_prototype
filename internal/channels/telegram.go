@@ -37,7 +37,7 @@ type TelegramStatus struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// TelegramBridge implements an OpenClaw-style Channel Adapter for Telegram using long-polling (getUpdates).
+// TelegramBridge implements a Channel Adapter for Telegram using long-polling (getUpdates).
 type TelegramBridge struct {
 	mu               sync.RWMutex
 	db               *sql.DB
@@ -381,7 +381,7 @@ func (b *TelegramBridge) isChatAllowed(chatID int64) bool {
 	allowed := strings.TrimSpace(b.allowedChatIDs)
 	b.mu.RUnlock()
 	if allowed == "" {
-		return true
+		return false
 	}
 	idStr := strconv.FormatInt(chatID, 10)
 	for _, part := range strings.Split(allowed, ",") {

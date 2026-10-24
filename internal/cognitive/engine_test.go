@@ -10,8 +10,8 @@ import (
 	"ace/internal/memory"
 	"ace/internal/sandbox"
 	"ace/internal/telemetry"
-	_ "modernc.org/sqlite"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 type fakeProvider struct {

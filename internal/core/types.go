@@ -112,17 +112,17 @@ const (
 
 // BusEnvelope is the canonical message structure travelling on the Northbound and Southbound buses.
 type BusEnvelope struct {
-	ID          string       `json:"id"`
-	CycleID     string       `json:"cycle_id"`
-	AgentID     string       `json:"agent_id"`
-	Topic       string       `json:"topic"`
-	Direction   BusDirection `json:"direction"`
-	FromLayer   int          `json:"from_layer"`
-	ToLayer     int          `json:"to_layer"`
-	Kind        string       `json:"kind"` // directive, telemetry, escalation, sense, action_result
-	Summary     string       `json:"summary"`
-	Payload     string       `json:"payload"`
-	CreatedAt   time.Time    `json:"created_at"`
+	ID        string       `json:"id"`
+	CycleID   string       `json:"cycle_id"`
+	AgentID   string       `json:"agent_id"`
+	Topic     string       `json:"topic"`
+	Direction BusDirection `json:"direction"`
+	FromLayer int          `json:"from_layer"`
+	ToLayer   int          `json:"to_layer"`
+	Kind      string       `json:"kind"` // directive, telemetry, escalation, sense, action_result
+	Summary   string       `json:"summary"`
+	Payload   string       `json:"payload"`
+	CreatedAt time.Time    `json:"created_at"`
 }
 
 // LayerStatus represents the real-time observable state of one ACE layer.
@@ -169,45 +169,45 @@ type LayerDecision struct {
 
 // ThoughtTrace stores the full raw prompt, reasoning stream, and parsed decision (Meta-Harness raw trace principle).
 type ThoughtTrace struct {
-	ID               string      `json:"id"`
-	CycleID          string      `json:"cycle_id"`
-	AgentID          string      `json:"agent_id"`
-	LayerID          int         `json:"layer_id"`
-	LayerCode        string      `json:"layer_code"`
-	LoopKind         string      `json:"loop_kind"` // cognitive, fast_chat, memory_consolidation
-	Model            string      `json:"model"`
-	TriggerSummary   string      `json:"trigger_summary"`
-	SystemPrompt     string      `json:"system_prompt"`
-	UserPrompt       string      `json:"user_prompt"`
-	RawReasoning     string      `json:"raw_reasoning"`
-	RawResponse      string      `json:"raw_response"`
-	Thought          string      `json:"thought"`
-	StateSummary     string      `json:"state_summary"`
-	Southbound       string      `json:"southbound"`
-	Northbound       string      `json:"northbound"`
-	ActionType       string      `json:"action_type"`
-	ActionTarget     string      `json:"action_target"`
-	ActionResult     string      `json:"action_result"`
-	Confidence       float64     `json:"confidence"`
-	LatencyMs        int64       `json:"latency_ms"`
-	PromptTokens     int         `json:"prompt_tokens"`
-	CachedTokens     int         `json:"cached_tokens"`
-	CompletionTokens int         `json:"completion_tokens"`
-	CreatedAt        time.Time   `json:"created_at"`
+	ID               string    `json:"id"`
+	CycleID          string    `json:"cycle_id"`
+	AgentID          string    `json:"agent_id"`
+	LayerID          int       `json:"layer_id"`
+	LayerCode        string    `json:"layer_code"`
+	LoopKind         string    `json:"loop_kind"` // cognitive, fast_chat, memory_consolidation
+	Model            string    `json:"model"`
+	TriggerSummary   string    `json:"trigger_summary"`
+	SystemPrompt     string    `json:"system_prompt"`
+	UserPrompt       string    `json:"user_prompt"`
+	RawReasoning     string    `json:"raw_reasoning"`
+	RawResponse      string    `json:"raw_response"`
+	Thought          string    `json:"thought"`
+	StateSummary     string    `json:"state_summary"`
+	Southbound       string    `json:"southbound"`
+	Northbound       string    `json:"northbound"`
+	ActionType       string    `json:"action_type"`
+	ActionTarget     string    `json:"action_target"`
+	ActionResult     string    `json:"action_result"`
+	Confidence       float64   `json:"confidence"`
+	LatencyMs        int64     `json:"latency_ms"`
+	PromptTokens     int       `json:"prompt_tokens"`
+	CachedTokens     int       `json:"cached_tokens"`
+	CompletionTokens int       `json:"completion_tokens"`
+	CreatedAt        time.Time `json:"created_at"`
 }
 
 // ChatMessage represents a message in the user <-> ACE conversation.
 type ChatMessage struct {
-	ID         string    `json:"id"`
-	AgentID    string    `json:"agent_id"`
-	Role       string    `json:"role"`   // user, assistant, proactive
-	Source     string    `json:"source"` // fast_chat, L6, user
-	Content    string    `json:"content"`
-	Reasoning  string    `json:"reasoning"`
-	Model      string    `json:"model"`
-	LatencyMs  int64     `json:"latency_ms"`
-	CycleID    string    `json:"cycle_id"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID        string    `json:"id"`
+	AgentID   string    `json:"agent_id"`
+	Role      string    `json:"role"`   // user, assistant, proactive
+	Source    string    `json:"source"` // fast_chat, L6, user
+	Content   string    `json:"content"`
+	Reasoning string    `json:"reasoning"`
+	Model     string    `json:"model"`
+	LatencyMs int64     `json:"latency_ms"`
+	CycleID   string    `json:"cycle_id"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // MemoryEntry is an episodic/semantic memory item indexed in SQLite FTS5 with layer isolation and tiering.

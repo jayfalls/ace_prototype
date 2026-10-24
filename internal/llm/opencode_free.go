@@ -843,13 +843,13 @@ func (p *OpenCodeFreeProvider) EvaluateBinaryGate(ctx context.Context, sharedCon
 }
 
 type wirePayload struct {
-	Model         string            `json:"model"`
-	MaxTokens     int               `json:"max_tokens"`
-	Messages      []core.ChatTurn   `json:"messages"`
-	Tools         []wireToolStub    `json:"tools"`
-	ToolChoice    string            `json:"tool_choice"`
-	Stream        bool              `json:"stream"`
-	StreamOptions map[string]bool   `json:"stream_options"`
+	Model         string          `json:"model"`
+	MaxTokens     int             `json:"max_tokens"`
+	Messages      []core.ChatTurn `json:"messages"`
+	Tools         []wireToolStub  `json:"tools"`
+	ToolChoice    string          `json:"tool_choice"`
+	Stream        bool            `json:"stream"`
+	StreamOptions map[string]bool `json:"stream_options"`
 }
 
 type sseChunk struct {
@@ -860,10 +860,10 @@ type sseChunk struct {
 		} `json:"delta"`
 	} `json:"choices"`
 	Usage *struct {
-		PromptTokens          int `json:"prompt_tokens"`
-		CompletionTokens      int `json:"completion_tokens"`
-		PromptCacheHitTokens  int `json:"prompt_cache_hit_tokens"`
-		PromptTokensDetails   *struct {
+		PromptTokens         int `json:"prompt_tokens"`
+		CompletionTokens     int `json:"completion_tokens"`
+		PromptCacheHitTokens int `json:"prompt_cache_hit_tokens"`
+		PromptTokensDetails  *struct {
 			CachedTokens int `json:"cached_tokens"`
 		} `json:"prompt_tokens_details"`
 	} `json:"usage"`

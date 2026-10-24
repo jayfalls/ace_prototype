@@ -190,15 +190,7 @@ func (e *Engine) runPiProsecutorLoop(
 			(strings.Contains(trace.ActionTarget, ".py") || strings.Contains(trace.ActionTarget, ".sh"))
 
 		if needsVerification {
-			var scriptTargets []string
-			seenTargets := map[string]bool{}
-			for _, part := range strings.Split(trace.ActionTarget, ";") {
-				cleanPart := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(part), "/workspace/"), "workspace/")
-				if (strings.HasSuffix(cleanPart, ".py") || strings.HasSuffix(cleanPart, ".sh")) && !seenTargets[cleanPart] {
-					seenTargets[cleanPart] = true
-					scriptTargets = append(scriptTargets, cleanPart)
-				}
-			}
+			scriptTargets := splitScriptTargets(trace.ActionTarget)
 			if len(scriptTargets) > 0 {
 				var verifyCmds []string
 				for _, cleanFile := range scriptTargets {
@@ -459,9 +451,7 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 	// Automatically distill verified trajectory into /wiki/skills/*.md, update Beta(alpha,beta) posteriors, and index Connectome SKILL node!
 	e.DistillAndRegisterWikiSkill(ctx, cycleID, activeMilestone, wsFiles, traces)
 	e.MarkDAGTaskVerified(ctx, activeMilestone)
-	if sqlDB := e.getDB(); sqlDB != nil {
-		_, _ = sqlDB.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'RESOLVED', blocking_weight = 0.0 WHERE kind = 'CONTRADICTION' AND state != 'RESOLVED'`)
-	}
+	e.resolveContradictionNodes(ctx)
 	_ = e.memory.SaveEngineMeta(ctx, "overnight_contradiction_digest", "")
 
 	if jl, ok := e.sandbox.(*sandbox.Jail); ok {
@@ -690,7 +680,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		if layer == core.LayerTaskProsecution {
 			// L6 REFLEX CACHE ORDER:
 			// 1. LayerRoleSuffix(L6) (100% static across all L6 calls)
-			// 2. Immutable Reference SDK (/workspace/ace_rlm.py, 100% static across all L6 calls)
+			// 2. Immutable Reference Module (/workspace/workspace_audit.py, 100% static across all L6 calls)
 			// 3. Milestone-Pinned Active Goals + Oracle Gate (100% static for the milestone)
 			// 4. Hot Files (read-only reference files FIRST, mutable primary target script LAST)
 			// 5. File Manifest (placed AFTER hot files so L2/L4 wiki notes never bust the 64KB hot-file prefix!)
@@ -856,7 +846,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		decision.Thought = resp.Reasoning
 	}
 
-	// Execute single action OR Hermes-style batched actions[] in a single turn!
+	// Execute single action OR batched actions[] in a single turn!
 	var rawCandidates []core.LayerAction
 	if decision.Action.Type != "" && decision.Action.Type != "none" {
 		rawCandidates = append(rawCandidates, decision.Action)
@@ -1377,7 +1367,7 @@ func (e *Engine) dispatchLayerAction(
 		cleanTgt := strings.TrimSpace(act.Target)
 		lowerTgt := strings.ToLower(cleanTgt)
 		if strings.HasSuffix(lowerTgt, ".db") || strings.HasSuffix(lowerTgt, ".sqlite") || strings.HasSuffix(lowerTgt, ".db-shm") || strings.HasSuffix(lowerTgt, ".db-wal") {
-			return "[Binary SQLite database — do NOT call workspace_read on .db files! Exact table & column schemas are pre-injected in your prompt; use ace_rlm.inspect_db_schema(db_path) or ace_rlm.query_sqlite(sql, params, db_path) in L6 Python scripts to query rows.]"
+			return "[Binary SQLite database — do NOT call workspace_read on .db files! Exact table & column schemas are pre-injected in your prompt; use sqlite3 in L6 Python scripts to query rows.]"
 		}
 		if cleanTgt == "goals.md" || strings.HasSuffix(cleanTgt, "/goals.md") || strings.HasPrefix(cleanTgt, "../wiki/") || strings.HasPrefix(cleanTgt, "/wiki/") || strings.HasPrefix(cleanTgt, "wiki/") || strings.HasPrefix(cleanTgt, "notes/") {
 			wikiRel := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(cleanTgt, "../wiki/"), "/wiki/"), "wiki/")
@@ -1424,15 +1414,8 @@ func (e *Engine) dispatchLayerAction(
 		}
 		data, err := e.sandbox.ReadFile(readTarget)
 		if err != nil && !strings.Contains(readTarget, "/") && strings.HasSuffix(readTarget, ".py") {
-			if altData, altErr := e.sandbox.ReadFile("ace_v07/" + readTarget); altErr == nil {
-				readTarget = "ace_v07/" + readTarget
-				data = altData
-				err = nil
-			}
-		}
-		if err != nil && strings.Contains(readTarget, "SPEC_ACE_V0_8_SELF_BUILD.md") {
-			if altData, altErr := e.sandbox.ReadFile("SPEC_ACE_V0_8_SELF_BUILDING.md"); altErr == nil {
-				readTarget = "SPEC_ACE_V0_8_SELF_BUILDING.md"
+			if altData, altErr := e.sandbox.ReadFile("modules/" + readTarget); altErr == nil {
+				readTarget = "modules/" + readTarget
 				data = altData
 				err = nil
 			}
@@ -1494,8 +1477,8 @@ func (e *Engine) dispatchLayerAction(
 			return "workspace_edit restricted to L6"
 		}
 		editTgt := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(act.Target), "/workspace/"), "workspace/")
-		if !strings.Contains(editTgt, "/") && strings.HasSuffix(editTgt, ".py") && editTgt != "ace_rlm.py" && editTgt != "script.py" {
-			editTgt = "ace_v07/" + editTgt
+		if !strings.Contains(editTgt, "/") && strings.HasSuffix(editTgt, ".py") && editTgt != "workspace_audit.py" && editTgt != "script.py" {
+			editTgt = "modules/" + editTgt
 		}
 		act.Target = editTgt
 		if err := e.sandbox.EditFile(act.Target, act.OldText, act.Content); err != nil {
@@ -1784,8 +1767,8 @@ func (e *Engine) dispatchLayerAction(
 			return "workspace_write error: action.content cannot be empty"
 		}
 		writeTgt := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(act.Target), "/workspace/"), "workspace/")
-		if !strings.Contains(writeTgt, "/") && strings.HasSuffix(writeTgt, ".py") && writeTgt != "ace_rlm.py" && writeTgt != "script.py" {
-			writeTgt = "ace_v07/" + writeTgt
+		if !strings.Contains(writeTgt, "/") && strings.HasSuffix(writeTgt, ".py") && writeTgt != "workspace_audit.py" && writeTgt != "script.py" {
+			writeTgt = "modules/" + writeTgt
 		}
 		act.Target = writeTgt
 		if err := e.sandbox.WriteFile(act.Target, act.Content); err != nil {
@@ -1861,4 +1844,27 @@ func (e *Engine) emitProactiveUpdate(ctx context.Context, cycleID string, model 
 	// Raw L6 tool steps (sandbox_sh, workspace_write, workspace_edit, wiki_write) are already broadcast
 	// via sandbox.exec, sandbox.updated, wiki.updated, and thought.recorded SSE streams.
 	// Do NOT pollute chat_messages with raw tool step logs, as FastChat reads chat_messages as assistant history!
+}
+
+// splitScriptTargets splits a possibly multi-path action_target ("a.py;b.sh") into
+// deduplicated workspace-relative script paths for per-file verification.
+func splitScriptTargets(target string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, part := range strings.Split(target, ";") {
+		clean := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(part), "/workspace/"), "workspace/")
+		if (strings.HasSuffix(clean, ".py") || strings.HasSuffix(clean, ".sh")) && !seen[clean] {
+			seen[clean] = true
+			out = append(out, clean)
+		}
+	}
+	return out
+}
+
+// resolveContradictionNodes clears open CONTRADICTION connectome nodes after a
+// milestone verification, so they do not block the prosecutor forever.
+func (e *Engine) resolveContradictionNodes(ctx context.Context) {
+	if sqlDB := e.getDB(); sqlDB != nil {
+		_, _ = sqlDB.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'RESOLVED', blocking_weight = 0.0 WHERE kind = 'CONTRADICTION' AND state != 'RESOLVED'`)
+	}
 }

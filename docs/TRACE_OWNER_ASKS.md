@@ -44,6 +44,8 @@
 | B9 | Integrity: out-of-band reads, config inventory, model drift inspection | 8.5 | added |
 | B10 | L1 issues mission objectives (repo) vs human-only mission (plan) | §0, 8.1 | ok (10-24: mission, personality, capabilities at creation; ACE proposes goals) |
 | B11 | Cognition-first; physical embodiment | §2, 10 capability set | added |
+| B12 | L1 is fully introspective: input only from lower layers, read-only, via L2; output only to L2 | 8.2, 9.3 | added (paper §3.2.6–3.2.7: tiered L1 observes all layer I/O, writes only verdicts) |
+| B13 | L5 frustration = running success/failure ratio that signals task-switch; cognitive damping = deliberation over options before acting | 9.3, 8.3 | added (paper §3.6.2–3.6.4: goes beyond switch hysteresis — explicit attempt ratio + options weighing) |
 
 ## C. Scientist, measurement, honesty
 

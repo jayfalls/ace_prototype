@@ -194,7 +194,7 @@ Human rights are critical to your operation in a human world, and this framework
 - **Policy**: Add value, don't waste time, and do no harm. Never fabricate data or falsify empirical tests.
 
 # CURRENT MISSION
-Engineer, empirically benchmark (including deep ablation against October 2026 Hermes Agent ` + "`v0.22.4`" + ` and OpenClaw ` + "`v2026.10.6`" + ` on real SOTA datasets), and self-improve ACE into a high-capability, cost-optimal, self-directing, self-correcting, and self-improving personal and research assistant capable of building its own successors (` + "`v0.8+`" + `).
+*(none — ACE idles until the owner anchors a real mission via ` + "`ace init`" + ` or mission reload)*
 `,
 		"index.md": `# ACE Knowledge Wiki Index
 
@@ -207,7 +207,7 @@ Engineer, empirically benchmark (including deep ablation against October 2026 He
 		"goals.md": `# Active Mission & Strategic Roadmap
 
 ## Overall North-Star Goal
-Give ACE any goal in this file (or via Chat) — even a single sentence with zero prior context. Layer 2 (Global Strategy) will automatically research the domain (via ` + "`web_search`" + `, ` + "`web_fetch`" + `, and ` + "`ace_rlm.search_arxiv`" + `), decompose the goal into concrete ` + "`- [ ]`" + ` milestones, construct real datasets in ` + "`/workspace/benchmarks/datasets/`" + `, engineer modular code in ` + "`/workspace/`" + `, and empirically verify every milestone via Mode-3 falsification gates.
+Give ACE any goal in this file (or via Chat) — even a single sentence with zero prior context. Layer 2 (Global Strategy) will automatically research the domain (via ` + "`web_search`" + ` and ` + "`web_fetch`" + `), decompose the goal into concrete ` + "`- [ ]`" + ` milestones, construct real datasets in ` + "`/workspace/datasets/`" + `, engineer modular code in ` + "`/workspace/`" + `, and empirically verify every milestone via Mode-3 falsification gates.
 `,
 		"log.md": fmt.Sprintf("# ACE 6-Layer Cognitive Log\n\n## [%s] ACE Initialized\n- 6-Layer Cognitive Architecture (L1 Aspirational, L2 Global Strategy, L3 Agent Model, L4 Executive, L5 Cognitive Control, L6 Task Prosecution) online with Northbound & Southbound buses.\n", time.Now().UTC().Format(time.RFC3339)),
 		"notes/architecture.md": `# ACE 6-Layer Cognitive Architecture (Shapiro et al., arXiv:2310.06775)
@@ -233,20 +233,17 @@ Give ACE any goal in this file (or via Chat) — even a single sentence with zer
 - Search prior knowledge & Wiki before deriving from scratch: kb search "<query>"
 - Record non-obvious findings & architectural discoveries: kb note "<title>" --body "..." --tags "..."
 `,
-		"skills/public_sota_benchmarks.md": `# Skill: Public SOTA LLM & Agent Grading Benchmarks (ace_rlm.fetch_public_dataset)
-- Always evaluate architectural changes on real public SOTA LLM grading benchmarks alongside cross-generation trace DBs.
-- Use ace_rlm.fetch_public_dataset(alias, limit=80) to fetch, cache, and register deterministic 75/25 train/held_out splits:
-  * Terminal & SWE: "terminal-bench" (harborframework/terminal-bench-2.1), "swe-bench" (princeton-nlp/SWE-bench_Verified), "bigcodebench" (bigcode/bigcodebench), "humaneval", "mbpp"
-  * Frontier Exams: "hle" (Humanity's Last Exam: macabdul9/hle_text_only), "gpqa" (fingertap/GPQA-Diamond), "mmlu-pro" (TIGER-Lab/MMLU-Pro), "arc" (allenai/ai2_arc ARC-Challenge)
-  * Frontier Math: "math-500" (HuggingFaceH4/MATH-500), "aime_2024" (HuggingFaceH4/aime_2024), "gsm8k" (openai/gsm8k)
-  * Finance & Law: "finqa" (ChanceFocus/flare-finqa), "financebench" (PatronusAI/financebench), "lex_glue" (coastalcph/lex_glue CaseHOLD), "legalbench" (nguha/legalbench)
+		"skills/dataset_construction.md": `# Skill: Dataset Construction & Registry
+- Datasets live in /workspace/datasets/<dataset_id>.json with fields: dataset_id, version, provenance, train_split, held_out_split.
+- Split deterministically (e.g. SHA-256 of a stable record ID) and register each dataset in /workspace/registry.json.
+- Record per-item predictions in /workspace/results/ so the gate can recompute statistics; never self-declare verdicts.
 `,
 		"skills/harness2_propose_probe_compose.md": `# Skill: Harness^2 Recursive Agent Harnessing (arXiv:2610.14224)
 - Separate Task-Level Execution Harness (propose-probe-compose candidate harness units on held-out tasks) from the Harnessing-Level Continual Improvement Library (retaining validated components and edit-contrast lessons across tasks).
 - Prefer on-demand C6 Skills (/wiki/skills/*.md) and C7 Scripts/Tools (/workspace/) over always-on system prompt bloat (C1-C4).
 `,
-		"skills/hierarchical_memory.md": `# Skill: Hierarchical Memory & Competitor Architecture Synthesis
-- Compare and synthesize memory, skill, and tool architectures across OpenClaw, Pi, Oh-My-Pi, Hermes Agent (/workspace/research_corpus/competitors/agents-study-*), and the 340-paper syntheses (/workspace/research_corpus/domain_syntheses/*).
+		"skills/hierarchical_memory.md": `# Skill: Hierarchical Memory & Architecture Synthesis
+- Compare and synthesize memory, skill, and tool architectures from research gathered via web_search/web_fetch and the workspace corpus.
 - Store reusable procedural workflows as C6 Skills (/wiki/skills/*.md) and counter-evidence-aware semantic facts via memory_remember.
 `,
 	}
@@ -806,4 +803,3 @@ func (s *Store) LoadEngineMeta(ctx context.Context, key string) (string, error) 
 	err := s.db.QueryRowContext(ctx, `SELECT value FROM engine_meta WHERE key = ?`, key).Scan(&val)
 	return val, err
 }
-

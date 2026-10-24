@@ -63,27 +63,31 @@ func (e *Engine) currentSoulHash() string {
 }
 
 // extractCurrentMissionFromSoul extracts the human's single steerable # CURRENT MISSION from soul.md.
+// The heading must start a line — soul.md also mentions `# CURRENT MISSION` inline in prose.
 func (e *Engine) extractCurrentMissionFromSoul() string {
 	soul, _ := e.memory.ReadWiki("soul.md")
-	idx := strings.Index(soul, "# CURRENT MISSION")
-	if idx >= 0 {
-		rest := strings.TrimSpace(soul[idx+len("# CURRENT MISSION"):])
-		lines := strings.Split(rest, "\n")
-		var kept []string
-		for _, l := range lines {
-			tl := strings.TrimSpace(l)
-			if strings.HasPrefix(tl, "# ") {
-				break
-			}
-			if tl != "" && !strings.HasPrefix(tl, "*(") {
-				kept = append(kept, tl)
-			}
-		}
-		if len(kept) > 0 {
-			return strings.Join(kept, " ")
+	lines := strings.Split(soul, "\n")
+	start := -1
+	for i, l := range lines {
+		if strings.HasPrefix(strings.TrimSpace(l), "# CURRENT MISSION") {
+			start = i + 1
+			break
 		}
 	}
-	return "Deeply benchmark ACE v0.7 against the latest October 2026 Hermes Agent (v0.22.4) and OpenClaw (v2026.10.6) across real SOTA public benchmarks and multi-step workflows, illuminate capability/cost/latency gaps, and engineer the improvements required for ACE to build its v0.8 successor."
+	if start < 0 {
+		return ""
+	}
+	var kept []string
+	for _, l := range lines[start:] {
+		tl := strings.TrimSpace(l)
+		if strings.HasPrefix(tl, "# ") {
+			break
+		}
+		if tl != "" && !strings.HasPrefix(tl, "*(") {
+			kept = append(kept, tl)
+		}
+	}
+	return strings.Join(kept, " ")
 }
 
 func (e *Engine) LoadMissionDAGNodes(ctx context.Context) []MissionDAGNode {
@@ -191,19 +195,19 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 		return
 	}
 	var sb strings.Builder
-	sb.WriteString("# ACE v0.7.1 Live Mission Dependency Tree (Originated by L1 → L2 || L3 || L4)\n\n")
+	sb.WriteString("# ACE Live Mission Dependency Tree (Originated by L1 → L2 || L3 || L4)\n\n")
 	for _, n := range nodes {
 		if n.Stage == "L1_MISSION_ROOT" {
-			sb.WriteString(fmt.Sprintf("## [L1 ASPIRATIONAL ROOT] `%s` (Soul Hash: `%s`, Provenance: `%s`)\n- **Mission Frame**: %s\n\n", n.ID, n.SoulHash, n.DirectiveHash[:10], n.Directive))
+			sb.WriteString(fmt.Sprintf("## [L1 ASPIRATIONAL ROOT] `%s` (Soul Hash: `%s`, Provenance: `%s`)\n- **Mission Frame**: %s\n\n", n.ID, n.SoulHash, truncateText(n.DirectiveHash, 10), n.Directive))
 		}
 	}
 	sb.WriteString("## Strategic & Capability Dependency Tree (`L2 || L3`)\n")
 	for _, n := range nodes {
 		switch n.Stage {
 		case "L2_STRATEGY":
-			sb.WriteString(fmt.Sprintf("- **[L2 STRATEGY `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, n.DirectiveHash[:8], n.Title, truncateText(n.Directive, 220)))
+			sb.WriteString(fmt.Sprintf("- **[L2 STRATEGY `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
 		case "L3_CAPABILITY":
-			sb.WriteString(fmt.Sprintf("  - **[L3 CAPABILITY MODEL `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, n.DirectiveHash[:8], n.Title, truncateText(n.Directive, 220)))
+			sb.WriteString(fmt.Sprintf("  - **[L3 CAPABILITY MODEL `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
 		}
 	}
 	sb.WriteString("\n## Active Executable Task Specifications (`L4 → L5 → L6`)\n\n")
@@ -213,7 +217,7 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 			if n.State == "COMPLETED" {
 				box = "[x]"
 			}
-			sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, n.DirectiveHash[:10], collapseMultilineMilestoneBullets(n.Directive)))
+			sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, truncateText(n.DirectiveHash, 10), collapseMultilineMilestoneBullets(n.Directive)))
 		}
 	}
 	_ = e.memory.WriteWiki("goals.md", sb.String())
@@ -264,20 +268,19 @@ func (e *Engine) RecordDAGTaskAttempt(ctx context.Context) {
 // StepMissionDAG executes the Pipelined Top-Down Dependency Tree with Conditional Parallel L2||L3||L4 Waves:
 //   - Genesis Gate: L1 (Aspirational) MUST run first (`M1_ROOT`, 1 call) before any L2..L6 node can exist.
 //   - Pipelined Parallel Waves (`L2 || L3 || L4`):
-//     * Wave 0: L2 grounds Strategic Branch 1 (`S1_ABLATION` -> `NEEDS_L3_MODEL`).
-//     * Wave 1 (Parallel `L2 || L3`): L2 grounds Strategic Branch 2 (`S2_V08_GAPS`) IN PARALLEL WITH L3 modeling `S1_ABLATION` (emitting 2 capability sub-nodes `C1A_DATASET` and `C1B_HARNESS` -> `NEEDS_L4_SPEC`).
-//     * Wave 2 (Parallel `L3 || L4`): L3 models `S2_V08_GAPS` (emitting `C2A_GAPS` and `C2B_BLUEPRINT` -> `NEEDS_L4_SPEC`) and audits C6 skill transfer IN PARALLEL WITH L4 speccing `C1A` and `C1B` into executable leaf tasks (`READY_FOR_L5`).
-//     * Wave 3: L4 specs `C2A` and `C2B` into executable leaf tasks (`READY_FOR_L5`).
-//   - Notice the exact structural call counts across the tree:
-//     * L1 = 1 call (Mission Root)
-//     * L2 = 2 calls (`S1_ABLATION`, `S2_V08_GAPS`)
-//     * L3 = 3 calls (`S1` capability model, `S2` capability model, C6 Wiki-Skill posterior audit)
-//     * L4 = 4+ calls (`C1A`, `C1B`, `C2A`, `C2B` task specs + tactical revisions on stalls)
-//     * L6 = 10–50+ calls (Workhorse sandbox execution)
-//     -> Strictly `1 <= L1 < L2 < L3 < L4 << L6`, with zero possibility of any layer running before its top-down parent!
+//   - Each wave inspects mission_dag_nodes and runs whatever is ready, concurrently:
+//     L2 proposes a new strategic branch under the mission root, L3 models any branch
+//     in NEEDS_L3_MODEL into capability sub-nodes, and L4 specs NEEDS_L4_SPEC
+//     capabilities into executable tasks (`READY_FOR_L5`).
+//   - The DAG shape is generated by L2–L4 from the mission — never hardcoded.
+//   - Structural call distribution: `1 <= L1 < L2 < L3 < L4 << L6`, with zero possibility
+//     of any layer running before its top-down parent.
 func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID string, stimulus string) []core.ThoughtTrace {
 	soulHash := e.currentSoulHash()
 	missionText := e.extractCurrentMissionFromSoul()
+	if missionText == "" {
+		return nil // no mission anchored: idle until the owner sets one (plan 8.1)
+	}
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode
@@ -383,7 +386,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		l4NeedsRun := len(pendingL3ForL4) > 0 || targetStalledL4 != nil
 
 		// 1. Check if L2 has a strategic branch to originate under M1_ROOT:
-		//    - Either during the initial 2-branch bootstrap (S1_ABLATION, S2_V08_GAPS), OR
+		//    - Either during the initial bootstrap (<2 branches), OR
 		//    - Horizon Expansion when all prior L3/L4 nodes have completed (up to 12 strategic branches).
 		l2NeedsRun := len(l2Nodes) < 2 || (!l3NeedsRun && !l4NeedsRun && openL4Count == 0 && len(l2Nodes) < 12)
 
@@ -408,77 +411,38 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 
 		if l2NeedsRun {
 			wg.Add(1)
-			go func(root MissionDAGNode, branchIdx int) {
+			go func(root MissionDAGNode, branchIdx int, existing []MissionDAGNode) {
 				defer wg.Done()
-				if branchIdx == 0 {
-					l2Prompt := fmt.Sprintf(
-						"L2 GLOBAL STRATEGY [Branch S1_ABLATION under L1 Root %s (%s)]: Under L1's directive (%q), inspect the October 2026 release notes in /workspace/research_corpus/live-2026-10-hermes-v0.22.4-vs-openclaw-v2026.10.6.md and formulate Strategic Branch S1 (Deep Comparative Ablation of Hermes Agent v0.22.4 [2026-10-21], OpenClaw v2026.10.6 [2026-10-22], ACE v0.6, and ACE v0.7 on real SOTA benchmarks) on southbound_directive.",
-						root.ID, root.DirectiveHash[:8], truncateText(root.Directive, 240),
-					)
-					tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
-					if err != nil {
-						return
-					}
-					dir := firstNonEmpty(strings.TrimSpace(tr.Southbound), tr.StateSummary)
-					s1Node := MissionDAGNode{
-						ID:            "S1_ABLATION",
-						ParentID:      root.ID,
-						Stage:         "L2_STRATEGY",
-						State:         "NEEDS_L3_MODEL",
-						OwnerLayer:    2,
-						Title:         "October 2026 Hermes v0.22.4 vs OpenClaw v2026.10.6 vs ACE v0.7 Empirical Ablation",
-						Directive:     dir,
-						DirectiveHash: sha256Str(root.DirectiveHash + "|S1_ABLATION|" + dir)[:16],
-						SoulHash:      root.SoulHash,
-					}
-					e.upsertMissionDAGNode(ctx, s1Node)
-				} else if branchIdx == 1 {
-					l2Prompt := fmt.Sprintf(
-						"L2 GLOBAL STRATEGY [Branch S2_V08_GAPS under L1 Root %s (%s)]: Under L1's directive (%q), formulate Strategic Branch S2 (Personal & Research Assistant Capability Gap Matrix & ACE v0.8 Self-Building Architecture Specification) on southbound_directive.",
-						root.ID, root.DirectiveHash[:8], truncateText(root.Directive, 240),
-					)
-					tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
-					if err != nil {
-						return
-					}
-					dir := firstNonEmpty(strings.TrimSpace(tr.Southbound), tr.StateSummary)
-					s2Node := MissionDAGNode{
-						ID:            "S2_V08_GAPS",
-						ParentID:      root.ID,
-						Stage:         "L2_STRATEGY",
-						State:         "NEEDS_L3_MODEL",
-						OwnerLayer:    2,
-						Title:         "Personal & Research Assistant Capability Gap Matrix & ACE v0.8 Self-Building Blueprint",
-						Directive:     dir,
-						DirectiveHash: sha256Str(root.DirectiveHash + "|S2_V08_GAPS|" + dir)[:16],
-						SoulHash:      root.SoulHash,
-					}
-					e.upsertMissionDAGNode(ctx, s2Node)
-				} else {
-					branchID := fmt.Sprintf("S%d_V08_SELF_BUILD", branchIdx+1)
-					l2Prompt := fmt.Sprintf(
-						"L2 GLOBAL STRATEGY [Horizon Expansion Branch %s under L1 Root %s (%s)]: Prior strategic branches (S1_ABLATION, S2_V08_GAPS) have completed verification. Formulate Strategic Branch %s implementing the ACE v0.8 Self-Building Candidate Verifier & Proactive Personal/Research Assistant Architecture on southbound_directive.",
-						branchID, root.ID, root.DirectiveHash[:8], branchID,
-					)
-					tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
-					if err != nil {
-						return
-					}
-					dir := firstNonEmpty(strings.TrimSpace(tr.Southbound), tr.StateSummary)
-					sNode := MissionDAGNode{
-						ID:            branchID,
-						ParentID:      root.ID,
-						Stage:         "L2_STRATEGY",
-						State:         "NEEDS_L3_MODEL",
-						OwnerLayer:    2,
-						Title:         fmt.Sprintf("ACE v0.8 Self-Building & Proactive Assistant Architecture (%s)", branchID),
-						Directive:     dir,
-						DirectiveHash: sha256Str(root.DirectiveHash + "|" + branchID + "|" + dir)[:16],
-						SoulHash:      root.SoulHash,
-					}
-					e.upsertMissionDAGNode(ctx, sNode)
+				var prior []string
+				for _, b := range existing {
+					prior = append(prior, b.ID+": "+b.Title)
 				}
-			}(*l1Root, len(l2Nodes))
+				branchID := fmt.Sprintf("S%d", branchIdx+1)
+				l2Prompt := fmt.Sprintf(
+					"L2 GLOBAL STRATEGY [Branch %s under L1 Root %s (%s)]: Under L1's directive (%q), formulate Strategic Branch %s as a falsifiable hypothesis serving the mission — expected outcome, primary approach, and how it differs from prior branches (%s). Emit the branch directive on southbound_directive.",
+					branchID, root.ID, truncateText(root.DirectiveHash, 8), truncateText(root.Directive, 240), branchID, strings.Join(prior, "; "),
+				)
+				tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
+				if err != nil {
+					return
+				}
+				dir := firstNonEmpty(strings.TrimSpace(tr.Southbound), tr.StateSummary)
+				if dir == "" {
+					return
+				}
+				title := strings.TrimSpace(strings.SplitN(dir, "\n", 2)[0])
+				e.upsertMissionDAGNode(ctx, MissionDAGNode{
+					ID:            branchID,
+					ParentID:      root.ID,
+					Stage:         "L2_STRATEGY",
+					State:         "NEEDS_L3_MODEL",
+					OwnerLayer:    2,
+					Title:         truncateText(title, 100),
+					Directive:     dir,
+					DirectiveHash: sha256Str(root.DirectiveHash + "|" + branchID + "|" + dir)[:16],
+					SoulHash:      root.SoulHash,
+				})
+			}(*l1Root, len(l2Nodes), l2Nodes)
 		}
 
 		if l3NeedsRun {
@@ -487,8 +451,8 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				defer wg.Done()
 				if l2Target != nil {
 					l3Prompt := fmt.Sprintf(
-						"L3 AGENT MODEL [Parent L2 Node %s (%s)]: Audit ACE's capabilities, C6 Beta(alpha,beta) Wiki-Skills (/wiki/skills/), trace DBs (/workspace/benchmarks/ace_v0_6_traces.db), and 75/25 SOTA benchmark splits for Strategic Branch %q (%s). Emit the capability & dataset model on southbound_directive for Layer 4.",
-						l2Target.ID, l2Target.DirectiveHash[:8], l2Target.Title, truncateText(l2Target.Directive, 240),
+						"L3 AGENT MODEL [Parent L2 Node %s (%s)]: Audit current capabilities, wiki skills (/wiki/skills/), and available datasets for Strategic Branch %q (%s). Emit the capability & dataset model on southbound_directive for Layer 4.",
+						l2Target.ID, truncateText(l2Target.DirectiveHash, 8), l2Target.Title, truncateText(l2Target.Directive, 240),
 					)
 					tr, err := e.executeLayerStep(ctx, cycleID, core.LayerAgentModel, l3Prompt)
 					if err != nil {
@@ -502,9 +466,6 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					// guaranteeing Calls(L1)=1 < Calls(L2)=2 < Calls(L3)=3 < Calls(L4)=4+ << Calls(L6)!
 					c1ID := "C_" + l2Target.ID + "_DATA"
 					c1State := "NEEDS_L4_SPEC"
-					if l2Target.ID == "S2_V08_GAPS" {
-						c1State = "NEEDS_L3_DISTILL" // Exactly 1 cross-branch C6 skill-prior synthesis call for L3 (total L3 = 3 calls)
-					}
 					e.upsertMissionDAGNode(ctx, MissionDAGNode{
 						ID:            c1ID,
 						ParentID:      l2Target.ID,
@@ -531,7 +492,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				} else if l3Distill != nil {
 					l3Prompt := fmt.Sprintf(
 						"L3 SKILL & PRIOR CONSOLIDATION [Node %s (%s)]: Audit the C6 Beta(alpha,beta) Wiki-Skill priors in /wiki/skills/ and empirical dataset splits for %q, and emit the finalized capability specification on southbound_directive for Layer 4.",
-						l3Distill.ID, l3Distill.DirectiveHash[:8], l3Distill.Title,
+						l3Distill.ID, truncateText(l3Distill.DirectiveHash, 8), l3Distill.Title,
 					)
 					tr, err := e.executeLayerStep(ctx, cycleID, core.LayerAgentModel, l3Prompt)
 					if err == nil {
@@ -568,8 +529,8 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				}
 				for _, l3Target := range l3Targets {
 					l4Prompt := fmt.Sprintf(
-						"L4 EXECUTIVE SPECIFIER [Parent L3 Node %s (%s)]: Translate Capability Model %q (%s) into a concrete executable Task Spec with explicit /workspace/ace_v07/<module>.py path, 75/25 dataset split, result JSON path, and --selftest verification contract.",
-						l3Target.ID, l3Target.DirectiveHash[:8], l3Target.Title, truncateText(l3Target.Directive, 240),
+						"L4 EXECUTIVE SPECIFIER [Parent L3 Node %s (%s)]: Translate Capability Model %q (%s) into a concrete executable Task Spec: explicit /workspace module path, dataset path with a declared train/held-out split, result JSON path, and a verification contract the gate can check. Emit the spec on southbound_directive.",
+						l3Target.ID, truncateText(l3Target.DirectiveHash, 8), l3Target.Title, truncateText(l3Target.Directive, 240),
 					)
 					tr, err := e.runExecutivePlanningLoop(ctx, cycleID, l4Prompt)
 					if err != nil {
@@ -579,140 +540,36 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					e.upsertMissionDAGNode(ctx, l3Target)
 					dir := firstNonEmpty(strings.TrimSpace(tr.Southbound), tr.StateSummary)
 
-					switch l3Target.ID {
-					case "C_S1_ABLATION_DATA":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/hermes_openclaw_ace_ablation.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v07_hermes_openclaw_ace_ablation_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset`), and result artifact `/workspace/benchmarks/results/v07_axis11_1_hermes_openclaw_ace_ablation.json`. Ground the comparative model in `/workspace/research_corpus/live-2026-10-hermes-v0.22.4-vs-openclaw-v2026.10.6.md`, `/workspace/benchmarks/v06_final_layer_telemetry.json`, `/workspace/benchmarks/ace_v0_6_traces.db`, and real tasks from `public_swe_bench_verified.json`, `public_terminal_bench_2_1.json`, `public_math_500.json`, `public_gpqa_diamond.json`, `public_financebench.json`, and `public_legalbench.json`. Evaluate H1 (ACE v0.7 pyramidal DAG + Turn 0/0.5 Connectome + Beta Wiki-Skills reduces Cost-of-Pass and improves substance-verified pass rate vs Hermes v0.22.4 flat ReAct, OpenClaw v2026.10.6 Gateway loop, and ACE v0.6 even-cascade on held_out_split with `mcnemar_exact_p < 0.05`, `wilcoxon_signed_rank` p < 0.05, `h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_11_1",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "October 2026 Hermes Agent (v0.22.4) vs OpenClaw (v2026.10.6) vs ACE v0.6 vs ACE v0.7 Deep Ablation",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/hermes_openclaw_ace_ablation.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_11_1|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					case "C_S2_V08_GAPS_DATA":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/v08_gap_illuminator.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v07_v08_capability_gaps_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset`), result artifact `/workspace/benchmarks/results/v07_axis11_2_v08_gap_matrix.json`, and synthesis specification `/workspace/SPEC_ACE_V0_8_SELF_BUILDING.md`. Quantify every capability, latency, memory, and UX gap between ACE v0.7, Hermes Agent v0.22.4, and OpenClaw v2026.10.6 for personal and research assistant workloads (`h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_11_2",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "Personal & Research Assistant Capability Gap Matrix & ACE v0.8 Self-Building Blueprint",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/v08_gap_illuminator.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_11_2|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					case "C_S2_V08_GAPS_HARNESS":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/assistant_suite.py`, `/workspace/ace_v07/budget_governor.py`, and `/workspace/ace_v07/retention_gate.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v08_axis12_assistant_suite_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset`), and result artifact `/workspace/benchmarks/results/v08_axis12_assistant_suite.json`. Evaluate H1 (evidence-ranked budget-governed assistant suite & retention gate outperforms baseline status quo on held-out assistant dimensions with `mcnemar_exact_p < 0.05`, `h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_12_1",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "ACE v0.8 Budget-Governed Personal & Research Assistant Suite & Retention Gate",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/assistant_suite.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_12_1|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					case "C_S1_ABLATION_HARNESS":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/candidate_builder.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v08_candidate_build_verifications_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset` grounded in `/workspace/benchmarks/ace_v0_6_traces.db` and `/workspace/research_corpus/live-2026-10-hermes-v0.22.4-vs-openclaw-v2026.10.6.md`), and result artifact `/workspace/benchmarks/results/v08_axis12_2_candidate_builder.json`. Evaluate H1 (ACE v0.8 Candidate Sandbox Verifier with AST-PDG + Mode-3 pre-swap regression gating achieves significantly lower false-promotion and Cost-of-Pass than unverified self-modification on held_out_split with `mcnemar_exact_p < 0.05`, `h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_12_2",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "ACE v0.8 Self-Building Candidate Sandbox & Hot-Swap Verification Harness",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/candidate_builder.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_12_2|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					case "C_S4_V08_SELF_BUILD_DATA":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/proactive_assistant.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v08_proactive_assistant_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset` derived from real `human_events` circadian and sensorium telemetry in `/workspace/benchmarks/ace_v0_6_traces.db`), and result artifact `/workspace/benchmarks/results/v08_axis13_2_proactive_assistant.json`. Evaluate H1 (proactive interruption-budget policy raises useful-trigger recall and lowers false-interrupt rate vs passive baseline on held_out_split with `mcnemar_exact_p < 0.05` or `wilcoxon_signed_rank` p < 0.05, `h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_13_2",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "ACE v0.8 Proactive Assistant Triggering & Circadian Interruption-Budget Governor",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/proactive_assistant.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_13_2|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					case "C_S4_V08_SELF_BUILD_HARNESS":
-						fullSpec := fmt.Sprintf(
-							"Build `/workspace/ace_v07/cost_router.py` (with `--selftest`), dataset `/workspace/benchmarks/datasets/v08_cost_routing_stream_v1.json` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset` derived from the 4-way Hermes v0.22.4 / OpenClaw v2026.10.6 / ACE v0.6 / ACE v0.7 ablation traces), and result artifact `/workspace/benchmarks/results/v08_axis13_3_cost_router.json`. Evaluate H1 (ACE v0.8 cost-optimal multi-harness router achieves strictly lower Cost-of-Pass with equal-or-better pass rate than best fixed harness on held_out_split with `mcnemar_exact_p < 0.05` or `wilcoxon_signed_rank` p < 0.05, `h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            "Axis_13_3",
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "ACE v0.8 Cost-Optimal Multi-Harness Router vs Hermes v0.22.4 & OpenClaw v2026.10.6",
-							Directive:     fullSpec,
-							ArtifactPath:  "/workspace/ace_v07/cost_router.py",
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|Axis_13_3|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
-					default:
-						taskID := "T_" + l3Target.ID
-						pyMod := fmt.Sprintf("/workspace/ace_v07/%s.py", strings.ToLower(l3Target.ID))
-						dsPath := fmt.Sprintf("/workspace/benchmarks/datasets/v08_%s_v1.json", strings.ToLower(l3Target.ID))
-						resPath := fmt.Sprintf("/workspace/benchmarks/results/v08_%s.json", strings.ToLower(l3Target.ID))
-						if dynPy, dynDS, dynRes := e.extractDynamicL4SpecPaths(ctx, dir); dynPy != "" {
-							pyMod = dynPy
-							if dynDS != "" {
-								dsPath = dynDS
-							}
-							if dynRes != "" {
-								resPath = dynRes
-							}
+					taskID := "T_" + l3Target.ID
+					stem := strings.ToLower(l3Target.ID)
+					modPath := fmt.Sprintf("/workspace/modules/%s.py", stem)
+					dsPath := fmt.Sprintf("/workspace/datasets/%s_v1.json", stem)
+					resPath := fmt.Sprintf("/workspace/results/%s.json", stem)
+					if dynMod, dynDS, dynRes := e.extractDynamicL4SpecPaths(ctx, dir); dynMod != "" {
+						modPath = dynMod
+						if dynDS != "" {
+							dsPath = dynDS
 						}
-						fullSpec := fmt.Sprintf(
-							"Build `%s` (with `--selftest`), dataset `%s` (75/25 SHA-256 split via `ace_rlm.build_and_register_dataset`), and result artifact `%s` (`h1_accepted: true`, `decision: \"H1_ACCEPTED\"`). L4 Executive Plan: %s",
-							pyMod, dsPath, resPath, dir,
-						)
-						e.upsertMissionDAGNode(ctx, MissionDAGNode{
-							ID:            taskID,
-							ParentID:      l3Target.ID,
-							Stage:         "L4_TASK_SPEC",
-							State:         "READY_FOR_L5",
-							OwnerLayer:    4,
-							Title:         "ACE v0.8 Autonomous Task Specification (" + l3Target.ID + " -> " + pyMod + ")",
-							Directive:     fullSpec,
-							ArtifactPath:  pyMod,
-							DirectiveHash: sha256Str(l3Target.DirectiveHash + "|" + taskID + "|" + fullSpec)[:16],
-							SoulHash:      l3Target.SoulHash,
-						})
+						if dynRes != "" {
+							resPath = dynRes
+						}
 					}
+					fullSpec := fmt.Sprintf(
+						"Build `%s` (with `--selftest`), dataset `%s` (declared train/held-out split), and result artifact `%s` — verdict computed by the gate, not self-declared. L4 Executive Plan: %s",
+						modPath, dsPath, resPath, dir,
+					)
+					e.upsertMissionDAGNode(ctx, MissionDAGNode{
+						ID:            taskID,
+						ParentID:      l3Target.ID,
+						Stage:         "L4_TASK_SPEC",
+						State:         "READY_FOR_L5",
+						OwnerLayer:    4,
+						Title:         "Task Specification (" + l3Target.ID + " -> " + modPath + ")",
+						Directive:     fullSpec,
+						ArtifactPath:  modPath,
+						DirectiveHash: sha256Str(l3Target.DirectiveHash + "|" + taskID + "|" + fullSpec)[:16],
+						SoulHash:      l3Target.SoulHash,
+					})
 				}
 			}(pendingL3ForL4, targetStalledL4)
 		}
@@ -746,7 +603,8 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	}
 
 	// Run L5 Local 4-bit GPU Gate on the provenance-verified L4 Task Spec before dispatching L6
-	pYes := 0.96
+	// fail closed: a gate error leaves pYes at 0 and the task is not dispatched
+	pYes := 0.0
 	gateModel := "d1-4bit-gpu-gate"
 	var gateMs int64
 	sharedState := "ACE L5 Cognitive Control & Somatic Valence Gate | Top-Down Mission DAG Provenance Verified | Verify concrete dataset + modular execution directive"
@@ -756,11 +614,17 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		gateModel = gpuRes.Model
 		gateMs = gpuRes.LatencyMs
 	}
+	gateApproved := pYes >= 0.38
 	e.mu.Lock()
 	l5 := e.layers[core.LayerCognitiveCtrl]
 	l5.State = "idle"
-	l5.Summary = fmt.Sprintf("L5 [DAG PROVENANCE %s] PASS (P(yes)=%.2f, %dms): %s", provChain, pYes, gateMs, truncateText(readyTask.Title, 60))
-	l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s) -> L6 dispatch", pYes, gateMs, provChain)
+	if gateApproved {
+		l5.Summary = fmt.Sprintf("L5 [DAG PROVENANCE %s] PASS (P(yes)=%.2f, %dms): %s", provChain, pYes, gateMs, truncateText(readyTask.Title, 60))
+		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s) -> L6 dispatch", pYes, gateMs, provChain)
+	} else {
+		l5.Summary = fmt.Sprintf("L5 [DAG PROVENANCE %s] VETO (P(yes)=%.2f, %dms): %s", provChain, pYes, gateMs, truncateText(readyTask.Title, 60))
+		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s) -> VETO L6", pYes, gateMs, provChain)
+	}
 	l5.ActiveDirective = readyTask.Directive
 	l5.Confidence = pYes
 	l5.Model = gateModel
@@ -772,13 +636,16 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	_ = e.memory.SaveLayerStatus(ctx, l5Snap)
 	e.telem.EmitLive("layer.status", l5Snap)
 
+	if !gateApproved {
+		return nil
+	}
 	e.RecordDAGTaskAttempt(ctx)
 	l6Directive := fmt.Sprintf("[PROVENANCE LOCKED %s] %s: %s", provChain, readyTask.Title, readyTask.Directive)
 	return e.runPiProsecutorLoop(ctx, cycleID, cycleSpanID, l6Directive)
 }
 
 var (
-	reDynPy = regexp.MustCompile(`(?:/workspace/)?ace_v0[78]/([a-zA-Z0-9_]+\.py)`)
+	reDynMod = regexp.MustCompile(`(?:/workspace/)([a-zA-Z0-9_/-]+\.py)`)
 )
 
 // extractDynamicL4SpecPaths inspects L4's Southbound directive and recent /wiki/notes/l4_*.md / l2_*.md specs
@@ -786,10 +653,10 @@ var (
 // paired with a dedicated, collision-free dataset and result path derived from its module stem.
 func (e *Engine) extractDynamicL4SpecPaths(ctx context.Context, dir string) (string, string, string) {
 	existing := e.LoadMissionDAGNodes(ctx)
-	usedPy := make(map[string]bool, len(existing))
+	usedMod := make(map[string]bool, len(existing))
 	for _, n := range existing {
 		if n.ArtifactPath != "" {
-			usedPy[n.ArtifactPath] = true
+			usedMod[n.ArtifactPath] = true
 		}
 	}
 	corpus := dir
@@ -803,21 +670,16 @@ func (e *Engine) extractDynamicL4SpecPaths(ctx context.Context, dir string) (str
 			}
 		}
 	}
-	for _, notePath := range []string{"notes/l4_axis13_task_spec.md", "notes/l2_strategy_branch_s3.md"} {
-		if wData, err := e.memory.ReadWiki(notePath); err == nil && wData != "" {
-			corpus += "\n" + wData
-		}
-	}
-	pyMatches := reDynPy.FindAllStringSubmatch(corpus, -1)
-	for _, m := range pyMatches {
-		candidatePy := "/workspace/ace_v07/" + m[1]
-		if !usedPy[candidatePy] {
-			modStem := strings.TrimSuffix(m[1], ".py")
-			ds := fmt.Sprintf("/workspace/benchmarks/datasets/v08_%s_v1.json", modStem)
-			res := fmt.Sprintf("/workspace/benchmarks/results/v08_%s.json", modStem)
-			return candidatePy, ds, res
+	modMatches := reDynMod.FindAllStringSubmatch(corpus, -1)
+	for _, m := range modMatches {
+		candidateMod := "/workspace/" + m[1]
+		if !usedMod[candidateMod] {
+			stemRel := strings.TrimPrefix(m[1], "modules/")
+			modStem := strings.TrimSuffix(strings.ReplaceAll(stemRel, "/", "_"), ".py")
+			ds := fmt.Sprintf("/workspace/datasets/%s_v1.json", modStem)
+			res := fmt.Sprintf("/workspace/results/%s.json", modStem)
+			return candidateMod, ds, res
 		}
 	}
 	return "", "", ""
 }
-

@@ -19,6 +19,7 @@ import (
 	"ace/internal/bus"
 	"ace/internal/channels"
 	"ace/internal/cognitive"
+	"ace/internal/config"
 	"ace/internal/llm"
 	"ace/internal/memory"
 	"ace/internal/sandbox"
@@ -97,7 +98,12 @@ func main() {
 		log.Fatalf("failed to load embedded web UI: %v", err)
 	}
 
-	srv := server.NewServer(engine, provider, memBus, memStore, jail, telem, tgBridge, webFS)
+	authToken, err := config.LoadOrCreateToken()
+	if err != nil {
+		log.Fatalf("failed to load bearer token: %v", err)
+	}
+
+	srv := server.NewServer(engine, provider, memBus, memStore, jail, telem, tgBridge, webFS, authToken)
 	httpServer := &http.Server{
 		Addr:              "127.0.0.1:" + *port,
 		Handler:           srv.Handler(),
@@ -108,6 +114,7 @@ func main() {
 		fmt.Printf("\n================================================================\n")
 		fmt.Printf("  ACE Glass-Box Cognitive Cockpit: http://localhost:%s\n", *port)
 		fmt.Printf("  Active OpenCode Free Model:      %s\n", provider.ActiveModel())
+		fmt.Printf("  Bearer Token (mutating /api):    %s\n", filepath.Join(config.Dir(), "bearer_token"))
 		fmt.Printf("  Host-Proof Sandbox Root:         %s (Healthy=%v)\n", sbStatus.SandboxDir, sbStatus.Healthy)
 		fmt.Printf("================================================================\n\n")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {

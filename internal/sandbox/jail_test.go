@@ -67,10 +67,9 @@ func TestJailIsolationAndOperations(t *testing.T) {
 	require.Error(t, err)
 	require.NotEqual(t, 0, pipeRes.ExitCode, "pipefail must propagate non-zero exit code from left side of pipe")
 
-	// 6. Verify pre-seeded ace_rlm.py scientific & AST-PDG SDK passes --selftest inside bwrap
-	sdkRes, err := jail.Exec(context.Background(), `python3 /workspace/ace_rlm.py --selftest`)
-	require.NoError(t, err, "ace_rlm.py --selftest stderr: %s", sdkRes.Stderr)
+	// 6. Verify pre-seeded workspace_audit.py AST-PDG module imports and runs inside bwrap
+	sdkRes, err := jail.Exec(context.Background(), `python3 -c 'import sys; sys.path.insert(0, "/workspace"); import workspace_audit; print(workspace_audit.audit_conceptual_flows("/workspace/workspace_audit.py")["clean"])'`)
+	require.NoError(t, err, "workspace_audit import stderr: %s", sdkRes.Stderr)
 	require.Equal(t, 0, sdkRes.ExitCode)
-	require.Contains(t, sdkRes.Stdout, `"ok": true`)
+	require.Contains(t, sdkRes.Stdout, `True`)
 }
-

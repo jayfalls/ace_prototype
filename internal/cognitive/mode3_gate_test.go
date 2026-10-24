@@ -51,8 +51,8 @@ func TestCordisLTLAndMode3Gate(t *testing.T) {
 	require.Contains(t, reason2, "LTL VETO G2")
 
 	// 3. Test Mode-3 Gate rejects missing artifacts, vacuous tests, and unused imports, then passes valid code
-	// Also verify wildcard globs like `/workspace/v03_*.py` and SDK `ace_rlm.py` are ignored as literal required outputs
-	msLine := "- [ ] **Milestone 1.2**: Build `/workspace/demo_forensics.py` (with `--selftest` using `/workspace/ace_rlm.py` over `/workspace/v03_*.py`) and `/workspace/demo_report.json` and `notes/demo-findings.md`."
+	// Also verify wildcard globs like `/workspace/v03_*.py` and SDK `workspace_audit.py` are ignored as literal required outputs
+	msLine := "- [ ] **Milestone 1.2**: Build `/workspace/demo_forensics.py` (with `--selftest` using `/workspace/workspace_audit.py` over `/workspace/v03_*.py`) and `/workspace/demo_report.json` and `notes/demo-findings.md`."
 	wsArt, wikiArt := ExtractMilestoneArtifacts(msLine)
 	require.Equal(t, []string{"demo_forensics.py", "demo_report.json"}, wsArt)
 	require.Equal(t, []string{"notes/demo-findings.md"}, wikiArt)

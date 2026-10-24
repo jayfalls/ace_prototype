@@ -29,24 +29,24 @@ type cycleJob struct {
 // Engine orchestrates the 6-layer ACE cognitive hierarchy, Northbound/Southbound bus propagation,
 // Pi-style L6 Inner Task Prosecutor Loop, 5 HRM Global Loops, and Reactive / Manual Step / Autonomous execution modes.
 type Engine struct {
-	mu                  sync.RWMutex
-	agentID             string
-	llm                 core.LLMProvider
-	bus                 core.Bus
-	memory              core.MemoryStore
-	sandbox             core.Sandbox
-	telem               core.TelemetrySink
-	mode                core.EngineMode
-	autoIntervalSeconds int
-	layers              map[core.LayerID]*core.LayerStatus
-	globalLoops         map[string]*core.GlobalLoopStatus
-	busy                bool
-	currentCycleID      string
-	currentLayer        int
-	totalCycles          int
-	totalThoughts        int
-	jobQueue             chan cycleJob
-	cancelCurrent        context.CancelFunc
+	mu                      sync.RWMutex
+	agentID                 string
+	llm                     core.LLMProvider
+	bus                     core.Bus
+	memory                  core.MemoryStore
+	sandbox                 core.Sandbox
+	telem                   core.TelemetrySink
+	mode                    core.EngineMode
+	autoIntervalSeconds     int
+	layers                  map[core.LayerID]*core.LayerStatus
+	globalLoops             map[string]*core.GlobalLoopStatus
+	busy                    bool
+	currentCycleID          string
+	currentLayer            int
+	totalCycles             int
+	totalThoughts           int
+	jobQueue                chan cycleJob
+	cancelCurrent           context.CancelFunc
 	lastL6ReconMilestone    string
 	lastL6ReconTurns        []core.ChatTurn
 	l6MutatedInCycle        bool
@@ -495,7 +495,7 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 			break
 		}
 
-		// Execute ALL <action> blocks emitted in this turn in one batch (Hermes batched pattern)
+		// Execute ALL <action> blocks emitted in this turn in one batch
 		var batchOutputs []string
 		for _, act := range acts {
 			lastAct = act
@@ -755,4 +755,3 @@ func (e *Engine) workerLoop(ctx context.Context) {
 		}
 	}
 }
-

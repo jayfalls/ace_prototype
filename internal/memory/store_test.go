@@ -7,8 +7,8 @@ import (
 
 	"ace/internal/core"
 	"ace/internal/sandbox"
-	_ "modernc.org/sqlite"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func TestStoreFTS5AndWikiAndChat(t *testing.T) {

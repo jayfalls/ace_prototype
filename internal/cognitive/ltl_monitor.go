@@ -24,7 +24,7 @@ type FailedAttempt struct {
 	Timestamp      string `json:"timestamp"`
 }
 
-// SomaticValence models affective homeostatic control signals for L5/L6 (inspired by OpenClaw/Soul specs).
+// SomaticValence models affective homeostatic control signals for L5/L6.
 type SomaticValence struct {
 	Frustration float64 `json:"frustration"` // [0, 1] rises on repeated failure or LTL veto
 	Boredom     float64 `json:"boredom"`     // [0, 1] rises on zero-diff cycles
@@ -33,16 +33,16 @@ type SomaticValence struct {
 
 // CrossCycleHandoffPacket is persisted in engine_meta (`l6_handoff_packet_v1`) to eliminate cross-cycle amnesia.
 type CrossCycleHandoffPacket struct {
-	ActiveMilestone   string            `json:"active_milestone"`
-	AttemptCount      int               `json:"attempt_count"`
-	CycleCount        int               `json:"cycle_count"`
-	FailedAttempts    []FailedAttempt   `json:"failed_attempts"`
-	VerifiedFiles     []string          `json:"verified_files"`
-	FileDigests       map[string]string `json:"file_digests"`
-	NextHypothesis    string            `json:"next_hypothesis"`
-	ConsecutiveNoOp   int               `json:"consecutive_noop"`
-	Valence           SomaticValence    `json:"valence"`
-	LastUpdated       string            `json:"last_updated"`
+	ActiveMilestone string            `json:"active_milestone"`
+	AttemptCount    int               `json:"attempt_count"`
+	CycleCount      int               `json:"cycle_count"`
+	FailedAttempts  []FailedAttempt   `json:"failed_attempts"`
+	VerifiedFiles   []string          `json:"verified_files"`
+	FileDigests     map[string]string `json:"file_digests"`
+	NextHypothesis  string            `json:"next_hypothesis"`
+	ConsecutiveNoOp int               `json:"consecutive_noop"`
+	Valence         SomaticValence    `json:"valence"`
+	LastUpdated     string            `json:"last_updated"`
 }
 
 var offlineNetInstallRe = regexp.MustCompile(`(?i)\b(pip3?\s+install|python3?\s+-m\s+pip\s+install|npm\s+install|npx\s+|curl\s+https?://|wget\s+https?://|git\s+clone\s+https?://)`)
@@ -67,7 +67,7 @@ func EvaluateLTLAction(action core.LayerAction, handoff CrossCycleHandoffPacket,
 
 	// Invariant G1: Offline bwrap sandbox ban on network package managers (pip install, npm install, curl, wget)
 	if tool == "sandbox_sh" && offlineNetInstallRe.MatchString(cmdText) {
-		return false, "[LTL VETO G1 — Offline Sandbox Invariant] Network package installation (`pip install`, `npm install`, `curl`, `wget`) is impossible inside `bwrap --unshare-all` (no internet). Use Python 3.14 stdlib (`math`, `statistics`, `sqlite3`, `json`, `ast`, `re`, `collections`) or `import ace_rlm` (`/workspace/ace_rlm.py`), and remove any dead third-party imports (like unused `import numpy as np`)."
+		return false, "[LTL VETO G1 — Offline Sandbox Invariant] Network package installation (`pip install`, `npm install`, `curl`, `wget`) is impossible inside `bwrap --unshare-all` (no internet). Use Python 3.14 stdlib (`math`, `statistics`, `sqlite3`, `json`, `ast`, `re`, `collections`) or `import workspace_audit` (`/workspace/workspace_audit.py`), and remove any dead third-party imports (like unused `import numpy as np`)."
 	}
 
 	// Invariant G2: Anti-Cross-Cycle-Amnesia (block repeating an identical command that already failed with exit != 0)

@@ -14,15 +14,15 @@ import (
 	"ace/internal/memory"
 	"ace/internal/sandbox"
 	"ace/internal/telemetry"
-	_ "modernc.org/sqlite"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 type fakeLLM struct{}
 
-func (f *fakeLLM) Name() string               { return "fake" }
-func (f *fakeLLM) Models() []core.ModelInfo   { return []core.ModelInfo{{ID: "test"}} }
-func (f *fakeLLM) ActiveModel() string        { return "test" }
+func (f *fakeLLM) Name() string                { return "fake" }
+func (f *fakeLLM) Models() []core.ModelInfo    { return []core.ModelInfo{{ID: "test"}} }
+func (f *fakeLLM) ActiveModel() string         { return "test" }
 func (f *fakeLLM) SetActiveModel(string) error { return nil }
 func (f *fakeLLM) StreamComplete(ctx context.Context, req core.CompletionRequest, onDelta func(core.StreamDelta)) (core.CompletionResponse, error) {
 	return core.CompletionResponse{Model: "test", Content: "Hello from ACE via Telegram!", LatencyMs: 10}, nil
@@ -92,4 +92,18 @@ func TestTelegramBridgeSlashCommandsAndChat(t *testing.T) {
 	// 3. Authorized normal chat message
 	tg.handleInboundMessage(context.Background(), 999, "jay", "Hello ACE")
 	require.Contains(t, sentMessages[len(sentMessages)-1], "Hello from ACE via Telegram!")
+}
+
+// An empty allowlist must deny every chat — v0.7 allowed all chats when unset.
+func TestTelegramBridge_EmptyAllowlistDeniesAll(t *testing.T) {
+	b := &TelegramBridge{}
+	require.False(t, b.isChatAllowed(12345))
+	require.False(t, b.isChatAllowed(0))
+
+	b.allowedChatIDs = "  ,  "
+	require.False(t, b.isChatAllowed(12345), "whitespace-only allowlist is still empty")
+
+	b.allowedChatIDs = "777, 888"
+	require.True(t, b.isChatAllowed(888))
+	require.False(t, b.isChatAllowed(999))
 }

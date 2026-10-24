@@ -31,4 +31,3 @@ func TestHTMLToStructuredMarkdownAndFragments(t *testing.T) {
 	sliced := applyFetchFragment("https://example.org/doc", 200, md, "grep=Memory")
 	require.Contains(t, sliced, "Memory tier 1")
 }
-

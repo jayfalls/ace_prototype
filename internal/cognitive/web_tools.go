@@ -20,24 +20,24 @@ import (
 )
 
 var (
-	ddgTitleRe     = regexp.MustCompile(`(?s)class="result__a"[^>]* href="([^"]+)"[^>]*>(.*?)</a>`)
-	ddgSnippetRe   = regexp.MustCompile(`(?s)class="result__snippet"[^>]*>(.*?)</(?:a|div|span)>`)
-	scriptStyleRe  = regexp.MustCompile(`(?is)<(script|style|noscript|svg|iframe|nav|footer)[^>]*>.*?</(script|style|noscript|svg|iframe|nav|footer)>`)
-	preBlockRe     = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
-	codeInlineRe   = regexp.MustCompile(`(?is)<code[^>]*>(.*?)</code>`)
-	headingRe      = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
-	listItemRe     = regexp.MustCompile(`(?is)<li[^>]*>(.*?)</li>`)
-	tableRowRe     = regexp.MustCompile(`(?is)<tr[^>]*>(.*?)</tr>`)
-	tableCellRe    = regexp.MustCompile(`(?is)<t[dh][^>]*>(.*?)</t[dh]>`)
-	linkTagRe      = regexp.MustCompile(`(?is)<a[^>]+href=["']([^"']+)["'][^>]*>(.*?)</a>`)
-	blockBreakRe   = regexp.MustCompile(`(?is)</?(p|div|section|article|header|main|blockquote|ul|ol|table|br\s*/?)[^>]*>`)
-	htmlTagRe      = regexp.MustCompile(`(?s)<[^>]+>`)
-	multiSpaceRe   = regexp.MustCompile(`[ \t]+`)
-	multiNewline   = regexp.MustCompile(`\n{3,}`)
-	ghBlobURLRe    = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$`)
-	ghRepoRootRe   = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/#?]+)/?$`)
-	arxivAbsPDFRe  = regexp.MustCompile(`^https?://(?:www\.)?arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?)(?:\.pdf)?$`)
-	rangeFragRe    = regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
+	ddgTitleRe    = regexp.MustCompile(`(?s)class="result__a"[^>]* href="([^"]+)"[^>]*>(.*?)</a>`)
+	ddgSnippetRe  = regexp.MustCompile(`(?s)class="result__snippet"[^>]*>(.*?)</(?:a|div|span)>`)
+	scriptStyleRe = regexp.MustCompile(`(?is)<(script|style|noscript|svg|iframe|nav|footer)[^>]*>.*?</(script|style|noscript|svg|iframe|nav|footer)>`)
+	preBlockRe    = regexp.MustCompile(`(?is)<pre[^>]*>(.*?)</pre>`)
+	codeInlineRe  = regexp.MustCompile(`(?is)<code[^>]*>(.*?)</code>`)
+	headingRe     = regexp.MustCompile(`(?is)<h([1-6])[^>]*>(.*?)</h[1-6]>`)
+	listItemRe    = regexp.MustCompile(`(?is)<li[^>]*>(.*?)</li>`)
+	tableRowRe    = regexp.MustCompile(`(?is)<tr[^>]*>(.*?)</tr>`)
+	tableCellRe   = regexp.MustCompile(`(?is)<t[dh][^>]*>(.*?)</t[dh]>`)
+	linkTagRe     = regexp.MustCompile(`(?is)<a[^>]+href=["']([^"']+)["'][^>]*>(.*?)</a>`)
+	blockBreakRe  = regexp.MustCompile(`(?is)</?(p|div|section|article|header|main|blockquote|ul|ol|table|br\s*/?)[^>]*>`)
+	htmlTagRe     = regexp.MustCompile(`(?s)<[^>]+>`)
+	multiSpaceRe  = regexp.MustCompile(`[ \t]+`)
+	multiNewline  = regexp.MustCompile(`\n{3,}`)
+	ghBlobURLRe   = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/blob/([^/]+)/(.+)$`)
+	ghRepoRootRe  = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/#?]+)/?$`)
+	arxivAbsPDFRe = regexp.MustCompile(`^https?://(?:www\.)?arxiv\.org/(?:abs|pdf)/([0-9]{4}\.[0-9]{4,5}(?:v[0-9]+)?)(?:\.pdf)?$`)
+	rangeFragRe   = regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
 )
 
 const (
@@ -261,13 +261,13 @@ func searchAcademicPapers(ctx context.Context, client *http.Client, query string
 		if resp, err := client.Do(req); err == nil && resp.StatusCode == http.StatusOK {
 			var oa struct {
 				Results []struct {
-					Title             string         `json:"title"`
-					PublicationYear   int            `json:"publication_year"`
-					CitedByCount      int            `json:"cited_by_count"`
-					DOI               string         `json:"doi"`
-					ID                string         `json:"id"`
-					AbstractInverted  map[string][]int `json:"abstract_inverted_index"`
-					PrimaryLocation   struct {
+					Title            string           `json:"title"`
+					PublicationYear  int              `json:"publication_year"`
+					CitedByCount     int              `json:"cited_by_count"`
+					DOI              string           `json:"doi"`
+					ID               string           `json:"id"`
+					AbstractInverted map[string][]int `json:"abstract_inverted_index"`
+					PrimaryLocation  struct {
 						LandingPageURL string `json:"landing_page_url"`
 						PDFURL         string `json:"pdf_url"`
 					} `json:"primary_location"`
@@ -369,8 +369,8 @@ func searchHuggingFaceDatasets(ctx context.Context, client *http.Client, query s
 		if len(desc) > 220 {
 			desc = desc[:220] + "..."
 		}
-		out.WriteString(fmt.Sprintf("%d. dataset_id=%q (downloads=%d, likes=%d)\n   URL: https://huggingface.co/datasets/%s\n   Load in Python: ace_rlm.fetch_public_dataset(%q)\n   Desc: %s\n",
-			i+1, ds.ID, ds.Downloads, ds.Likes, ds.ID, ds.ID, desc))
+		out.WriteString(fmt.Sprintf("%d. dataset_id=%q (downloads=%d, likes=%d)\n   URL: https://huggingface.co/datasets/%s\n   Desc: %s\n",
+			i+1, ds.ID, ds.Downloads, ds.Likes, ds.ID, desc))
 	}
 	return strings.TrimSpace(out.String())
 }
@@ -806,4 +806,3 @@ func stripTags(s string) string {
 	s = multiNewline.ReplaceAllString(s, "\n\n")
 	return strings.TrimSpace(s)
 }
-

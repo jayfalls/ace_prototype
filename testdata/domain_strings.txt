@@ -1,0 +1,15 @@
+# Domain-specific strings forbidden in production code (internal/, cmd/).
+# The production core must stay domain-agnostic; these v0.7 experiment names,
+# competitor names, and control-mode markers must never reappear.
+Hermes
+OpenClaw
+research_corpus
+ace_rlm
+ace_v0
+S1_ABLATION
+S2_V08
+operator-gated
+human-gated
+Godot
+Lytehouse
+Axis 

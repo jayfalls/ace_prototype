@@ -15,7 +15,7 @@ import (
 )
 
 // WikiSkillRecord tracks a compiled procedural Wiki-Skill with Beta(alpha, beta) pass-rate posteriors
-// and Replace-Never-Layer lifecycle state (Axis 2.1 & Axis 6.2 wired natively into the Go runtime).
+// and Replace-Never-Layer lifecycle state (wired natively into the Go runtime).
 type WikiSkillRecord struct {
 	SkillID      string    `json:"skill_id"`
 	Key          string    `json:"key"`
@@ -53,11 +53,20 @@ type WikiSkillLifecycleIndex struct {
 
 var skillSlugNonAlnumRe = regexp.MustCompile(`[^a-z0-9_]+`)
 
+func firstNonEmptyInterface(vals ...interface{}) interface{} {
+	for _, v := range vals {
+		if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return nil
+}
+
 func inferSkillDomainAndKey(milestone string, files []string) (domain string, key string, title string) {
 	lower := strings.ToLower(milestone)
 	switch {
-	case strings.Contains(lower, "hermes") || strings.Contains(lower, "openclaw") || strings.Contains(lower, "competitor") || strings.Contains(lower, "ablation"):
-		domain = "competitor_ablation"
+	case strings.Contains(lower, "baseline") || strings.Contains(lower, "comparison") || strings.Contains(lower, "competitor") || strings.Contains(lower, "ablation"):
+		domain = "comparative_evaluation"
 	case strings.Contains(lower, "sensorium") || strings.Contains(lower, "circadian") || strings.Contains(lower, "replica") || strings.Contains(lower, "proprio"):
 		domain = "sensorium_embodiment"
 	case strings.Contains(lower, "skill") || strings.Contains(lower, "wiki"):
@@ -407,7 +416,7 @@ func (e *Engine) DistillAndRegisterWikiSkill(ctx context.Context, cycleID string
 // BuildV07CockpitSnapshot aggregates the 3D Conceptual Architecture & Flow telemetry:
 // pyramidal layer call distribution (L1<L2<L3<L4<<L6), live Connectome nodes/edges,
 // Beta(alpha, beta) Wiki-Skill lifecycle registry, Proprioceptive/Exteroceptive Sensorium + Reality Replicas,
-// and parsed benchmark/ablation results (/workspace/benchmarks/results/*.json).
+// and parsed experiment results (/workspace/results/*.json).
 func (e *Engine) BuildV07CockpitSnapshot(ctx context.Context) map[string]interface{} {
 	db := e.getDB()
 	type layerMetric struct {
@@ -522,7 +531,7 @@ func (e *Engine) BuildV07CockpitSnapshot(ctx context.Context) map[string]interfa
 	var benchResults []map[string]interface{}
 	wsDir, _ := e.resolveSandboxDirs()
 	if wsDir != "" {
-		resGlob, _ := filepath.Glob(filepath.Join(wsDir, "benchmarks", "results", "*.json"))
+		resGlob, _ := filepath.Glob(filepath.Join(wsDir, "results", "*.json"))
 		sort.Strings(resGlob)
 		for _, rp := range resGlob {
 			raw, rErr := os.ReadFile(rp)
@@ -534,11 +543,11 @@ func (e *Engine) BuildV07CockpitSnapshot(ctx context.Context) map[string]interfa
 				continue
 			}
 			benchResults = append(benchResults, map[string]interface{}{
-				"file":        filepath.Base(rp),
-				"axis":        parsed["axis"],
-				"decision":    parsed["decision"],
-				"h1_accepted": parsed["h1_accepted"],
-				"payload":     parsed,
+				"file":     filepath.Base(rp),
+				"question": firstNonEmptyInterface(parsed["question_id"], parsed["milestone"], parsed["axis"]),
+				"decision": parsed["decision"],
+				"verdict":  parsed["verdict"],
+				"payload":  parsed,
 			})
 		}
 	}
@@ -550,7 +559,6 @@ func (e *Engine) BuildV07CockpitSnapshot(ctx context.Context) map[string]interfa
 	}
 	skillIdx := e.LoadWikiSkillIndex()
 	sensorSnap := e.CollectSensoriumSnapshot(ctx)
-	svg := BuildAnatomyIsometricSVG("ace_v07_rig", activeM, fmt.Sprintf("Active Milestone: %s\nSkills: %d active (%d retired) | Connectome Nodes: %d", cleanHumanMilestoneTitle(activeM), skillIdx.ActiveCount, skillIdx.RetiredCount, len(nodes)))
 
 	return map[string]interface{}{
 		"version":           "ACE v0.7",
@@ -561,6 +569,5 @@ func (e *Engine) BuildV07CockpitSnapshot(ctx context.Context) map[string]interfa
 		"wiki_skills":       skillIdx,
 		"sensorium":         sensorSnap,
 		"benchmark_results": benchResults,
-		"anatomy_svg":       string(svg),
 	}
 }

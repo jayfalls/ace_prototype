@@ -103,14 +103,14 @@ func smartFormatHotFile(rawData string, maxBytes int) string {
 	return symIndex.String() + "\n[HEAD]\n" + headPart + "\n... [middle lines omitted; see SYMBOL & FUNCTION INDEX above or use workspace_read(\"path:start-end\")] ...\n[TAIL & SELFTEST ENTRYPOINT]\n" + tailPart
 }
 
-// buildImmutableReferencePreInjection builds the 100% static reference block (/workspace/ace_rlm.py)
+// buildImmutableReferencePreInjection builds the 100% static reference block (/workspace/workspace_audit.py)
 // placed at the VERY TOP of L6 UserPrompt ABOVE any mutable file manifests or target scripts,
 // guaranteeing >90% KV prefix cache hits even when files are created or edited!
 func (e *Engine) buildImmutableReferencePreInjection() string {
 	var b strings.Builder
-	if rlmData, err := e.sandbox.ReadFile("ace_rlm.py"); err == nil && rlmData != "" {
-		b.WriteString("=== IMMUTABLE REFERENCE SDK /workspace/ace_rlm.py (ALREADY IN CONTEXT — DO NOT CALL workspace_read ON THIS FILE) ===\n")
-		b.WriteString(smartFormatHotFile(rlmData, 36000))
+	if auditData, err := e.sandbox.ReadFile("workspace_audit.py"); err == nil && auditData != "" {
+		b.WriteString("=== IMMUTABLE REFERENCE MODULE /workspace/workspace_audit.py (ALREADY IN CONTEXT — DO NOT CALL workspace_read ON THIS FILE) ===\n")
+		b.WriteString(smartFormatHotFile(auditData, 36000))
 		b.WriteString("\n\n")
 	}
 	return b.String()
@@ -126,16 +126,16 @@ func (e *Engine) buildStaticWorkspaceInventoryDigest() string {
 		var codeModules []string
 		for _, f := range allFiles {
 			lp := strings.ToLower(f.Path)
-			if strings.HasSuffix(lp, ".db") || strings.HasSuffix(lp, ".sqlite") || strings.HasSuffix(lp, ".csv") || strings.HasSuffix(lp, ".parquet") || strings.HasPrefix(lp, "benchmarks/datasets/") {
+			if strings.HasSuffix(lp, ".db") || strings.HasSuffix(lp, ".sqlite") || strings.HasSuffix(lp, ".csv") || strings.HasSuffix(lp, ".parquet") || strings.HasPrefix(lp, "datasets/") {
 				dataSources = append(dataSources, fmt.Sprintf("/workspace/%s", f.Path))
-			} else if strings.HasSuffix(lp, ".py") && f.Path != "ace_rlm.py" {
+			} else if strings.HasSuffix(lp, ".py") && f.Path != "workspace_audit.py" {
 				codeModules = append(codeModules, fmt.Sprintf("/workspace/%s", f.Path))
 			}
 		}
 		if len(dataSources) > 0 {
 			b.WriteString(fmt.Sprintf("- Discovered Data Sources & Datasets (%d): %s\n", len(dataSources), truncateText(strings.Join(dataSources, ", "), 900)))
 		} else {
-			b.WriteString("- Discovered Data Sources & Datasets: none yet (use web_search/web_fetch, ace_rlm.query_sqlite, or ace_rlm.build_and_register_dataset to acquire and register datasets).\n")
+			b.WriteString("- Discovered Data Sources & Datasets: none yet (use web_search/web_fetch to gather data; register datasets under /workspace/datasets/ + registry.json).\n")
 		}
 		if len(codeModules) > 0 {
 			b.WriteString(fmt.Sprintf("- Discovered Workspace Python Modules (%d): %s\n", len(codeModules), truncateText(strings.Join(codeModules, ", "), 700)))
@@ -152,11 +152,11 @@ func (e *Engine) buildStaticWorkspaceInventoryDigest() string {
 			b.WriteString(fmt.Sprintf("- On-Demand C6 Skills Library (/wiki/skills/): %s\n", strings.Join(skillFiles, ", ")))
 		}
 	}
-	if regData, err := e.sandbox.ReadFile("benchmarks/registry.json"); err == nil && strings.TrimSpace(regData) != "" {
-		b.WriteString("- Current Dataset Registry (/workspace/benchmarks/registry.json):\n")
+	if regData, err := e.sandbox.ReadFile("registry.json"); err == nil && strings.TrimSpace(regData) != "" {
+		b.WriteString("- Current Dataset Registry (/workspace/registry.json):\n")
 		b.WriteString(truncateText(regData, 1800) + "\n")
 	} else {
-		b.WriteString("- Current Dataset Registry (/workspace/benchmarks/registry.json): [EMPTY — L3/L6 must build and register versioned datasets in /workspace/benchmarks/datasets/*.json using ace_rlm.build_and_register_dataset!]\n")
+		b.WriteString("- Current Dataset Registry (/workspace/registry.json): [EMPTY — L3/L6 must build and register versioned datasets in /workspace/datasets/*.json]\n")
 	}
 	return b.String()
 }
@@ -192,7 +192,7 @@ func (e *Engine) buildProprioceptiveSelfModelDigest() string {
 	return e.buildStaticWorkspaceInventoryDigest() + e.buildLiveTelemetrySummaryLine()
 }
 
-// buildActiveMilestoneWikiNotesDigest extracts up to 2 /wiki/notes/* files matching the active milestone (by normalized Axis ID
+// buildActiveMilestoneWikiNotesDigest extracts up to 2 /wiki/notes/* files matching the active milestone (by normalized milestone ID
 // or filename keywords) and places them in the dynamic suffix so L6 sees L2/L4 contracts automatically without busting the KV prefix cache!
 func (e *Engine) buildActiveMilestoneWikiNotesDigest(milestone string) string {
 	wikiFiles, _ := e.memory.ListWiki()
@@ -243,9 +243,9 @@ func (e *Engine) buildActiveMilestoneWikiNotesDigest(milestone string) string {
 func (e *Engine) buildEnvironmentalGroundingDigest(milestone string) string {
 	var b strings.Builder
 	b.WriteString("=== LAYER 2 ENVIRONMENTAL & LITERATURE GROUNDING CONTEXT ===\n")
-	b.WriteString("- External Discovery Actuators: You can call action.type=\"web_search\" or \"web_fetch\" directly in L2 (or instruct L6 to run ace_rlm.search_arxiv(query) / web_search) whenever researching a new domain or external environment.\n")
-	if idxData, err := e.sandbox.ReadFile("research_corpus/CORPUS_INDEX.md"); err == nil && idxData != "" {
-		b.WriteString("[/workspace/research_corpus/CORPUS_INDEX.md Summary]:\n")
+	b.WriteString("- External Discovery Actuators: You can call action.type=\"web_search\" or \"web_fetch\" directly in L2 whenever researching a new domain or external environment.\n")
+	if idxData, err := e.sandbox.ReadFile("corpus/CORPUS_INDEX.md"); err == nil && idxData != "" {
+		b.WriteString("[/workspace/corpus/CORPUS_INDEX.md Summary]:\n")
 		b.WriteString(truncateText(idxData, 2200) + "\n\n")
 	}
 	return b.String()
@@ -279,8 +279,8 @@ func (e *Engine) buildBidirectionalBusContext(ctx context.Context, layer core.La
 	return sb.String()
 }
 
-// syncLiveTracesToWorkspaceBenchmarks mirrors the live .ace-sandbox/ace.db into /workspace/benchmarks/live_traces.db
-// (and /workspace/benchmarks/ace_v0_3_live_traces.db for backward compatibility) so L3 and L6 scripts can query live self-telemetry.
+// syncLiveTracesToWorkspaceBenchmarks mirrors the live .ace-sandbox/ace.db into /workspace/datasets/live_traces.db
+// so L3 and L6 scripts can query live self-telemetry.
 func (e *Engine) syncLiveTracesToWorkspaceBenchmarks() {
 	wsDir, _ := e.resolveSandboxDirs()
 	if wsDir == "" {
@@ -288,22 +288,20 @@ func (e *Engine) syncLiveTracesToWorkspaceBenchmarks() {
 	}
 	sandboxRoot := filepath.Dir(wsDir)
 	srcDB := filepath.Join(sandboxRoot, "ace.db")
-	dstDir := filepath.Join(wsDir, "benchmarks")
+	dstDir := filepath.Join(wsDir, "datasets")
 	_ = os.MkdirAll(dstDir, 0o755)
 	if data, err := os.ReadFile(srcDB); err == nil && len(data) > 0 {
-		for _, name := range []string{"live_traces.db", "ace_v0_3_live_traces.db"} {
-			dstDB := filepath.Join(dstDir, name)
-			tmpPath := dstDB + ".tmp"
-			if wErr := os.WriteFile(tmpPath, data, 0o644); wErr == nil {
-				_ = os.Rename(tmpPath, dstDB)
-			}
+		dstDB := filepath.Join(dstDir, "live_traces.db")
+		tmpPath := dstDB + ".tmp"
+		if wErr := os.WriteFile(tmpPath, data, 0o644); wErr == nil {
+			_ = os.Rename(tmpPath, dstDB)
 		}
 	}
 }
 
 // buildHotFilePreInjection implements Gate 2 (L6 Workspace Hot-File Pre-Injection Gate).
 // Read-only reference/dataset/imported files are placed FIRST, and the mutable primary `.py` target script is placed LAST
-// so that editing the bottom of primaryPy keeps 100% of SystemPrompt + ace_rlm.py + reference files + the unchanged top lines of primaryPy in the KV prefix cache!
+// so that editing the bottom of primaryPy keeps 100% of SystemPrompt + workspace_audit.py + reference files + the unchanged top lines of primaryPy in the KV prefix cache!
 func (e *Engine) buildHotFilePreInjection(directive string) string {
 	wsFiles, _ := e.sandbox.ListFiles()
 	var injected strings.Builder
@@ -311,8 +309,7 @@ func (e *Engine) buildHotFilePreInjection(directive string) string {
 	lowerDir := strings.ToLower(directive)
 
 	preInjectedPaths := map[string]bool{
-		"ace_rlm.py":                            true,
-		"benchmarks/v0_1_benchmark_suite.json": true,
+		"workspace_audit.py": true,
 	}
 	var preInjectedRaw strings.Builder
 
@@ -328,11 +325,11 @@ func (e *Engine) buildHotFilePreInjection(directive string) string {
 		}
 	}
 
-	// 1. Always pre-inject /workspace/benchmarks/registry.json first so L6 sees all built datasets!
-	if !preInjectedPaths["benchmarks/registry.json"] {
-		if regData, err := e.sandbox.ReadFile("benchmarks/registry.json"); err == nil && strings.TrimSpace(regData) != "" {
-			injected.WriteString(fmt.Sprintf("\n=== PRE-INJECTED DATASET REGISTRY /workspace/benchmarks/registry.json ===\n%s\n", truncateText(regData, 3200)))
-			preInjectedPaths["benchmarks/registry.json"] = true
+	// 1. Always pre-inject /workspace/registry.json first so L6 sees all built datasets!
+	if !preInjectedPaths["registry.json"] {
+		if regData, err := e.sandbox.ReadFile("registry.json"); err == nil && strings.TrimSpace(regData) != "" {
+			injected.WriteString(fmt.Sprintf("\n=== PRE-INJECTED DATASET REGISTRY /workspace/registry.json ===\n%s\n", truncateText(regData, 3200)))
+			preInjectedPaths["registry.json"] = true
 		}
 	}
 
@@ -409,4 +406,3 @@ func (e *Engine) buildCanonicalIndexWithSkills() string {
 	}
 	return index
 }
-

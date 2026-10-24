@@ -50,14 +50,14 @@ func (e *Engine) autonomousTickerLoop(ctx context.Context) {
 					if autoPulseCount <= 1 {
 						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Initial Mission Bootstrap (L1 -> L2||L3 -> L4)", autoPulseCount))
 						e.EnqueueCycle(
-							"Initial Mission Bootstrap & Horizon Expansion (L1 -> L2||L3 -> L4): L1 sets epistemic/mission priorities, L2 researches the domain and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 3 concrete, falsifiable '- [ ]' milestones (naming target dataset paths in `/workspace/benchmarks/datasets/<name>.json` and modular code paths in `/workspace/<package>/<module>.py`), and L3 specifies capability & dataset schemas.",
+							"Initial Mission Bootstrap & Horizon Expansion (L1 -> L2||L3 -> L4): L1 sets epistemic/mission priorities, L2 researches the domain and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 3 concrete, falsifiable '- [ ]' milestones (naming target dataset paths in `/workspace/datasets/<name>.json` and modular code paths in `/workspace/modules/<module>.py`), and L3 specifies capability & dataset schemas.",
 							core.LayerAspirational,
 							4,
 						)
 					} else {
 						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Strategic Horizon Expansion (L2||L3 -> L4)", autoPulseCount))
 						e.EnqueueCycle(
-							"Strategic Horizon Expansion (L2||L3 -> L4): All prior '- [ ]' milestones are complete. L2 researches the next scientific/engineering axis and uses action.type=\"wiki_write\" (target=\"goals.md\") to append 3 concrete, falsifiable '- [ ]' milestones, while L3 audits self-model & dataset schemas.",
+							"Strategic Horizon Expansion (L2||L3 -> L4): All prior '- [ ]' milestones are complete. L2 researches the next mission workstream and uses action.type=\"wiki_write\" (target=\"goals.md\") to append 3 concrete, falsifiable '- [ ]' milestones, while L3 audits self-model & dataset schemas.",
 							core.LayerGlobalStrategy,
 							3,
 						)
@@ -180,6 +180,7 @@ func (e *Engine) evaluateL5Gate(ctx context.Context, sharedState, gateQ string) 
 }
 
 func (e *Engine) runCascade(ctx context.Context, job cycleJob) {
+	e.maybeRunRetentionSweep(ctx)
 	cycleStart := time.Now()
 	cycleSpanID := "spn_cyc_" + job.CycleID
 	stimulus := job.Trigger
@@ -311,7 +312,8 @@ func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
 		// monitors frustration/failure counters (ConsecutiveNoOp, FailedAttempts), dynamically switches L6 to Diagnostic Root-Cause Mode when blocked,
 		// and publishes both Southbound (to L6) and Northbound (to L4) bus signals!
 		if (currLayer == core.LayerExecutive || currLayer == core.LayerCognitiveCtrl) && nextDirective != "" && hop+1 < maxHops {
-			pYes := 0.96
+			// fail closed: a gate error leaves pYes at 0 and vetoes the dispatch
+			pYes := 0.0
 			gateModel := "d1-4bit-gpu-gate"
 			var gateMs int64
 			rawGoals, _ := e.memory.ReadWiki("goals.md")
@@ -457,9 +459,9 @@ func (e *Engine) executeParallelL1L2L3(
 	e.recordGlobalLoop("swarm_coordinator", "active", "Running L1 (Epistemic) || L2 (Literature) || L3 (Dataset/Telemetry) concurrently")
 
 	var (
-		t1, t2, t3         core.ThoughtTrace
-		err1, err2, err3   error
-		wg                 sync.WaitGroup
+		t1, t2, t3       core.ThoughtTrace
+		err1, err2, err3 error
+		wg               sync.WaitGroup
 	)
 	wg.Add(3)
 	go func() {
@@ -614,22 +616,13 @@ func (e *Engine) runExecutivePlanningLoop(ctx context.Context, cycleID string, s
 	return trace, err
 }
 
-// extractTopActionableMilestone returns the first unchecked "- [ ]" line in goals.md that is not human/credential-gated.
+// extractTopActionableMilestone returns the first unchecked "- [ ]" line in goals.md.
+// v0.8: there are no human-approval milestones — access needs route through the L1 ruling.
 func extractTopActionableMilestone(goals string) string {
 	for _, line := range strings.Split(goals, "\n") {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "- [ ]") {
-			ll := strings.ToLower(trimmed)
-			isGated := strings.Contains(ll, "stripe_secret_key") ||
-				strings.Contains(ll, "credential-gated") ||
-				strings.Contains(ll, "operator-gated") ||
-				strings.Contains(ll, "human-gated") ||
-				strings.Contains(ll, "[blocked") ||
-				strings.Contains(ll, "paying customer") ||
-				strings.Contains(ll, "real external payment")
-			if !isGated {
-				return truncateText(trimmed, 1200)
-			}
+			return truncateText(trimmed, 1200)
 		}
 	}
 	return ""
