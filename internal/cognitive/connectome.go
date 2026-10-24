@@ -56,7 +56,7 @@ type ConnectomeEdge struct {
 }
 
 var (
-	connectomePathTokenRe = regexp.MustCompile(`(?:/workspace/|/wiki/)?[\w./-]*[\w-]+\.(?:py|go|ts|js|sh|sql|json|jsonl|db|csv|md|txt|parquet)`)
+	connectomePathTokenRe = regexp.MustCompile(`(?:/workspace/|/wiki/)?[\w./-]*[\w-]+\.(?:jsonl|json|parquet|py|go|ts|js|sh|sql|db|csv|md|txt)\b`)
 	connectomeWordTokenRe = regexp.MustCompile(`[a-z][a-z0-9]{3,}`)
 	pyDefClassLineRe      = regexp.MustCompile(`^\s*(def|class)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(\([^)]*\))?`)
 	goFuncTypeLineRe      = regexp.MustCompile(`^\s*func\s+(?:\([^)]+\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\([^)]*\)|^\s*type\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:struct|interface)`)

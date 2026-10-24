@@ -127,6 +127,7 @@ type OpenCodeFreeProvider struct {
 	activeModel           string
 	sessionID             string
 	compassSessionID      string
+	layerSessionIDs       map[string]string
 	idCounter             atomic.Uint64
 	recentPrefixesByModel map[string][]string
 	exactCache            map[string]cachedCompletion
@@ -299,6 +300,15 @@ func NewOpenCodeFreeProvider(endpoint string) *OpenCodeFreeProvider {
 	}
 	p.sessionID = p.generateOpenCodeID("ses", true)
 	p.compassSessionID = p.generateOpenCodeID("ses", true)
+	p.layerSessionIDs = map[string]string{
+		"L1":     p.generateOpenCodeID("ses", true),
+		"L2":     p.generateOpenCodeID("ses", true),
+		"L3":     p.generateOpenCodeID("ses", true),
+		"L4":     p.generateOpenCodeID("ses", true),
+		"L5":     p.generateOpenCodeID("ses", true),
+		"L6":     p.sessionID,
+		"TURN05": p.generateOpenCodeID("ses", true),
+	}
 	return p
 }
 
@@ -859,6 +869,23 @@ type sseChunk struct {
 	} `json:"usage"`
 }
 
+func detectPromptLayerZone(promptKey string, maxTokens int) string {
+	switch {
+	case strings.Contains(promptKey, "Layer 1 (") || strings.Contains(promptKey, "ROLE — L1"):
+		return "L1"
+	case strings.Contains(promptKey, "Layer 2 (") || strings.Contains(promptKey, "ROLE — L2"):
+		return "L2"
+	case strings.Contains(promptKey, "Layer 3 (") || strings.Contains(promptKey, "ROLE — L3"):
+		return "L3"
+	case strings.Contains(promptKey, "Layer 4 (") || strings.Contains(promptKey, "ROLE — L4"):
+		return "L4"
+	case strings.Contains(promptKey, "Layer 6 (") || strings.Contains(promptKey, "ROLE — L6") || maxTokens > 8192:
+		return "L6"
+	default:
+		return "TURN05"
+	}
+}
+
 func commonPrefixLen(a, b string) int {
 	n := len(a)
 	if len(b) < n {
@@ -929,10 +956,12 @@ func (p *OpenCodeFreeProvider) callSingleModel(
 		return cachedResp, nil
 	}
 	sessID := p.sessionID
-	radixBucketKey := modelID + ":reflex"
-	if maxTokens <= 8192 && p.compassSessionID != "" {
+	layerZone := detectPromptLayerZone(fullPromptKey, maxTokens)
+	radixBucketKey := modelID + ":" + layerZone
+	if ls, ok := p.layerSessionIDs[layerZone]; ok && ls != "" {
+		sessID = ls
+	} else if maxTokens <= 8192 && p.compassSessionID != "" {
 		sessID = p.compassSessionID
-		radixBucketKey = modelID + ":compass"
 	}
 	p.mu.RUnlock()
 

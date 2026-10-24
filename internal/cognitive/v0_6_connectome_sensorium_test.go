@@ -73,16 +73,25 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.Contains(t, sliceText, "router_eval.py")
 	require.True(t, preloaded["/workspace/router_eval.py"])
 
-	// 4. Verify Stuck Detector after 3 identical vetoes (§6.2)
-	for i := 1; i <= 3; i++ {
+	// 4. Verify Stuck Detector: 3 vetoes only forces local L4 strategy reflection (false), 5 vetoes escalates (§6.1)
+	_, _, jsonPath := ComputeVetoReasonHash(milestone, "missing artifact /workspace/benchmarks/results/v07_axis8_1_task_decomposer.json")
+	require.Equal(t, "/workspace/benchmarks/results/v07_axis8_1_task_decomposer.json", jsonPath)
+
+	for i := 1; i <= 5; i++ {
 		stuck, count := eng.RecordGateVetoAndCheckStuck(ctx, "cyc_test01", milestone, "missing artifact /workspace/missing_file.py", "I already created it")
-		if i < 3 {
+		require.Equal(t, i, count)
+		if i < 5 {
 			require.False(t, stuck)
 		} else {
 			require.True(t, stuck)
-			require.Equal(t, 3, count)
 		}
 	}
+
+	// 4b. Verify Native Go Wiki-Skill Distillation & Beta(alpha, beta) Lifecycle Engine
+	eng.DistillAndRegisterWikiSkill(ctx, "cyc_test01", milestone, []string{"/workspace/router_eval.py"}, nil)
+	routed, ok := eng.RouteTopWikiSkill(ctx, milestone)
+	require.True(t, ok)
+	require.Greater(t, routed.PosteriorMean(), 0.70)
 
 	// 5. Verify Pluggable Sensorium (Internal Proprioceptive + External Exteroceptive + Reality Replica + Circadian + Anatomy SVG) (§7)
 	eng.RecordHumanInteractionEvent(ctx, "telegram", time.Now().UTC(), 14.5)
@@ -98,5 +107,5 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 
 	svg := BuildAnatomyIsometricSVG("contradiction:test", "/workspace/router_eval.py", "Line 1\nLine 2\nLine 3")
 	require.Contains(t, string(svg), "<svg")
-	require.Contains(t, string(svg), "CONNECTOME RIG BASE")
+	require.Contains(t, string(svg), "SHEAR-LINE GATE RIG")
 }

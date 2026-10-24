@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -389,19 +390,21 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 
 	if !gateRes.Passed {
 		prevNoOp := handoff.ConsecutiveNoOp
+		handoff.CycleCount++
 		RecordHandoffAttempt(handoff, cycleID, core.LayerAction{
 			Type:   "mode3_gate_check",
 			Target: activeMilestone,
 		}, 1, "[MODE-3 GATE VETO]: "+gateRes.Reason, false, nil, handoff.FileDigests)
 		handoff.ConsecutiveNoOp = prevNoOp
 		SaveHandoffPacket(ctx, e.memory, *handoff)
+		e.UpdateRoutedSkillOutcome(ctx, activeMilestone, false)
 
 		var lastWorkerThought string
 		if len(traces) > 0 {
 			lastWorkerThought = traces[len(traces)-1].Thought
 		}
 		if isStuck, vCount := e.RecordGateVetoAndCheckStuck(ctx, cycleID, activeMilestone, gateRes.Reason, lastWorkerThought); isStuck {
-			// Stop retrying a stuck milestone after >=3 identical vetoes: park it as [!] in goals.md so ACE advances to the next unblocked milestone!
+			// Only park [!] after >=5 identical non-code-debugging vetoes confirmed by L1.5 (§6.1)
 			if rawGoals, gErr := e.memory.ReadWiki("goals.md"); gErr == nil && rawGoals != "" {
 				axisID := extractMilestoneIdentifier(activeMilestone)
 				var outLines []string
@@ -450,7 +453,16 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 	wsFiles, _ := ExtractMilestoneArtifacts(activeMilestone)
 	RecordHandoffAttempt(handoff, cycleID, core.LayerAction{Type: "mode3_checkoff", Target: activeMilestone}, 0, "", true, wsFiles, handoff.FileDigests)
 	handoff.FailedAttempts = nil
+	handoff.CycleCount = 0
 	SaveHandoffPacket(ctx, e.memory, *handoff)
+
+	// Automatically distill verified trajectory into /wiki/skills/*.md, update Beta(alpha,beta) posteriors, and index Connectome SKILL node!
+	e.DistillAndRegisterWikiSkill(ctx, cycleID, activeMilestone, wsFiles, traces)
+	e.MarkDAGTaskVerified(ctx, activeMilestone)
+	if sqlDB := e.getDB(); sqlDB != nil {
+		_, _ = sqlDB.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'RESOLVED', blocking_weight = 0.0 WHERE kind = 'CONTRADICTION' AND state != 'RESOLVED'`)
+	}
+	_ = e.memory.SaveEngineMeta(ctx, "overnight_contradiction_digest", "")
 
 	if jl, ok := e.sandbox.(*sandbox.Jail); ok {
 		jl.CommitMilestoneArtifacts(activeMilestone, wsFiles)
@@ -702,16 +714,12 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 			userPromptBuilder.WriteString(manifestBlock)
 			userPromptBuilder.WriteString("\n\n")
 		} else {
-			// L1..L5 COMPASS & TACTICAL CACHE ORDER:
-			// 1. Milestone-Pinned Active Goals + Oracle Gate (100% identical across L1..L4)
-			// 2. Environmental & Literature Grounding Digest (100% identical across L1..L4)
-			// 3. Static Workspace Data Sources & Benchmark Registry (100% identical across L1..L4, no volatile trace counters!)
-			// 4. File Manifest (100% identical across L1..L3 and L4)
-			// 5. LayerRoleSuffix(layer) placed at the suffix right before the dynamic bus tail!
-			if strings.TrimSpace(goals) != "" {
-				userPromptBuilder.WriteString(fmt.Sprintf("=== ACTIVE GOALS & ORACLE CONFORMANCE GATE (goals.md) ===\n%s\n\n", truncateText(goals, SLABucketGoalsMaxBytes)))
-			}
-			if litDigest := e.buildEnvironmentalGroundingDigest(topMilestone); litDigest != "" {
+			// L1..L5 COMPASS & TACTICAL CACHE ORDER (100% Static Trunk First for >75% Per-Layer KV Cache Hits!):
+			// 1. Static Environmental & Literature Grounding Digest (100% invariant across milestones!)
+			// 2. Static Workspace Data Sources & Benchmark Registry (100% invariant across milestones!)
+			// 3. Static LayerRoleSuffix(layer) (100% invariant per dedicated layer session ID!)
+			// 4. Dynamic Active Goals (goals.md) + File Manifest placed AFTER the static trunk so DAG updates never bust the trunk cache!
+			if litDigest := e.buildEnvironmentalGroundingDigest(""); litDigest != "" {
 				userPromptBuilder.WriteString(litDigest)
 				userPromptBuilder.WriteString("\n\n")
 			}
@@ -719,9 +727,12 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 				userPromptBuilder.WriteString(invDigest)
 				userPromptBuilder.WriteString("\n\n")
 			}
-			userPromptBuilder.WriteString(manifestBlock)
-			userPromptBuilder.WriteString("\n\n")
 			userPromptBuilder.WriteString(LayerRoleSuffix(layer))
+			userPromptBuilder.WriteString("\n\n")
+			if strings.TrimSpace(goals) != "" {
+				userPromptBuilder.WriteString(fmt.Sprintf("=== ACTIVE GOALS & ORACLE CONFORMANCE GATE (goals.md) ===\n%s\n\n", truncateText(goals, SLABucketGoalsMaxBytes)))
+			}
+			userPromptBuilder.WriteString(manifestBlock)
 			userPromptBuilder.WriteString("\n\n")
 		}
 
@@ -1379,8 +1390,13 @@ func (e *Engine) dispatchLayerAction(
 			}
 			return fmt.Sprintf("=== /wiki/%s (%d bytes) ===\n%s", wikiRel, len(wData), truncateText(wData, 64000))
 		}
-		// Support optional line-range syntax on workspace_read (e.g. "pkg/module.py:300-440", "path.py:300:440", or "path.py#1-180" / "path.py#0")
+		// Support optional #grep=<pattern> or line-range syntax on workspace_read (e.g. "pkg/module.py:300-440", "path.py#1-180", or "file.md#grep=^#{1,3}")
 		readTarget := strings.TrimSpace(act.Target)
+		var grepPattern string
+		if grepIdx := strings.Index(readTarget, "#grep="); grepIdx > 0 {
+			grepPattern = strings.TrimSpace(readTarget[grepIdx+len("#grep="):])
+			readTarget = strings.TrimSpace(readTarget[:grepIdx])
+		}
 		startLine, endLine := 0, 0
 		delimIdx := strings.IndexAny(readTarget, ":#")
 		if delimIdx > 0 {
@@ -1401,9 +1417,26 @@ func (e *Engine) dispatchLayerAction(
 						}
 					}
 				}
+			} else {
+				// Strip unknown #fragment so openat never fails on file.md#section
+				readTarget = filePart
 			}
 		}
 		data, err := e.sandbox.ReadFile(readTarget)
+		if err != nil && !strings.Contains(readTarget, "/") && strings.HasSuffix(readTarget, ".py") {
+			if altData, altErr := e.sandbox.ReadFile("ace_v07/" + readTarget); altErr == nil {
+				readTarget = "ace_v07/" + readTarget
+				data = altData
+				err = nil
+			}
+		}
+		if err != nil && strings.Contains(readTarget, "SPEC_ACE_V0_8_SELF_BUILD.md") {
+			if altData, altErr := e.sandbox.ReadFile("SPEC_ACE_V0_8_SELF_BUILDING.md"); altErr == nil {
+				readTarget = "SPEC_ACE_V0_8_SELF_BUILDING.md"
+				data = altData
+				err = nil
+			}
+		}
 		if err != nil {
 			if strings.Contains(err.Error(), "is a directory") {
 				dirPrefix := strings.Trim(strings.TrimPrefix(strings.TrimPrefix(readTarget, "/workspace/"), "workspace/"), "/")
@@ -1420,10 +1453,27 @@ func (e *Engine) dispatchLayerAction(
 			return "workspace_read error: " + err.Error()
 		}
 		cleanRel := strings.TrimPrefix(strings.TrimPrefix(readTarget, "/workspace/"), "workspace/")
-		e.mu.RLock()
-		preloaded := e.lastPreloadedConnectome
-		e.mu.RUnlock()
+		var preloaded map[string]bool
+		if layer == core.LayerTaskProsecution {
+			e.mu.RLock()
+			preloaded = e.lastPreloadedConnectome
+			e.mu.RUnlock()
+		}
 		e.RecordConnectomeInspection(ctx, cycleID, cleanRel, "INSPECTED", "cyc_"+cycleID, preloaded)
+		if grepPattern != "" {
+			re, rErr := regexp.Compile(grepPattern)
+			lines := strings.Split(data, "\n")
+			var matched []string
+			for idx, ln := range lines {
+				if (rErr == nil && re.MatchString(ln)) || (rErr != nil && strings.Contains(ln, grepPattern)) {
+					matched = append(matched, fmt.Sprintf("L%d: %s", idx+1, ln))
+				}
+			}
+			if len(matched) > 0 {
+				return fmt.Sprintf("=== /workspace/%s (#grep=%s, %d matching lines) ===\n%s\n\n=== File Head Preview ===\n%s",
+					cleanRel, grepPattern, len(matched), truncateText(strings.Join(matched, "\n"), 16000), truncateText(data, 16000))
+			}
+		}
 		if startLine > 0 {
 			hashedLines := strings.Split(sandbox.FormatWithLineHashes(data), "\n")
 			if startLine > len(hashedLines) {
@@ -1443,6 +1493,11 @@ func (e *Engine) dispatchLayerAction(
 		if layer != core.LayerTaskProsecution {
 			return "workspace_edit restricted to L6"
 		}
+		editTgt := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(act.Target), "/workspace/"), "workspace/")
+		if !strings.Contains(editTgt, "/") && strings.HasSuffix(editTgt, ".py") && editTgt != "ace_rlm.py" && editTgt != "script.py" {
+			editTgt = "ace_v07/" + editTgt
+		}
+		act.Target = editTgt
 		if err := e.sandbox.EditFile(act.Target, act.OldText, act.Content); err != nil {
 			return "workspace_edit error: " + err.Error()
 		}
@@ -1532,8 +1587,8 @@ func (e *Engine) dispatchLayerAction(
 		return combined
 
 	case "web_search":
-		if layer != core.LayerGlobalStrategy && layer != core.LayerTaskProsecution {
-			return "web_search restricted to L2 (Global Strategy) and L6 (Task Prosecution)"
+		if layer == core.LayerAspirational || layer == core.LayerCognitiveCtrl {
+			return "web_search restricted to L2, L3, L4, and L6"
 		}
 		query := strings.TrimSpace(act.Target)
 		if query == "" {
@@ -1547,8 +1602,8 @@ func (e *Engine) dispatchLayerAction(
 		return resText
 
 	case "web_fetch":
-		if layer != core.LayerGlobalStrategy && layer != core.LayerTaskProsecution {
-			return "web_fetch restricted to L2 (Global Strategy) and L6 (Task Prosecution)"
+		if layer == core.LayerAspirational || layer == core.LayerCognitiveCtrl {
+			return "web_fetch restricted to L2, L3, L4, and L6"
 		}
 		targetURL := strings.TrimSpace(act.Target)
 		if targetURL == "" {
@@ -1625,6 +1680,12 @@ func (e *Engine) dispatchLayerAction(
 		if target == "" {
 			target = "notes/insight_" + cycleID + ".md"
 		}
+		// Hard L1 Constitutional & Mission Immutability Guard (Dave Shapiro ACE Spec):
+		// Neither L1 nor any downstream layer (L2..L6) may EVER mutate soul.md or mission.md.
+		// The L1 Constitution (Heuristic Imperatives, UDHR) and # CURRENT MISSION are unshifting once set by the human.
+		if target == "soul.md" || target == "mission.md" || strings.HasSuffix(target, "/soul.md") || strings.HasSuffix(target, "/mission.md") {
+			return "CONSTITUTIONAL VETO: /wiki/soul.md (L1 Heuristic Imperatives, UDHR & # CURRENT MISSION) is unshifting and read-only to all agent layers. Only the human operator may steer the L1 Mission."
+		}
 		// Never overwrite an existing Wiki page with 0 bytes! If content is empty, treat as a read.
 		if strings.TrimSpace(act.Content) == "" {
 			if wData, err := e.memory.ReadWiki(target); err == nil {
@@ -1638,8 +1699,9 @@ func (e *Engine) dispatchLayerAction(
 			if layer != core.LayerTaskProsecution && extractTopActionableMilestone(existingGoals) != "" {
 				return "wiki_write(goals.md) skipped: goals.md already has active '- [ ]' milestones; only L6 may update goals.md when checking off '[x]' after test verification."
 			}
-			newGoals := strings.TrimSpace(act.Content)
+			newGoals := collapseMultilineMilestoneBullets(strings.TrimSpace(act.Content))
 			if len(existingGoals) > 200 {
+				existingGoals = collapseMultilineMilestoneBullets(existingGoals)
 				wsDir, wikiDir := e.resolveSandboxDirs()
 				handoff := LoadHandoffPacket(ctx, e.memory, extractTopActionableMilestone(existingGoals))
 				// Apply any newly checked-off "- [x]" milestones in-place onto existingGoals ONLY if Mode-3 Falsification Gate passes (Fix S16)!
@@ -1721,6 +1783,11 @@ func (e *Engine) dispatchLayerAction(
 		if strings.TrimSpace(act.Content) == "" {
 			return "workspace_write error: action.content cannot be empty"
 		}
+		writeTgt := strings.TrimPrefix(strings.TrimPrefix(strings.TrimSpace(act.Target), "/workspace/"), "workspace/")
+		if !strings.Contains(writeTgt, "/") && strings.HasSuffix(writeTgt, ".py") && writeTgt != "ace_rlm.py" && writeTgt != "script.py" {
+			writeTgt = "ace_v07/" + writeTgt
+		}
+		act.Target = writeTgt
 		if err := e.sandbox.WriteFile(act.Target, act.Content); err != nil {
 			return "workspace_write error: " + err.Error()
 		}

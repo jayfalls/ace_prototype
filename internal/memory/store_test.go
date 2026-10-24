@@ -26,7 +26,7 @@ func TestStoreFTS5AndWikiAndChat(t *testing.T) {
 	// 1. Seeded wiki files exist
 	soul, err := store.ReadWiki("soul.md")
 	require.NoError(t, err)
-	require.Contains(t, soul, "Scientist & Systems Researcher Constitution")
+	require.Contains(t, soul, "HEURISTIC IMPERATIVES")
 
 	// 2. Traversal in wiki is rejected
 	_, err = store.ReadWiki("../../etc/passwd")

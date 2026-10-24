@@ -35,6 +35,7 @@ type SomaticValence struct {
 type CrossCycleHandoffPacket struct {
 	ActiveMilestone   string            `json:"active_milestone"`
 	AttemptCount      int               `json:"attempt_count"`
+	CycleCount        int               `json:"cycle_count"`
 	FailedAttempts    []FailedAttempt   `json:"failed_attempts"`
 	VerifiedFiles     []string          `json:"verified_files"`
 	FileDigests       map[string]string `json:"file_digests"`
@@ -174,6 +175,14 @@ func RecordHandoffAttempt(handoff *CrossCycleHandoffPacket, cycleID string, acti
 	}
 }
 
+func canonicalMilestoneKey(ms string) string {
+	s := strings.Join(strings.Fields(strings.TrimSpace(ms)), " ")
+	if len(s) > 120 {
+		return s[:120]
+	}
+	return s
+}
+
 func LoadHandoffPacket(ctx context.Context, mem core.MemoryStore, currentMilestone string) CrossCycleHandoffPacket {
 	var pkt CrossCycleHandoffPacket
 	if mem != nil {
@@ -184,14 +193,15 @@ func LoadHandoffPacket(ctx context.Context, mem core.MemoryStore, currentMilesto
 	if pkt.FileDigests == nil {
 		pkt.FileDigests = make(map[string]string)
 	}
-	// If milestone changed, reset attempt counters and failed attempts for the new milestone while keeping VerifiedFiles
-	if currentMilestone != "" && pkt.ActiveMilestone != "" && pkt.ActiveMilestone != currentMilestone {
+	// Compare by canonical 120-char prefix so truncated callers (160 chars) never falsely reset AttemptCount/CycleCount!
+	if currentMilestone != "" && pkt.ActiveMilestone != "" && canonicalMilestoneKey(pkt.ActiveMilestone) != canonicalMilestoneKey(currentMilestone) {
 		pkt.ActiveMilestone = currentMilestone
 		pkt.AttemptCount = 0
+		pkt.CycleCount = 0
 		pkt.FailedAttempts = nil
 		pkt.ConsecutiveNoOp = 0
 		pkt.Valence = SomaticValence{Reward: 0.5}
-	} else if currentMilestone != "" {
+	} else if currentMilestone != "" && len(currentMilestone) > len(pkt.ActiveMilestone) {
 		pkt.ActiveMilestone = currentMilestone
 	}
 	return pkt

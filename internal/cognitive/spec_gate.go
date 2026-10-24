@@ -55,8 +55,9 @@ func ComputeVetoReasonHash(milestoneID string, vetoReason string) (hashHex strin
 }
 
 // RecordGateVetoAndCheckStuck records a gate veto in `veto_ledger`, emits a `veto_reason` telemetry span,
-// and returns (isStuck=true, count) when the same veto hash occurs >= 3 times.
-// When isStuck is true, it automatically opens a CONTRADICTION node in the shared Connectome and escalates via L1.5 -> Telegram.
+// and implements the 2-stage Stuck Detector (§6.1):
+//   - At count == 3: NEVER parks or escalates to Telegram; triggers a local L4 strategy revision.
+//   - At count >= 5 (or >= 8 for active code/hypothesis debugging): opens a CONTRADICTION node and escalates via L1.5 -> Telegram once.
 func (e *Engine) RecordGateVetoAndCheckStuck(ctx context.Context, cycleID string, milestoneID string, vetoReason string, workerThought string) (bool, int) {
 	vhash, vkind, tpath := ComputeVetoReasonHash(milestoneID, vetoReason)
 	if e.telem != nil {
@@ -86,28 +87,77 @@ func (e *Engine) RecordGateVetoAndCheckStuck(ctx context.Context, cycleID string
 			updated_at = excluded.updated_at
 	`, vhash, milestoneID, vkind, tpath, truncateString(vetoReason, 300), cycleID, now)
 
-	var count int
-	_ = db.QueryRowContext(ctx, `SELECT count FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&count)
+	var count, disputed int
+	_ = db.QueryRowContext(ctx, `SELECT count, disputed FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&count, &disputed)
 
-	if count >= 3 {
-		_ = e.EscalateGateDisputeOrStuck(ctx, cycleID, milestoneID, vhash, vkind, tpath, vetoReason, workerThought)
+	// Per §6.1: 3 vetoes only forces local L4 strategy reflection and NEVER parks or escalates to the human.
+	// Normal code/hypothesis debugging (selftest_failure or scientific falsification) is given up to 8 attempts before human escalation.
+	threshold := 5
+	lowerReason := strings.ToLower(vetoReason)
+	if vkind == "selftest_failure" || strings.Contains(lowerReason, "scientific falsification") || strings.Contains(lowerReason, "h1_accepted") {
+		threshold = 8
+	}
+
+	if count >= threshold {
+		if disputed == 0 {
+			_ = e.EscalateGateDisputeOrStuck(ctx, cycleID, milestoneID, vhash, vkind, tpath, vetoReason, workerThought)
+		}
 		return true, count
 	}
 	return false, count
 }
 
-// EscalateGateDisputeOrStuck opens a CONTRADICTION node in the shared Connectome and routes a <=4-line
-// plain-English escalation (or queues it in the overnight digest if the human is likely offline).
+func cleanHumanMilestoneTitle(raw string) string {
+	s := strings.TrimSpace(raw)
+	s = strings.TrimPrefix(s, "- [ ]")
+	s = strings.TrimPrefix(s, "- [!]")
+	s = strings.TrimPrefix(s, "- [x]")
+	s = strings.TrimSpace(s)
+	if idx := strings.Index(s, ":"); idx > 0 {
+		s = s[:idx]
+	}
+	s = strings.ReplaceAll(s, "**", "")
+	s = strings.ReplaceAll(s, "`", "")
+	return strings.TrimSpace(truncateString(s, 80))
+}
+
+func plainEnglishBlockerSummary(vetoKind string, targetPath string, vetoReason string) string {
+	lower := strings.ToLower(vetoReason)
+	switch {
+	case strings.Contains(lower, "scientific falsification") || strings.Contains(lower, "h1_accepted"):
+		return fmt.Sprintf("The benchmark experiment in %s ran cleanly, but the new method has not yet beaten the baseline on the held-out test split.", filepath.Base(targetPath))
+	case vetoKind == "missing_artifact":
+		return fmt.Sprintf("The expected output file (%s) was not produced where the milestone check looks for it.", filepath.Base(targetPath))
+	case vetoKind == "selftest_failure":
+		return fmt.Sprintf("The self-test in %s is still failing after multiple code fixes.", filepath.Base(targetPath))
+	case vetoKind == "hygiene_violation":
+		return fmt.Sprintf("Code quality check flagged unused imports or dead code in %s.", filepath.Base(targetPath))
+	default:
+		return fmt.Sprintf("The verification gate blocked %s after repeated attempts.", filepath.Base(targetPath))
+	}
+}
+
+// EscalateGateDisputeOrStuck opens a CONTRADICTION node in the shared Connectome and routes a plain-English
+// human summary (or queues it in the overnight digest if the human is likely offline).
 func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string, milestoneID string, vetoHash string, vetoKind string, targetPath string, vetoReason string, workerDiagnosis string) error {
 	nodeID := "contradiction:gate_" + vetoHash
-	summary := fmt.Sprintf("Gate dispute (%s on %s, 3+ vetoes): %s | L6 diagnosis: %s",
-		vetoKind, targetPath, truncateString(vetoReason, 120), truncateString(workerDiagnosis, 120))
+	title := cleanHumanMilestoneTitle(milestoneID)
+	blocker := plainEnglishBlockerSummary(vetoKind, targetPath, vetoReason)
+
+	if db := e.getDB(); db != nil {
+		var existingState string
+		_ = db.QueryRowContext(ctx, `SELECT state FROM connectome_nodes WHERE id = ?`, nodeID).Scan(&existingState)
+		if existingState == "PARKED_HUMAN" {
+			return nil
+		}
+		_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET disputed = 1, updated_at = ? WHERE veto_hash = ?`, time.Now().UTC(), vetoHash)
+	}
 
 	_ = e.UpsertUncertaintyNode(ctx, ConnectomeNode{
 		ID:             nodeID,
 		Kind:           "CONTRADICTION",
 		Path:           targetPath,
-		Summary:        summary,
+		Summary:        fmt.Sprintf("%s — %s", title, blocker),
 		State:          "OPEN",
 		OwnerLayer:     5,
 		BlockingWeight: 2.0,
@@ -117,13 +167,9 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 		CycleEpoch:     time.Now().Unix(),
 	})
 
-	if db := e.getDB(); db != nil {
-		_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET disputed = 1, updated_at = ? WHERE veto_hash = ?`, time.Now().UTC(), vetoHash)
-	}
-
 	msg := fmt.Sprintf(
-		"1. Task: %s\n2. Contradiction: Gate vetoed `%s` (%s) 3x; worker says: %s\n3. Options: (A) Relax/fix milestone path or (B) Override gate for this task.\n4. Status: Parked this branch and switching to the next unblocked task.",
-		truncateString(milestoneID, 70), targetPath, vetoKind, truncateString(workerDiagnosis, 90),
+		"Working on: %s\nWhat happened: %s\nHow would you like to proceed? Reply 'A' to adjust the target threshold/path, or 'B' to skip this task.\nStatus: Paused this task and moved on to the next item.",
+		title, blocker,
 	)
 	e.DispatchHumanContradictionAlert(ctx, cycleID, nodeID, msg, targetPath)
 	return nil

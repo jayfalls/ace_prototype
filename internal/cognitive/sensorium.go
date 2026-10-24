@@ -710,34 +710,113 @@ type isoBox struct {
 	leftFill   string
 	rightFill  string
 	stroke     string
-	label      string
+	tier       int // 0 = base/bevel/rails, 1 = pillars/housings, 2 = carriage/pins/details
 }
 
+// depthKey guarantees strict topological painter's order: lower z-tier (floor/bevel/rails) ALWAYS paints
+// before upper z-tiers (carriages, pins, dial gauges), and within each tier sorts back-to-front (x + y + z).
 func (b isoBox) depthKey() float64 {
-	return (b.x + b.wx*0.5) + (b.y + b.wy*0.5) + (b.z + b.wz*0.5)*0.4
+	return float64(b.tier)*10000.0 + (b.x + b.wx*0.5) + (b.y + b.wy*0.5) + (b.z + b.wz*0.5)
 }
 
 func isoProject(x, y, z float64) (float64, float64) {
 	const cos30 = 0.8660254
 	const sin30 = 0.5
-	const scale = 1.0
+	const scale = 1.05
 	const originX = 360.0
-	const originY = 230.0
+	const originY = 215.0
 	px := originX + (x-y)*cos30*scale
 	py := originY + (x+y)*sin30*scale - z*scale
 	return px, py
 }
 
-// BuildAnatomyIsometricSVG implements a pure-Go port of the `anatomy` isometric primitives
-// (isometric projection, four-tone shading, painter's-order depth sorting, framed card + live readout)
-// to conceptualize complex ACE components and gate contradictions (§7.3).
+// BuildAnatomyIsometricSVG builds a multi-part physical bench test-rig (`anatomy` skill rules:
+// 45+ solid parts, base plate with bevels, 4 corner screws, 12 ruler ticks, twin steel guide rails,
+// sliding carriage on 4 bushings, 5-pin shear-line lock tumblers parameterized by targetPath/nodeID,
+// and dial gauge housing — with zero text inside the 3D drawing and strict tier-sorted painter's order).
 func BuildAnatomyIsometricSVG(nodeID string, targetPath string, message string) []byte {
+	seed := 0
+	for i := 0; i < len(nodeID+targetPath); i++ {
+		seed = (seed*31 + int((nodeID+targetPath)[i])) & 0x7fffffff
+	}
+	carriageOffset := float64((seed%50)-25) * 1.2
+
 	boxes := []isoBox{
-		{x: -140, y: -110, z: 0, wx: 280, wy: 220, wz: 16, topFill: "#f1f5f9", leftFill: "#cbd5e1", rightFill: "#94a3b8", stroke: "#334155", label: "CONNECTOME RIG BASE"},
-		{x: -115, y: -85, z: 16, wx: 75, wy: 65, wz: 46, topFill: "#e0f2fe", leftFill: "#7dd3fc", rightFill: "#0284c7", stroke: "#0369a1", label: "TURN 0/0.5 LOCK"},
-		{x: -25, y: -75, z: 16, wx: 90, wy: 75, wz: 54, topFill: "#ede9fe", leftFill: "#c4b5fd", rightFill: "#7c3aed", stroke: "#5b21b6", label: "L2||L3||L4 CLUSTER"},
-		{x: -95, y: 15, z: 16, wx: 85, wy: 65, wz: 42, topFill: "#fef3c7", leftFill: "#fcd34d", rightFill: "#d97706", stroke: "#92400e", label: "L5 SPEC/MODE-3 GATE"},
-		{x: 15, y: 20, z: 16, wx: 95, wy: 70, wz: 48, topFill: "#ffe4e6", leftFill: "#fda4af", rightFill: "#e11d48", stroke: "#9f1239", label: "L6 WORKPAD CARRIAGE"},
+		// Tier 0: Base bevel, cast-iron bed plate, recessed serial plate, 4 corner bolts, 12 ruler ticks, twin guide rails
+		{x: -146, y: -106, z: -4, wx: 292, wy: 212, wz: 4, topFill: "#cbd5e1", leftFill: "#94a3b8", rightFill: "#64748b", stroke: "#334155", tier: 0},
+		{x: -140, y: -100, z: 0, wx: 280, wy: 200, wz: 14, topFill: "#f1f5f9", leftFill: "#cbd5e1", rightFill: "#94a3b8", stroke: "#334155", tier: 0},
+		// Front brass serial plate & 2 rivets
+		{x: -45, y: 74, z: 14, wx: 90, wy: 18, wz: 3, topFill: "#fef3c7", leftFill: "#fcd34d", rightFill: "#d97706", stroke: "#92400e", tier: 0},
+		{x: -40, y: 80, z: 17, wx: 4, wy: 4, wz: 2, topFill: "#fde68a", leftFill: "#f59e0b", rightFill: "#b45309", stroke: "#78350f", tier: 0},
+		{x: 36, y: 80, z: 17, wx: 4, wy: 4, wz: 2, topFill: "#fde68a", leftFill: "#f59e0b", rightFill: "#b45309", stroke: "#78350f", tier: 0},
+		// 4 corner hex screws
+		{x: -132, y: -92, z: 14, wx: 10, wy: 10, wz: 4, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: 122, y: -92, z: 14, wx: 10, wy: 10, wz: 4, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: -132, y: 82, z: 14, wx: 10, wy: 10, wz: 4, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: 122, y: 82, z: 14, wx: 10, wy: 10, wz: 4, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		// Twin ground steel guide rails + 4 end pillow blocks
+		{x: -115, y: -38, z: 14, wx: 230, wy: 8, wz: 6, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#64748b", stroke: "#334155", tier: 0},
+		{x: -115, y: 26, z: 14, wx: 230, wy: 8, wz: 6, topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#64748b", stroke: "#334155", tier: 0},
+		{x: -120, y: -42, z: 14, wx: 14, wy: 16, wz: 12, topFill: "#cbd5e1", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: 106, y: -42, z: 14, wx: 14, wy: 16, wz: 12, topFill: "#cbd5e1", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: -120, y: 22, z: 14, wx: 14, wy: 16, wz: 12, topFill: "#cbd5e1", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+		{x: 106, y: 22, z: 14, wx: 14, wy: 16, wz: 12, topFill: "#cbd5e1", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 0},
+	}
+
+	// 12 precision ruler scale ticks along front bed edge
+	for i := 0; i < 12; i++ {
+		tx := -110.0 + float64(i)*20.0
+		wy := 6.0
+		if i%5 == 0 {
+			wy = 10.0
+		}
+		boxes = append(boxes, isoBox{
+			x: tx, y: 56, z: 14, wx: 2.5, wy: wy, wz: 1.5,
+			topFill: "#94a3b8", leftFill: "#64748b", rightFill: "#475569", stroke: "#334155", tier: 0,
+		})
+	}
+
+	// Tier 1: Rear Shear-Line Gate Bridge & 5 Pin-Tumbler Chambers + Right Dial Gauge Stand
+	boxes = append(boxes,
+		isoBox{x: -95, y: -84, z: 14, wx: 130, wy: 34, wz: 44, topFill: "#e0f2fe", leftFill: "#7dd3fc", rightFill: "#0284c7", stroke: "#075985", tier: 1},
+		isoBox{x: 56, y: -80, z: 14, wx: 58, wy: 42, wz: 52, topFill: "#ede9fe", leftFill: "#c4b5fd", rightFill: "#7c3aed", stroke: "#4c1d95", tier: 1},
+		isoBox{x: 68, y: -68, z: 66, wx: 34, wy: 24, wz: 16, topFill: "#fef3c7", leftFill: "#fcd34d", rightFill: "#d97706", stroke: "#78350f", tier: 1},
+	)
+
+	// 5 Pin-Tumbler Verification Pins (heights vary deterministically by artifact/gate hash)
+	for p := 0; p < 5; p++ {
+		px := -82.0 + float64(p)*22.0
+		pinH := 12.0 + float64(((seed>>(p*3))&7))*2.5
+		isBlockedPin := p == (seed % 5)
+		tf, lf, rf, st := "#dcfce7", "#86efac", "#16a34a", "#14532d"
+		if isBlockedPin {
+			tf, lf, rf, st = "#ffe4e6", "#fda4af", "#e11d48", "#881337"
+		}
+		boxes = append(boxes, isoBox{
+			x: px, y: -74, z: 58, wx: 12, wy: 14, wz: pinH,
+			topFill: tf, leftFill: lf, rightFill: rf, stroke: st, tier: 2,
+		})
+	}
+
+	// Tier 2: Sliding Workpad Carriage on 4 bronze bushings + 6-coil return spring + specimen clamp
+	cx := carriageOffset
+	boxes = append(boxes,
+		// 4 bronze rail bushings
+		isoBox{x: cx - 42, y: -41, z: 18, wx: 16, wy: 14, wz: 8, topFill: "#fef3c7", leftFill: "#fbbf24", rightFill: "#b45309", stroke: "#78350f", tier: 2},
+		isoBox{x: cx + 26, y: -41, z: 18, wx: 16, wy: 14, wz: 8, topFill: "#fef3c7", leftFill: "#fbbf24", rightFill: "#b45309", stroke: "#78350f", tier: 2},
+		isoBox{x: cx - 42, y: 23, z: 18, wx: 16, wy: 14, wz: 8, topFill: "#fef3c7", leftFill: "#fbbf24", rightFill: "#b45309", stroke: "#78350f", tier: 2},
+		isoBox{x: cx + 26, y: 23, z: 18, wx: 16, wy: 14, wz: 8, topFill: "#fef3c7", leftFill: "#fbbf24", rightFill: "#b45309", stroke: "#78350f", tier: 2},
+		// Main workpad carriage block + upper precision jaw
+		isoBox{x: cx - 46, y: -36, z: 26, wx: 92, wy: 68, wz: 22, topFill: "#f8fafc", leftFill: "#cbd5e1", rightFill: "#64748b", stroke: "#1e293b", tier: 2},
+		isoBox{x: cx - 28, y: -22, z: 48, wx: 56, wy: 40, wz: 16, topFill: "#ffe4e6", leftFill: "#fda4af", rightFill: "#e11d48", stroke: "#881337", tier: 2},
+	)
+	// 6 return spring coils between right pillow block and carriage
+	for c := 0; c < 6; c++ {
+		sx := cx + 48.0 + float64(c)*8.5
+		boxes = append(boxes, isoBox{
+			x: sx, y: -8, z: 22, wx: 4.5, wy: 12, wz: 10,
+			topFill: "#e2e8f0", leftFill: "#94a3b8", rightFill: "#475569", stroke: "#1e293b", tier: 2,
+		})
 	}
 
 	sort.Slice(boxes, func(i, j int) bool {
@@ -747,8 +826,8 @@ func BuildAnatomyIsometricSVG(nodeID string, targetPath string, message string) 
 	var svg strings.Builder
 	svg.WriteString(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 440" width="720" height="440" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">`)
 	svg.WriteString(`<rect x="8" y="8" width="704" height="424" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>`)
-	svg.WriteString(fmt.Sprintf(`<text x="28" y="36" font-size="14" font-weight="700" fill="#0f172a">ACE v0.6 ANATOMY // %s</text>`, escapeXML(truncateString(nodeID, 48))))
-	svg.WriteString(fmt.Sprintf(`<text x="28" y="56" font-size="11" fill="#475569">TARGET: %s</text>`, escapeXML(truncateString(targetPath, 68))))
+	svg.WriteString(fmt.Sprintf(`<text x="28" y="34" font-size="13" font-weight="700" fill="#0f172a">ACE v0.7 SHEAR-LINE GATE RIG // %s</text>`, escapeXML(truncateString(filepath.Base(targetPath), 48))))
+	svg.WriteString(fmt.Sprintf(`<text x="28" y="52" font-size="11" fill="#475569">5-pin tumbler gate + sliding workpad carriage (%d solid parts, topological painter's order)</text>`, len(boxes)))
 
 	polyPoints := func(pts [][3]float64) string {
 		var out []string
@@ -767,18 +846,16 @@ func BuildAnatomyIsometricSVG(nodeID string, targetPath string, message string) 
 		rightPts := [][3]float64{{x1, y0, z0}, {x1, y1, z0}, {x1, y1, z1}, {x1, y0, z1}}
 		topPts := [][3]float64{{x0, y0, z1}, {x1, y0, z1}, {x1, y1, z1}, {x0, y1, z1}}
 
-		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.2" stroke-linejoin="round"/>`, polyPoints(leftPts), bx.leftFill, bx.stroke))
-		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.2" stroke-linejoin="round"/>`, polyPoints(rightPts), bx.rightFill, bx.stroke))
-		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.2" stroke-linejoin="round"/>`, polyPoints(topPts), bx.topFill, bx.stroke))
-
-		cx, cy := isoProject(bx.x+bx.wx*0.5, bx.y+bx.wy*0.5, z1+4)
-		svg.WriteString(fmt.Sprintf(`<text x="%.1f" y="%.1f" font-size="9" font-weight="600" fill="#0f172a" text-anchor="middle">%s</text>`, cx, cy, escapeXML(bx.label)))
+		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.1" stroke-linejoin="round"/>`, polyPoints(leftPts), bx.leftFill, bx.stroke))
+		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.1" stroke-linejoin="round"/>`, polyPoints(rightPts), bx.rightFill, bx.stroke))
+		svg.WriteString(fmt.Sprintf(`<polygon points="%s" fill="%s" stroke="%s" stroke-width="1.1" stroke-linejoin="round"/>`, polyPoints(topPts), bx.topFill, bx.stroke))
 	}
 
-	svg.WriteString(`<rect x="24" y="352" width="672" height="64" rx="6" fill="#0f172a"/>`)
+	// Footer readout card (outside the 3D drawing, never overlapping parts)
+	svg.WriteString(`<rect x="24" y="346" width="672" height="72" rx="6" fill="#0f172a"/>`)
 	lines := strings.Split(message, "\n")
-	for i := 0; i < len(lines) && i < 3; i++ {
-		svg.WriteString(fmt.Sprintf(`<text x="36" y="%d" font-size="10" fill="#e2e8f0">%s</text>`, 370+i*16, escapeXML(truncateString(lines[i], 92))))
+	for i := 0; i < len(lines) && i < 4; i++ {
+		svg.WriteString(fmt.Sprintf(`<text x="36" y="%d" font-size="10.5" fill="#e2e8f0">%s</text>`, 364+i*15, escapeXML(truncateString(lines[i], 96))))
 	}
 	svg.WriteString(`</svg>`)
 	return []byte(svg.String())

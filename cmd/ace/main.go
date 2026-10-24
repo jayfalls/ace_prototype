@@ -99,7 +99,7 @@ func main() {
 
 	srv := server.NewServer(engine, provider, memBus, memStore, jail, telem, tgBridge, webFS)
 	httpServer := &http.Server{
-		Addr:              ":" + *port,
+		Addr:              "127.0.0.1:" + *port,
 		Handler:           srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

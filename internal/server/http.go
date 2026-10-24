@@ -53,6 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/state", s.handleGetState)
+	mux.HandleFunc("GET /api/v07/cockpit", s.handleV07Cockpit)
 	mux.HandleFunc("POST /api/chat", s.handleChat)
 	mux.HandleFunc("POST /api/engine/mode", s.handleSetMode)
 	mux.HandleFunc("POST /api/engine/cycle", s.handleTriggerCycle)
@@ -138,7 +139,12 @@ func (s *Server) handleGetState(w http.ResponseWriter, r *http.Request) {
 		"wiki_pages":      nonNilSlice(wikiPages),
 		"workspace_files": nonNilSlice(wsFiles),
 		"recent_execs":    nonNilSlice(recentExecs),
+		"v07_cockpit":     s.engine.BuildV07CockpitSnapshot(ctx),
 	})
+}
+
+func (s *Server) handleV07Cockpit(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.engine.BuildV07CockpitSnapshot(r.Context()))
 }
 
 func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {

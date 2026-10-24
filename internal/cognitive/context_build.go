@@ -205,6 +205,10 @@ func (e *Engine) buildActiveMilestoneWikiNotesDigest(milestone string) string {
 	axisNoSep := strings.ReplaceAll(strings.ReplaceAll(axisCompact, "-", ""), " ", "")
 
 	var b strings.Builder
+	if topSkill, ok := e.RouteTopWikiSkill(context.Background(), milestone); ok {
+		b.WriteString(fmt.Sprintf("\n=== ROUTED C6 WIKI-SKILL: %s (%s, Beta(α=%.1f, β=%.1f) mean=%.2f) ===\n- Verification: `%s`\n- Procedure: %s\n",
+			topSkill.SkillID, topSkill.WikiPath, topSkill.Alpha, topSkill.Beta, topSkill.PosteriorMean(), topSkill.Verification, strings.Join(topSkill.Procedure, " | ")))
+	}
 	matched := 0
 	for i := len(wikiFiles) - 1; i >= 0 && matched < 2; i-- {
 		wf := wikiFiles[i]

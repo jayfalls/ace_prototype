@@ -38,12 +38,14 @@ func isIgnoredOrWildcardArtifact(p string) bool {
 		strings.HasPrefix(base, "agents-study-") ||
 		strings.HasPrefix(base, "extract-") ||
 		strings.HasPrefix(base, "paper-") ||
-		strings.HasPrefix(base, "meta-harness-") {
+		strings.HasPrefix(base, "meta-harness-") ||
+		strings.HasPrefix(base, "public_") {
 		return true
 	}
 	switch p {
 	case "ace_v1_traces.db", "ace_v0_1_traces.db", "ace_rlm.py", "goals.md", "soul.md", "index.md", "log.md", "README.md",
 		"benchmarks/ace_v0_1_traces.db", "benchmarks/ace_v0_2_traces.db", "benchmarks/ace_v0_3_traces.db", "benchmarks/ace_v0_3_live_traces.db",
+		"benchmarks/ace_v0_6_traces.db", "ace_v0_6_traces.db", "benchmarks/v06_final_layer_telemetry.json", "v06_final_layer_telemetry.json",
 		"benchmarks/live_traces.db", "benchmarks/v0_1_benchmark_suite.json", "benchmarks/registry.json", "registry.json",
 		"research_corpus/CORPUS_INDEX.md", "CORPUS_INDEX.md":
 		return true
@@ -55,7 +57,13 @@ func isIgnoredOrWildcardArtifact(p string) bool {
 func ExtractMilestoneArtifacts(milestoneLine string) (wsFiles []string, wikiFiles []string) {
 	seenWS := make(map[string]bool)
 	seenWiki := make(map[string]bool)
-	matches := artifactPathRe.FindAllStringSubmatch(milestoneLine, -1)
+	scanLine := milestoneLine
+	for _, cutMarker := range []string{"L4 Executive Plan:", "| [L4 Revised Plan]:"} {
+		if idx := strings.Index(scanLine, cutMarker); idx > 0 {
+			scanLine = scanLine[:idx]
+		}
+	}
+	matches := artifactPathRe.FindAllStringSubmatch(scanLine, -1)
 	for _, m := range matches {
 		wsCand := firstNonEmpty(m[1], m[3], m[5])
 		wikiCand := firstNonEmpty(m[2], m[4])
@@ -87,6 +95,44 @@ var milestoneIDRe = regexp.MustCompile(`(?i)\b(axis|milestone|phase)\s+[0-9]+(?:
 func extractMilestoneIdentifier(line string) string {
 	m := milestoneIDRe.FindString(line)
 	return strings.ToLower(strings.Join(strings.Fields(m), " "))
+}
+
+// collapseMultilineMilestoneBullets flattens indented continuation lines beneath `- [ ]` or `- [x]` bullets
+// into a single canonical line so multi-line L2 roadmap entries never lose their inline artifact paths or H0/H1 clauses.
+func collapseMultilineMilestoneBullets(md string) string {
+	lines := strings.Split(md, "\n")
+	var out []string
+	inMilestone := false
+	for _, rawLine := range lines {
+		trimmed := strings.TrimSpace(rawLine)
+		if strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "- [x]") || strings.HasPrefix(trimmed, "- [X]") {
+			out = append(out, trimmed)
+			inMilestone = true
+			continue
+		}
+		if inMilestone {
+			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+				inMilestone = false
+				out = append(out, rawLine)
+				continue
+			}
+			isIndented := len(rawLine) > 0 && (rawLine[0] == ' ' || rawLine[0] == '\t')
+			if isIndented && len(out) > 0 {
+				cont := strings.TrimPrefix(trimmed, "- ")
+				sep := " "
+				if strings.HasSuffix(out[len(out)-1], ":") {
+					sep = " "
+				} else if !strings.HasSuffix(out[len(out)-1], ".") && !strings.HasSuffix(out[len(out)-1], ";") {
+					sep = " — "
+				}
+				out[len(out)-1] = out[len(out)-1] + sep + cont
+				continue
+			}
+			inMilestone = false
+		}
+		out = append(out, rawLine)
+	}
+	return strings.Join(out, "\n")
 }
 
 // ExtractPrimaryMilestoneScript returns the first non-__init__ `.py` script referenced in the milestone line (Fix S11).
@@ -145,7 +191,7 @@ func ResolveWorkspaceArtifactPath(workspaceDir string, wf string) string {
 		return wf
 	}
 	if !strings.Contains(wf, "/") {
-		for _, sub := range []string{"benchmarks/datasets", "benchmarks"} {
+		for _, sub := range []string{"benchmarks/datasets", "benchmarks/results", "benchmarks"} {
 			cand := filepath.Join(sub, wf)
 			if info, err := os.Stat(filepath.Join(workspaceDir, cand)); err == nil && info.Size() > 0 {
 				return filepath.ToSlash(cand)
@@ -162,7 +208,7 @@ func ResolveWorkspaceArtifactPath(workspaceDir string, wf string) string {
 		if info, err := os.Stat(filepath.Join(workspaceDir, base)); err == nil && info.Size() > 0 {
 			return base
 		}
-		for _, sub := range []string{"benchmarks/datasets", "benchmarks"} {
+		for _, sub := range []string{"benchmarks/datasets", "benchmarks/results", "benchmarks"} {
 			cand := filepath.Join(sub, base)
 			if info, err := os.Stat(filepath.Join(workspaceDir, cand)); err == nil && info.Size() > 0 {
 				return filepath.ToSlash(cand)
@@ -252,6 +298,29 @@ func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandb
 		if !seenResolved[resolved] {
 			seenResolved[resolved] = true
 			wsFiles = append(wsFiles, resolved)
+		}
+	}
+	// If the milestone identifies an Axis/Milestone (e.g., "axis 8.1"), also attach any existing matching JSON result file
+	// under benchmarks/results/ so truncated milestone lines can never bypass ValidateJSONExperimentSubstance.
+	if axisID := extractMilestoneIdentifier(milestoneLine); axisID != "" && workspaceDir != "" {
+		parts := strings.Fields(axisID)
+		if len(parts) == 2 {
+			slug := parts[0] + strings.ReplaceAll(parts[1], ".", "_")
+			resDir := filepath.Join(workspaceDir, "benchmarks", "results")
+			if entries, err := os.ReadDir(resDir); err == nil {
+				for _, e := range entries {
+					if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".json") {
+						continue
+					}
+					if strings.Contains(strings.ToLower(e.Name()), slug) {
+						rel := filepath.ToSlash(filepath.Join("benchmarks", "results", e.Name()))
+						if !seenResolved[rel] {
+							seenResolved[rel] = true
+							wsFiles = append(wsFiles, rel)
+						}
+					}
+				}
+			}
 		}
 	}
 	// Support plain-English user milestones that do not explicitly embed `/workspace/...` file paths

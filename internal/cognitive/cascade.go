@@ -43,62 +43,214 @@ func (e *Engine) autonomousTickerLoop(ctx context.Context) {
 				goals, _ := e.memory.ReadWiki("goals.md")
 				topMilestone := extractTopActionableMilestone(goals)
 
-				// 1. If NO actionable "- [ ]" milestone remains in goals.md (either because the user wrote a high-level goal with no checkboxes yet,
-				//    or because all prior "- [ ]" milestones are complete), run a 4-hop Compass-to-Tactical Goal Decomposition & Horizon Expansion (Parallel L1||L2||L3 -> L4)!
+				// 1. If NO actionable "- [ ]" milestone remains in goals.md (Horizon Expansion):
+				//    - On initial mission bootstrap (autoPulseCount <= 1), run L1 -> L2 -> L3 -> L4 (4 hops).
+				//    - On subsequent Horizon Expansions, L1 has already locked the mission constitution; dispatch L2 -> L3 -> L4 (3 hops) so L1 stays the rarest supervisory crown layer!
 				if topMilestone == "" {
-					e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Full Compass Horizon Expansion (L1||L2||L3 -> L4)", autoPulseCount))
-					e.EnqueueCycle(
-						"Zone 1 Strategic Goal Decomposition & Horizon Expansion (L1||L2||L3 -> L4): Either goals.md contains a high-level user goal that needs initial decomposition into concrete '- [ ]' milestones, or all prior '- [ ]' milestones are complete. L1 sets mission/epistemic priorities, L2 researches the domain (via local notes or web_search/web_fetch) and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 2-3 concrete, falsifiable '- [ ]' milestones (explicitly naming target dataset paths in `/workspace/benchmarks/datasets/<name>.json` and modular code paths in `/workspace/<package>/<module>.py` — NEVER wildcard globs), and L3 specifies capability & dataset schemas.",
-						core.LayerAspirational,
-						4,
-					)
+					if autoPulseCount <= 1 {
+						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Initial Mission Bootstrap (L1 -> L2||L3 -> L4)", autoPulseCount))
+						e.EnqueueCycle(
+							"Initial Mission Bootstrap & Horizon Expansion (L1 -> L2||L3 -> L4): L1 sets epistemic/mission priorities, L2 researches the domain and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 3 concrete, falsifiable '- [ ]' milestones (naming target dataset paths in `/workspace/benchmarks/datasets/<name>.json` and modular code paths in `/workspace/<package>/<module>.py`), and L3 specifies capability & dataset schemas.",
+							core.LayerAspirational,
+							4,
+						)
+					} else {
+						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Strategic Horizon Expansion (L2||L3 -> L4)", autoPulseCount))
+						e.EnqueueCycle(
+							"Strategic Horizon Expansion (L2||L3 -> L4): All prior '- [ ]' milestones are complete. L2 researches the next scientific/engineering axis and uses action.type=\"wiki_write\" (target=\"goals.md\") to append 3 concrete, falsifiable '- [ ]' milestones, while L3 audits self-model & dataset schemas.",
+							core.LayerGlobalStrategy,
+							3,
+						)
+					}
 					continue
 				}
 
-				// 2. True 6-Layer ACE Scientific State Machine (Quota & Cache Optimized):
-				// - Attempt #1 of any milestone (handoff.AttemptCount == 0), or every 3rd retry (AttemptCount % 3 == 0):
-				//   Run the FULL 6-Layer Scientific Cascade: Parallel(L1 Aspirational || L2 Global Strategy || L3 Agent Model) -> L4 Executive Plan -> L5 GPU Gate -> L6 Prosecutor!
-				// - Attempt #2 (handoff.AttemptCount % 3 == 1):
-				//   L1..L4 have already grounded the milestone and written the experiment contract; run Zone 3 Hardware-Gated Reflex (L5 GPU Gate -> L6 Prosecutor, 0 upper-layer cloud calls) so L6 keeps its warm KV prefix cache!
-				// - Attempt #3 (handoff.AttemptCount % 3 == 2):
-				//   Run Tactical-to-Reflex Retry Cascade (L4 Contingency Plan -> L5 GPU Gate -> L6 Prosecutor)!
+				// 2. Strict Top-Down Pyramidal 6-Layer Hierarchy (1 <= L1 < L2 < L3 < L4 << L6):
+				// NO layer L_k may EVER execute before L1..L_{k-1} have established their top-down Southbound directives!
+				// - Genesis / Uninitialized Upper Layers (L1 or L2 has 0 traces, or soul.md changed):
+				//   Full Top-Down Cascade: L1 (Aspirational) -> L2 (Global Strategy) -> L3 (Agent Model) -> L4 (Executive) -> L5 (Cognitive Control) -> L6 (Task Prosecution) (6 hops).
+				// - Strategic Re-Grounding (every 2nd completed milestone or CycleCount == 6):
+				//   L2 -> L3 -> L4 -> L5 -> L6 (5 hops).
+				// - Milestone Grounding (Cycle #1 of a new milestone, handoff.CycleCount == 0):
+				//   L3 -> L4 -> L5 -> L6 (4 hops, under active L1 & L2 directives).
+				// - Tactical Spec Revision (handoff.CycleCount > 0 && handoff.CycleCount % 3 == 0):
+				//   L4 -> L5 -> L6 (3 hops).
+				// - Workhorse Reflex Prosecution (handoff.CycleCount > 0 && handoff.CycleCount % 3 != 0):
+				//   L5 -> L6 (2 hops, under active L1->L2->L3->L4 directives).
 				handoff := LoadHandoffPacket(ctx, e.memory, topMilestone)
-				switch {
-				case handoff.AttemptCount == 0 || handoff.AttemptCount%3 == 0:
-					e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Full 6-Layer Scientific Cascade (L1||L2||L3 -> L4 -> L5 -> L6)", autoPulseCount))
-					e.EnqueueCycle(
-						fmt.Sprintf("Full 6-Layer ACE Scientific Cascade #%d (L1 Aspirational Audit || L2 Strategy & Literature Grounding || L3 Self-Model & Dataset Spec -> L4 Project & Hypothesis Plan -> L5 Cognitive Control -> L6 Execution): %s", autoPulseCount, topMilestone),
-						core.LayerAspirational,
-						6,
-					)
-				case handoff.AttemptCount%3 == 1:
-					e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Zone 3 Hardware-Gated Reflex Retry (L5 GPU -> L6, attempt #%d)", autoPulseCount, handoff.AttemptCount+1))
-					e.EnqueueCycle(
-						fmt.Sprintf("Zone 3 Hardware-Gated Reflex Continuation #%d (L5 Cognitive Control GPU Gate -> L6 Execution on attempt #%d): %s", autoPulseCount, handoff.AttemptCount+1, topMilestone),
-						core.LayerCognitiveCtrl,
-						2,
-					)
-				default:
-					e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Tactical-to-Reflex Retry Cascade (L4 -> L5 -> L6, attempt #%d)", autoPulseCount, handoff.AttemptCount+1))
-					e.EnqueueCycle(
-						fmt.Sprintf("Zone 2->3 Scientific Retry Cascade #%d (L4 Plan & Contingency Refinement -> L5 Cognitive Control -> L6 Execution on attempt #%d): %s", autoPulseCount, handoff.AttemptCount+1, topMilestone),
-						core.LayerExecutive,
-						3,
-					)
-				}
+				startL, hops, reason := e.determineTopDownStartLayer(ctx, topMilestone, handoff, autoPulseCount)
+				e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: %s", autoPulseCount, reason))
+				e.EnqueueCycle(
+					fmt.Sprintf("%s: %s", reason, topMilestone),
+					startL,
+					hops,
+				)
 			}
 		}
 	}
+}
+
+// determineTopDownStartLayer enforces Dave Shapiro's strict top-down causality law:
+// No layer L_k (k > 1) can EVER run if any higher layer L_1..L_{k-1} has not yet executed and emitted its Southbound directive,
+// while naturally producing the pyramidal call distribution (1 <= L1 < L2 < L3 < L4 << L6) via temporal persistence.
+func (e *Engine) determineTopDownStartLayer(ctx context.Context, topMilestone string, handoff CrossCycleHandoffPacket, pulse int) (core.LayerID, int, string) {
+	soul, _ := e.memory.ReadWiki("soul.md")
+	soulHash := sha256Str(strings.TrimSpace(soul))[:16]
+	lastSoulHash, _ := e.memory.LoadEngineMeta(ctx, "l1_grounded_soul_hash")
+
+	l1Count, l2Count, l3Count, l4Count := e.layerTraceCounts(ctx)
+	checkedCount := e.countCheckedMilestones()
+
+	// 1. Hard Top-Down Genesis Law: L1 MUST run first on boot, whenever soul.md changes, or every 4 completed milestones
+	if l1Count == 0 || lastSoulHash != soulHash || (checkedCount > 0 && checkedCount%4 == 0 && handoff.CycleCount == 0 && l1Count*4 <= l2Count) {
+		return core.LayerAspirational, 6, fmt.Sprintf("Full Top-Down Genesis Cascade #%d (L1 -> L2 -> L3 -> L4 -> L5 -> L6)", pulse)
+	}
+	// 2. L2 MUST run after L1 if L2 has never run, or on every 2nd new milestone, or on major stuck pivot (CycleCount == 6)
+	if l2Count == 0 || handoff.CycleCount == 6 || (handoff.CycleCount == 0 && l2Count*2 <= l3Count+1) {
+		return core.LayerGlobalStrategy, 5, fmt.Sprintf("Top-Down Strategic Cascade #%d (L2 -> L3 -> L4 -> L5 -> L6)", pulse)
+	}
+	// 3. L3 MUST run on every new milestone (CycleCount == 0) or if L3 has never run
+	if l3Count == 0 || handoff.CycleCount == 0 {
+		return core.LayerAgentModel, 4, fmt.Sprintf("Top-Down Milestone Grounding Cascade #%d (L3 -> L4 -> L5 -> L6)", pulse)
+	}
+	// 4. L4 MUST run if L4 has never run or on every 3rd failed attempt on the active milestone
+	if l4Count == 0 || handoff.CycleCount%3 == 0 {
+		return core.LayerExecutive, 3, fmt.Sprintf("Top-Down Tactical Re-Plan Cascade #%d (L4 -> L5 -> L6, attempt #%d)", pulse, handoff.CycleCount+1)
+	}
+	// 5. Otherwise L1..L4 are all actively locked above; run L5 -> L6 workhorse prosecution
+	return core.LayerCognitiveCtrl, 2, fmt.Sprintf("Top-Down Workhorse Prosecution #%d (L5 -> L6, attempt #%d)", pulse, handoff.CycleCount+1)
+}
+
+func (e *Engine) layerTraceCounts(ctx context.Context) (l1, l2, l3, l4 int) {
+	db := e.getDB()
+	if db == nil {
+		return 0, 0, 0, 0
+	}
+	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE layer_code IN ('L1','L2','L3','L4') GROUP BY layer_code`)
+	if err != nil {
+		return 0, 0, 0, 0
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var code string
+		var cnt int
+		if rows.Scan(&code, &cnt) == nil {
+			switch code {
+			case "L1":
+				l1 = cnt
+			case "L2":
+				l2 = cnt
+			case "L3":
+				l3 = cnt
+			case "L4":
+				l4 = cnt
+			}
+		}
+	}
+	return l1, l2, l3, l4
+}
+
+func (e *Engine) countCheckedMilestones() int {
+	goals, _ := e.memory.ReadWiki("goals.md")
+	cnt := 0
+	for _, line := range strings.Split(collapseMultilineMilestoneBullets(goals), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "- [x]") {
+			cnt++
+		}
+	}
+	return cnt
+}
+
+type l5GateEvalResult struct {
+	PYes      float64
+	Model     string
+	LatencyMs int64
+}
+
+func (e *Engine) evaluateL5Gate(ctx context.Context, sharedState, gateQ string) (l5GateEvalResult, error) {
+	gpuRes, err := llm.EvaluateLocalGPUGateWithState(ctx, sharedState, gateQ, 0.45)
+	if err != nil {
+		return l5GateEvalResult{}, err
+	}
+	return l5GateEvalResult{
+		PYes:      gpuRes.PYes,
+		Model:     gpuRes.Model,
+		LatencyMs: int64(gpuRes.LatencyMs),
+	}, nil
 }
 
 func (e *Engine) runCascade(ctx context.Context, job cycleJob) {
 	cycleStart := time.Now()
 	cycleSpanID := "spn_cyc_" + job.CycleID
 	stimulus := job.Trigger
+
+	// ACE v0.7.1 Pipelined Top-Down Mission Dependency Tree (`L1 -> [L2 || L3 || L4] -> L5 -> L6`):
+	// 1. Enforces hard L1 Aspirational genesis before any L2..L6 node can exist.
+	// 2. Runs ready nodes across {L2, L3, L4} in conditional parallel waves over the Dependency Tree.
+	// 3. Verifies cryptographic L1->L2->L3->L4 provenance before L5 (GPU Gate) dispatches L6 (Prosecutor Loop).
+	l1b, l2b, l3b, l4b := e.layerTraceCounts(ctx)
+	l6Traces := e.StepMissionDAG(ctx, job.CycleID, cycleSpanID, stimulus)
+	l1a, l2a, l3a, l4a := e.layerTraceCounts(ctx)
+	upperRan := (l1a > l1b) || (l2a > l2b) || (l3a > l3b) || (l4a > l4b)
+
+	// Guard against empty idle ticks: if neither upper-layer DAG waves nor L6 executed in this tick,
+	// do NOT copy the entire SQLite DB (which caused 19s db_write_wait_ms lock contention) or record empty cycle.cascade spans!
+	if len(l6Traces) == 0 && !upperRan {
+		return
+	}
+
+	// Post-Cascade Global Loops: Learning Loop (Northbound L6->L1 reflection) + Memory Manager consolidation + Live Trace DB Mirror
+	e.consolidateCycleNorthbound(ctx, job.CycleID, cycleSpanID, l6Traces)
+	e.syncLiveTracesToWorkspaceBenchmarks()
+
+	_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+		SpanID:     cycleSpanID,
+		TraceID:    job.CycleID,
+		AgentID:    e.agentID,
+		LayerCode:  "CYCLE",
+		Operation:  "cycle.cascade",
+		Model:      e.llm.ActiveModel(),
+		Status:     "ok",
+		DurationMs: time.Since(cycleStart).Milliseconds(),
+		Detail:     truncateText(job.Trigger, 180),
+	})
+}
+
+func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
+	cycleStart := time.Now()
+	cycleSpanID := "spn_cyc_" + job.CycleID
+	stimulus := job.Trigger
 	currLayer := job.StartLayer
+	maxHops := job.MaxHops
+
+	soul, _ := e.memory.ReadWiki("soul.md")
+	soulHash := sha256Str(strings.TrimSpace(soul))[:16]
+	lastSoulHash, _ := e.memory.LoadEngineMeta(ctx, "l1_grounded_soul_hash")
+	l1Count, l2Count, l3Count, l4Count := e.layerTraceCounts(ctx)
+
+	if currLayer > core.LayerAspirational && (l1Count == 0 || lastSoulHash != soulHash) {
+		currLayer = core.LayerAspirational
+		maxHops = 6
+	} else if currLayer > core.LayerGlobalStrategy && l2Count == 0 {
+		currLayer = core.LayerGlobalStrategy
+		if maxHops < 5 {
+			maxHops = 5
+		}
+	} else if currLayer > core.LayerAgentModel && l3Count == 0 {
+		currLayer = core.LayerAgentModel
+		if maxHops < 4 {
+			maxHops = 4
+		}
+	} else if currLayer > core.LayerExecutive && l4Count == 0 {
+		currLayer = core.LayerExecutive
+		if maxHops < 3 {
+			maxHops = 3
+		}
+	}
+
 	var l6Traces []core.ThoughtTrace
 
-	for hop := 0; hop < job.MaxHops; hop++ {
+	for hop := 0; hop < maxHops; hop++ {
 		if ctx.Err() != nil {
 			return
 		}
@@ -107,30 +259,9 @@ func (e *Engine) runCascade(ctx context.Context, job cycleJob) {
 			break
 		}
 
-		// Concurrency Optimization: When starting at L1 (Full 6-Layer Cascade), execute L1 (Aspirational), L2 (Global Strategy / Literature), and L3 (Agent Model / Dataset Spec) IN PARALLEL!
-		if currLayer == core.LayerAspirational && hop+2 < job.MaxHops {
-			mergedDir, err := e.executeParallelL1L2L3(ctx, job.CycleID, cycleSpanID, stimulus)
-			if err != nil {
-				return
-			}
-			stimulus = mergedDir
-			currLayer = core.LayerExecutive // Advance directly to L4 (Hypothesis & Experiment Designer)!
-			hop += 2                        // Consumed L1, L2, and L3 hops concurrently in 1 wall-clock step
-			continue
-		}
-
-		// Concurrency Optimization: Execute L2 (Global Strategy) and L3 (Agent Model) IN PARALLEL!
-		if currLayer == core.LayerGlobalStrategy && hop+1 < job.MaxHops {
-			mergedDir, err := e.executeParallelL2L3(ctx, job.CycleID, cycleSpanID, stimulus)
-			if err != nil {
-				return
-			}
-			stimulus = mergedDir
-			currLayer = core.LayerExecutive // Advance directly to L4!
-			hop++                            // Consumed both L2 and L3 hops concurrently
-			continue
-		}
-
+		// STRICT SEQUENTIAL TOP-DOWN PROPAGATION (L1 -> L2 -> L3 -> L4 -> L5 -> L6):
+		// Each layer receives the Southbound directive emitted by the layer immediately above it,
+		// evaluates its constitutional/strategic/self-model/executive role, and emits its Southbound directive to the next layer down.
 		var trace core.ThoughtTrace
 		var err error
 		nextDirective := stimulus
@@ -142,6 +273,9 @@ func (e *Engine) runCascade(ctx context.Context, job cycleJob) {
 			}
 			if err != nil {
 				return
+			}
+			if currLayer == core.LayerAspirational {
+				_ = e.memory.SaveEngineMeta(ctx, "l1_grounded_soul_hash", soulHash)
 			}
 			nextDirective = strings.TrimSpace(trace.Southbound)
 			if nextDirective == "" {
@@ -176,7 +310,7 @@ func (e *Engine) runCascade(ctx context.Context, job cycleJob) {
 		// L5 evaluates L4's project plan via the local 4-bit System-1 GPU gate (~1-50ms, 0 cloud tokens, KV trunk cached),
 		// monitors frustration/failure counters (ConsecutiveNoOp, FailedAttempts), dynamically switches L6 to Diagnostic Root-Cause Mode when blocked,
 		// and publishes both Southbound (to L6) and Northbound (to L4) bus signals!
-		if (currLayer == core.LayerExecutive || currLayer == core.LayerCognitiveCtrl) && nextDirective != "" && hop+1 < job.MaxHops {
+		if (currLayer == core.LayerExecutive || currLayer == core.LayerCognitiveCtrl) && nextDirective != "" && hop+1 < maxHops {
 			pYes := 0.96
 			gateModel := "d1-4bit-gpu-gate"
 			var gateMs int64
