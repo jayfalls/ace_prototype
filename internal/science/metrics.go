@@ -49,12 +49,15 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	m := map[string]float64{}
 
 	// L1-gate logging (first loop_kind='gate' trace) changed the trace
-	// population, which resets the baseline: never mix eras in one window.
-	// substr+replace normalises the two stored timestamp formats —
-	// datetime() returns NULL on the '+0000 UTC' suffix form.
+	// population, which resets the baseline: the honest window is the whole
+	// era since that change, so every metric in a row shares it. A task
+	// takes minutes — bounding the per-task distribution by the rolling
+	// tick would leave almost no fully-observed task. substr+replace
+	// normalises the two stored timestamp formats — datetime() returns
+	// NULL on the '+0000 UTC' suffix form.
 	var gateStart sql.NullString
 	_ = db.QueryRowContext(ctx, `SELECT MIN(replace(substr(created_at,1,19),'T',' ')) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
-	if gateStart.Valid && gateStart.String > startStr {
+	if gateStart.Valid {
 		startStr = gateStart.String
 	}
 
