@@ -110,6 +110,9 @@
 | F11 | Commit, tag every version, push (10-22) | §4 build | ok |
 | F16 | Every measurement fair, comprehensive and honest (10-25) | §2 Honest measurement | added |
 | F17 | OpenCode Go has an API key; ACE uses it from its own config (10-25) | 9.2 | added |
+| F18 | Bifrost core as the provider library, for broad provider support (10-25) | 9.2 | added |
+| F19 | Honest measurement binds the builder and ACE itself (10-25) | §2 Honest measurement | added |
+| F20 | Keep the current mission until a v0.12/v0.13 reset; first-time setup is an interview that recommends a context-calibrated mission, owner-editable (10-25) | v0.12 reset, Going | added |
 | F15 | Compressed timelines: acceptance runs are 1–2 h, or 4–6 h when the owner is away, never 24 h (10-25) | §4 build, v0.8 acceptance | added |
 | F14 | One command runs ACE: `./ace` is the watchdog supervisor and runs the agent as its child, no separate watchdog command (10-25) | §3 watchdog, spec 8.5 | added |
 | F13 | Builder works on the `ace-do` branch with no PRs (`main` only accepts PRs); only ACE uses the PR flow, and may keep one long-lived branch across versions (10-25) | §0 PR gate, §4 build | added |

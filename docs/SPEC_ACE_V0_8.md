@@ -230,7 +230,7 @@ memory caps, retention `0.5^(age/30d)`, skill retirement rule, disk caps (done),
   shuffled control, CV-fallback, self-PR-merge, moved goalposts, duplicate L2, pre-anchor L6,
   web injection, un-retired supersession, deny-list evasion via pipeline/`sh -c`.
 - CI green: domain strings, dead code, `go test ./...`.
-- **Acceptance run (1–2 h, or 4–6 h when the owner sleeps, travels or doesn't check in) on the owner's real mission (entered at `ace init`):** zero owner waits; ≥1 access
+- **Acceptance run (1–2 h, or 4–6 h when the owner sleeps, travels or doesn't check in) on the current mission (`~/.config/ace/mission.md`):** zero owner waits; ≥1 access
   request w/ continued work; verdict row per side effect; mid-task redirect reaching L6; Tier-1
   escalation + disagreement rates; per-layer shares in band; watchdog halt ≤5 s + snapshot
   rollback.

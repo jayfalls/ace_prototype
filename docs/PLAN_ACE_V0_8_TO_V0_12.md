@@ -29,7 +29,7 @@ The plan has no open questions. Per-version specs are written from it, one versi
 - Some paths wait on a human.
 - There is no time system, no plugin boundary, no install story, and the UI is unreadable.
 
-**Going:** a general autonomous scientist that anyone installs and gives a life mission.
+**Going:** a general autonomous scientist that anyone installs and gives a life mission; for the owner, ultimately a life assistant driven by the owner's interaction through the frontend.
 - Shapiro's six layers and imperatives are compiled into its mechanics.
 - It runs 24/7 under real-time top-down steering.
 - Every claim is measured honestly.
@@ -85,7 +85,7 @@ The plan has no open questions. Per-version specs are written from it, one versi
 - **Composition.** Shared components with standard interfaces, connectors and bridges; one solution per problem, never per-layer copies.
 - **Filesystem:** `internal/<component>/`, two nesting levels (three only in rare cases); files of about 500 lines at most; no god files.
 - **Least privilege.** Every capability grant is an experiment that has to show it improves outcomes (10.4).
-- **Honest measurement.** Every measurement is fair, comprehensive and honest. Fair: both arms share the mission, window length, logging and metric definition, and a change to logging or a definition resets the baseline. Comprehensive: every arm, attempt and failure is counted, and results are distributions with n and a confidence interval, not single ratios. Honest: a metric is named for exactly what it computes, and no window or subset is picked after seeing the data.
+- **Honest measurement.** Every measurement is fair, comprehensive and honest. Fair: both arms share the mission, window length, logging and metric definition, and a change to logging or a definition resets the baseline. Comprehensive: every arm, attempt and failure is counted, and results are distributions with n and a confidence interval, not single ratios. Honest: a metric is named for exactly what it computes, and no window or subset is picked after seeing the data. The rule binds both the builder's reports and ACE itself: its gates, metrics and experiments.
 - **Adopt before build.** Use a maintained component first; build only for a recorded gap.
 - **Owner-set config is authoritative.** Owner-set files (mission, personality, models, caps, grants) are mounted read-only in the jail and Tier 0 denies writes to them. ACE proposes changes with evidence in the digest.
 
@@ -350,7 +350,8 @@ Agents read dead code and stale docs as live. AST checks alone can't catch a con
 - **Thinking:** on only for the main model; gate, router and other side calls run with thinking off.
 - **Side-model sizes:** small, medium, big; task size picks the size.
 - **Quota windows:** subscription providers are budgeted by their windows (5-hour, weekly) and shown as % used; metered providers by cost.
-- **Built-in providers:** OpenAI-compatible, Anthropic, Google/Vertex and Ollama. Credentials come only from ACE's own config, never another app's stored credential; OpenCode Go uses its own API key.
+- **Provider library:** Bifrost core (`github.com/maximhq/bifrost/core`, Apache-2.0, Go) behind the Provider port, for broad provider support, including its native OpenCode Go provider (`https://opencode.ai/zen/go`). Adopted only after the builder measures it: binary size and module count against the current binary (19.6 MB, 33 modules), a clean build, and a live call through OpenCode Go. The circuit breaker, fallback order and usage accounting above wrap it; Bifrost's own gateway, UI and plugins are not used.
+- **Providers:** Credentials come only from ACE's own config, never another app's stored credential; OpenCode Go uses its own API key.
 
 ### 9.3 Layers, bus and cadence
 
@@ -583,6 +584,8 @@ A design session with the owner comes first. Inputs:
 - **Visual explainers:** the session decides how ACE shows a complex component to a human.
 
 ## v0.12: from the v0.10 data
+
+**Reset and first-time setup (v0.12 or v0.13):** until then ACE keeps its current self-building mission. At the reset everything starts fresh and the new first-time setup is tested: ACE chats with the owner, probes and asks questions to close its uncertainties, then recommends a context-calibrated mission. The owner controls the core prompting and can edit the result by hand afterwards. This replaces the `ace init` questionnaire.
 
 v0.12 targets ACE's weakest area in the v0.10 comparison. Candidates already raised by the owner:
 - reality replicas or digital twins, to simulate before acting (with rollback);
