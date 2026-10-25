@@ -55,7 +55,7 @@ The plan has no open questions. Per-version specs are written from it, one versi
 | **Web UI** | Redesigned from first principles in v0.11: minimal, usability and readability first |
 | **Opencode hook** | A personal bolt-on, kept out of core |
 | **Security status** | The server binds `127.0.0.1` (`cmd/ace/main.go`). ACE runs live through every build (§4) |
-| **PR gate** | Every git repo with a remote, including ACE's own repo (`jayfalls/ace_prototype`): ACE's changes reach `main` only through an owner-merged PR. Identity: a GitHub App |
+| **PR gate** | Every git repo with a remote, including ACE's own repo (`jayfalls/ace_prototype`): ACE's changes reach `main` only through an owner-merged PR. ACE may keep one long-lived branch spanning many versions (even v0.1 to v0.12) so an unmerged PR never blocks it. Identity: a GitHub App. The owner-directed builder is not under this gate (§4) |
 | **v0.12** | Filled by the v0.10 comparison data |
 | **Sandbox** | Linux: the bwrap jail. macOS: sandbox-exec. Windows: runs unsandboxed and is flagged as such; revisited in v0.13 |
 | **Start** | Manual start only: no systemd unit and no autostart. Once started, it runs 24/7 |
@@ -601,9 +601,9 @@ v0.12 targets ACE's weakest area in the v0.10 comparison. Candidates already rai
   | v0.10 | Mission-suite success vs the single-loop baseline and competitors | measured in the same study |
   | v0.11 | Owner time to answer the five UI questions | the v0.10 UI, timed in the design session |
 
-- **Build:** the builder (a coding agent; ACE itself from v0.10) builds every slice of the version back to back, each on a branch stacked on the previous one, and opens each slice's PR as it finishes. It never waits for a merge, a review or a go between slices; a PR it cannot open is logged and the build continues. A version is done when all its slices are built, the live run shows them working, and its acceptance passes. The owner merges; the version is tagged `v0.N` on the merge commit and pushed.
+- **Build:** the owner-directed builder (a coding agent) commits straight to `main`, with no PRs, and builds every slice of the version back to back without waiting for a review or a go. A version is done when all its slices are built, the live run shows them working, and its acceptance passes; it is then tagged `v0.N` and pushed. From v0.10, when ACE builds itself, its changes go through the PR gate (§0) on one long-lived branch that it keeps building on while the PR waits.
 - **Live build:** every version is built while ACE runs live on its mission, because some bugs only show in a live run. The builder watches the run, fixes what breaks with a regression test, hot-restarts ACE and confirms the fix in the live run. A stall (ACE up but making no model calls) counts as a bug.
-- **Launch:** the first hour after start is observed by the builder, which fixes issues through further PRs. Run data (`thought_traces`, runs, workpads) is archived; mission, constitution version, profile, memory, skills, datasets, directive ledger, grants and concept registry carry forward.
+- **Launch:** the first hour after start is observed by the builder, which fixes issues on `main`. Run data (`thought_traces`, runs, workpads) is archived; mission, constitution version, profile, memory, skills, datasets, directive ledger, grants and concept registry carry forward.
 - **Spec:** each version's spec is written from this plan before its build; the superseded spec is archived in the same change (8.8).
 
 ## 5. Starting values

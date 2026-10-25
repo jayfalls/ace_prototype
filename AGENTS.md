@@ -46,7 +46,9 @@ tests. Do not load the whole corpus; `archive/` is history, never a build refere
   statistics — module-reported booleans are ignored; only `EXTERNAL` evidence
   (independent labels) keeps or reverts a component. No goalpost moves: a changed
   hypothesis or dataset is a new pre-registered attempt, Holm-corrected.
-- **PR gate:** repo changes reach `main` only through an owner-merged pull request.
+- **PR gate (ACE only):** ACE's own repo changes reach `main` only through an owner-merged
+  pull request; ACE may keep one long-lived branch across versions so it is never blocked.
+  An owner-directed builder commits straight to `main`.
   The running ACE never updates its own binary.
 - **No human-approval paths:** disputes and stuck work get an L1 ruling, then quarantine.
   Humans steer the mission, merge PRs, grant access, and answer questions — nothing else.
@@ -59,6 +61,6 @@ authoritative. A gate rejects a change that leaves superseded artifacts behind.
 
 ## Verification
 
-- `go test ./...` must pass; new non-trivial logic ships with a test in the same PR.
+- `go test ./...` must pass; new non-trivial logic ships with a test in the same change.
 - `go build ./...` clean; keep the single self-contained binary self-contained.
 - Evidence for scientific claims goes through the scientist gate, not PR text.
