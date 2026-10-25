@@ -108,6 +108,7 @@
 | F9 | Pi tools: hashline edit, LSP, blackhole (10-18) | 10 capability set | added |
 | F10 | Monitor the first hour after every launch and patch live (10-21 onward) | §4 launch | added |
 | F11 | Commit, tag every version, push (10-22) | §4 build | ok |
+| F14 | One command runs ACE: `./ace` is the watchdog supervisor and runs the agent as its child, no separate watchdog command (10-25) | §3 watchdog, spec 8.5 | added |
 | F13 | Builder works on the `ace-do` branch with no PRs (`main` only accepts PRs); only ACE uses the PR flow, and may keep one long-lived branch across versions (10-25) | §0 PR gate, §4 build | added |
 | F12 | Build every version while ACE runs live and fix it as it runs, so each version is proven to work (10-25) | §4 live build | added |
 

@@ -230,7 +230,7 @@ L1 reads all bus traffic (the Shapiro repo's design); L1's memory is written onl
 
 ### 8.5 Integrity overlay and data safety
 
-- **Watchdog:** `ace watchdog` is a separate process from the same binary. It reads a status snapshot that ACE writes atomically each tick to its state directory, never via the bus.
+- **Watchdog:** `./ace` is the watchdog. The one command starts a supervisor that makes no model calls and runs the agent as a child process of the same binary, so a crash, hang or deadlock in the agent never takes the watchdog with it; the child dies if the supervisor dies, so ACE never runs unwatched. The supervisor reads a status snapshot that the agent writes atomically each tick to its state directory, never via the bus.
 - **Checks:**
   - heartbeat, constitution hash, config checksum inventory;
   - gate fail-closed state, spend, runaway loops, free disk and RAM (§5);

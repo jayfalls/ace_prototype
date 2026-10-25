@@ -153,11 +153,14 @@ Tier-1 error escalates; Tier-2 error rejects; empty-token/zero-verdict → no si
 
 ## 8.5 Integrity overlay — package `internal/watchdog`
 
-- `ace watchdog` subcommand: separate process, same binary. Reads atomic status snapshot ACE
-  writes per tick to the state dir — never via the bus.
+- `./ace` is the watchdog: one command starts a supervisor (no model calls) that runs the agent
+  as a child process of the same binary and restarts it on crash or hang. The child gets
+  `Pdeathsig`, so it dies if the supervisor dies; there is no separate command to start. The
+  supervisor reads an atomic status snapshot the agent writes per tick to the state dir —
+  never via the bus. Free RAM is `MemAvailable` from `/proc/meminfo`, not `Sysinfo.Freeram`.
 - Checks: heartbeat; constitution sha; config checksum inventory; gate fail-closed state;
   spend; runaway loops; free disk + RAM (10 GB floor → alert).
-- Hash-chained event log (each event embeds prev sha256) + `ace watchdog verify` command.
+- Hash-chained event log (each event embeds prev sha256) + `ace verify` command.
 - Actions: pause / restart / rollback / kill switch from CLI, local HTTP, or Telegram `/halt`.
   Halt ≤ 5 s: cancel in-flight model calls + child processes; report what was cancelled.
 - Stall detection: layer announces action, no matching tool call in 120 s → stall fault →
