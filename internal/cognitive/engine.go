@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"ace/internal/config"
+	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/llm"
 	"github.com/google/uuid"
@@ -317,6 +319,8 @@ func (e *Engine) Status() core.EngineStatus {
 
 	return core.EngineStatus{
 		AgentID:             e.agentID,
+		ConstitutionVersion: constitution.Version(),
+		MissionVersion:      config.MissionVersion(),
 		Mode:                e.mode,
 		AutoIntervalSeconds: e.autoIntervalSeconds,
 		ActiveModel:         activeModel,
@@ -424,7 +428,7 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 
 	// Build Fast Chat prompt with a STATIC SystemPrompt (for >85% KV prefix cache hit across turns & tool steps)
 	// and attach dynamic turn state (layers, memories, recent execs) to the final user turn!
-	soul, _ := e.memory.ReadWiki("soul.md")
+	soul := constitution.Text()
 	index := e.buildCanonicalIndexWithSkills()
 	goals, _ := e.memory.ReadWiki("goals.md")
 	st := e.Status()

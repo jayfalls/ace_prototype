@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"ace/internal/config"
+	"ace/internal/constitution"
 	"ace/internal/core"
 )
 
@@ -57,37 +59,33 @@ func sha256Str(s string) string {
 	return sha256Hex([]byte(s))
 }
 
+// currentSoulHash anchors DAG provenance to the pinned constitution plus the
+// owner-set mission — any mission re-steer produces a new hash, invalidating
+// all prior anchors (plan 8.1).
 func (e *Engine) currentSoulHash() string {
-	soul, _ := e.memory.ReadWiki("soul.md")
-	return sha256Str(strings.TrimSpace(soul))[:16]
+	return sha256Str(constitution.Text() + "\n---\n" + e.currentMission())[:16]
 }
 
-// extractCurrentMissionFromSoul extracts the human's single steerable # CURRENT MISSION from soul.md.
-// The heading must start a line — soul.md also mentions `# CURRENT MISSION` inline in prose.
-func (e *Engine) extractCurrentMissionFromSoul() string {
-	soul, _ := e.memory.ReadWiki("soul.md")
-	lines := strings.Split(soul, "\n")
-	start := -1
-	for i, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "# CURRENT MISSION") {
-			start = i + 1
-			break
-		}
+// currentMission returns the owner-set life mission from config ("" = idle).
+func (e *Engine) currentMission() string {
+	return config.LoadMission()
+}
+
+// markStaleOnMissionReload implements `ace mission reload` semantics (plan 8.1):
+// when the anchor hash changes, every open plan node is marked STALE so L1
+// re-anchors and the tree replans under the new mission version.
+func (e *Engine) markStaleOnMissionReload(ctx context.Context, soulHash string) {
+	db := e.getDB()
+	if db == nil {
+		return
 	}
-	if start < 0 {
-		return ""
+	last, _ := e.memory.LoadEngineMeta(ctx, "anchored_soul_hash")
+	if last == soulHash {
+		return
 	}
-	var kept []string
-	for _, l := range lines[start:] {
-		tl := strings.TrimSpace(l)
-		if strings.HasPrefix(tl, "# ") {
-			break
-		}
-		if tl != "" && !strings.HasPrefix(tl, "*(") {
-			kept = append(kept, tl)
-		}
-	}
-	return strings.Join(kept, " ")
+	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE')`,
+		time.Now().UTC().Format(time.RFC3339), soulHash)
+	_ = e.memory.SaveEngineMeta(ctx, "anchored_soul_hash", soulHash)
 }
 
 func (e *Engine) LoadMissionDAGNodes(ctx context.Context) []MissionDAGNode {
@@ -289,10 +287,11 @@ func (e *Engine) RecordDAGTaskAttempt(ctx context.Context) {
 //     of any layer running before its top-down parent.
 func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID string, stimulus string) []core.ThoughtTrace {
 	soulHash := e.currentSoulHash()
-	missionText := e.extractCurrentMissionFromSoul()
+	missionText := e.currentMission()
 	if missionText == "" {
 		return nil // no mission anchored: idle until the owner sets one (plan 8.1)
 	}
+	e.markStaleOnMissionReload(ctx, soulHash)
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode
@@ -310,7 +309,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	// =========================================================================
 	if l1Root == nil {
 		l1Prompt := fmt.Sprintf(
-			"L1 ASPIRATIONAL GENESIS: Evaluate the human's # CURRENT MISSION in /wiki/soul.md (%q) against the Three Heuristic Imperatives (Reduce suffering, Increase prosperity, Increase understanding in the universe) and the Universal Declaration of Human Rights. Emit your authoritative top-down constitutional and mission directive on southbound_directive to anchor the Mission Dependency Tree for Layer 2 (Global Strategy).",
+			"L1 ASPIRATIONAL GENESIS: Evaluate the owner's CURRENT MISSION (%q) against the Three Heuristic Imperatives (Reduce suffering, Increase prosperity, Increase understanding in the universe) and the Universal Declaration of Human Rights. Emit your authoritative top-down constitutional and mission directive on southbound_directive to anchor the Mission Dependency Tree for Layer 2 (Global Strategy).",
 			missionText,
 		)
 		tr, err := e.executeLayerStep(ctx, cycleID, core.LayerAspirational, l1Prompt)
@@ -386,10 +385,11 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 			}
 		}
 		for i := range l4Nodes {
-			// A stalled task is being revised by this wave's L4 pass — it must not
-			// freeze L2 horizon expansion, or one unvetoable spec holds the whole
-			// mission hostage (observed live: T_C_S2_HARNESS churning 15+ cycles).
-			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "TACTICAL_STALL" {
+			// Stalled/stale tasks must not freeze L2 horizon expansion — a stall
+			// is revised by this wave's L4 pass and stale nodes are dead work
+			// from a prior mission version; one unvetoable spec must not hold
+			// the whole mission hostage (observed live: T_C_S2_HARNESS churning).
+			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "TACTICAL_STALL" && l4Nodes[i].State != "STALE" {
 				openL4Count++
 			}
 			if l4Nodes[i].State == "TACTICAL_STALL" {
@@ -417,13 +417,16 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				continue
 			}
 			l2HasTasks[l2id] = true
-			if l4Nodes[i].State != "COMPLETED" {
+			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "STALE" {
 				l2Open[l2id] = true
 			}
 		}
 		openBranchCount := 0
 		for i := range l2Nodes {
 			n := &l2Nodes[i]
+			if n.State == "STALE" {
+				continue // dead branch from a prior mission version — not open
+			}
 			if l2HasTasks[n.ID] && !l2Open[n.ID] {
 				if n.State != "COMPLETED" {
 					n.State = "COMPLETED"
@@ -670,10 +673,10 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	l5.State = "idle"
 	if gateApproved {
 		l5.Summary = fmt.Sprintf("L5 [DAG PROVENANCE %s] PASS (P(yes)=%.2f, %dms): %s", provChain, pYes, gateMs, truncateText(readyTask.Title, 60))
-		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s) -> L6 dispatch", pYes, gateMs, provChain)
+		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s, cxn=%s) -> L6 dispatch", pYes, gateMs, provChain, constitution.Version())
 	} else {
 		l5.Summary = fmt.Sprintf("L5 [DAG PROVENANCE %s] VETO (P(yes)=%.2f, %dms): %s", provChain, pYes, gateMs, truncateText(readyTask.Title, 60))
-		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s) -> VETO L6", pYes, gateMs, provChain)
+		l5.LastAction = fmt.Sprintf("d1_4bit_gate(P=%.2f, %dms, %s, cxn=%s) -> VETO L6", pYes, gateMs, provChain, constitution.Version())
 	}
 	l5.ActiveDirective = readyTask.Directive
 	l5.Confidence = pYes

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"ace/internal/bus"
+	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/memory"
 	"ace/internal/sandbox"
@@ -21,6 +21,7 @@ import (
 
 func newRegressionEngine(t *testing.T) (*Engine, *sandbox.Jail, *memory.Store, *sql.DB) {
 	t.Helper()
+	t.Setenv("ACE_CONFIG_DIR", t.TempDir())
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	// :memory: gives each pooled connection a private DB — concurrent wave
@@ -43,20 +44,10 @@ func newRegressionEngine(t *testing.T) (*Engine, *sandbox.Jail, *memory.Store, *
 	return eng, jail, memStore, db
 }
 
-// seedMission replaces the `*(none ...)*` placeholder under # CURRENT MISSION,
-// mirroring what `ace init` does — there is exactly one heading in soul.md.
+// seedMission writes the owner mission file, mirroring `ace init` (plan 8.1).
 func seedMission(t *testing.T, memStore *memory.Store, mission string) {
 	t.Helper()
-	soul, err := memStore.ReadWiki("soul.md")
-	require.NoError(t, err)
-	lines := strings.Split(soul, "\n")
-	for i, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "# CURRENT MISSION") && i+1 < len(lines) {
-			lines[i+1] = mission
-			break
-		}
-	}
-	require.NoError(t, memStore.WriteWiki("soul.md", strings.Join(lines, "\n")))
+	require.NoError(t, config.WriteMission(mission))
 }
 
 // Bug: v0.7 hardcoded a fallback mission, so the DAG could never be idle.
@@ -65,7 +56,7 @@ func TestDAG_IdlesWithoutMission(t *testing.T) {
 	eng, _, _, _ := newRegressionEngine(t)
 	ctx := context.Background()
 
-	require.Empty(t, eng.extractCurrentMissionFromSoul(), "seeded placeholder must not parse as a mission")
+	require.Empty(t, eng.currentMission(), "no mission.md must mean no mission")
 	traces := eng.StepMissionDAG(ctx, "cyc-1", "span-1", "tick")
 	require.Empty(t, traces)
 }
@@ -79,8 +70,8 @@ func TestDAG_HorizonExpandsAfterWaveCompletes(t *testing.T) {
 	soulHash := eng.currentSoulHash()
 
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_a", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_b", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "b", Directive: "d", DirectiveHash: "h3"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_a", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_b", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "b", Directive: "d", DirectiveHash: "h3", SoulHash: soulHash})
 
 	before := 0
 	for _, n := range eng.LoadMissionDAGNodes(ctx) {
@@ -230,9 +221,9 @@ func TestL5Gate_DownBlocksL6Dispatch(t *testing.T) {
 	soulHash := eng.currentSoulHash()
 
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_a", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L3_a", ParentID: "L2_a", Stage: "L3_CAPABILITY", State: "COMPLETED", OwnerLayer: 3, Title: "a", Directive: "d", DirectiveHash: "h3"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L4_a", ParentID: "L3_a", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "run probe", Directive: "run /workspace/modules/probe.py", ArtifactPath: "/workspace/modules/probe.py", DirectiveHash: "h4"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_a", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L3_a", ParentID: "L2_a", Stage: "L3_CAPABILITY", State: "COMPLETED", OwnerLayer: 3, Title: "a", Directive: "d", DirectiveHash: "h3", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L4_a", ParentID: "L3_a", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "run probe", Directive: "run /workspace/modules/probe.py", ArtifactPath: "/workspace/modules/probe.py", DirectiveHash: "h4", SoulHash: soulHash})
 
 	// Gate URL points at a dead port: evaluateL5Gate must error, pYes stays 0, veto.
 	traces := eng.StepMissionDAG(ctx, "cyc-6", "span-6", "tick")
@@ -303,10 +294,10 @@ func TestActiveReadyTaskNode_RotatesAfterAttempt(t *testing.T) {
 	soulHash := eng.currentSoulHash()
 
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "r", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "s", Directive: "d", DirectiveHash: "h2"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h3"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_alpha", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "ta", Directive: "d", DirectiveHash: "h4"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_beta", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "tb", Directive: "d", DirectiveHash: "h5"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "s", Directive: "d", DirectiveHash: "h2", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h3", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_alpha", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "ta", Directive: "d", DirectiveHash: "h4", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_beta", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "tb", Directive: "d", DirectiveHash: "h5", SoulHash: soulHash})
 
 	first, ok := eng.ActiveReadyTaskNode(ctx)
 	require.True(t, ok)
@@ -348,11 +339,11 @@ func TestDAG_StalledTaskDoesNotBlockHorizon(t *testing.T) {
 	soulHash := eng.currentSoulHash()
 
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S2", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "b", Directive: "d", DirectiveHash: "h3"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h4"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_done", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t1", Directive: "d", DirectiveHash: "h5"})
-	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_stalled", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "TACTICAL_STALL", OwnerLayer: 4, Title: "t2", Directive: "d", DirectiveHash: "h6", Attempts: 3})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S2", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "b", Directive: "d", DirectiveHash: "h3", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h4", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_done", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t1", Directive: "d", DirectiveHash: "h5", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_stalled", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "TACTICAL_STALL", OwnerLayer: 4, Title: "t2", Directive: "d", DirectiveHash: "h6", SoulHash: soulHash, Attempts: 3})
 
 	before := 0
 	for _, n := range eng.LoadMissionDAGNodes(ctx) {
@@ -383,10 +374,10 @@ func TestDAG_BranchCapCountsOpenBranchesOnly(t *testing.T) {
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
 	for i := 1; i <= 12; i++ {
 		s := fmt.Sprintf("S%d", i)
-		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: s, ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: s, Directive: "d", DirectiveHash: "h" + s})
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: s, ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: s, Directive: "d", DirectiveHash: "h", SoulHash: soulHash})
 		c := "C_" + s
-		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: c, ParentID: s, Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: c, Directive: "d", DirectiveHash: "hc" + s})
-		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_" + s, ParentID: c, Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t", Directive: "d", DirectiveHash: "ht" + s})
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: c, ParentID: s, Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: c, Directive: "d", DirectiveHash: "hc", SoulHash: soulHash})
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_" + s, ParentID: c, Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t", Directive: "d", DirectiveHash: "ht", SoulHash: soulHash})
 	}
 
 	eng.StepMissionDAG(ctx, "cyc-cap", "span-cap", "tick")
@@ -401,4 +392,41 @@ func TestDAG_BranchCapCountsOpenBranchesOnly(t *testing.T) {
 		}
 	}
 	require.True(t, saw13, "12 completed branches must not block a new L2 branch — cap counts open branches only")
+}
+
+// Spec 8.1: `ace mission reload` (owner edits mission.md) must stale every open
+// plan node and re-anchor L1 under the new mission version.
+func TestDAG_MissionReloadStalesAndReplans(t *testing.T) {
+	eng, _, memStore, _ := newRegressionEngine(t)
+	ctx := context.Background()
+	seedMission(t, memStore, "Mission v1: water the plant.")
+	oldHash := eng.currentSoulHash()
+
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: oldHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_a", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2", SoulHash: oldHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L2_done", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "COMPLETED", OwnerLayer: 2, Title: "d", Directive: "d", DirectiveHash: "h3", SoulHash: oldHash})
+
+	require.NoError(t, config.WriteMission("Mission v2: research the next ACE."))
+	require.NotEqual(t, oldHash, eng.currentSoulHash(), "mission edit must change the anchor hash")
+
+	eng.StepMissionDAG(ctx, "cyc-reload", "span-reload", "tick")
+
+	var sawStale, sawCompleted, sawNewRoot bool
+	newHash := eng.currentSoulHash()
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		switch n.ID {
+		case "L2_a":
+			require.Equal(t, "STALE", n.State, "open node must be staled on mission reload")
+			sawStale = true
+		case "L2_done":
+			require.Equal(t, "COMPLETED", n.State, "completed work stays completed")
+			sawCompleted = true
+		case "M1_ROOT":
+			if n.SoulHash == newHash {
+				sawNewRoot = true
+			}
+		}
+	}
+	require.True(t, sawStale && sawCompleted)
+	require.True(t, sawNewRoot, "L1 must re-anchor under the new mission version")
 }

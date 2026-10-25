@@ -23,10 +23,10 @@ func TestStoreFTS5AndWikiAndChat(t *testing.T) {
 	store, err := NewStore(db, jail.WikiRoot(), jail.WikiDir(), nil)
 	require.NoError(t, err)
 
-	// 1. Seeded wiki files exist
-	soul, err := store.ReadWiki("soul.md")
+	// 1. Seeded wiki files exist (constitution is compiled in, not a wiki page — plan 8.1)
+	idx, err := store.ReadWiki("index.md")
 	require.NoError(t, err)
-	require.Contains(t, soul, "HEURISTIC IMPERATIVES")
+	require.Contains(t, idx, "constitution")
 
 	// 2. Traversal in wiki is rejected
 	_, err = store.ReadWiki("../../etc/passwd")

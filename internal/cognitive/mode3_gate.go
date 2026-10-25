@@ -43,7 +43,7 @@ func isIgnoredOrWildcardArtifact(p string) bool {
 		return true
 	}
 	switch p {
-	case "workspace_audit.py", "goals.md", "soul.md", "index.md", "log.md", "README.md",
+	case "workspace_audit.py", "goals.md", "soul.md", "mission.md", "index.md", "log.md", "README.md",
 		"live_traces.db", "registry.json":
 		return true
 	}

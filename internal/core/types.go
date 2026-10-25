@@ -317,6 +317,8 @@ const (
 // EngineStatus is the top-level runtime snapshot sent to the Web Cockpit.
 type EngineStatus struct {
 	AgentID             string             `json:"agent_id"`
+	ConstitutionVersion string             `json:"constitution_version"` // pinned constitution hash prefix (plan 8.1)
+	MissionVersion      string             `json:"mission_version"`      // content hash of owner mission.md
 	Mode                EngineMode         `json:"mode"`
 	AutoIntervalSeconds int                `json:"auto_interval_seconds"`
 	ActiveModel         string             `json:"active_model"`

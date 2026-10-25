@@ -158,6 +158,26 @@ func WriteModelRoles(m ModelRoles) error {
 	return os.WriteFile(filepath.Join(dir, ModelsFile), []byte(mustJSON(m)), 0o600)
 }
 
+// Validate enforces plan 8.1: a configured ensemble needs >=3 models from
+// different families (family = model-id prefix before the first '-').
+func (m ModelRoles) Validate() error {
+	if len(m.Ensemble) == 0 {
+		return nil
+	}
+	if len(m.Ensemble) < 3 {
+		return fmt.Errorf("models.ensemble needs >=3 models, got %d", len(m.Ensemble))
+	}
+	fams := map[string]bool{}
+	for _, id := range m.Ensemble {
+		fam := strings.SplitN(strings.TrimSpace(id), "-", 2)[0]
+		fams[fam] = true
+	}
+	if len(fams) < 3 {
+		return fmt.Errorf("models.ensemble must span 3 different families, got %v", m.Ensemble)
+	}
+	return nil
+}
+
 func mustJSON(v any) string {
 	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {

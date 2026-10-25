@@ -94,8 +94,7 @@ func (e *Engine) autonomousTickerLoop(ctx context.Context) {
 // No layer L_k (k > 1) can EVER run if any higher layer L_1..L_{k-1} has not yet executed and emitted its Southbound directive,
 // while naturally producing the pyramidal call distribution (1 <= L1 < L2 < L3 < L4 << L6) via temporal persistence.
 func (e *Engine) determineTopDownStartLayer(ctx context.Context, topMilestone string, handoff CrossCycleHandoffPacket, pulse int) (core.LayerID, int, string) {
-	soul, _ := e.memory.ReadWiki("soul.md")
-	soulHash := sha256Str(strings.TrimSpace(soul))[:16]
+	soulHash := e.currentSoulHash()
 	lastSoulHash, _ := e.memory.LoadEngineMeta(ctx, "l1_grounded_soul_hash")
 
 	l1Count, l2Count, l3Count, l4Count := e.layerTraceCounts(ctx)
@@ -224,8 +223,7 @@ func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
 	currLayer := job.StartLayer
 	maxHops := job.MaxHops
 
-	soul, _ := e.memory.ReadWiki("soul.md")
-	soulHash := sha256Str(strings.TrimSpace(soul))[:16]
+	soulHash := e.currentSoulHash()
 	lastSoulHash, _ := e.memory.LoadEngineMeta(ctx, "l1_grounded_soul_hash")
 	l1Count, l2Count, l3Count, l4Count := e.layerTraceCounts(ctx)
 

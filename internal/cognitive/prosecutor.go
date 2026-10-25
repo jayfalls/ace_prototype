@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/llm"
 	"ace/internal/sandbox"
@@ -628,7 +629,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 	e.telem.EmitLive("layer.status", snapshot)
 	e.telem.EmitLive("engine.status", e.Status())
 
-	soul, _ := e.memory.ReadWiki("soul.md")
+	soul := constitution.Text() + "\n\n# CURRENT MISSION\n" + e.currentMission()
 	index := e.buildCanonicalIndexWithSkills()
 	sysPrompt := LayerSystemPrompt(layer, soul, index)
 
