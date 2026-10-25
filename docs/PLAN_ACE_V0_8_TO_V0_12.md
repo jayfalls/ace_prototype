@@ -1,4 +1,4 @@
-# ACE v0.8 → v0.12 plan
+# ACE v0.8 → v0.16 plan
 
 **Sources:**
 - `docs/AUDIT_2026_10_24_GAP_PLAN.md`: rigor, Shapiro fidelity, and plugins/generality audits.
@@ -596,6 +596,40 @@ v0.12 targets ACE's weakest area in the v0.10 comparison. Candidates already rai
 - reality replicas or digital twins, to simulate before acting (with rollback);
 - multi-sensor fusion;
 - embodied sensors and actuators.
+
+---
+
+## v0.13 to v0.16: hardening
+
+Each version hardens what earlier versions built; none repeats them. Order: isolation first, because security and compliance rely on its boundaries; observability before compliance, because the audit trail is built on it. Each acceptance runs in one window (§4).
+
+### v0.13: isolation
+- ACE runs as its own OS user, so the owner's files, SSH keys and other apps' credentials are out of reach by OS permissions, not only by the jail. Owner-set config is readable by that user and not writable.
+- Every L6 task, plugin and child agent gets its own jail and workpad; no plugin reads another's state.
+- CPU, memory, disk and GPU limits per jail (cgroups on Linux).
+- The cross-platform sandbox stance deferred from v0.10 is decided here.
+- **Acceptance:** an escape fixture suite (read the owner's home, read another plugin's state, write owner config, exceed a resource limit) has every attempt denied, live.
+
+### v0.14: security
+- A threat model comes first: what ACE holds (provider keys, Telegram token, GitHub App key, money access) and who can reach it.
+- Secrets: encrypted at rest (9.2 field encryption) with the key outside the data directory (the OS keyring when present); never in logs, traces, prompts or backups in clear; brokered to plugins (9.1), never handed over; one rotation command.
+- Prompt injection: untrusted text (web, Telegram, files, tool output) carries its provenance and can never itself unlock a side effect.
+- Supply chain: dependencies and models pinned by hash, an SBOM and `govulncheck` in CI, and every new dependency carries a recorded reason.
+- **Acceptance:** injection and secret-exfiltration fixtures are all rejected; a secret scan of the database, logs, traces, backups and workspace finds none; `govulncheck` is clean.
+
+### v0.15: observability
+- One trace per action, from the L1 verdict to the L6 result, linking model calls, tool calls, bus messages and gate verdicts, stored in SQLite.
+- Owner views: what ACE is doing now and why (the L1 chain), cost and quota, errors and stalls.
+- Alerts fire on a sudden stop of any pipeline, not only on down or full; one failed probe never alerts; a flapping alert gets a growing ban.
+- **Acceptance:** any action in a live window traces end to end from the UI; each injected fault (stalled layer, provider outage, full disk) raises exactly one alert within its threshold.
+
+### v0.16: compliance
+- Data inventory: which personal data ACE keeps (messages, voice, camera, memory), where and for how long; retention and deletion that also reach backups.
+- Camera and microphone: raw audio and video are not stored by default, only derived events; re-identifying people other than the owner needs a recorded consent decision by the owner.
+- Licences: every dependency and model licence is recorded and honoured (for example CC-BY attribution for Bark 3.0).
+- Provider terms: each provider's use is checked against its terms.
+- Audit export: every access grant, spend and external action.
+- **Acceptance:** a deletion test shows erased data gone from the database, backups and workspace; CI produces a licence report with zero unknown licences.
 
 ---
 
