@@ -130,7 +130,11 @@ func Migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL
 		);
 	`)
-	return err
+	if err != nil {
+		return err
+	}
+	migratePrereg(db)
+	return nil
 }
 
 // CapabilityLimit is one row of the L3 harm/error/fabrication table.

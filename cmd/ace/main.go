@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -25,6 +27,7 @@ import (
 	"ace/internal/llm"
 	"ace/internal/memory"
 	"ace/internal/sandbox"
+	"ace/internal/science"
 	"ace/internal/server"
 	"ace/internal/telemetry"
 	"ace/internal/watchdog"
@@ -157,6 +160,12 @@ func runSubcommand(args []string) {
 		}
 	case "watchdog":
 		runWatchdog(args[1:])
+	case "science":
+		if len(args) > 1 && args[1] == "regrade" {
+			runScienceRegrade(args[2:])
+			return
+		}
+		log.Fatalf("usage: ace science regrade [archive-dir]")
 	case "mission":
 		if len(args) > 1 && args[1] == "reload" {
 			runMissionReload()
@@ -378,4 +387,81 @@ func runWatchdog(args []string) {
 		}
 		time.Sleep(30 * time.Second)
 	}
+}
+
+// runScienceRegrade re-grades archived v0.7 result JSONs through the 8.6
+// scientist gate (spec: report what it finds, never pre-suppose). Declared
+// booleans (h1_accepted) are ignored; statistics are recomputed from counts.
+func runScienceRegrade(args []string) {
+	dir := "archive"
+	if len(args) > 0 {
+		dir = args[0]
+	}
+	var files []string
+	_ = filepath.Walk(dir, func(p string, info os.FileInfo, err error) error {
+		if err == nil && strings.HasSuffix(p, ".json") && strings.Contains(p, "results") {
+			files = append(files, p)
+		}
+		return nil
+	})
+	if len(files) == 0 {
+		log.Fatalf("no result jsons under %s", dir)
+	}
+	var b strings.Builder
+	b.WriteString("# v0.7 result re-grade through the 8.6 scientist gate\n\n")
+	b.WriteString("| file | declared | recomputed mcnemar_p | declared_p | discrepancy |\n|---|---|---|---|---|\n")
+	var recomputed, mismatched, undeclared int
+	for _, f := range files {
+		blob, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var r struct {
+			AxisID      string   `json:"axis"`
+			Decision    string   `json:"decision"`
+			H1Accepted  *bool    `json:"h1_accepted"`
+			McP         *float64 `json:"mcnemar_p"`
+			McFixed     *float64 `json:"mcnemar_fixed"`
+			McBroken    *float64 `json:"mcnemar_broken"`
+			Alpha       *float64 `json:"alpha_level"`
+			CISeparated *bool    `json:"ci_separated"`
+		}
+		if json.Unmarshal(blob, &r) != nil {
+			continue
+		}
+		declared := "?"
+		if r.H1Accepted != nil {
+			declared = fmt.Sprintf("h1=%v", *r.H1Accepted)
+		}
+		var flags []string
+		var recStr, declStr = "n/a", "n/a"
+		if r.McFixed != nil && r.McBroken != nil {
+			p := science.McNemarExact(int(*r.McFixed), int(*r.McBroken))
+			recStr = fmt.Sprintf("%.5f", p)
+			recomputed++
+			if r.McP != nil {
+				declStr = fmt.Sprintf("%.5f", *r.McP)
+				if math.Abs(*r.McP-p) > 0.01 {
+					flags = append(flags, "p-value mismatch")
+					mismatched++
+				}
+			}
+			if r.Alpha != nil && r.H1Accepted != nil && *r.H1Accepted && p > *r.Alpha {
+				flags = append(flags, "declared ACCEPT but recomputed p>alpha")
+				mismatched++
+			}
+		} else {
+			undeclared++
+			flags = append(flags, "no recomputable counts — PROVISIONAL at best")
+		}
+		name := filepath.Base(f)
+		b.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s |\n", name, declared, recStr, declStr, strings.Join(flags, "; ")))
+	}
+	b.WriteString(fmt.Sprintf("\n%d files: %d with recomputable McNemar counts, %d discrepancies vs declared, %d without recomputable stats.\n",
+		len(files), recomputed, mismatched, undeclared))
+	out := filepath.Join(dir, "v07_regrade.md")
+	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
+		log.Fatalf("write report: %v", err)
+	}
+	fmt.Printf("regraded %d files -> %s\n", len(files), out)
 }

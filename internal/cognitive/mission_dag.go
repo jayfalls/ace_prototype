@@ -268,6 +268,18 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string) 
 				// statistic — feeds diminishing-returns (3 zeros = stop).
 				if db := e.getDB(); db != nil {
 					science.RecordChildResult(ctx, db, branchOf(n), n.ID, e.resultMovedStat(n))
+					// 8.6: regrade the result through the scientist gate —
+					// declared booleans ignored, stats recomputed into
+					// science_verdicts (the row is the audit trail).
+					if wsDir, _ := e.resolveSandboxDirs(); wsDir != "" {
+						stem := strings.ToLower(strings.TrimPrefix(n.ID, "T_"))
+						for _, rel := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
+							if blob, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel)); err == nil {
+								_, _ = science.RegradeResultJSON(ctx, db, blob, n.ID)
+								break
+							}
+						}
+					}
 				}
 				break
 			}
