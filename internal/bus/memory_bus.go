@@ -47,12 +47,24 @@ func (b *MemoryBus) migrate() error {
 		created_at DATETIME NOT NULL
 	);
 	CREATE INDEX IF NOT EXISTS idx_bus_events_created ON bus_events(created_at DESC);
+	CREATE TABLE IF NOT EXISTS bus_rejects (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		topic TEXT NOT NULL,
+		from_layer INTEGER NOT NULL,
+		to_layer INTEGER NOT NULL,
+		reason TEXT NOT NULL,
+		created_at DATETIME NOT NULL
+	);
 	`
 	_, err := b.db.Exec(schema)
 	return err
 }
 
 func (b *MemoryBus) Publish(ctx context.Context, env core.BusEnvelope) error {
+	if err := Validate(env); err != nil {
+		b.recordReject(ctx, env, err.Error())
+		return err
+	}
 	if env.ID == "" {
 		env.ID = "bus_" + uuid.NewString()[:12]
 	}

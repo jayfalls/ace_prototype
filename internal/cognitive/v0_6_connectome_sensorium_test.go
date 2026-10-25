@@ -99,7 +99,7 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.Greater(t, snap.HumanProbActiveNow, 0.0)
 	require.Less(t, snap.HumanProbActiveNow, 1.0)
 
-	promptLine := eng.FormatSensoriumPromptLine(ctx)
+	promptLine := eng.FormatSensoriumPromptLine(ctx, 6)
 	require.Contains(t, promptLine, "Proprio:")
 	require.Contains(t, promptLine, "Extero:")
 	require.Contains(t, promptLine, "uv_air_lab")

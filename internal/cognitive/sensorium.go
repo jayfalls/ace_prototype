@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ace/internal/config"
 	"ace/internal/senses"
 )
 
@@ -157,10 +158,25 @@ func (e *Engine) EstimateHumanCircadianAvailability(ctx context.Context, nowUTC 
 	return probActive, expectedReplySec, totalEvents
 }
 
-func (e *Engine) FormatSensoriumPromptLine(ctx context.Context) string {
+func (e *Engine) FormatSensoriumPromptLine(ctx context.Context, layer int) string {
 	s := e.CollectSensoriumSnapshot(ctx)
+	// Spec 9.3: senses.layer.<n> allowlists cap which sensor readings a layer
+	// may see. Absent/empty allowlist = unrestricted.
+	allow := e.layerKnobs.Load().(config.LayerKnobs).SensesAllowlist[layer]
 	var proprio, extero []string
 	for _, r := range s.Readings {
+		if len(allow) > 0 {
+			ok := false
+			for _, prefix := range allow {
+				if strings.HasPrefix(r.SensorID, prefix) {
+					ok = true
+					break
+				}
+			}
+			if !ok {
+				continue
+			}
+		}
 		if r.Domain == senses.SensorProprioceptive {
 			proprio = append(proprio, fmt.Sprintf("%s(%s)", r.Modality, r.Summary))
 		} else {

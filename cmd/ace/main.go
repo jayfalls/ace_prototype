@@ -127,9 +127,11 @@ func main() {
 	}
 	registry.OnChurn(func(ev provider.ChurnEvent) {
 		_ = memBus.Publish(ctx, core.BusEnvelope{
-			Topic:     "provider.churn",
+			CycleID:   "system",
+			AgentID:   "ace-primary",
+			Topic:     bus.InputTopic("ace-primary", 5),
 			Direction: core.DirectionNorthbound,
-			FromLayer: 6, ToLayer: 1,
+			FromLayer: 6, ToLayer: 5,
 			Kind:    "telemetry",
 			Summary: fmt.Sprintf("catalogue churn: +%d -%d ~%d", len(ev.Added), len(ev.Removed), len(ev.Changed)),
 			Payload: provider.MarshalChurn(ev),

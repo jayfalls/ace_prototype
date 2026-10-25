@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // LayerID identifies one of Dave Shapiro's 6 ACE layers.
 type LayerID int
@@ -115,6 +118,7 @@ type BusEnvelope struct {
 	ID        string       `json:"id"`
 	CycleID   string       `json:"cycle_id"`
 	AgentID   string       `json:"agent_id"`
+	TaskID    string       `json:"task_id,omitempty"`
 	Topic     string       `json:"topic"`
 	Direction BusDirection `json:"direction"`
 	FromLayer int          `json:"from_layer"`
@@ -158,13 +162,14 @@ type LayerAction struct {
 
 // LayerDecision is the canonical JSON schema returned by every layer LLM invocation.
 type LayerDecision struct {
-	Thought             string        `json:"thought"`
-	StateSummary        string        `json:"state_summary"`
-	Confidence          float64       `json:"confidence"`
-	SouthboundDirective string        `json:"southbound_directive"`
-	NorthboundSignal    string        `json:"northbound_signal"`
-	Action              LayerAction   `json:"action"`
-	Actions             []LayerAction `json:"actions,omitempty"`
+	Thought             string          `json:"thought"`
+	StateSummary        string          `json:"state_summary"`
+	Confidence          float64         `json:"confidence"`
+	SouthboundDirective string          `json:"southbound_directive"`
+	NorthboundSignal    string          `json:"northbound_signal"`
+	Action              LayerAction     `json:"action"`
+	Actions             []LayerAction   `json:"actions,omitempty"`
+	Contract            json.RawMessage `json:"contract,omitempty"`
 }
 
 // ThoughtTrace stores the full raw prompt, reasoning stream, and parsed decision (Meta-Harness raw trace principle).

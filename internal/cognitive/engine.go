@@ -9,12 +9,15 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"ace/internal/bus"
 	"ace/internal/config"
 	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/gate"
+	"ace/internal/layers"
 	"ace/internal/plugin"
 	"ace/internal/provider"
 	"ace/internal/science"
@@ -68,6 +71,8 @@ type Engine struct {
 	lastTurn05Picked        []ConnectomeNode
 	plugins                 *plugin.Registry
 	mcpCleanup              []func()
+	toolsExec               atomic.Pointer[layers.Executor]
+	layerKnobs              atomic.Value // config.LayerKnobs
 }
 
 func NewEngine(
@@ -78,7 +83,7 @@ func NewEngine(
 	telem core.TelemetrySink,
 ) *Engine {
 	now := time.Now().UTC()
-	layers := make(map[core.LayerID]*core.LayerStatus, 6)
+	layerStatus := make(map[core.LayerID]*core.LayerStatus, 6)
 	for _, id := range core.AllLayers() {
 		maxInner := 1
 		if id == core.LayerExecutive {
@@ -86,7 +91,7 @@ func NewEngine(
 		} else if id == core.LayerTaskProsecution {
 			maxInner = maxPiLoopSteps
 		}
-		layers[id] = &core.LayerStatus{
+		layerStatus[id] = &core.LayerStatus{
 			LayerID:      id,
 			Code:         id.Code(),
 			Name:         id.Name(),
@@ -161,7 +166,7 @@ func NewEngine(
 		gate:                gate.New(gdb, llm),
 		mode:                core.ModeAutonomous,
 		autoIntervalSeconds: 20,
-		layers:              layers,
+		layers:              layerStatus,
 		globalLoops:         globalLoops,
 		jobQueue:            make(chan cycleJob, 32),
 	}
@@ -172,6 +177,9 @@ func NewEngine(
 	}
 	// Plugin registry (spec 9.1): the "ace-core" builtin plugin hosts the
 	// layer-action tools the prosecutor dispatch resolves by name.
+	knobs := config.LoadLayerKnobs()
+	eng.layerKnobs.Store(knobs)
+	eng.toolsExec.Store(layers.NewExecutor(knobs.ParallelReads))
 	eng.plugins = plugin.New(func(kind, summary string) {
 		telem.EmitLive(kind, map[string]string{"summary": summary})
 	})
@@ -213,8 +221,32 @@ func (e *Engine) Plugins() *plugin.Registry { return e.plugins }
 func (e *Engine) Start(ctx context.Context) {
 	e.HydrateFromHistory(ctx)
 	go e.workerLoop(ctx)
-	go e.autonomousTickerLoop(ctx)
+	go e.schedulerLoop(ctx)
 	go e.watchdogHeartbeatLoop(ctx)
+	go config.WatchLayerKnobs(ctx, e.applyLayerKnobs)
+}
+
+// applyLayerKnobs hot-swaps the config.d knobs: executor cap, scheduler
+// cadence, senses allowlists — and publishes the in-band reload notice the
+// spec requires (adjacent L6->L5 hop, kind=config_reload).
+func (e *Engine) applyLayerKnobs(knobs config.LayerKnobs) {
+	prev := e.layerKnobs.Load().(config.LayerKnobs)
+	e.layerKnobs.Store(knobs)
+	if knobs.ParallelReads != prev.ParallelReads {
+		e.toolsExec.Store(layers.NewExecutor(knobs.ParallelReads))
+	}
+	_ = e.bus.Publish(context.Background(), core.BusEnvelope{
+		CycleID:   "cyc_config",
+		AgentID:   e.agentID,
+		Topic:     bus.InputTopic(e.agentID, int(core.LayerCognitiveCtrl)),
+		Direction: core.DirectionNorthbound,
+		FromLayer: int(core.LayerTaskProsecution),
+		ToLayer:   int(core.LayerCognitiveCtrl),
+		Kind:      "config_reload",
+		Summary:   fmt.Sprintf("config.d hot reload: l1_review=%s parallel_reads=%d l5_dwell=%s", knobs.L1ReviewInterval, knobs.ParallelReads, knobs.L5MinDwell),
+		Payload:   "layer knobs reloaded from config.d/*.toml",
+	})
+	e.telem.EmitLive("config.reload", knobs)
 }
 
 // watchdogHeartbeatLoop publishes the atomic status snapshot every 15s
@@ -497,10 +529,10 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 	_ = e.bus.Publish(ctx, core.BusEnvelope{
 		CycleID:   cycleID,
 		AgentID:   e.agentID,
-		Topic:     "ace.bus.north.sense.user_chat",
+		Topic:     bus.InputTopic(e.agentID, 5),
 		Direction: core.DirectionNorthbound,
 		FromLayer: 6,
-		ToLayer:   1,
+		ToLayer:   5,
 		Kind:      "sense",
 		Summary:   "User chat: " + truncateText(userContent, 90),
 		Payload:   userContent,

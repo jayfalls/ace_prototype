@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"ace/internal/core"
+	"ace/internal/layers"
 	"ace/internal/plugin"
 )
 
@@ -170,12 +171,13 @@ CRITICAL: NEVER invoke OpenAI function/tool_calls (bash, read, write, edit, grep
     "content": "content payload if applicable",
     "done": true
   },
-  "actions": []
+  "actions": []%s
 }`,
 		roleInstructions[layer],
 		minInt(int(layer)+1, 6),
 		maxInt(int(layer)-1, 1),
 		actionTypes,
+		layers.ContractPromptLine(int(layer)),
 	)
 }
 

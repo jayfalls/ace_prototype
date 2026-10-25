@@ -10,114 +10,163 @@ import (
 	"sync"
 	"time"
 
+	"ace/internal/bus"
+	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/gate"
+	"ace/internal/layers"
 )
 
-func (e *Engine) autonomousTickerLoop(ctx context.Context) {
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	lastFinished := time.Now()
-	var autoPulseCount int
+// schedulerLoop is the spec-9.3 mailbox/cadence dispatcher. It replaces the
+// old 2-second autonomousTickerLoop: layer mailboxes fill from bus traffic,
+// L1 fires on events plus a 15-minute review, L5 runs on its own clock gated
+// by min_dwell, and L6 prosecution runs continuously while work exists. The
+// loop blocks on scheduler wake signals and timers — zero polling.
+func (e *Engine) schedulerLoop(ctx context.Context) {
+	knobs := e.layerKnobs.Load().(config.LayerKnobs)
+	sched := layers.NewScheduler(layers.SchedulerConfig{
+		L1ReviewInterval: knobs.L1ReviewInterval,
+		L5Period:         knobs.L5Period,
+		L5MinDwell:       knobs.L5MinDwell,
+	})
+	sched.DataBelow = e.schedDataBelow
+	var l5Dispatches []time.Time // thrash-per-hour window
+	unsubscribe := e.bus.Subscribe(func(env core.BusEnvelope) { sched.Deliver(env) })
+	defer unsubscribe()
 
+	var autoPulseCount int
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
 	for {
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+		timer.Reset(sched.NextWake(time.Now()))
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
-			e.mu.RLock()
-			mode := e.mode
-			interval := time.Duration(e.autoIntervalSeconds) * time.Second
-			busy := e.busy
-			qLen := len(e.jobQueue)
-			e.mu.RUnlock()
-
-			if busy || qLen > 0 {
-				lastFinished = time.Now()
-				continue
-			}
-
-			if mode == core.ModeAutonomous && time.Since(lastFinished) >= interval {
-				lastFinished = time.Now()
-				autoPulseCount++
-				goals, _ := e.memory.ReadWiki("goals.md")
-				topMilestone := extractTopActionableMilestone(goals)
-
-				// 1. If NO actionable "- [ ]" milestone remains in goals.md (Horizon Expansion):
-				//    - On initial mission bootstrap (autoPulseCount <= 1), run L1 -> L2 -> L3 -> L4 (4 hops).
-				//    - On subsequent Horizon Expansions, L1 has already locked the mission constitution; dispatch L2 -> L3 -> L4 (3 hops) so L1 stays the rarest supervisory crown layer!
-				if topMilestone == "" {
-					if autoPulseCount <= 1 {
-						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Initial Mission Bootstrap (L1 -> L2||L3 -> L4)", autoPulseCount))
-						e.EnqueueCycle(
-							"Initial Mission Bootstrap & Horizon Expansion (L1 -> L2||L3 -> L4): L1 sets epistemic/mission priorities, L2 researches the domain and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 3 concrete, falsifiable '- [ ]' milestones (naming target dataset paths in `/workspace/datasets/<name>.json` and modular code paths in `/workspace/modules/<module>.py`), and L3 specifies capability & dataset schemas.",
-							core.LayerAspirational,
-							4,
-						)
-					} else {
-						e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: Strategic Horizon Expansion (L2||L3 -> L4)", autoPulseCount))
-						e.EnqueueCycle(
-							"Strategic Horizon Expansion (L2||L3 -> L4): All prior '- [ ]' milestones are complete. L2 researches the next mission workstream and uses action.type=\"wiki_write\" (target=\"goals.md\") to append 3 concrete, falsifiable '- [ ]' milestones, while L3 audits self-model & dataset schemas.",
-							core.LayerGlobalStrategy,
-							3,
-						)
-					}
-					continue
-				}
-
-				// 2. Strict Top-Down Pyramidal 6-Layer Hierarchy (1 <= L1 < L2 < L3 < L4 << L6):
-				// NO layer L_k may EVER execute before L1..L_{k-1} have established their top-down Southbound directives!
-				// - Genesis / Uninitialized Upper Layers (L1 or L2 has 0 traces, or soul.md changed):
-				//   Full Top-Down Cascade: L1 (Aspirational) -> L2 (Global Strategy) -> L3 (Agent Model) -> L4 (Executive) -> L5 (Cognitive Control) -> L6 (Task Prosecution) (6 hops).
-				// - Strategic Re-Grounding (every 2nd completed milestone or CycleCount == 6):
-				//   L2 -> L3 -> L4 -> L5 -> L6 (5 hops).
-				// - Milestone Grounding (Cycle #1 of a new milestone, handoff.CycleCount == 0):
-				//   L3 -> L4 -> L5 -> L6 (4 hops, under active L1 & L2 directives).
-				// - Tactical Spec Revision (handoff.CycleCount > 0 && handoff.CycleCount % 3 == 0):
-				//   L4 -> L5 -> L6 (3 hops).
-				// - Workhorse Reflex Prosecution (handoff.CycleCount > 0 && handoff.CycleCount % 3 != 0):
-				//   L5 -> L6 (2 hops, under active L1->L2->L3->L4 directives).
-				handoff := LoadHandoffPacket(ctx, e.memory, topMilestone)
-				startL, hops, reason := e.determineTopDownStartLayer(ctx, topMilestone, handoff, autoPulseCount)
-				e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: %s", autoPulseCount, reason))
-				e.EnqueueCycle(
-					fmt.Sprintf("%s: %s", reason, topMilestone),
-					startL,
-					hops,
-				)
-			}
+		case <-sched.Wake():
+		case <-timer.C:
 		}
+		now := time.Now()
+
+		e.mu.RLock()
+		mode := e.mode
+		busy := e.busy
+		qLen := len(e.jobQueue)
+		e.mu.RUnlock()
+		if busy || qLen > 0 || mode != core.ModeAutonomous {
+			continue
+		}
+
+		// Hot-reload: pick up config.d knob changes each pass.
+		if k := e.layerKnobs.Load().(config.LayerKnobs); k.L1ReviewInterval != knobs.L1ReviewInterval ||
+			k.L5Period != knobs.L5Period || k.L5MinDwell != knobs.L5MinDwell {
+			knobs = k
+			sched.SetConfig(layers.SchedulerConfig{
+				L1ReviewInterval: k.L1ReviewInterval,
+				L5Period:         k.L5Period,
+				L5MinDwell:       k.L5MinDwell,
+			})
+		}
+
+		n := sched.ReadyNow(now)
+		if n == 0 {
+			continue
+		}
+		envs := sched.Dispatch(n, now)
+		autoPulseCount++
+		if n == 5 {
+			l5Dispatches = append(l5Dispatches, now)
+			cutoff := now.Add(-time.Hour)
+			kept := l5Dispatches[:0]
+			for _, t := range l5Dispatches {
+				if t.After(cutoff) {
+					kept = append(kept, t)
+				}
+			}
+			l5Dispatches = kept
+			_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+				TraceID:   "cyc_sched",
+				AgentID:   e.agentID,
+				LayerCode: "L5",
+				Operation: "l5.thrash_per_hour",
+				Status:    "ok",
+				Detail:    fmt.Sprintf("l5 dispatches in trailing hour: %d", len(l5Dispatches)),
+			})
+		}
+		e.enqueueScheduled(n, envs, autoPulseCount)
 	}
 }
 
-// determineTopDownStartLayer enforces Dave Shapiro's strict top-down causality law:
-// No layer L_k (k > 1) can EVER run if any higher layer L_1..L_{k-1} has not yet executed and emitted its Southbound directive,
-// while naturally producing the pyramidal call distribution (1 <= L1 < L2 < L3 < L4 << L6) via temporal persistence.
-func (e *Engine) determineTopDownStartLayer(ctx context.Context, topMilestone string, handoff CrossCycleHandoffPacket, pulse int) (core.LayerID, int, string) {
-	soulHash := e.currentSoulHash()
-	lastSoulHash, _ := e.memory.LoadEngineMeta(ctx, "l1_grounded_soul_hash")
+// schedDataBelow is the non-bus "data from below" signal for L2–L4: a live
+// (non-terminal) mission-DAG node whose work feeds the cluster, or prior
+// traces proving the layer has produced output below before.
+func (e *Engine) schedDataBelow(layer int) bool {
+	db := e.getDB()
+	if db == nil {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	var n int
+	if db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF')`).Scan(&n) == nil && n > 0 {
+		return true
+	}
+	code := fmt.Sprintf("L%d", layer)
+	return db.QueryRowContext(ctx, `SELECT COUNT(*) FROM thought_traces WHERE layer_code=?`, code).Scan(&n) == nil && n > 0
+}
 
-	l1Count, l2Count, l3Count, l4Count := e.layerTraceCounts(ctx)
-	checkedCount := e.countCheckedMilestones()
+// enqueueScheduled translates a ready layer into a cascade job. The mailbox
+// supplies the stimulus; absent mail falls back to the layer's standing
+// trigger so cadence (milestone workhorse, horizon expansion) is preserved.
+func (e *Engine) enqueueScheduled(layer int, envs []core.BusEnvelope, pulse int) {
+	stimulus := ""
+	for i := len(envs) - 1; i >= 0; i-- {
+		if s := strings.TrimSpace(envs[i].Summary); s != "" {
+			stimulus = s
+			break
+		}
+	}
+	goals, _ := e.memory.ReadWiki("goals.md")
+	topMilestone := extractTopActionableMilestone(goals)
 
-	// 1. Hard Top-Down Genesis Law: L1 MUST run first on boot, whenever soul.md changes, or every 4 completed milestones
-	if l1Count == 0 || lastSoulHash != soulHash || (checkedCount > 0 && checkedCount%4 == 0 && handoff.CycleCount == 0 && l1Count*4 <= l2Count) {
-		return core.LayerAspirational, 6, fmt.Sprintf("Full Top-Down Genesis Cascade #%d (L1 -> L2 -> L3 -> L4 -> L5 -> L6)", pulse)
+	var trigger string
+	var start core.LayerID
+	var hops int
+	switch {
+	case layer == 1:
+		if stimulus == "" {
+			stimulus = "scheduled supervisory review"
+		}
+		trigger = fmt.Sprintf("L1 Aspirational review (event/interval): %s", stimulus)
+		start, hops = core.LayerAspirational, 6
+	case layer >= 2 && layer <= 4:
+		if stimulus == "" {
+			stimulus = "cluster data ready"
+		}
+		trigger = fmt.Sprintf("L%d cluster run (mailbox): %s", layer, stimulus)
+		start, hops = core.LayerID(layer), 7-layer
+	default:
+		if topMilestone == "" {
+			// Horizon expansion: bootstrap via L1 the first time, L2 after.
+			if pulse <= 1 {
+				trigger = "Initial Mission Bootstrap & Horizon Expansion (L1 -> L2||L3 -> L4): L1 sets epistemic/mission priorities, L2 researches the domain and uses action.type=\"wiki_write\" (target=\"goals.md\") to formulate 3 concrete, falsifiable '- [ ]' milestones (naming target dataset paths in `/workspace/datasets/<name>.json` and modular code paths in `/workspace/modules/<module>.py`), and L3 specifies capability & dataset schemas."
+				start, hops = core.LayerAspirational, 4
+			} else {
+				trigger = "Strategic Horizon Expansion (L2||L3 -> L4): All prior '- [ ]' milestones are complete. L2 researches the next mission workstream and uses action.type=\"wiki_write\" (target=\"goals.md\") to append 3 concrete, falsifiable '- [ ]' milestones, while L3 audits self-model & dataset schemas."
+				start, hops = core.LayerGlobalStrategy, 3
+			}
+		} else {
+			trigger = fmt.Sprintf("Top-Down Workhorse Prosecution #%d (L5 -> L6): %s", pulse, topMilestone)
+			start, hops = core.LayerCognitiveCtrl, 2
+		}
 	}
-	// 2. L2 MUST run after L1 if L2 has never run, or on every 2nd new milestone, or on major stuck pivot (CycleCount == 6)
-	if l2Count == 0 || handoff.CycleCount == 6 || (handoff.CycleCount == 0 && l2Count*2 <= l3Count+1) {
-		return core.LayerGlobalStrategy, 5, fmt.Sprintf("Top-Down Strategic Cascade #%d (L2 -> L3 -> L4 -> L5 -> L6)", pulse)
-	}
-	// 3. L3 MUST run on every new milestone (CycleCount == 0) or if L3 has never run
-	if l3Count == 0 || handoff.CycleCount == 0 {
-		return core.LayerAgentModel, 4, fmt.Sprintf("Top-Down Milestone Grounding Cascade #%d (L3 -> L4 -> L5 -> L6)", pulse)
-	}
-	// 4. L4 MUST run if L4 has never run or on every 3rd failed attempt on the active milestone
-	if l4Count == 0 || handoff.CycleCount%3 == 0 {
-		return core.LayerExecutive, 3, fmt.Sprintf("Top-Down Tactical Re-Plan Cascade #%d (L4 -> L5 -> L6, attempt #%d)", pulse, handoff.CycleCount+1)
-	}
-	// 5. Otherwise L1..L4 are all actively locked above; run L5 -> L6 workhorse prosecution
-	return core.LayerCognitiveCtrl, 2, fmt.Sprintf("Top-Down Workhorse Prosecution #%d (L5 -> L6, attempt #%d)", pulse, handoff.CycleCount+1)
+	e.recordGlobalLoop("learning_loop", "active", fmt.Sprintf("Pulse #%d: %s", pulse, trigger))
+	e.EnqueueCycle(trigger, start, hops)
 }
 
 func (e *Engine) layerTraceCounts(ctx context.Context) (l1, l2, l3, l4 int) {
@@ -147,17 +196,6 @@ func (e *Engine) layerTraceCounts(ctx context.Context) (l1, l2, l3, l4 int) {
 		}
 	}
 	return l1, l2, l3, l4
-}
-
-func (e *Engine) countCheckedMilestones() int {
-	goals, _ := e.memory.ReadWiki("goals.md")
-	cnt := 0
-	for _, line := range strings.Split(collapseMultilineMilestoneBullets(goals), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "- [x]") {
-			cnt++
-		}
-	}
-	return cnt
 }
 
 type l5GateEvalResult struct {
@@ -381,7 +419,7 @@ func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
 			_ = e.bus.Publish(ctx, core.BusEnvelope{
 				CycleID:   job.CycleID,
 				AgentID:   e.agentID,
-				Topic:     "ace.channel.tactical.L5->L6",
+				Topic:     bus.InputTopic(e.agentID, int(core.LayerTaskProsecution)),
 				Direction: core.DirectionSouthbound,
 				FromLayer: int(core.LayerCognitiveCtrl),
 				ToLayer:   int(core.LayerTaskProsecution),
@@ -392,7 +430,7 @@ func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
 			_ = e.bus.Publish(ctx, core.BusEnvelope{
 				CycleID:   job.CycleID,
 				AgentID:   e.agentID,
-				Topic:     "ace.channel.telemetry.L5->L4",
+				Topic:     bus.InputTopic(e.agentID, int(core.LayerExecutive)),
 				Direction: core.DirectionNorthbound,
 				FromLayer: int(core.LayerCognitiveCtrl),
 				ToLayer:   int(core.LayerExecutive),

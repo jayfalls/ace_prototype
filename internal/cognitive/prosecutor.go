@@ -10,9 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"ace/internal/bus"
 	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/gate"
+	"ace/internal/layers"
 	"ace/internal/provider"
 	"ace/internal/sandbox"
 	"ace/internal/tools"
@@ -467,10 +469,10 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 	_ = e.bus.Publish(ctx, core.BusEnvelope{
 		CycleID:   cycleID,
 		AgentID:   e.agentID,
-		Topic:     "ace.bus.north.L6->L2.milestone_verified",
+		Topic:     bus.InputTopic(e.agentID, 5),
 		Direction: core.DirectionNorthbound,
 		FromLayer: 6,
-		ToLayer:   2,
+		ToLayer:   5,
 		Kind:      "milestone_verified",
 		Summary:   verifiedMsg,
 		Payload:   verifiedMsg,
@@ -529,10 +531,10 @@ func (e *Engine) consolidateCycleNorthbound(
 	_ = e.bus.Publish(ctx, core.BusEnvelope{
 		CycleID:   cycleID,
 		AgentID:   e.agentID,
-		Topic:     "ace.bus.north.L6->L1.learning_loop",
+		Topic:     bus.InputTopic(e.agentID, 5),
 		Direction: core.DirectionNorthbound,
 		FromLayer: 6,
-		ToLayer:   1,
+		ToLayer:   5,
 		Kind:      "action_result",
 		Summary:   "L6 Verified Outcome: " + truncateText(consolidated, 140),
 		Payload:   consolidated,
@@ -750,7 +752,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		var zoneBuilder strings.Builder
 		zoneBuilder.WriteString("=== 6-LAYER COGNITIVE STATE & BIDIRECTIONAL BUSES ===\n")
 		zoneBuilder.WriteString(e.buildLiveTelemetrySummaryLine())
-		zoneBuilder.WriteString("- " + e.FormatSensoriumPromptLine(ctx) + "\n")
+		zoneBuilder.WriteString("- " + e.FormatSensoriumPromptLine(ctx, int(layer)) + "\n")
 		if oraclePacket != "" {
 			zoneBuilder.WriteString("- " + oraclePacket + "\n")
 		}
@@ -791,16 +793,9 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		maxTok = 32768
 	}
 
-	var streamAcc strings.Builder
-	resp, err := e.llm.StreamComplete(ctx, core.CompletionRequest{
-		SystemPrompt: sysPrompt,
-		Messages:     messages,
-		MaxTokens:    maxTok,
-		Temperature:  0.3,
-	}, func(d core.StreamDelta) {
+	onDelta := func(d core.StreamDelta) {
 		piece := d.ReasoningDelta + d.ContentDelta
 		if piece != "" {
-			streamAcc.WriteString(piece)
 			e.mu.Lock()
 			if curSt := e.layers[layer]; curSt != nil {
 				curSt.LiveStream += piece
@@ -816,6 +811,53 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 				"delta":      piece,
 			})
 		}
+	}
+
+	var resp core.CompletionResponse
+	var decision core.LayerDecision
+	call := func(note string) (json.RawMessage, bool, error) {
+		if note != "" {
+			messages = append(messages, core.ChatTurn{Role: "user", Content: note})
+		}
+		r, callErr := e.llm.StreamComplete(ctx, core.CompletionRequest{
+			SystemPrompt: sysPrompt,
+			Messages:     messages,
+			MaxTokens:    maxTok,
+			Temperature:  0.3,
+		}, onDelta)
+		if callErr != nil {
+			return nil, false, callErr
+		}
+		resp = r
+		decision = ParseLayerDecision(r.Content)
+		if decision.Thought == "" && decision.StateSummary == "" && decision.Action.Type == "" && len(decision.Actions) == 0 {
+			// Provider may have honored the prefilled assistant opening —
+			// re-parse with the hint prepended.
+			decision = ParseLayerDecision(layers.ContractHint + r.Content)
+		}
+		hasAction := (decision.Action.Type != "" && decision.Action.Type != "none") || len(decision.Actions) > 0
+		return decision.Contract, hasAction, nil
+	}
+	_, err := layers.ContractPolicy(int(layer), call, func(m []string) {
+		// Escalate after 3 deficient outputs (spec 9.3): adjacent hop to the
+		// layer above, then continue with the best-effort decision.
+		toLayer := int(layer) - 1
+		if toLayer >= 1 {
+			_ = e.bus.Publish(ctx, core.BusEnvelope{
+				CycleID:   cycleID,
+				AgentID:   e.agentID,
+				Topic:     bus.InputTopic(e.agentID, toLayer),
+				Direction: core.DirectionNorthbound,
+				FromLayer: int(layer),
+				ToLayer:   toLayer,
+				Kind:      "contract_escalation",
+				Summary:   truncateText(layers.Deficiency(m), 160),
+				Payload:   layers.Deficiency(m),
+			})
+		}
+		e.telem.EmitLive("layer.contract_escalation", map[string]interface{}{
+			"layer_id": int(layer), "cycle_id": cycleID, "missing": m,
+		})
 	})
 
 	if err != nil {
@@ -838,7 +880,6 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		return core.ThoughtTrace{}, err
 	}
 
-	decision := ParseLayerDecision(resp.Content)
 	if decision.Thought == "" && resp.Reasoning != "" {
 		decision.Thought = resp.Reasoning
 	}
@@ -1013,7 +1054,22 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		}
 	}
 
-	for _, act := range actionsToRun {
+	readOnly := func(act core.LayerAction) bool {
+		at := strings.ToLower(strings.TrimSpace(act.Type))
+		if t := e.plugins.Tool(at); t != nil {
+			return t.ReadOnly()
+		}
+		switch at {
+		case "workspace_read", "wiki_read", "memory_search", "web_search", "web_fetch":
+			return true
+		}
+		return false
+	}
+
+	// Spec 9.3 tool cadence: consecutive read-only actions overlap (capped by
+	// layers.parallel_reads); mutating actions run serially in order.
+	for i := 0; i < len(actionsToRun); {
+		act := actionsToRun[i]
 		// L1 Tier-2 redirect reaches a running L6 task at its next tool
 		// boundary (plan 8.2): abort remaining actions and surface it.
 		if layer == core.LayerTaskProsecution {
@@ -1030,6 +1086,28 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 				})
 				break
 			}
+		}
+		if readOnly(act) {
+			j := i
+			var calls []layers.Call
+			for j < len(actionsToRun) && readOnly(actionsToRun[j]) {
+				a := actionsToRun[j]
+				calls = append(calls, layers.Call{
+					Name: a.Type, Path: a.Target, ReadOnly: true,
+					Run: func(ctx context.Context) (string, error) {
+						return e.executeLayerAction(ctx, cycleID, layer, a, resp.Model), nil
+					},
+				})
+				j++
+			}
+			results := e.toolsExec.Load().RunBatch(ctx, calls)
+			for k, res := range results {
+				actionResults = append(actionResults, res)
+				actionTypes = append(actionTypes, actionsToRun[i+k].Type)
+				actionTargets = append(actionTargets, actionsToRun[i+k].Target)
+			}
+			i = j
+			continue
 		}
 		res := e.executeLayerAction(ctx, cycleID, layer, act, resp.Model)
 		actionResults = append(actionResults, res)
@@ -1053,6 +1131,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 				}
 			}
 		}
+		i++
 	}
 	actionResult := strings.Join(actionResults, "\n---\n")
 	combinedActType := decision.Action.Type
@@ -1068,7 +1147,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		_ = e.bus.Publish(ctx, core.BusEnvelope{
 			CycleID:   cycleID,
 			AgentID:   e.agentID,
-			Topic:     fmt.Sprintf("%s.%s->L%d", layer.Channel(), layer.Code(), toLayer),
+			Topic:     bus.InputTopic(e.agentID, toLayer),
 			Direction: core.DirectionSouthbound,
 			FromLayer: int(layer),
 			ToLayer:   toLayer,
@@ -1092,7 +1171,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		_ = e.bus.Publish(ctx, core.BusEnvelope{
 			CycleID:   cycleID,
 			AgentID:   e.agentID,
-			Topic:     fmt.Sprintf("ace.channel.telemetry.%s->L%d", layer.Code(), toLayer),
+			Topic:     bus.InputTopic(e.agentID, toLayer),
 			Direction: core.DirectionNorthbound,
 			FromLayer: int(layer),
 			ToLayer:   toLayer,
