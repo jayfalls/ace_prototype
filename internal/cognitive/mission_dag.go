@@ -589,7 +589,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 						_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET retired_reason=? WHERE id=?`, "duplicates "+dupID, branchID)
 						_, _ = db.ExecContext(ctx, `INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at)
 							VALUES (?, ?, 'duplicate_strategy', ?, 1, ?, ?, 0, ?) ON CONFLICT(veto_hash) DO NOTHING`,
-							sha256Str(branchID+dir)[:16], branchID, dupID,
+							sha256Str(branchID + dir)[:16], branchID, dupID,
 							truncateString("duplicates "+dupID, 300), cycleID, time.Now().UTC())
 					}
 					return

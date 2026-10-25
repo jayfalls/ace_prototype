@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -89,6 +90,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/telegram/test", s.handleTelegramTest)
 
 	mux.HandleFunc("GET /showcase/{path...}", s.handleShowcaseFile)
+
+	mux.HandleFunc("GET /api/plugins", s.handleListPlugins)
 
 	mux.HandleFunc("GET /api/events", s.handleSSE)
 
@@ -298,6 +301,36 @@ func (s *Server) handleWebhookSense(w http.ResponseWriter, r *http.Request) {
 		"status":   "accepted",
 		"cycle_id": cycleID,
 	})
+}
+
+// handleListPlugins reports every loaded plugin: manifest, state and the
+// tool names it registered (spec 9.1 live check: GET /api/plugins).
+func (s *Server) handleListPlugins(w http.ResponseWriter, r *http.Request) {
+	type pluginView struct {
+		Name     string   `json:"name"`
+		Version  string   `json:"version"`
+		Kind     string   `json:"kind"`
+		Provides []string `json:"provides"`
+		Depends  []string `json:"depends"`
+		Egress   []string `json:"egress"`
+		State    string   `json:"state"`
+		Disabled string   `json:"disabled_reason,omitempty"`
+		Tools    []string `json:"tools"`
+	}
+	var out []pluginView
+	for _, p := range s.engine.Plugins().List() {
+		var names []string
+		for _, t := range p.Tools() {
+			names = append(names, t.Name())
+		}
+		sort.Strings(names)
+		out = append(out, pluginView{
+			Name: p.Manifest.Name, Version: p.Manifest.Version, Kind: p.Manifest.Kind,
+			Provides: p.Manifest.Provides, Depends: p.Manifest.Depends, Egress: p.Manifest.Egress,
+			State: p.State, Disabled: p.Disabled, Tools: names,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"plugins": out})
 }
 
 func (s *Server) handleReadWiki(w http.ResponseWriter, r *http.Request) {

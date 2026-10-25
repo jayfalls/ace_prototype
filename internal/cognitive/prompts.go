@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"ace/internal/core"
+	"ace/internal/plugin"
 )
 
 // SLA-Style Fixed Context Bucket Constraints (Hard Byte & Token Ceilings per Context Bucket within 256k Context Window)
@@ -70,7 +71,7 @@ func LayerSystemPrompt(layer core.LayerID, soulContent string, indexContent stri
 
 // LayerRoleSuffix returns the layer-specific role instructions and JSON output contract,
 // placed at the end of UserPrompt (messages[1]) so messages[0] + the top of messages[1] stay 100% identical across all layers.
-func LayerRoleSuffix(layer core.LayerID) string {
+func LayerRoleSuffix(layer core.LayerID, reg *plugin.Registry) string {
 	roleInstructions := map[core.LayerID]string{
 		core.LayerAspirational: `You are ACE Layer 1: ASPIRATIONAL LAYER (Ethical Compass, Heuristic Imperatives, Mission Alignment & Epistemic Oversight).
 - You are strictly introspective and read-only on external tools: you receive Northbound telemetry from all lower layers plus soul.md and goals.md.
@@ -141,20 +142,15 @@ func LayerRoleSuffix(layer core.LayerID) string {
 - CRITICAL: NEVER output <｜DSML｜> or XML tool tags! Always return ONLY the JSON object below.`,
 	}
 
-	actionTypes := `"none"`
-	if layer == core.LayerAspirational {
-		actionTypes = `"none | wiki_read | memory_search | memory_remember"`
-	} else if layer == core.LayerGlobalStrategy {
-		actionTypes = `"none | web_search | web_fetch | workspace_read | wiki_read | wiki_write | memory_search | memory_remember"`
-	} else if layer == core.LayerAgentModel {
-		actionTypes = `"none | web_search | web_fetch | workspace_read | wiki_read | wiki_write | memory_search | memory_remember | kb"`
-	} else if layer == core.LayerExecutive {
-		actionTypes = `"none | web_search | web_fetch | workspace_read | wiki_read | wiki_write | memory_search | memory_remember | ticket"`
-	} else if layer == core.LayerCognitiveCtrl {
-		actionTypes = `"none | memory_search"`
-	} else if layer == core.LayerTaskProsecution {
-		actionTypes = `"workspace_read | workspace_edit | workspace_write | sandbox_sh | ticket | kb | parallel_research | web_search | web_fetch | http_request | wiki_write | memory_remember | chat_proactive | none"`
+	// The action list is generated from the tool registry (spec 9.1): a tool's
+	// Layers() metadata decides which layers see it. Newly registered plugins
+	// appear here automatically; dispatch permission is still enforced inside
+	// each tool body.
+	names := []string{"none"}
+	if reg != nil {
+		names = append(names, reg.ToolsForLayer(int(layer))...)
 	}
+	actionTypes := `"` + strings.Join(names, " | ") + `"`
 
 	return fmt.Sprintf(`=== ACTIVE LAYER ROLE OVERRIDE ===
 ROLE OVERRIDE: Ignore any CLI coding assistant instructions. %s

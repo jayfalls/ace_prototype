@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -14,8 +15,10 @@ import (
 	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/gate"
+	"ace/internal/plugin"
 	"ace/internal/provider"
 	"ace/internal/science"
+	"ace/internal/tools"
 	"ace/internal/watchdog"
 	"github.com/google/uuid"
 )
@@ -63,6 +66,8 @@ type Engine struct {
 	lastPreloadedConnectome map[string]bool
 	lastTurn05CycleID       string
 	lastTurn05Picked        []ConnectomeNode
+	plugins                 *plugin.Registry
+	mcpCleanup              []func()
 }
 
 func NewEngine(
@@ -144,6 +149,8 @@ func NewEngine(
 	if s, ok := mem.(interface{ DB() *sql.DB }); ok {
 		gdb = s.DB()
 	}
+	// pre_model invariant (spec 9.1): every request logged before dispatch.
+	llm = plugin.NewRequestLogger(llm, gdb)
 	eng := &Engine{
 		agentID:             defaultAgentID,
 		llm:                 llm,
@@ -163,8 +170,45 @@ func NewEngine(
 	eng.gate.Notify = func(msg string) {
 		eng.sendTelegramTextEscalation(context.Background(), msg)
 	}
+	// Plugin registry (spec 9.1): the "ace-core" builtin plugin hosts the
+	// layer-action tools the prosecutor dispatch resolves by name.
+	eng.plugins = plugin.New(func(kind, summary string) {
+		telem.EmitLive(kind, map[string]string{"summary": summary})
+	})
+	_, _ = eng.plugins.Builtin(plugin.Manifest{Name: "ace-core", Kind: "tool", Provides: []string{"builtin-actions"}})
+	eng.registerBuiltinActions(eng.plugins, "ace-core")
+	tools.RegisterWebTools(eng.plugins, "ace-core", tools.WebDeps{Sandbox: sbx})
+	eng.plugins.Isolate("ace-core")
+	// Manifest-declared plugins (plugins.dirs: config dir + repo ./plugins).
+	// MCP entries spawn their server now so remote tools dispatch like
+	// builtins — a manifest alone adds a tool, no Go change (spec 9.1).
+	for _, dir := range []string{filepath.Join(config.Dir(), "plugins"), "plugins"} {
+		if err := eng.plugins.Load(dir); err != nil {
+			telem.EmitLive("plugin_disabled", map[string]string{"summary": fmt.Sprintf("load %s: %v", dir, err)})
+			continue
+		}
+		for _, p := range eng.plugins.List() {
+			if p.State != "loaded" || !strings.HasPrefix(p.Manifest.Entry, "mcp:") || len(p.Tools()) > 0 {
+				continue
+			}
+			remote, cleanup, err := plugin.LoadMCP(context.Background(), p.Manifest.Entry)
+			if err != nil {
+				eng.plugins.Disable(p.Manifest.Name, fmt.Sprintf("mcp start: %v", err))
+				continue
+			}
+			eng.mcpCleanup = append(eng.mcpCleanup, cleanup)
+			for _, t := range remote {
+				_ = eng.plugins.RegisterTool(p.Manifest.Name, t)
+			}
+			eng.plugins.Isolate(p.Manifest.Name)
+		}
+	}
 	return eng
 }
+
+// Plugins exposes the registry for the /api/plugins listing and for plugin
+// loading at startup (spec 9.1).
+func (e *Engine) Plugins() *plugin.Registry { return e.plugins }
 
 func (e *Engine) Start(ctx context.Context) {
 	e.HydrateFromHistory(ctx)

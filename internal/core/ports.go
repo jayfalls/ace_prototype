@@ -1,6 +1,9 @@
 package core
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+)
 
 // ModelInfo describes an LLM model available through a Provider, including circuit-breaker health.
 type ModelInfo struct {
@@ -115,4 +118,49 @@ type TelemetrySink interface {
 type Sense interface {
 	Name() string
 	Start(ctx context.Context, bus Bus) error
+}
+
+// ToolResult is one tool invocation's output.
+type ToolResult struct {
+	Content string `json:"content"`
+	Error   string `json:"error,omitempty"`
+}
+
+// Tool is the modular port for an agent-invokable capability (spec 9.1).
+// ReadOnly tools may run without a gate verdict; mutating tools go through L5.
+type Tool interface {
+	Name() string
+	Schema() json.RawMessage
+	ReadOnly() bool
+	Call(ctx context.Context, args json.RawMessage) (ToolResult, error)
+}
+
+// ChannelMsg is one outbound message on a channel.
+type ChannelMsg struct {
+	Target  string `json:"target"`
+	Content string `json:"content"`
+}
+
+// Channel is the modular port for an external message surface (Telegram, …).
+type Channel interface {
+	Name() string
+	Start(ctx context.Context, bus Bus) error
+	Send(ctx context.Context, msg ChannelMsg) error
+}
+
+// Gate is the modular port for the tiered L1 gate (wraps internal/gate).
+type Gate interface {
+	Decide(ctx context.Context, action string, layer int) (verdict string, reason string)
+}
+
+// ContextBlock is one injectable prompt block.
+type ContextBlock struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+}
+
+// ContextProvider is the modular port for per-layer prompt injection.
+type ContextProvider interface {
+	Name() string
+	Inputs(layer int) []ContextBlock
 }

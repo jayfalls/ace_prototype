@@ -152,7 +152,21 @@ func (b *TelegramBridge) saveSettingsLocked() {
 	`, b.token, b.allowedChatIDs, b.lastChatID, fwd, en, time.Now().UTC())
 }
 
-func (b *TelegramBridge) Start(ctx context.Context) {
+// Name implements core.Channel.
+func (b *TelegramBridge) Name() string { return "telegram" }
+
+// Send implements core.Channel: Target is the chat id as decimal text.
+func (b *TelegramBridge) Send(ctx context.Context, msg core.ChannelMsg) error {
+	chatID, err := strconv.ParseInt(strings.TrimSpace(msg.Target), 10, 64)
+	if err != nil {
+		return fmt.Errorf("telegram send: bad chat id %q: %w", msg.Target, err)
+	}
+	return b.SendMessage(ctx, chatID, msg.Content)
+}
+
+// Start implements core.Channel; the bus arg is unused — inbound messages
+// reach the engine directly, outbound summaries ride the telemetry stream.
+func (b *TelegramBridge) Start(ctx context.Context, _ core.Bus) error {
 	// Turn off noisy proactive forwarding in DB if it was previously defaulted to 1
 	b.mu.Lock()
 	if b.forwardProactive {
@@ -192,6 +206,7 @@ func (b *TelegramBridge) Start(ctx context.Context) {
 	if shouldStart {
 		b.restartPoller(ctx)
 	}
+	return nil
 }
 
 // Configure updates the Telegram Bot token, allowed chat IDs, and proactive forwarding setting at runtime.

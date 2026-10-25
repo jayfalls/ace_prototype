@@ -1,4 +1,4 @@
-package cognitive
+package tools
 
 import (
 	"context"

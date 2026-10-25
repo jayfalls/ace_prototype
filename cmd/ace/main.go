@@ -144,7 +144,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to initialize telegram bridge: %v", err)
 	}
-	tgBridge.Start(ctx)
+	_ = tgBridge.Start(ctx, memBus)
 
 	webFS, err := ace.WebFS()
 	if err != nil {
