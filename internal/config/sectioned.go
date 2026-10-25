@@ -25,6 +25,14 @@ type LayerKnobs struct {
 	// SensesAllowlist maps layer number (senses.layer.<n>) to the sensor_id
 	// prefixes that layer may see. Empty/absent = all senses allowed.
 	SensesAllowlist map[int][]string
+	// Turn05 is context.turn05 — the turn-0.5 retrieval router. Spec
+	// default false (was ACE_TURN05 env, default "ab").
+	Turn05 bool
+	// RecapN is context.recap_n — turns shown post-compaction (default 5).
+	RecapN int
+	// ContextEnabled is features.context — the 9.5 context system master
+	// switch (default true once the package exists).
+	ContextEnabled bool
 }
 
 // DefaultLayerKnobs returns the spec defaults.
@@ -34,6 +42,9 @@ func DefaultLayerKnobs() LayerKnobs {
 		ParallelReads:    4,
 		L5MinDwell:       60 * time.Second,
 		L5Period:         30 * time.Second,
+		Turn05:           false,
+		RecapN:           5,
+		ContextEnabled:   true,
 	}
 }
 
@@ -117,6 +128,14 @@ func applyKnob(knobs *LayerKnobs, key, val string) {
 		if d, ok := dur(); ok && d > 0 {
 			knobs.L5Period = d
 		}
+	case "context.turn05":
+		knobs.Turn05 = str() == "true" || str() == "1" || str() == "on"
+	case "context.recap_n":
+		if n, err := strconv.Atoi(str()); err == nil && n > 0 {
+			knobs.RecapN = n
+		}
+	case "features.context":
+		knobs.ContextEnabled = str() == "true" || str() == "1" || str() == "on"
 	default:
 		if strings.HasPrefix(key, "senses.layer.") {
 			n, err := strconv.Atoi(strings.TrimPrefix(key, "senses.layer."))

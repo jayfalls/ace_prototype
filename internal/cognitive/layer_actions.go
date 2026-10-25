@@ -571,7 +571,14 @@ func (e *Engine) actionSandboxSh(ctx context.Context, a tools.Args) string {
 	e.telem.EmitLive("sandbox.exec", res)
 	e.telem.EmitLive("sandbox.updated", map[string]string{"path": "/workspace"})
 	out := strings.TrimSpace(res.Stdout + "\n" + res.Stderr)
-	spilled := e.sandbox.SpilloverTruncate("exec", out, 4500)
+	// Spec 9.5 overflow: over-cap output spills to a file with head+size+
+	// path+read-by-range; falls back to SpilloverTruncate without a jail.
+	spilled := out
+	if e.overflow != nil {
+		spilled = e.overflow.Handle(fmt.Sprintf("exec-%d.out", time.Now().UnixNano()), out, 4500)
+	} else {
+		spilled = e.sandbox.SpilloverTruncate("exec", out, 4500)
+	}
 	summary := fmt.Sprintf("exit=0 (%dms): %s", res.DurationMs, spilled)
 	if err != nil {
 		summary = fmt.Sprintf("exit=%d (%dms): %s", res.ExitCode, res.DurationMs, spilled)

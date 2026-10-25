@@ -138,6 +138,22 @@ func (r *Registry) rerouteRemoved(ctx context.Context) string {
 
 func (r *Registry) Name() string { return "provider-registry" }
 
+// ModelContext returns the catalogue context window for a model (0 when
+// unknown — callers treat it as "no compaction signal"). Accepts
+// "group/model" or a bare model id resolved through the role chain.
+func (r *Registry) ModelContext(ctx context.Context, modelID string) int {
+	group, model := "", modelID
+	if i := strings.Index(modelID, "/"); i >= 0 {
+		group, model = modelID[:i], modelID[i+1:]
+	} else if refs := r.resolve(modelID); len(refs) > 0 {
+		group, model = refs[0].Group, refs[0].Model
+	}
+	if row, ok := catalogueLookup(ctx, r.db, group, model); ok {
+		return row.Context
+	}
+	return 0
+}
+
 // Models reports catalogue-backed model info with breaker state.
 func (r *Registry) Models() []core.ModelInfo {
 	if r.db == nil {

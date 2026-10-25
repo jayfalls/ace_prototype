@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"ace/internal/bus"
+	"ace/internal/config"
 	"ace/internal/constitution"
+	"ace/internal/contextsys"
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/layers"
@@ -632,6 +634,10 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 	soul := constitution.Text() + "\n\n# CURRENT MISSION\n" + e.currentMission()
 	index := e.buildCanonicalIndexWithSkills()
 	sysPrompt := LayerSystemPrompt(layer, soul, index)
+	if e.injLog != nil {
+		e.injLog.Record(ctx, contextsys.InjectionEvent{
+			Source: "constitution+mission", Kind: "block", Bytes: len(sysPrompt)})
+	}
 
 	var userPrompt string
 	if frozenFirstUserPrompt != nil && *frozenFirstUserPrompt != "" {
@@ -777,6 +783,14 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		handoff := LoadHandoffPacket(ctx, e.memory, topMilestone)
 		userPromptBuilder.WriteString(FormatHandoffBucket(handoff, zoneBuilder.String()))
 
+		// Spec 9.5: control-plane notices (config/model changes, compaction)
+		// reach the model in-band; drained once into the prompt tail.
+		if e.injLog != nil {
+			if notes := e.injLog.DrainNotices(); len(notes) > 0 {
+				userPromptBuilder.WriteString("\n\n=== CONTROL NOTICES ===\n" + strings.Join(notes, "\n") + "\n")
+			}
+		}
+
 		// Spec 9.4: current time, owner-contact recency, measured availability.
 		userPromptBuilder.WriteString(e.temporalContext(ctx))
 
@@ -788,6 +802,8 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 			*frozenFirstUserPrompt = userPrompt
 		}
 	}
+
+	priorTurns = e.maybeCompact(ctx, layer, priorTurns)
 
 	messages := make([]core.ChatTurn, 0, 1+len(priorTurns))
 	messages = append(messages, core.ChatTurn{Role: "user", Content: userPrompt})
@@ -834,6 +850,9 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 			return nil, false, callErr
 		}
 		resp = r
+		e.mu.Lock()
+		e.lastPromptToks[int(layer)] = r.PromptTokens
+		e.mu.Unlock()
 		decision = ParseLayerDecision(r.Content)
 		if decision.Thought == "" && decision.StateSummary == "" && decision.Action.Type == "" && len(decision.Actions) == 0 {
 			// Provider may have honored the prefilled assistant opening —
@@ -1319,6 +1338,70 @@ func effectiveShellCommand(act core.LayerAction) string {
 		}
 	}
 	return cmdStr
+}
+
+// maybeCompact runs the spec-9.5 tier compactor on the incoming transcript.
+// Fill fraction is measured: last provider-reported prompt_tokens for this
+// layer over the catalogue context window (0 => no signal, no compaction).
+// On a compaction the surviving turns get a recap header; the event lands
+// in the injection log as a control notice for the model.
+func (e *Engine) maybeCompact(ctx context.Context, layer core.LayerID, prior []core.ChatTurn) []core.ChatTurn {
+	knobs := e.layerKnobs.Load().(config.LayerKnobs)
+	if e.injLog == nil || !knobs.ContextEnabled || len(prior) == 0 {
+		return prior
+	}
+	ctxWin := 0
+	if mc, ok := e.llm.(interface {
+		ModelContext(context.Context, string) int
+	}); ok {
+		ctxWin = mc.ModelContext(ctx, e.llm.ActiveModel())
+	}
+	if ctxWin <= 0 {
+		return prior
+	}
+	e.mu.RLock()
+	last := e.lastPromptToks[int(layer)]
+	e.mu.RUnlock()
+	fill := float64(last) / float64(ctxWin)
+	comp := e.compactors[int(layer)]
+	if comp == nil {
+		comp = contextsys.NewCompactor(e.autoSummarizer(),
+			func(ev contextsys.InjectionEvent) { e.injLog.Record(ctx, ev) })
+		e.compactors[int(layer)] = comp
+	}
+	turns := make([]contextsys.Turn, 0, len(prior))
+	for _, t := range prior {
+		tb := 0
+		if t.Role == "user" && strings.HasPrefix(t.Content, "Action Result:") {
+			tb = len(t.Content)
+		}
+		turns = append(turns, contextsys.Turn{Role: t.Role, Content: t.Content, ToolBytes: tb})
+	}
+	out := comp.MaybeCompact(ctx, turns, fill, last)
+	if out == nil {
+		return prior
+	}
+	res := make([]core.ChatTurn, 0, len(out)+1)
+	if recap := contextsys.RenderRecaps(turns, knobs.RecapN); recap != "" {
+		res = append(res, core.ChatTurn{Role: "user", Content: recap})
+	}
+	for _, t := range out {
+		res = append(res, core.ChatTurn{Role: t.Role, Content: t.Content})
+	}
+	return res
+}
+
+// autoSummarizer is the auto-tier's model call — fixed template, temp 0.
+func (e *Engine) autoSummarizer() contextsys.Summarizer {
+	return func(ctx context.Context, prompt string) (string, error) {
+		resp, err := e.llm.StreamComplete(ctx, core.CompletionRequest{
+			SystemPrompt: "You are a deterministic session summarizer. Follow the requested template exactly.",
+			Messages:     []core.ChatTurn{{Role: "user", Content: prompt}},
+			MaxTokens:    800,
+			Temperature:  0.0,
+		}, nil)
+		return resp.Content, err
+	}
 }
 
 // temporalContext renders the spec-9.4 prompt block: current UTC time, time

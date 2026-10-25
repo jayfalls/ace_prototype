@@ -15,6 +15,7 @@ import (
 	"ace/internal/bus"
 	"ace/internal/config"
 	"ace/internal/constitution"
+	"ace/internal/contextsys"
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/layers"
@@ -59,6 +60,11 @@ type Engine struct {
 	gate                    *gate.Gate
 	activeDAGTaskID         string
 	taskMgr                 *tasks.Manager
+	injLog                  *contextsys.InjectionLog
+	ctxMap                  *contextsys.Map
+	overflow                *contextsys.Overflow
+	compactors              map[int]*contextsys.Compactor
+	lastPromptToks          map[int]int
 	quotaUnits              float64 // spec-9.4 budget governor window limit (tokens); 0 = unbounded
 	quotaWindowSecs         int
 	lastToolCallAt          string
@@ -169,6 +175,10 @@ func NewEngine(
 		telem:               telem,
 		gate:                gate.New(gdb, llm),
 		taskMgr:             tasks.New(gdb),
+		injLog:              contextsys.NewInjectionLog(gdb),
+		ctxMap:              contextsys.NewMap(gdb),
+		compactors:          map[int]*contextsys.Compactor{},
+		lastPromptToks:      map[int]int{},
 		mode:                core.ModeAutonomous,
 		autoIntervalSeconds: 20,
 		layers:              layerStatus,
@@ -216,6 +226,11 @@ func NewEngine(
 			eng.plugins.Isolate(p.Manifest.Name)
 		}
 	}
+	// Spec 9.5 overflow: over-cap tool output spills to the workspace, the
+	// model gets head + size + path + read-by-range instead of truncation.
+	if ws, ok := sbx.(interface{ WorkspaceDir() string }); ok {
+		eng.overflow = contextsys.NewOverflow(ws.WorkspaceDir())
+	}
 	return eng
 }
 
@@ -252,6 +267,15 @@ func (e *Engine) applyLayerKnobs(knobs config.LayerKnobs) {
 		Payload:   "layer knobs reloaded from config.d/*.toml",
 	})
 	e.telem.EmitLive("config.reload", knobs)
+	// Spec 9.5 injection log: control-plane changes reach the model as an
+	// in-band notice on the next prompt.
+	if e.injLog != nil {
+		e.injLog.Record(context.Background(), contextsys.InjectionEvent{
+			Source: "config.reload", Kind: "control",
+			Notice: fmt.Sprintf("[context: config.d reloaded — l1_review=%s l5=%s/%s parallel_reads=%d]",
+				knobs.L1ReviewInterval, knobs.L5Period, knobs.L5MinDwell, knobs.ParallelReads),
+		})
+	}
 }
 
 // watchdogHeartbeatLoop publishes the atomic status snapshot every 15s

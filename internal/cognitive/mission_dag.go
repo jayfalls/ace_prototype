@@ -13,6 +13,7 @@ import (
 
 	"ace/internal/config"
 	"ace/internal/constitution"
+	"ace/internal/contextsys"
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/plan"
@@ -66,6 +67,8 @@ func (e *Engine) initMissionDAGSchema(db *sql.DB) {
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN reanchor_count INTEGER NOT NULL DEFAULT 0`)
 	_ = science.Migrate(db)
 	_ = tasks.Migrate(db)
+	_ = contextsys.MigrateInjectionLog(db)
+	_ = contextsys.MigrateMap(db)
 }
 
 func sha256Str(s string) string {
