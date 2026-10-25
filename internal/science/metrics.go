@@ -7,6 +7,8 @@ package science
 import (
 	"context"
 	"database/sql"
+	"math"
+	"sort"
 	"time"
 )
 
@@ -42,22 +44,71 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	}
 	end := time.Now().UTC()
 	start := end.Add(-time.Duration(windowSecs) * time.Second)
+	startStr := start.Format("2006-01-02 15:04:05")
+	endStr := end.Format("2006-01-02 15:04:05")
 	m := map[string]float64{}
+
+	// L1-gate logging (first loop_kind='gate' trace) changed the trace
+	// population, which resets the baseline: never mix eras in one window.
+	// datetime() normalises the two stored timestamp formats.
+	var gateStart sql.NullString
+	_ = db.QueryRowContext(ctx, `SELECT MIN(datetime(created_at)) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
+	if gateStart.Valid && gateStart.String > startStr {
+		startStr = gateStart.String
+	}
 
 	var traces, tasksDone, tasksAll int
 	var tokIn, tokOut, tokCached, latSum int64
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(cached_tokens),0), COALESCE(SUM(latency_ms),0) FROM thought_traces WHERE created_at >= ?`, start).Scan(&traces, &tokIn, &tokOut, &tokCached, &latSum)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND updated_at >= ?`, start).Scan(&tasksAll)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND updated_at >= ?`, start).Scan(&tasksDone)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(cached_tokens),0), COALESCE(SUM(latency_ms),0) FROM thought_traces WHERE datetime(created_at) >= ?`, startStr).Scan(&traces, &tokIn, &tokOut, &tokCached, &latSum)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND datetime(updated_at) >= ?`, startStr).Scan(&tasksAll)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND datetime(updated_at) >= ?`, startStr).Scan(&tasksDone)
 
 	if tasksAll > 0 {
 		m["task_success"] = float64(tasksDone) / float64(tasksAll)
 	}
 	if tasksDone > 0 {
-		// v0.9 primary metric: turns per SUCCESSFUL task — completed
-		// tasks only, never pending/stale ones in the denominator.
-		m["turns_per_successful_task"] = float64(traces) / float64(tasksDone)
+		m["turns_per_success"] = float64(traces) / float64(tasksDone)
 		m["cost_per_success"] = float64(tokIn+tokOut) / float64(tasksDone)
+	}
+	// v0.9 primary metric: L6 turns per completed task, a distribution.
+	// Traces carry no task_id; the L4(T_*) provenance tag in trigger_summary
+	// is the attribution. A task whose L6 traces begin before the window is
+	// partially observed and dropped — never counted with truncated turns.
+	tidExpr := `substr(trigger_summary, instr(trigger_summary,'L4(')+3, instr(trigger_summary,')]')-instr(trigger_summary,'L4(')-3)`
+	prow, err := db.QueryContext(ctx, `SELECT `+tidExpr+`, COUNT(*) FROM thought_traces WHERE layer_code='L6' AND datetime(created_at) >= ? AND trigger_summary LIKE '%L4(T_%' GROUP BY 1`, startStr)
+	var counts map[string]int
+	if err == nil {
+		counts = map[string]int{}
+		for prow.Next() {
+			var tid string
+			var cnt int
+			_ = prow.Scan(&tid, &cnt)
+			counts[tid] = cnt
+		}
+		prow.Close()
+	}
+	var l6 []float64
+	for tid, cnt := range counts {
+		var state string
+		if db.QueryRowContext(ctx, `SELECT state FROM mission_dag_nodes WHERE id=?`, tid).Scan(&state) != nil || state != "COMPLETED" {
+			continue
+		}
+		var pre int
+		_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM thought_traces WHERE layer_code='L6' AND datetime(created_at) < ? AND trigger_summary LIKE '%L4('||?||')%'`, startStr, tid).Scan(&pre)
+		if pre == 0 {
+			l6 = append(l6, float64(cnt))
+		}
+	}
+	if len(l6) > 0 {
+		sort.Float64s(l6)
+		n := float64(len(l6))
+		m["l6_turns_per_completed_task_median"] = median(l6)
+		m["l6_turns_per_completed_task_p90"] = l6[int(math.Ceil(0.9*n))-1]
+		m["l6_turns_per_completed_task_n"] = n
+		if lo, hi, ok := medianOrderStatCI(l6, 0.05); ok {
+			m["l6_turns_per_completed_task_ci95_lo"] = lo
+			m["l6_turns_per_completed_task_ci95_hi"] = hi
+		}
 	}
 	if traces > 0 {
 		m["latency_ms"] = float64(latSum) / float64(traces)
@@ -66,11 +117,11 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 		m["cache_hit_rate"] = float64(tokCached) / float64(tokIn)
 	}
 	var confErr sql.NullFloat64
-	_ = db.QueryRowContext(ctx, `SELECT AVG(ABS(confidence - CASE WHEN action_result LIKE 'success%' OR action_result='ok' OR action_result='completed' THEN 1.0 ELSE 0.0 END)) FROM thought_traces WHERE created_at >= ? AND confidence IS NOT NULL AND confidence != ''`, start).Scan(&confErr)
+	_ = db.QueryRowContext(ctx, `SELECT AVG(ABS(confidence - CASE WHEN action_result LIKE 'success%' OR action_result='ok' OR action_result='completed' THEN 1.0 ELSE 0.0 END)) FROM thought_traces WHERE datetime(created_at) >= ? AND confidence IS NOT NULL AND confidence != ''`, startStr).Scan(&confErr)
 	if confErr.Valid {
 		m["l3_estimate_error"] = confErr.Float64
 	}
-	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE created_at >= ? GROUP BY layer_code`, start)
+	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE datetime(created_at) >= ? GROUP BY layer_code`, startStr)
 	if err == nil {
 		var total int64
 		share := map[string]int64{}
@@ -90,6 +141,29 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	}
 	for k, v := range m {
 		_, _ = db.ExecContext(ctx, `INSERT INTO standing_metrics (window_start, window_end, metric, value) VALUES (?,?,?,?)`,
-			start.Format(time.RFC3339), end.Format(time.RFC3339), k, v)
+			startStr, endStr, k, v)
 	}
+}
+
+func median(xs []float64) float64 {
+	n := len(xs)
+	if n%2 == 1 {
+		return xs[n/2]
+	}
+	return (xs[n/2-1] + xs[n/2]) / 2
+}
+
+// medianOrderStatCI returns the distribution-free CI for the median: the
+// widest symmetric order-statistic pair whose binomial coverage still
+// reaches 1-alpha. ok=false when n is too small to reach it — a looser
+// interval must not ship under a "95%" name.
+func medianOrderStatCI(xs []float64, alpha float64) (lo, hi float64, ok bool) {
+	n := len(xs)
+	for r := 1; r <= (n+1)/2; r++ {
+		if 2*binomCDF(r-1, n, 0.5) > alpha {
+			break
+		}
+		lo, hi, ok = xs[r-1], xs[n-r], true
+	}
+	return
 }
