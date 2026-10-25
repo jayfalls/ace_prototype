@@ -583,6 +583,11 @@ A design session with the owner comes first. Inputs:
 - **Avoid:** generic dashboard cards, disabled placeholder navigation, decorative figures.
 - **Visual explainers:** the session decides how ACE shows a complex component to a human.
 
+**Voice and camera (the first embodiment):** the owner talks to ACE in the web UI through their microphone, speaker and webcam. Each is an optional Sense or Tool plugin running on the local GPU (10.2), sharing VRAM with the L5 gate on the 6 GB card, measured.
+- **Speech to text:** Bark 3.0 (Underdog, 0.6B, CC-BY-4.0, transformers) is the first candidate; adopted only if it beats a baseline on this host for latency and word error rate.
+- **Text to speech:** chosen by the same measurement. Bark 3.0 is speech-to-text only.
+- **Vision:** motion detection gates an object-detection model. A person counts as present only above a confidence threshold held for a minimum time; both are config keys tuned by measurement. Re-identification is added when a feature needs it.
+
 ## v0.12: from the v0.10 data
 
 **Reset and first-time setup (v0.12 or v0.13):** until then ACE keeps its current self-building mission. At the reset everything starts fresh and the new first-time setup is tested: ACE chats with the owner, probes and asks questions to close its uncertainties, then recommends a context-calibrated mission. The owner controls the core prompting and can edit the result by hand afterwards. This replaces the `ace init` questionnaire.
