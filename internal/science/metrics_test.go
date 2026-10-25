@@ -51,8 +51,11 @@ func TestRecordStandingMetrics(t *testing.T) {
 	}
 	rows.Close()
 
-	if got["turns_per_task"] != 1.5 { // 3 traces / 2 tasks
-		t.Fatalf("turns_per_task=%v want 1.5", got["turns_per_task"])
+	if got["turns_per_successful_task"] != 3.0 { // 3 traces / 1 completed
+		t.Fatalf("turns_per_successful_task=%v want 3.0", got["turns_per_successful_task"])
+	}
+	if _, ok := got["turns_per_task"]; ok {
+		t.Fatal("turns_per_task must not exist — it is not the v0.9 primary metric")
 	}
 	if got["task_success"] != 0.5 {
 		t.Fatalf("task_success=%v want 0.5", got["task_success"])

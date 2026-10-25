@@ -51,10 +51,12 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND updated_at >= ?`, start).Scan(&tasksDone)
 
 	if tasksAll > 0 {
-		m["turns_per_task"] = float64(traces) / float64(tasksAll)
 		m["task_success"] = float64(tasksDone) / float64(tasksAll)
 	}
 	if tasksDone > 0 {
+		// v0.9 primary metric: turns per SUCCESSFUL task — completed
+		// tasks only, never pending/stale ones in the denominator.
+		m["turns_per_successful_task"] = float64(traces) / float64(tasksDone)
 		m["cost_per_success"] = float64(tokIn+tokOut) / float64(tasksDone)
 	}
 	if traces > 0 {
