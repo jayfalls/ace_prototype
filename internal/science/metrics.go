@@ -50,18 +50,19 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 
 	// L1-gate logging (first loop_kind='gate' trace) changed the trace
 	// population, which resets the baseline: never mix eras in one window.
-	// datetime() normalises the two stored timestamp formats.
+	// substr+replace normalises the two stored timestamp formats —
+	// datetime() returns NULL on the '+0000 UTC' suffix form.
 	var gateStart sql.NullString
-	_ = db.QueryRowContext(ctx, `SELECT MIN(datetime(created_at)) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
+	_ = db.QueryRowContext(ctx, `SELECT MIN(replace(substr(created_at,1,19),'T',' ')) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
 	if gateStart.Valid && gateStart.String > startStr {
 		startStr = gateStart.String
 	}
 
 	var traces, tasksDone, tasksAll int
 	var tokIn, tokOut, tokCached, latSum int64
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(cached_tokens),0), COALESCE(SUM(latency_ms),0) FROM thought_traces WHERE datetime(created_at) >= ?`, startStr).Scan(&traces, &tokIn, &tokOut, &tokCached, &latSum)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND datetime(updated_at) >= ?`, startStr).Scan(&tasksAll)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND datetime(updated_at) >= ?`, startStr).Scan(&tasksDone)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(cached_tokens),0), COALESCE(SUM(latency_ms),0) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ?`, startStr).Scan(&traces, &tokIn, &tokOut, &tokCached, &latSum)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksAll)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksDone)
 
 	if tasksAll > 0 {
 		m["task_success"] = float64(tasksDone) / float64(tasksAll)
@@ -75,7 +76,7 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	// is the attribution. A task whose L6 traces begin before the window is
 	// partially observed and dropped — never counted with truncated turns.
 	tidExpr := `substr(trigger_summary, instr(trigger_summary,'L4(')+3, instr(trigger_summary,')]')-instr(trigger_summary,'L4(')-3)`
-	prow, err := db.QueryContext(ctx, `SELECT `+tidExpr+`, COUNT(*) FROM thought_traces WHERE layer_code='L6' AND datetime(created_at) >= ? AND trigger_summary LIKE '%L4(T_%' GROUP BY 1`, startStr)
+	prow, err := db.QueryContext(ctx, `SELECT `+tidExpr+`, COUNT(*) FROM thought_traces WHERE layer_code='L6' AND replace(substr(created_at,1,19),'T',' ') >= ? AND trigger_summary LIKE '%L4(T_%' GROUP BY 1`, startStr)
 	var counts map[string]int
 	if err == nil {
 		counts = map[string]int{}
@@ -94,7 +95,7 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 			continue
 		}
 		var pre int
-		_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM thought_traces WHERE layer_code='L6' AND datetime(created_at) < ? AND trigger_summary LIKE '%L4('||?||')%'`, startStr, tid).Scan(&pre)
+		_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM thought_traces WHERE layer_code='L6' AND replace(substr(created_at,1,19),'T',' ') < ? AND trigger_summary LIKE '%L4('||?||')%'`, startStr, tid).Scan(&pre)
 		if pre == 0 {
 			l6 = append(l6, float64(cnt))
 		}
@@ -117,11 +118,11 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 		m["cache_hit_rate"] = float64(tokCached) / float64(tokIn)
 	}
 	var confErr sql.NullFloat64
-	_ = db.QueryRowContext(ctx, `SELECT AVG(ABS(confidence - CASE WHEN action_result LIKE 'success%' OR action_result='ok' OR action_result='completed' THEN 1.0 ELSE 0.0 END)) FROM thought_traces WHERE datetime(created_at) >= ? AND confidence IS NOT NULL AND confidence != ''`, startStr).Scan(&confErr)
+	_ = db.QueryRowContext(ctx, `SELECT AVG(ABS(confidence - CASE WHEN action_result LIKE 'success%' OR action_result='ok' OR action_result='completed' THEN 1.0 ELSE 0.0 END)) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ? AND confidence IS NOT NULL AND confidence != ''`, startStr).Scan(&confErr)
 	if confErr.Valid {
 		m["l3_estimate_error"] = confErr.Float64
 	}
-	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE datetime(created_at) >= ? GROUP BY layer_code`, startStr)
+	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ? GROUP BY layer_code`, startStr)
 	if err == nil {
 		var total int64
 		share := map[string]int64{}
