@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"ace/internal/config"
@@ -54,6 +55,9 @@ type Gate struct {
 	roles  func() config.ModelRoles
 	t1Hit  int // Tier-1 allow counter driving deterministic 5% calibration
 	redirs chan Redirect
+	// Notify carries owner-facing messages (access requests); the engine
+	// wires it to the Telegram escalation path. Nil = log-only.
+	Notify func(msg string)
 }
 
 // Redirect is a Tier-2 course correction delivered to a running L6 task at its
@@ -94,6 +98,15 @@ func (g *Gate) initSchema() {
 // records the verdict row. The caller must not run the action unless
 // Decision.Allowed().
 func (g *Gate) Evaluate(ctx context.Context, a Action) Decision {
+	// 8.4 capability check: owner-granted capabilities gate access before any
+	// tier runs. Ungranted → deny + one access request (never re-asked).
+	if cap := capabilityFor(a.Kind); cap != "" && !config.HasGrant(cap) {
+		d := Decision{Verdict: VerdictDeny, Tier: 0, RuleID: "capability.ungranted",
+			Reason: "capability " + cap + " not granted by owner"}
+		g.record(a, 0, d.RuleID, d.Verdict, d.Reason)
+		g.RequestAccess(a, cap, a.TaskID, g.Notify)
+		return d
+	}
 	d := g.tier0(a)
 	if d.Verdict == "" { // Tier 0 passes/denies resolve here; undecided falls through
 		d = g.tier1(ctx, a)
@@ -119,6 +132,42 @@ func (g *Gate) Evaluate(ctx context.Context, a Action) Decision {
 	}
 	g.record(a, d.Tier, d.RuleID, d.Verdict, d.Reason)
 	return d
+}
+
+// Ruling sends an action straight to Tier 2 — the bounded L1 adjudication
+// that replaces every former human-approval path (spec 8.4): spec frozen-hash
+// changes, gate disputes, repeated-veto quarantines.
+func (g *Gate) Ruling(ctx context.Context, a Action) Decision {
+	d := g.tier2(ctx, a)
+	if d.RuleID == "" {
+		d.RuleID = "l1.ruling"
+	}
+	g.record(a, 2, d.RuleID, d.Verdict, d.Reason)
+	return d
+}
+
+// RequestAccess records a denied action as an access request (spec 8.4):
+// one row per fingerprint — the owner is asked once, never retried another
+// route. The notify callback carries the single outbound message.
+func (g *Gate) RequestAccess(a Action, capability, missionRef string, notify func(msg string)) bool {
+	fp := fingerprint(a)
+	if g.db == nil {
+		return false
+	}
+	res, err := g.db.Exec(`INSERT INTO access_requests (fingerprint, capability, action_desc, mission_ref, scope, status, created_at)
+		VALUES (?,?,?,?,'one-time','pending',?) ON CONFLICT(fingerprint) DO NOTHING`,
+		fp, capability, truncate(a.Kind+": "+a.Target+" "+a.Command, 200), missionRef, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return false
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return false // already asked — never re-ask, never retry another route
+	}
+	if notify != nil {
+		notify(fmt.Sprintf("Access request — %s\nMission: %s\nScope: one-time\nInterim plan: continue other mission work; action stays denied until granted", truncate(capability+": "+a.Target, 150), missionRef))
+	}
+	return true
 }
 
 // Redirects returns the channel the L6 prosecutor drains between tool calls.
@@ -174,6 +223,24 @@ func (g *Gate) Coverage(ctx context.Context) (map[int]int, error) {
 		}
 	}
 	return out, rows.Err()
+}
+
+// capabilityFor maps action kinds to the owner-grantable capabilities they
+// require (spec 8.4). Kinds not listed need no grant.
+func capabilityFor(kind string) string {
+	switch strings.ToLower(kind) {
+	case "sandbox_sh", "shell", "exec":
+		return "shell"
+	case "workspace_write", "workspace_edit", "workspace_delete", "file_write":
+		return "filesystem"
+	case "http_request", "web_fetch", "web_search":
+		return "web"
+	case "telegram_send", "channel_send", "notify":
+		return "messaging"
+	case "git_push", "pr_create":
+		return "repository"
+	}
+	return ""
 }
 
 func truncate(s string, n int) string {

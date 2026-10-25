@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"ace/internal/cognitive"
+	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/sandbox"
 )
@@ -49,6 +50,7 @@ type TelegramBridge struct {
 	token            string
 	allowedChatIDs   string
 	lastChatID       int64
+	lastProactiveAt  time.Time
 	forwardProactive bool
 	enabled          bool
 	connected        bool
@@ -169,10 +171,14 @@ func (b *TelegramBridge) Start(ctx context.Context) {
 		if !ok || msg.Role != "proactive" || msg.Source != "L6_summary" {
 			return
 		}
-		b.mu.RLock()
-		shouldFwd := b.enabled && b.connected && b.forwardProactive && b.lastChatID != 0
+		b.mu.Lock()
+		shouldFwd := b.enabled && b.connected && b.forwardProactive && b.lastChatID != 0 &&
+			time.Since(b.lastProactiveAt) > time.Hour // 8.4 hygiene: <=1 proactive msg/h
 		chatID := b.lastChatID
-		b.mu.RUnlock()
+		if shouldFwd {
+			b.lastProactiveAt = time.Now()
+		}
+		b.mu.Unlock()
 		if shouldFwd {
 			go func() {
 				_ = b.SendMessage(context.Background(), chatID, fmt.Sprintf("✅ *ACE Cycle Complete*\n%s", msg.Content))
@@ -330,7 +336,7 @@ func (b *TelegramBridge) pollLoop(ctx context.Context) {
 			if u.Message == nil || strings.TrimSpace(u.Message.Text) == "" {
 				continue
 			}
-			b.handleInboundMessage(ctx, u.Message.Chat.ID, u.Message.From.Username, u.Message.Text)
+			b.handleInboundMessage(ctx, u.Message.Chat.ID, u.Message.From.Username, u.Message.Text, u.Message.MessageID)
 		}
 	}
 }
@@ -392,7 +398,7 @@ func (b *TelegramBridge) isChatAllowed(chatID int64) bool {
 	return false
 }
 
-func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64, username string, text string) {
+func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64, username string, text string, msgID int64) {
 	if !b.isChatAllowed(chatID) {
 		_ = b.SendMessage(ctx, chatID, fmt.Sprintf("⛔ Unauthorized Chat ID `%d`. Add this ID to Allowed Chat IDs in the ACE Web Cockpit.", chatID))
 		return
@@ -408,14 +414,23 @@ func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64,
 	b.mu.Unlock()
 	b.telem.EmitLive("telegram.status", b.Status())
 
+	// 8.4: every owner message timestamp feeds the availability model; every
+	// non-command message is logged verbatim to the directive ledger.
+	_, _ = b.db.ExecContext(ctx, `INSERT INTO owner_message_times (ts) VALUES (?)`, time.Now().UTC())
+
 	text = strings.TrimSpace(text)
 
-	// Handle Telegram Slash Commands (/start, /status, /goals, /cycle, /mode, /exec, /wiki, /tickets)
+	// Handle Telegram Slash Commands (/start, /status, /goals, /cycle, /mode, /exec, /wiki, /tickets, /grant)
 	if strings.HasPrefix(text, "/") {
-		reply := b.executeSlashCommand(ctx, chatID, text)
+		reply := b.executeSlashCommand(ctx, chatID, text, msgID)
 		_ = b.SendMessage(ctx, chatID, reply)
 		return
 	}
+
+	// Directive ledger: owner steering messages survive compaction and show up
+	// in cycle reports until addressed.
+	_, _ = b.db.ExecContext(ctx, `INSERT INTO directives (msg_id, text, source, status, created_at) VALUES (?,?,?,?,?)`,
+		msgID, text, "telegram", "OPEN", time.Now().UTC())
 
 	// Standard conversational message -> route through ACE Fast Chat + 6-layer cascade!
 	msg, err := b.engine.Chat(ctx, text)
@@ -426,7 +441,7 @@ func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64,
 	_ = b.SendMessage(ctx, chatID, msg.Content)
 }
 
-func (b *TelegramBridge) executeSlashCommand(ctx context.Context, chatID int64, rawCmd string) string {
+func (b *TelegramBridge) executeSlashCommand(ctx context.Context, chatID int64, rawCmd string, msgID int64) string {
 	parts := strings.Fields(rawCmd)
 	cmd := strings.ToLower(strings.Split(parts[0], "@")[0])
 	arg := strings.TrimSpace(strings.TrimPrefix(rawCmd, parts[0]))
@@ -481,6 +496,28 @@ func (b *TelegramBridge) executeSlashCommand(ctx context.Context, chatID int64, 
 			out = out[:2500] + "..."
 		}
 		return fmt.Sprintf("🛡️ *Sandbox Exec* (`exit=%d`, `%dms`):\n```\n%s\n```", res.ExitCode, res.DurationMs, out)
+
+	case "/grant":
+		// 8.4: owner grants a capability — `/grant <capability> [one-time|standing]`
+		gparts := strings.Fields(arg)
+		if len(gparts) == 0 {
+			return "Usage: `/grant <capability> [one-time|standing]` — e.g. `/grant repository standing`"
+		}
+		scope := "standing"
+		if len(gparts) > 1 && (gparts[1] == "one-time" || gparts[1] == "standing") {
+			scope = gparts[1]
+		}
+		grants := config.LoadGrantDetails()
+		grants = append(grants, config.Grant{
+			Capability: gparts[0], Scope: scope,
+			Date: time.Now().UTC().Format(time.RFC3339), OwnerMsgID: msgID,
+		})
+		if err := config.WriteGrants(grants); err != nil {
+			return "Grant write failed: " + err.Error()
+		}
+		// Mark matching pending access requests granted.
+		_, _ = b.db.ExecContext(ctx, `UPDATE access_requests SET status='granted', owner_msg_id=? WHERE capability=? AND status='pending'`, msgID, gparts[0])
+		return fmt.Sprintf("✅ Granted `%s` (scope: `%s`, msg `%d`). ACE checks this on every use.", gparts[0], scope, msgID)
 
 	case "/tickets":
 		res, _ := b.jail.Exec(ctx, "ticket list")

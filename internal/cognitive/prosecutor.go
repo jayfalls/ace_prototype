@@ -406,7 +406,7 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 				for _, line := range strings.Split(rawGoals, "\n") {
 					tline := strings.TrimSpace(line)
 					if strings.HasPrefix(tline, "- [ ]") && (tline == activeMilestone || (axisID != "" && extractMilestoneIdentifier(tline) == axisID)) {
-						outLines = append(outLines, strings.Replace(line, "- [ ]", "- [!]", 1)+fmt.Sprintf(" *(PARKED_HUMAN after %d identical vetoes — escalated via L1.5/Telegram)*", vCount))
+						outLines = append(outLines, strings.Replace(line, "- [ ]", "- [!]", 1)+fmt.Sprintf(" *(QUARANTINED after %d identical vetoes — L1 ruling issued, owner report sent)*", vCount))
 						parked = true
 					} else {
 						outLines = append(outLines, line)

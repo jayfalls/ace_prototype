@@ -3,7 +3,9 @@ package cognitive
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -12,23 +14,25 @@ import (
 	"ace/internal/config"
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/science"
 )
 
 // MissionDAGNode represents a single node in the strict Top-Down Dependency Tree:
 // L1_MISSION_ROOT -> L2_STRATEGY -> L3_CAPABILITY -> L4_TASK_SPEC -> (L5 GPU Gate -> L6 Execution).
 type MissionDAGNode struct {
-	ID            string `json:"id"`
-	ParentID      string `json:"parent_id"`
-	Stage         string `json:"stage"`          // L1_MISSION_ROOT | L2_STRATEGY | L3_CAPABILITY | L4_TASK_SPEC
-	State         string `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | COMPLETED
-	OwnerLayer    int    `json:"owner_layer"`    // 1, 2, 3, 4
-	Title         string `json:"title"`          // Concise human-readable title
-	Directive     string `json:"directive"`      // Full layer directive / spec
-	ArtifactPath  string `json:"artifact_path"`  // Target module / result JSON path for L4_TASK_SPEC
-	DirectiveHash string `json:"directive_hash"` // SHA-256 provenance hash of (ParentHash + Directive)
-	SoulHash      string `json:"soul_hash"`      // SHA-256 of /wiki/soul.md when anchored
-	Attempts      int    `json:"attempts"`       // L6 execution attempts on this leaf
-	UpdatedAt     string `json:"updated_at"`
+	ID            string  `json:"id"`
+	ParentID      string  `json:"parent_id"`
+	Stage         string  `json:"stage"`          // L1_MISSION_ROOT | L2_STRATEGY | L3_CAPABILITY | L4_TASK_SPEC
+	State         string  `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | COMPLETED
+	OwnerLayer    int     `json:"owner_layer"`    // 1, 2, 3, 4
+	Title         string  `json:"title"`          // Concise human-readable title
+	Directive     string  `json:"directive"`      // Full layer directive / spec
+	ArtifactPath  string  `json:"artifact_path"`  // Target module / result JSON path for L4_TASK_SPEC
+	DirectiveHash string  `json:"directive_hash"` // SHA-256 provenance hash of (ParentHash + Directive)
+	SoulHash      string  `json:"soul_hash"`      // SHA-256 of /wiki/soul.md when anchored
+	Attempts      int     `json:"attempts"`       // L6 execution attempts on this leaf
+	Score         float64 `json:"score"`          // 8.3: imperative score — L2 rank / L4 priority weight
+	UpdatedAt     string  `json:"updated_at"`
 }
 
 func (e *Engine) initMissionDAGSchema(db *sql.DB) {
@@ -48,11 +52,14 @@ func (e *Engine) initMissionDAGSchema(db *sql.DB) {
 			directive_hash TEXT NOT NULL,
 			soul_hash TEXT NOT NULL,
 			attempts INTEGER NOT NULL DEFAULT 0,
+			score REAL NOT NULL DEFAULT 0,
 			updated_at DATETIME NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_mission_dag_stage_state ON mission_dag_nodes(stage, state);
 		CREATE INDEX IF NOT EXISTS idx_mission_dag_parent ON mission_dag_nodes(parent_id);
 	`)
+	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN score REAL NOT NULL DEFAULT 0`)
+	_ = science.Migrate(db)
 }
 
 func sha256Str(s string) string {
@@ -95,7 +102,7 @@ func (e *Engine) LoadMissionDAGNodes(ctx context.Context) []MissionDAGNode {
 	}
 	e.initMissionDAGSchema(db)
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, parent_id, stage, state, owner_layer, title, directive, artifact_path, directive_hash, soul_hash, attempts, updated_at
+		SELECT id, parent_id, stage, state, owner_layer, title, directive, artifact_path, directive_hash, soul_hash, attempts, score, updated_at
 		FROM mission_dag_nodes
 		ORDER BY owner_layer ASC, id ASC
 	`)
@@ -106,7 +113,7 @@ func (e *Engine) LoadMissionDAGNodes(ctx context.Context) []MissionDAGNode {
 	var out []MissionDAGNode
 	for rows.Next() {
 		var n MissionDAGNode
-		if rows.Scan(&n.ID, &n.ParentID, &n.Stage, &n.State, &n.OwnerLayer, &n.Title, &n.Directive, &n.ArtifactPath, &n.DirectiveHash, &n.SoulHash, &n.Attempts, &n.UpdatedAt) == nil {
+		if rows.Scan(&n.ID, &n.ParentID, &n.Stage, &n.State, &n.OwnerLayer, &n.Title, &n.Directive, &n.ArtifactPath, &n.DirectiveHash, &n.SoulHash, &n.Attempts, &n.Score, &n.UpdatedAt) == nil {
 			out = append(out, n)
 		}
 	}
@@ -124,8 +131,8 @@ func (e *Engine) upsertMissionDAGNode(ctx context.Context, n MissionDAGNode) {
 		n.UpdatedAt = now
 	}
 	_, _ = db.ExecContext(ctx, `
-		INSERT INTO mission_dag_nodes (id, parent_id, stage, state, owner_layer, title, directive, artifact_path, directive_hash, soul_hash, attempts, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO mission_dag_nodes (id, parent_id, stage, state, owner_layer, title, directive, artifact_path, directive_hash, soul_hash, attempts, score, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			state = excluded.state,
 			title = excluded.title,
@@ -134,8 +141,9 @@ func (e *Engine) upsertMissionDAGNode(ctx context.Context, n MissionDAGNode) {
 			directive_hash = excluded.directive_hash,
 			soul_hash = excluded.soul_hash,
 			attempts = excluded.attempts,
+			score = excluded.score,
 			updated_at = excluded.updated_at
-	`, n.ID, n.ParentID, n.Stage, n.State, n.OwnerLayer, n.Title, n.Directive, n.ArtifactPath, n.DirectiveHash, n.SoulHash, n.Attempts, n.UpdatedAt)
+	`, n.ID, n.ParentID, n.Stage, n.State, n.OwnerLayer, n.Title, n.Directive, n.ArtifactPath, n.DirectiveHash, n.SoulHash, n.Attempts, n.Score, n.UpdatedAt)
 
 	// Mirror into connectome_nodes + connectome_edges so the 3D WebUI & Turn 0/0.5 Connectome visualize the live Dependency Tree
 	_, _ = db.ExecContext(ctx, `
@@ -233,10 +241,11 @@ func (e *Engine) ActiveReadyTaskNode(ctx context.Context) (*MissionDAGNode, bool
 		if ok, _ := e.VerifyTaskNodeProvenance(ctx, n.ID); !ok {
 			continue
 		}
-		// fewest attempts first, then least-recently-touched: a vetoed/stalled
-		// task rotates behind its siblings instead of starving the queue.
+		// fewest attempts first (8.2 rotation), then higher imperative score
+		// (8.3: L4 priority = value x imperative), then least-recently-touched.
 		if best == nil || n.Attempts < best.Attempts ||
-			(n.Attempts == best.Attempts && n.UpdatedAt < best.UpdatedAt) {
+			(n.Attempts == best.Attempts && n.Score > best.Score) ||
+			(n.Attempts == best.Attempts && n.Score == best.Score && n.UpdatedAt < best.UpdatedAt) {
 			best = n
 		}
 	}
@@ -255,6 +264,11 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string) 
 			if strings.Contains(milestoneLine, n.ID) || (n.ArtifactPath != "" && strings.Contains(milestoneLine, n.ArtifactPath)) {
 				n.State = "COMPLETED"
 				e.upsertMissionDAGNode(ctx, n)
+				// 8.3: record whether the result moved the branch's primary
+				// statistic — feeds diminishing-returns (3 zeros = stop).
+				if db := e.getDB(); db != nil {
+					science.RecordChildResult(ctx, db, branchOf(n), n.ID, e.resultMovedStat(n))
+				}
 				break
 			}
 		}
@@ -381,6 +395,11 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		openL4Count := 0
 		for i := range l3Nodes {
 			if l3Nodes[i].State == "NEEDS_L4_SPEC" {
+				// 8.3 diminishing returns: a branch whose last 3 child results
+				// all failed to move the primary statistic stops spawning.
+				if db := e.getDB(); db != nil && science.BranchStalled(ctx, db, l3Nodes[i].ParentID) {
+					continue
+				}
 				pendingL3ForL4 = append(pendingL3ForL4, l3Nodes[i])
 			}
 		}
@@ -484,6 +503,19 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					return
 				}
 				title := strings.TrimSpace(strings.SplitN(dir, "\n", 2)[0])
+				// 8.3 duplicate rejection: word-shingle Jaccard >= 0.8 vs any
+				// existing strategy (open or finished) rejects the branch.
+				for _, ex := range existing {
+					if science.ShingleJaccard(dir, ex.Directive) >= 0.8 {
+						if db := e.getDB(); db != nil {
+							_, _ = db.ExecContext(ctx, `INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at)
+								VALUES (?, ?, 'duplicate_strategy', ?, 1, ?, ?, 0, ?) ON CONFLICT(veto_hash) DO NOTHING`,
+								sha256Str(branchID + dir)[:16], branchID, ex.ID,
+								truncateString("duplicates "+ex.ID+" (Jaccard>=0.8)", 300), cycleID, time.Now().UTC())
+						}
+						return
+					}
+				}
 				e.upsertMissionDAGNode(ctx, MissionDAGNode{
 					ID:            branchID,
 					ParentID:      root.ID,
@@ -494,6 +526,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					Directive:     dir,
 					DirectiveHash: sha256Str(root.DirectiveHash + "|" + branchID + "|" + dir)[:16],
 					SoulHash:      root.SoulHash,
+					Score:         science.ImperativeScore(dir),
 				})
 			}(*l1Root, len(l2Nodes), l2Nodes)
 		}
@@ -740,4 +773,65 @@ func (e *Engine) extractDynamicL4SpecPaths(ctx context.Context, dir string) (str
 		}
 	}
 	return "", "", ""
+}
+
+// branchOf extracts the L2 branch ID ("S<n>") from an L4 task node via the
+// ID convention: task T_C_S<n>_X -> capability C_S<n>_X -> branch S<n>.
+func branchOf(n MissionDAGNode) string {
+	id := strings.TrimPrefix(n.ParentID, "C_")
+	if i := strings.Index(id, "_"); i > 0 {
+		return id[:i]
+	}
+	return id
+}
+
+// resultMovedStat parses the task's result JSON and reports whether the
+// primary statistic moved: h1_accepted true, or |heldout-baseline| >= 0.05
+// (default MDE) when a numeric comparison exists. Missing/unreadable results
+// count as not-moved — a completion without evidence does not extend a
+// branch's lease (spec 8.3 diminishing returns).
+func (e *Engine) resultMovedStat(n MissionDAGNode) bool {
+	wsDir, _ := e.resolveSandboxDirs()
+	if wsDir == "" {
+		return false
+	}
+	stem := strings.ToLower(strings.TrimPrefix(n.ID, "T_"))
+	var blob []byte
+	for _, rel := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
+		if b, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel)); err == nil {
+			blob = b
+			break
+		}
+	}
+	if len(blob) == 0 {
+		return false
+	}
+	var res struct {
+		H1Accepted    *bool    `json:"h1_accepted"`
+		Heldout       *float64 `json:"heldout"`
+		HeldoutScore  *float64 `json:"heldout_score"`
+		Baseline      *float64 `json:"baseline"`
+		BaselineScore *float64 `json:"baseline_score"`
+	}
+	if json.Unmarshal(blob, &res) != nil {
+		return false
+	}
+	if res.H1Accepted != nil {
+		return *res.H1Accepted
+	}
+	held, base := res.Heldout, res.Baseline
+	if held == nil {
+		held = res.HeldoutScore
+	}
+	if base == nil {
+		base = res.BaselineScore
+	}
+	if held != nil && base != nil {
+		d := *held - *base
+		if d < 0 {
+			d = -d
+		}
+		return d >= 0.05
+	}
+	return false
 }

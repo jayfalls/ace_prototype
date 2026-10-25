@@ -34,6 +34,10 @@ func (f *fakeProvider) StreamComplete(ctx context.Context, req core.CompletionRe
 		return core.CompletionResponse{Model: f.active, Content: "ALLOW", LatencyMs: 1}, nil
 	}
 	if strings.Contains(req.SystemPrompt, "Tier-2 L1 Aspirational gate") {
+		// Frozen-hash spec mutations are denied by this test L1 (8.4 ruling).
+		if len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "frozen spec hash change") {
+			return core.CompletionResponse{Model: f.active, Content: `{"verdict":"reject","reason":"tampered falsification criteria"}`, LatencyMs: 1}, nil
+		}
 		return core.CompletionResponse{Model: f.active, Content: `{"verdict":"allow","reason":"test"}`, LatencyMs: 1}, nil
 	}
 	out := `{

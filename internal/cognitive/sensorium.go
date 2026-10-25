@@ -627,11 +627,13 @@ func (e *Engine) DispatchHumanContradictionAlert(ctx context.Context, cycleID st
 	if db != nil {
 		var state string
 		if db.QueryRowContext(ctx, `SELECT state FROM connectome_nodes WHERE id = ?`, nodeID).Scan(&state) == nil {
-			if state == "PARKED_HUMAN" {
+			if state == "QUARANTINED" {
 				return
 			}
 		}
-		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'PARKED_HUMAN', updated_at = ? WHERE id = ?`, time.Now().UTC(), nodeID)
+		// 8.4: L1 already ruled — the node is quarantined, the human gets a
+		// report, not a question.
+		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'QUARANTINED', updated_at = ? WHERE id = ?`, time.Now().UTC(), nodeID)
 	}
 
 	if probActive < 0.25 && e.memory != nil {

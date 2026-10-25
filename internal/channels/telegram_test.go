@@ -81,16 +81,16 @@ func TestTelegramBridgeSlashCommandsAndChat(t *testing.T) {
 	require.Equal(t, "ace_cog_bot", st.BotUsername)
 
 	// 1. Unauthorized chat ID should be blocked
-	tg.handleInboundMessage(context.Background(), 111, "stranger", "hi")
+	tg.handleInboundMessage(context.Background(), 111, "stranger", "hi", 0)
 	require.NotEmpty(t, sentMessages)
 	require.Contains(t, sentMessages[len(sentMessages)-1], "Unauthorized Chat ID")
 
 	// 2. Authorized /status command
-	tg.handleInboundMessage(context.Background(), 999, "jay", "/status")
+	tg.handleInboundMessage(context.Background(), 999, "jay", "/status", 1)
 	require.Contains(t, sentMessages[len(sentMessages)-1], "ACE Engine Status")
 
 	// 3. Authorized normal chat message
-	tg.handleInboundMessage(context.Background(), 999, "jay", "Hello ACE")
+	tg.handleInboundMessage(context.Background(), 999, "jay", "Hello ACE", 2)
 	require.Contains(t, sentMessages[len(sentMessages)-1], "Hello from ACE via Telegram!")
 }
 

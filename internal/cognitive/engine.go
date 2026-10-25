@@ -140,7 +140,7 @@ func NewEngine(
 	if s, ok := mem.(interface{ DB() *sql.DB }); ok {
 		gdb = s.DB()
 	}
-	return &Engine{
+	eng := &Engine{
 		agentID:             defaultAgentID,
 		llm:                 llm,
 		bus:                 bus,
@@ -154,6 +154,12 @@ func NewEngine(
 		globalLoops:         globalLoops,
 		jobQueue:            make(chan cycleJob, 32),
 	}
+	// Owner-facing gate messages (access requests, spec 8.4) reach the owner
+	// through the Telegram escalation sender — gate stays channels-free.
+	eng.gate.Notify = func(msg string) {
+		eng.sendTelegramTextEscalation(context.Background(), msg)
+	}
+	return eng
 }
 
 func (e *Engine) Start(ctx context.Context) {
@@ -770,6 +776,7 @@ func (e *Engine) workerLoop(ctx context.Context) {
 			e.telem.EmitLive("engine.status", e.Status())
 
 			e.runCascade(runCtx, job)
+			e.recordCycleReport(runCtx, job.CycleID)
 
 			cancel()
 			e.mu.Lock()
@@ -781,4 +788,28 @@ func (e *Engine) workerLoop(ctx context.Context) {
 			e.telem.EmitLive("engine.status", e.Status())
 		}
 	}
+}
+
+// recordCycleReport appends the per-cycle digest row (spec 8.4): what
+// completed, what was measured, open owner directives, open uncertainties.
+func (e *Engine) recordCycleReport(ctx context.Context, cycleID string) {
+	db := e.getDB()
+	if db == nil {
+		return
+	}
+	var done, uncertainties int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE state='COMPLETED'`).Scan(&done)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM connectome_nodes WHERE state IN ('OPEN','QUARANTINED') AND kind='CONTRADICTION'`).Scan(&uncertainties)
+	var allow, deny int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM verdict_rows WHERE verdict='allow'`).Scan(&allow)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM verdict_rows WHERE verdict IN ('deny','reject')`).Scan(&deny)
+	var openDirs int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM directives WHERE status='OPEN'`).Scan(&openDirs)
+	_, _ = db.ExecContext(ctx, `INSERT INTO cycle_reports (cycle_id, done, measured, goals, uncertainties, created_at) VALUES (?,?,?,?,?,?)`,
+		cycleID,
+		fmt.Sprintf("%d dag nodes completed", done),
+		fmt.Sprintf("gate verdicts: %d allow / %d deny", allow, deny),
+		fmt.Sprintf("%d open owner directives", openDirs),
+		fmt.Sprintf("%d open contradictions", uncertainties),
+		time.Now().UTC().Format(time.RFC3339))
 }

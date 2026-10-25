@@ -116,17 +116,78 @@ func WriteInit(mission, personality string, grants []string) error {
 
 // LoadGrants returns the owner-granted capability scopes (empty = none granted).
 func LoadGrants() []string {
+	var out []string
+	for _, g := range LoadGrantDetails() {
+		out = append(out, g.Capability)
+	}
+	return out
+}
+
+// Grant is one owner-granted capability (spec 8.4): capability plus scope
+// (one-time|standing), grant date, and the owner message that granted it.
+type Grant struct {
+	Capability string `json:"capability"`
+	Scope      string `json:"scope"`        // one-time | standing
+	Date       string `json:"date"`         // RFC3339 grant time
+	OwnerMsgID int64  `json:"owner_msg_id"` // telegram message_id of the granting message
+}
+
+// GrantsConfigured reports whether grants.json exists at all — when absent
+// (pre-init legacy state) the capability check does not gate; once the file
+// exists, unlisted capabilities are ungranted (fail closed).
+func GrantsConfigured() bool {
+	_, err := os.Stat(filepath.Join(Dir(), GrantsFile))
+	return err == nil
+}
+
+// LoadGrantDetails reads grants.json accepting either the v0.8 plain string
+// list or the 8.4 object form.
+func LoadGrantDetails() []Grant {
 	b, err := os.ReadFile(filepath.Join(Dir(), GrantsFile))
 	if err != nil {
 		return nil
 	}
-	var g struct {
-		Grants []string `json:"grants"`
+	var raw struct {
+		Grants []json.RawMessage `json:"grants"`
 	}
-	if json.Unmarshal(b, &g) != nil {
+	if json.Unmarshal(b, &raw) != nil {
 		return nil
 	}
-	return g.Grants
+	var out []Grant
+	for _, r := range raw.Grants {
+		var s string
+		if json.Unmarshal(r, &s) == nil {
+			out = append(out, Grant{Capability: s, Scope: "standing"})
+			continue
+		}
+		var g Grant
+		if json.Unmarshal(r, &g) == nil && g.Capability != "" {
+			if g.Scope == "" {
+				g.Scope = "standing"
+			}
+			out = append(out, g)
+		}
+	}
+	return out
+}
+
+// HasGrant reports whether capability is owner-granted. L1 checks this on
+// every use (spec 8.4).
+func HasGrant(capability string) bool {
+	if !GrantsConfigured() {
+		return true // pre-init: no grants file, no capability gating
+	}
+	for _, g := range LoadGrantDetails() {
+		if g.Capability == capability || g.Capability == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// WriteGrants persists grant objects (owner-side; `ace init` + /grant write).
+func WriteGrants(grants []Grant) error {
+	return os.WriteFile(filepath.Join(Dir(), GrantsFile), []byte(mustJSON(map[string]any{"grants": grants})), 0o600)
 }
 
 // ModelRoles is the minimal model-role assignment (plan 8.1): main drives

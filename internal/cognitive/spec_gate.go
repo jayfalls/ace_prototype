@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"ace/internal/core"
+	"ace/internal/gate"
 )
 
 const DefaultSpecMaxBytes = 2800
@@ -147,7 +148,7 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 	if db := e.getDB(); db != nil {
 		var existingState string
 		_ = db.QueryRowContext(ctx, `SELECT state FROM connectome_nodes WHERE id = ?`, nodeID).Scan(&existingState)
-		if existingState == "PARKED_HUMAN" {
+		if existingState == "QUARANTINED" {
 			return nil
 		}
 		_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET disputed = 1, updated_at = ? WHERE veto_hash = ?`, time.Now().UTC(), vetoHash)
@@ -167,9 +168,25 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 		CycleEpoch:     time.Now().Unix(),
 	})
 
+	// 8.4: L1 adjudicates — no human permission ask. One bounded Tier-2
+	// ruling; denied or unresolved means the node quarantines and L3/L5
+	// pick other work. The owner still gets a *report*.
+	if e.gate != nil {
+		if gd := e.gate.Ruling(ctx, gate.Action{
+			Kind: "gate_dispute", Target: targetPath,
+			Command: fmt.Sprintf("veto %s (%s) on %s: %s — worker diagnosis: %s. Allow = retry task, reject = quarantine",
+				vetoKind, vetoHash, targetPath, vetoReason, workerDiagnosis),
+			TaskID: milestoneID, Layer: 5,
+		}); gd.Allowed() {
+			if db := e.getDB(); db != nil {
+				_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'OPEN', updated_at = ? WHERE id = ?`, time.Now().UTC(), nodeID)
+			}
+			return nil
+		}
+	}
 	msg := fmt.Sprintf(
-		"Working on: %s\nWhat happened: %s\nHow would you like to proceed? Reply 'A' to adjust the target threshold/path, or 'B' to skip this task.\nStatus: Paused this task and moved on to the next item.",
-		title, blocker,
+		"Quarantine report — %s\nWhat happened: %s\nL1 ruling: %s\nStatus: task quarantined; work continues on the next item.",
+		title, blocker, vetoReason,
 	)
 	e.DispatchHumanContradictionAlert(ctx, cycleID, nodeID, msg)
 	return nil
@@ -232,9 +249,20 @@ func (e *Engine) ParseAndValidateLivingSpec(ctx context.Context, milestoneID str
 	var existingHash, existingApproval string
 	qerr := db.QueryRowContext(ctx, `SELECT frozen_hash, human_approval_ref FROM spec_registry WHERE milestone_id = ?`, milestoneID).Scan(&existingHash, &existingApproval)
 	if qerr == nil && existingHash != "" && existingHash != newFrozenHash {
-		// Only allow if humanApprovalRef is provided OR §5 only grew (pure addition of stricter checks)
-		if humanApprovalRef == "" && existingApproval == "" {
-			return "", fmt.Errorf("[SPEC GATE VETO — Frozen Hash Mismatch] Cannot modify Section 1 (Scope) or Section 5 (Falsification Criteria) of `/wiki/specs/%s.md` without human approval (expected hash %s, got %s)", milestoneID, existingHash, newFrozenHash)
+		// 8.4: no human approval — an L1 ruling replaces it. Frozen-hash
+		// changes are high-stakes, so escalate straight to Tier 2.
+		if e.gate != nil {
+			gd := e.gate.Ruling(ctx, gate.Action{
+				Kind: "spec_mutation", Target: milestoneID,
+				Command: fmt.Sprintf("frozen spec hash change %s -> %s (sections 1/5)", existingHash, newFrozenHash),
+			})
+			if gd.Allowed() {
+				humanApprovalRef = "l1:" + gd.RuleID
+			} else {
+				return "", fmt.Errorf("[SPEC GATE VETO — L1 Rejected Frozen-Hash Change] %s (rule %s)", gd.Reason, gd.RuleID)
+			}
+		} else if humanApprovalRef == "" && existingApproval == "" {
+			return "", fmt.Errorf("[SPEC GATE VETO — Frozen Hash Mismatch] Cannot modify Section 1 (Scope) or Section 5 (Falsification Criteria) of `/wiki/specs/%s.md` without an L1 ruling (expected hash %s, got %s)", milestoneID, existingHash, newFrozenHash)
 		}
 	}
 
