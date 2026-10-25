@@ -27,6 +27,7 @@ import (
 	"ace/internal/sandbox"
 	"ace/internal/server"
 	"ace/internal/telemetry"
+	"ace/internal/watchdog"
 	_ "modernc.org/sqlite"
 )
 
@@ -154,6 +155,8 @@ func runSubcommand(args []string) {
 		if err := runInit(); err != nil {
 			log.Fatalf("ace init: %v", err)
 		}
+	case "watchdog":
+		runWatchdog(args[1:])
 	case "mission":
 		if len(args) > 1 && args[1] == "reload" {
 			runMissionReload()
@@ -285,4 +288,94 @@ func ensureLocalGPUGate(ctx context.Context, sandboxDir string) {
 			time.Sleep(3 * time.Second)
 		}
 	}()
+}
+
+// runWatchdog implements `ace watchdog` (spec 8.5): a separate process that
+// reads the atomic status snapshot — never the bus — checks integrity
+// invariants, appends hash-chained events, and can pause/halt the engine via
+// the loopback API.
+func runWatchdog(args []string) {
+	sandboxDir := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
+	port := envOr("ACE_PORT", "8080")
+	sub := "run"
+	if len(args) > 0 {
+		sub = args[0]
+	}
+	dbPath := filepath.Join(sandboxDir, "ace.db")
+
+	switch sub {
+	case "verify":
+		db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
+		if err != nil {
+			log.Fatalf("watchdog verify: %v", err)
+		}
+		defer db.Close()
+		watchdog.InitEvents(db)
+		if err := watchdog.VerifyChain(db); err != nil {
+			log.Fatalf("watchdog chain broken: %v", err)
+		}
+		fmt.Println("watchdog event chain verified")
+		return
+	case "halt", "pause", "resume":
+		token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
+		mode := "paused"
+		if sub == "resume" {
+			mode = "autonomous"
+		}
+		url := fmt.Sprintf("http://127.0.0.1:%s/api/engine/mode", port)
+		body := strings.NewReader(fmt.Sprintf(`{"mode":%q}`, mode))
+		req, _ := http.NewRequest(http.MethodPost, url, body)
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{Timeout: 5 * time.Second}
+		if resp, err := client.Do(req); err == nil {
+			resp.Body.Close()
+		}
+		if sub == "halt" {
+			// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
+			req2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%s/api/engine/stop", port), nil)
+			req2.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+			if resp2, err := client.Do(req2); err == nil {
+				resp2.Body.Close()
+			}
+		}
+		fmt.Printf("watchdog %s sent (mode=%s)\n", sub, mode)
+		return
+	case "once", "run":
+		// fall through to loop; "once" exits after one pass
+	}
+
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
+	if err != nil {
+		log.Fatalf("watchdog: %v", err)
+	}
+	defer db.Close()
+	watchdog.InitEvents(db)
+
+	lastBackup := time.Time{}
+	for {
+		checks := watchdog.RunChecks(sandboxDir, 20)
+		allOK := true
+		for _, c := range checks {
+			if !c.OK {
+				allOK = false
+				fmt.Printf("[watchdog] FAULT %s: %s\n", c.Name, c.Detail)
+				_ = watchdog.AppendEvent(db, "fault", c.Name+": "+c.Detail)
+			}
+		}
+		if allOK {
+			fmt.Printf("[watchdog] %s all checks ok\n", time.Now().Format("15:04:05"))
+		}
+		if time.Since(lastBackup) > time.Hour {
+			if dst, err := watchdog.Backup(context.Background(), sandboxDir); err == nil {
+				_ = watchdog.AppendEvent(db, "backup", dst)
+				fmt.Printf("[watchdog] backup -> %s\n", dst)
+			}
+			lastBackup = time.Now()
+		}
+		if sub == "once" {
+			return
+		}
+		time.Sleep(30 * time.Second)
+	}
 }

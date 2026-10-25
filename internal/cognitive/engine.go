@@ -15,6 +15,7 @@ import (
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/llm"
+	"ace/internal/watchdog"
 	"github.com/google/uuid"
 )
 
@@ -49,6 +50,8 @@ type Engine struct {
 	currentLayer            int
 	gate                    *gate.Gate
 	activeDAGTaskID         string
+	lastToolCallAt          string
+	lastActionAt            string
 	totalCycles             int
 	totalThoughts           int
 	jobQueue                chan cycleJob
@@ -166,6 +169,24 @@ func (e *Engine) Start(ctx context.Context) {
 	e.HydrateFromHistory(ctx)
 	go e.workerLoop(ctx)
 	go e.autonomousTickerLoop(ctx)
+	go e.watchdogHeartbeatLoop(ctx)
+}
+
+// watchdogHeartbeatLoop publishes the atomic status snapshot every 15s
+// regardless of cycle state — a heartbeat must beat while a long L6
+// prosecution is mid-flight, or the watchdog can't tell "busy" from "dead"
+// (spec 8.5).
+func (e *Engine) watchdogHeartbeatLoop(ctx context.Context) {
+	t := time.NewTicker(15 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			e.writeWatchdogSnapshot()
+		}
+	}
 }
 
 // currentTaskID returns the L4 task the running L6 prosecution serves (for
@@ -812,4 +833,32 @@ func (e *Engine) recordCycleReport(ctx context.Context, cycleID string) {
 		fmt.Sprintf("%d open owner directives", openDirs),
 		fmt.Sprintf("%d open contradictions", uncertainties),
 		time.Now().UTC().Format(time.RFC3339))
+	e.writeWatchdogSnapshot()
+}
+
+// writeWatchdogSnapshot publishes the atomic per-cycle status file the
+// watchdog process reads (spec 8.5) — never via the bus.
+func (e *Engine) writeWatchdogSnapshot() {
+	e.mu.RLock()
+	snap := watchdog.Snapshot{
+		Heartbeat:       time.Now().UTC().Format(time.RFC3339),
+		TotalCycles:     e.totalCycles,
+		Mode:            string(e.mode),
+		Busy:            e.busy,
+		CurrentCycleID:  e.currentCycleID,
+		ActiveTaskID:    e.activeDAGTaskID,
+		LastToolCallAt:  e.lastToolCallAt,
+		LastActionAt:    e.lastActionAt,
+		ConstitutionSHA: constitution.Version(),
+		MissionVersion:  config.MissionVersion(),
+		ConfigChecksums: watchdog.ConfigChecksums(config.Dir()),
+	}
+	e.mu.RUnlock()
+	if db := e.getDB(); db != nil {
+		_ = db.QueryRow(`SELECT COUNT(*) FROM verdict_rows WHERE verdict='allow'`).Scan(&snap.VerdictAllow)
+		_ = db.QueryRow(`SELECT COUNT(*) FROM verdict_rows WHERE verdict IN ('deny','reject')`).Scan(&snap.VerdictDeny)
+	}
+	if jl, ok := e.sandbox.(interface{ Status() core.SandboxStatus }); ok {
+		_ = watchdog.WriteSnapshot(jl.Status().SandboxDir, snap)
+	}
 }

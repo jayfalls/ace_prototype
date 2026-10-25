@@ -1259,7 +1259,11 @@ func (e *Engine) executeLayerAction(
 	}
 
 	// Tiered L1 constitutional gate (plan 8.2): every side-effecting action
-	// produces a verdict row; allow or it does not run.
+	// produces a verdict row; allow or it does not run. The action-announced
+	// stamp feeds watchdog stall detection (8.5).
+	e.mu.Lock()
+	e.lastActionAt = time.Now().UTC().Format(time.RFC3339)
+	e.mu.Unlock()
 	if gd := e.gate.Evaluate(ctx, gate.Action{
 		Kind: actType, Command: effectiveShellCommand(act), Target: act.Target,
 		TaskID: e.currentTaskID(), Layer: int(layer),
@@ -1303,6 +1307,9 @@ func (e *Engine) executeLayerAction(
 	}
 
 	toolStart := time.Now()
+	e.mu.Lock()
+	e.lastToolCallAt = toolStart.UTC().Format(time.RFC3339)
+	e.mu.Unlock()
 	resStr := e.dispatchLayerAction(ctx, cycleID, layer, actType, act, model)
 	if fiber != nil && strings.Contains(resStr, "[Pi-Lens Python AST SYNTAX ERROR]") {
 		reverted := fiber.RevertAll()
