@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"database/sql"
 	"flag"
@@ -20,6 +21,7 @@ import (
 	"ace/internal/channels"
 	"ace/internal/cognitive"
 	"ace/internal/config"
+	"ace/internal/constitution"
 	"ace/internal/llm"
 	"ace/internal/memory"
 	"ace/internal/sandbox"
@@ -29,6 +31,15 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
+		runSubcommand(os.Args[1:])
+		return
+	}
+
+	if err := constitution.Check(); err != nil {
+		log.Fatalf("constitution check failed: %v", err)
+	}
+
 	defaultPort := envOr("ACE_PORT", "8080")
 	defaultSandbox := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
 	defaultModel := envOr("ACE_MODEL", "deepseek-v4.1-flash")
@@ -133,6 +144,78 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// runSubcommand handles `ace init` and `ace mission reload` — the owner-facing
+// commands that write owner-set config (plan 8.1). The daemon never runs here.
+func runSubcommand(args []string) {
+	switch args[0] {
+	case "init":
+		if err := runInit(); err != nil {
+			log.Fatalf("ace init: %v", err)
+		}
+	case "mission":
+		if len(args) > 1 && args[1] == "reload" {
+			runMissionReload()
+			return
+		}
+		log.Fatalf("usage: ace mission reload")
+	default:
+		log.Fatalf("unknown command %q — usage: ace [init|mission reload] or ace (daemon)", args[0])
+	}
+}
+
+// runInit asks the owner for the life mission, optional personality (≤1KB) and
+// capability grants, then writes the owner-set config files + bearer token.
+func runInit() error {
+	if m := config.LoadMission(); m != "" {
+		fmt.Printf("Mission already set (version %s): %s\nEdit %s/mission.md or `ace mission reload` to re-steer.\n", config.MissionVersion(), m, config.Dir())
+		return nil
+	}
+	scan := bufio.NewScanner(os.Stdin)
+	ask := func(label string) string {
+		fmt.Print(label)
+		if !scan.Scan() {
+			return ""
+		}
+		return strings.TrimSpace(scan.Text())
+	}
+
+	mission := ask("Life mission: ")
+	if mission == "" {
+		return fmt.Errorf("a life mission is required — ACE idles until one is anchored")
+	}
+	personality := ask("Personality (optional, ≤1000 bytes): ")
+	if len(personality) > 1000 {
+		personality = personality[:1000]
+	}
+	grantIn := ask("Capability grants (comma-separated, empty for none): ")
+	var grants []string
+	for _, g := range strings.Split(grantIn, ",") {
+		if g = strings.TrimSpace(g); g != "" {
+			grants = append(grants, g)
+		}
+	}
+	if err := config.WriteInit(mission, personality, grants); err != nil {
+		return err
+	}
+	if _, err := config.LoadOrCreateToken(); err != nil {
+		return err
+	}
+	fmt.Printf("Initialized: mission v%s at %s — run `ace` to start.\n", config.MissionVersion(), config.Dir())
+	return nil
+}
+
+// runMissionReload re-anchors the mission: the engine reads mission.md every
+// cycle and derives a new mission version on any content change, marks every
+// open plan node stale, and re-runs L1 genesis against the constitution.
+func runMissionReload() {
+	m := config.LoadMission()
+	if m == "" {
+		fmt.Printf("No mission set — run `ace init` first.\n")
+		return
+	}
+	fmt.Printf("Mission v%s re-anchoring: %s\nThe running engine picks it up on its next cycle.\n", config.MissionVersion(), m)
 }
 
 func discoverGPUPython() string {
