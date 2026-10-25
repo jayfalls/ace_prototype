@@ -400,11 +400,45 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		}
 		l4NeedsRun := len(pendingL3ForL4) > 0 || targetStalledL4 != nil
 
+		// Branch completion: a strategy branch is done once its L4 subtree is fully
+		// COMPLETED. The 12-branch cap bounds *concurrent open* branches — a
+		// completed branch frees its slot so a long-running mission keeps
+		// expanding instead of dying at the cap (observed live: 12 branches, 24
+		// completed tasks, zero model calls — permanent idle).
+		l3ToL2 := make(map[string]string, len(l3Nodes))
+		for i := range l3Nodes {
+			l3ToL2[l3Nodes[i].ID] = l3Nodes[i].ParentID
+		}
+		l2HasTasks := make(map[string]bool, len(l2Nodes))
+		l2Open := make(map[string]bool, len(l2Nodes))
+		for i := range l4Nodes {
+			l2id, ok := l3ToL2[l4Nodes[i].ParentID]
+			if !ok {
+				continue
+			}
+			l2HasTasks[l2id] = true
+			if l4Nodes[i].State != "COMPLETED" {
+				l2Open[l2id] = true
+			}
+		}
+		openBranchCount := 0
+		for i := range l2Nodes {
+			n := &l2Nodes[i]
+			if l2HasTasks[n.ID] && !l2Open[n.ID] {
+				if n.State != "COMPLETED" {
+					n.State = "COMPLETED"
+					e.upsertMissionDAGNode(ctx, *n)
+				}
+				continue
+			}
+			openBranchCount++
+		}
+
 		// 1. Check if L2 has a strategic branch to originate under M1_ROOT:
 		//    - Either during the initial bootstrap (<2 branches), OR
 		//    - Horizon Expansion when no work is actively in-flight. A TACTICAL_STALL
 		//      is revision-loop churn handled by this wave's L4 pass, not a blocker.
-		l2NeedsRun := len(l2Nodes) < 2 || (!l3NeedsRun && len(pendingL3ForL4) == 0 && openL4Count == 0 && len(l2Nodes) < 12)
+		l2NeedsRun := len(l2Nodes) < 2 || (!l3NeedsRun && len(pendingL3ForL4) == 0 && openL4Count == 0 && openBranchCount < 12)
 
 		if !l2NeedsRun && !l3NeedsRun && !l4NeedsRun {
 			break
@@ -436,7 +470,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				branchID := fmt.Sprintf("S%d", branchIdx+1)
 				l2Prompt := fmt.Sprintf(
 					"L2 GLOBAL STRATEGY [Branch %s under L1 Root %s (%s)]: Under L1's directive (%q), formulate Strategic Branch %s as a falsifiable hypothesis serving the mission — expected outcome, primary approach, and how it differs from prior branches (%s). Emit the branch directive on southbound_directive.",
-					branchID, root.ID, truncateText(root.DirectiveHash, 8), truncateText(root.Directive, 240), branchID, strings.Join(prior, "; "),
+					branchID, root.ID, truncateText(root.DirectiveHash, 8), truncateText(root.Directive, 240), branchID, truncateText(strings.Join(prior, "; "), 600),
 				)
 				tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
 				if err != nil {

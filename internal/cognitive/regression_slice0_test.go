@@ -3,6 +3,7 @@ package cognitive
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -367,4 +368,37 @@ func TestDAG_StalledTaskDoesNotBlockHorizon(t *testing.T) {
 		}
 	}
 	require.Greater(t, after, before, "a TACTICAL_STALL task must not freeze L2 horizon expansion")
+}
+
+// Live-run bug: L2 froze permanently at the 12-branch cap — all S1..S12
+// L3_MODELED with every task COMPLETED meant l2NeedsRun=false forever, zero
+// model calls, mission dead. The cap must bound concurrent OPEN branches.
+// Fix: a branch whose L4 subtree is fully COMPLETED frees its slot.
+func TestDAG_BranchCapCountsOpenBranchesOnly(t *testing.T) {
+	eng, _, memStore, _ := newRegressionEngine(t)
+	ctx := context.Background()
+	seedMission(t, memStore, "Keep the mission expanding beyond completed branches.")
+	soulHash := eng.currentSoulHash()
+
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
+	for i := 1; i <= 12; i++ {
+		s := fmt.Sprintf("S%d", i)
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: s, ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: s, Directive: "d", DirectiveHash: "h" + s})
+		c := "C_" + s
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: c, ParentID: s, Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: c, Directive: "d", DirectiveHash: "hc" + s})
+		eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_" + s, ParentID: c, Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t", Directive: "d", DirectiveHash: "ht" + s})
+	}
+
+	eng.StepMissionDAG(ctx, "cyc-cap", "span-cap", "tick")
+
+	var saw13 bool
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		if n.Stage == "L2_STRATEGY" && n.ID == "S13" {
+			saw13 = true
+		}
+		if n.ID == "S1" {
+			require.Equal(t, "COMPLETED", n.State, "fully-completed branch must be marked COMPLETED")
+		}
+	}
+	require.True(t, saw13, "12 completed branches must not block a new L2 branch — cap counts open branches only")
 }
