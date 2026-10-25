@@ -14,6 +14,7 @@ import (
 
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/gate"
 	"ace/internal/llm"
 	"ace/internal/sandbox"
 	"github.com/google/uuid"
@@ -1018,6 +1019,23 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 	}
 
 	for _, act := range actionsToRun {
+		// L1 Tier-2 redirect reaches a running L6 task at its next tool
+		// boundary (plan 8.2): abort remaining actions and surface it.
+		if layer == core.LayerTaskProsecution {
+			if rd := e.gate.PendingRedirect(e.currentTaskID()); rd != nil {
+				redirMsg := fmt.Sprintf("[L1 REDIRECT at tool boundary] %s", rd.Message)
+				actionResults = append(actionResults, redirMsg)
+				_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+					TraceID:   cycleID,
+					AgentID:   e.agentID,
+					LayerCode: layer.Code(),
+					Operation: "gate.l1",
+					Status:    "redirect",
+					Detail:    truncateText(rd.Message, 160),
+				})
+				break
+			}
+		}
 		res := e.executeLayerAction(ctx, cycleID, layer, act, resp.Model)
 		actionResults = append(actionResults, res)
 		actionTypes = append(actionTypes, act.Type)
@@ -1199,6 +1217,31 @@ func (e *Engine) checkSafety(ctx context.Context, cycleID string, layer core.Lay
 	return nil
 }
 
+// effectiveShellCommand mirrors the sandbox_sh normalization in
+// dispatchLayerAction so the L1 gate parses the command that actually runs —
+// script bodies become their python3/sh invocation, never raw text.
+func effectiveShellCommand(act core.LayerAction) string {
+	t := strings.ToLower(strings.TrimSpace(act.Type))
+	if t != "sandbox_sh" && t != "shell" && t != "exec" {
+		return strings.TrimSpace(act.Content)
+	}
+	cmdStr := strings.TrimSpace(act.Target)
+	bodyStr := strings.TrimSpace(act.Content)
+	if bodyStr != "" {
+		switch {
+		case cmdStr == "python3" || cmdStr == "python":
+			cmdStr = "python3 /workspace/script.py"
+		case strings.HasSuffix(cmdStr, ".py"):
+			cmdStr = "python3 /workspace/" + strings.TrimPrefix(cmdStr, "/workspace/")
+		case strings.HasSuffix(cmdStr, ".sh"):
+			cmdStr = "sh /workspace/" + strings.TrimPrefix(cmdStr, "/workspace/")
+		case cmdStr == "" || cmdStr == "sh" || cmdStr == "bash" || cmdStr == "/bin/sh" || strings.Contains(bodyStr, "\n"):
+			cmdStr = bodyStr
+		}
+	}
+	return cmdStr
+}
+
 func (e *Engine) executeLayerAction(
 	ctx context.Context,
 	cycleID string,
@@ -1213,6 +1256,23 @@ func (e *Engine) executeLayerAction(
 
 	if err := e.checkSafety(ctx, cycleID, layer, act); err != nil {
 		return "safety_monitor blocked action: " + err.Error()
+	}
+
+	// Tiered L1 constitutional gate (plan 8.2): every side-effecting action
+	// produces a verdict row; allow or it does not run.
+	if gd := e.gate.Evaluate(ctx, gate.Action{
+		Kind: actType, Command: effectiveShellCommand(act), Target: act.Target,
+		TaskID: e.currentTaskID(), Layer: int(layer),
+	}); !gd.Allowed() {
+		_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+			TraceID:   cycleID,
+			AgentID:   e.agentID,
+			LayerCode: layer.Code(),
+			Operation: "gate.l1",
+			Status:    "veto",
+			Detail:    fmt.Sprintf("T%d/%s %s: %s", gd.Tier, gd.RuleID, gd.Verdict, truncateText(gd.Reason, 120)),
+		})
+		return fmt.Sprintf("[L1 GATE %s T%d/%s] %s", strings.ToUpper(gd.Verdict), gd.Tier, gd.RuleID, gd.Reason)
 	}
 
 	// Enforce AgentLTL Temporal Safety & Anti-Amnesia Monitor (G1, G2, G3) on L6 actions

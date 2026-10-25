@@ -2,6 +2,7 @@ package cognitive
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"ace/internal/config"
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/gate"
 	"ace/internal/llm"
 	"github.com/google/uuid"
 )
@@ -45,6 +47,8 @@ type Engine struct {
 	busy                    bool
 	currentCycleID          string
 	currentLayer            int
+	gate                    *gate.Gate
+	activeDAGTaskID         string
 	totalCycles             int
 	totalThoughts           int
 	jobQueue                chan cycleJob
@@ -132,6 +136,10 @@ func NewEngine(
 		},
 	}
 
+	var gdb *sql.DB
+	if s, ok := mem.(interface{ DB() *sql.DB }); ok {
+		gdb = s.DB()
+	}
 	return &Engine{
 		agentID:             defaultAgentID,
 		llm:                 llm,
@@ -139,6 +147,7 @@ func NewEngine(
 		memory:              mem,
 		sandbox:             sbx,
 		telem:               telem,
+		gate:                gate.New(gdb, llm),
 		mode:                core.ModeAutonomous,
 		autoIntervalSeconds: 20,
 		layers:              layers,
@@ -151,6 +160,20 @@ func (e *Engine) Start(ctx context.Context) {
 	e.HydrateFromHistory(ctx)
 	go e.workerLoop(ctx)
 	go e.autonomousTickerLoop(ctx)
+}
+
+// currentTaskID returns the L4 task the running L6 prosecution serves (for
+// L1 Tier-2 redirect routing).
+func (e *Engine) currentTaskID() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.activeDAGTaskID
+}
+
+func (e *Engine) setActiveDAGTask(id string) {
+	e.mu.Lock()
+	e.activeDAGTaskID = id
+	e.mu.Unlock()
 }
 
 type sessionPersistable interface {

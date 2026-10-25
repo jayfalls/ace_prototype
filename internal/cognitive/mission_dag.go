@@ -697,6 +697,8 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	}
 	e.RecordDAGTaskAttempt(ctx)
 	l6Directive := fmt.Sprintf("[PROVENANCE LOCKED %s] %s: %s", provChain, readyTask.Title, readyTask.Directive)
+	e.setActiveDAGTask(readyTask.ID)
+	defer e.setActiveDAGTask("")
 	return e.runPiProsecutorLoop(ctx, cycleID, cycleSpanID, l6Directive)
 }
 

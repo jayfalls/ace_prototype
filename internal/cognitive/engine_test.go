@@ -3,6 +3,7 @@ package cognitive
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 
 	"ace/internal/bus"
@@ -28,6 +29,13 @@ func (f *fakeProvider) SetActiveModel(m string) error {
 	return nil
 }
 func (f *fakeProvider) StreamComplete(ctx context.Context, req core.CompletionRequest, onDelta func(core.StreamDelta)) (core.CompletionResponse, error) {
+	// Answer the tiered L1 gate compliantly so test actions pass the funnel.
+	if strings.Contains(req.SystemPrompt, "Tier-1 constitutional fast gate") {
+		return core.CompletionResponse{Model: f.active, Content: "ALLOW", LatencyMs: 1}, nil
+	}
+	if strings.Contains(req.SystemPrompt, "Tier-2 L1 Aspirational gate") {
+		return core.CompletionResponse{Model: f.active, Content: `{"verdict":"allow","reason":"test"}`, LatencyMs: 1}, nil
+	}
 	out := `{
 		"thought": "Analyzing directive and executing sandbox verification.",
 		"state_summary": "Executed cognitive step cleanly.",
