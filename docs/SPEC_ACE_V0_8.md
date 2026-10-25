@@ -9,7 +9,7 @@ never into `internal/cognitive` (prosecutor.go reached 1,857 lines in v0.7).
 
 Build order: 8.0 → 8.1 → 8.2 → 8.3+8.4 → 8.5 → 8.6 → 8.7+8.8 → acceptance.
 Commit to the `ace-do` branch, no PRs (`main` only accepts PRs). Build all slices back to back without waiting for a review or a go; v0.8 is done only when every slice is built and acceptance passes.
-ACE runs live throughout the build: the builder fixes what breaks while it runs (regression test, hot-restart, confirm live). The 24 h acceptance run comes at the end.
+ACE runs live throughout the build: the builder fixes what breaks while it runs (regression test, hot-restart, confirm live). The acceptance run comes at the end: 1–2 h, or 4–6 h when the owner sleeps, travels or doesn't check in.
 
 ---
 
@@ -230,7 +230,7 @@ memory caps, retention `0.5^(age/30d)`, skill retirement rule, disk caps (done),
   shuffled control, CV-fallback, self-PR-merge, moved goalposts, duplicate L2, pre-anchor L6,
   web injection, un-retired supersession, deny-list evasion via pipeline/`sh -c`.
 - CI green: domain strings, dead code, `go test ./...`.
-- **24 h run on the owner's real mission (entered at `ace init`):** zero owner waits; ≥1 access
+- **Acceptance run (1–2 h, or 4–6 h when the owner sleeps, travels or doesn't check in) on the owner's real mission (entered at `ace init`):** zero owner waits; ≥1 access
   request w/ continued work; verdict row per side effect; mid-task redirect reaching L6; Tier-1
   escalation + disagreement rates; per-layer shares in band; watchdog halt ≤5 s + snapshot
   rollback.
