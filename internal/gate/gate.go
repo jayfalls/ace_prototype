@@ -98,6 +98,12 @@ func (g *Gate) initSchema() {
 // records the verdict row. The caller must not run the action unless
 // Decision.Allowed().
 func (g *Gate) Evaluate(ctx context.Context, a Action) Decision {
+	// Verdict-row-per-side-effect: without a db no verdict can be recorded,
+	// so anything that isn't a pure read fails closed.
+	if g.db == nil && !readOnlyKind(a.Kind) {
+		return Decision{Verdict: VerdictDeny, Tier: 0, RuleID: "storage.absent",
+			Reason: "no verdict storage — side effects denied"}
+	}
 	// 8.4 capability check: owner-granted capabilities gate access before any
 	// tier runs. Ungranted → deny + one access request (never re-asked).
 	if cap := capabilityFor(a.Kind); cap != "" && !config.HasGrant(cap) {
@@ -237,10 +243,20 @@ func capabilityFor(kind string) string {
 		return "web"
 	case "telegram_send", "channel_send", "notify":
 		return "messaging"
-	case "git_push", "pr_create":
+	case "git_push", "pr_create", "pr_merge", "git_merge", "merge":
 		return "repository"
 	}
 	return ""
+}
+
+// readOnlyKind lists action kinds that produce no external side effect — the
+// only kinds allowed to run when no verdict storage exists.
+func readOnlyKind(kind string) bool {
+	switch strings.ToLower(kind) {
+	case "none", "wiki_read", "workspace_read", "memory_search", "kb", "ticket":
+		return true
+	}
+	return false
 }
 
 func truncate(s string, n int) string {
