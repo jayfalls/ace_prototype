@@ -219,6 +219,7 @@ func TestCascade_IdleTickDoesNotMirrorTraceDB(t *testing.T) {
 // Bug: L5 gate failure still dispatched L6 (fail-open, pYes defaulted high, no veto path).
 // Fix: gate error leaves pYes at 0 and the L4 task is NOT dispatched.
 func TestL5Gate_DownBlocksL6Dispatch(t *testing.T) {
+	t.Setenv("ACE_GPU_GATE_URL", "http://127.0.0.1:1")
 	eng, _, memStore, _ := newRegressionEngine(t)
 	ctx := context.Background()
 	seedMission(t, memStore, "Verify the attic humidity stays under 60%.")
@@ -229,13 +230,17 @@ func TestL5Gate_DownBlocksL6Dispatch(t *testing.T) {
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L3_a", ParentID: "L2_a", Stage: "L3_CAPABILITY", State: "COMPLETED", OwnerLayer: 3, Title: "a", Directive: "d", DirectiveHash: "h3"})
 	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "L4_a", ParentID: "L3_a", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "run probe", Directive: "run /workspace/modules/probe.py", ArtifactPath: "/workspace/modules/probe.py", DirectiveHash: "h4"})
 
-	// Nothing is listening on the L5 gate port: evaluateL5Gate must error and dispatch must not happen.
+	// Gate URL points at a dead port: evaluateL5Gate must error, pYes stays 0, veto.
 	traces := eng.StepMissionDAG(ctx, "cyc-6", "span-6", "tick")
-	require.Empty(t, traces, "L5 gate unreachable must veto L6 dispatch")
+	require.Empty(t, traces, "unreachable L5 gate must veto L6 dispatch")
 
-	task, ok := eng.ActiveReadyTaskNode(ctx)
-	require.True(t, ok, "vetoed task must remain pending, not consumed")
-	require.Equal(t, "L4_a", task.ID)
+	pending := false
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		if n.ID == "L4_a" && (n.State == "READY_FOR_L5" || n.State == "TACTICAL_STALL") {
+			pending = true
+		}
+	}
+	require.True(t, pending, "vetoed task must remain pending, not consumed")
 }
 
 // Plan §5 retention caps: traces/telemetry older than 30 days are deleted,
@@ -281,4 +286,49 @@ func TestRetentionSweep_DeletesOldTracesAndWorkpads(t *testing.T) {
 	last, err := eng.memory.LoadEngineMeta(ctx, "last_retention_sweep")
 	require.NoError(t, err)
 	require.NotEmpty(t, last)
+}
+
+// Live-run bug: a vetoed task stayed queue-head forever — veto path recorded no
+// attempt, selection was id-ordered, and the same node burned a GPU gate call
+// every cycle while sibling tasks starved.
+// Fix: veto counts as an attempt; ActiveReadyTaskNode picks least-recently-updated.
+func TestActiveReadyTaskNode_RotatesAfterAttempt(t *testing.T) {
+	eng, _, memStore, _ := newRegressionEngine(t)
+	ctx := context.Background()
+	seedMission(t, memStore, "Rotate ready tasks through the L5 gate fairly.")
+	soulHash := eng.currentSoulHash()
+
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "r", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "s", Directive: "d", DirectiveHash: "h2"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h3"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_alpha", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "ta", Directive: "d", DirectiveHash: "h4"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_beta", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "READY_FOR_L5", OwnerLayer: 4, Title: "tb", Directive: "d", DirectiveHash: "h5"})
+
+	first, ok := eng.ActiveReadyTaskNode(ctx)
+	require.True(t, ok)
+	require.Equal(t, "T_alpha", first.ID, "id order picks alpha first")
+
+	eng.RecordDAGTaskAttempt(ctx)
+
+	second, ok := eng.ActiveReadyTaskNode(ctx)
+	require.True(t, ok)
+	require.Equal(t, "T_beta", second.ID, "attempt-marked task must rotate behind its sibling")
+
+	eng.RecordDAGTaskAttempt(ctx)
+
+	// Both tasks now hold one attempt each; alpha rotates back to the front.
+	third, ok := eng.ActiveReadyTaskNode(ctx)
+	require.True(t, ok)
+	require.Equal(t, "T_alpha", third.ID)
+
+	// A second attempt on alpha tips it into TACTICAL_STALL so L4 re-specs it.
+	eng.RecordDAGTaskAttempt(ctx)
+	alpha := 0
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		if n.ID == "T_alpha" {
+			require.Equal(t, "TACTICAL_STALL", n.State)
+			alpha = n.Attempts
+		}
+	}
+	require.Equal(t, 2, alpha)
 }

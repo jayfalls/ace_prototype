@@ -226,15 +226,26 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 // ActiveReadyTaskNode returns the first L4_TASK_SPEC node in READY_FOR_L5 or TACTICAL_STALL that passes full L1->L2->L3->L4 provenance.
 func (e *Engine) ActiveReadyTaskNode(ctx context.Context) (*MissionDAGNode, bool) {
 	nodes := e.LoadMissionDAGNodes(ctx)
+	var best *MissionDAGNode
 	for i := range nodes {
 		n := &nodes[i]
-		if n.Stage == "L4_TASK_SPEC" && (n.State == "READY_FOR_L5" || n.State == "TACTICAL_STALL") {
-			if ok, _ := e.VerifyTaskNodeProvenance(ctx, n.ID); ok {
-				return n, true
-			}
+		if n.Stage != "L4_TASK_SPEC" || (n.State != "READY_FOR_L5" && n.State != "TACTICAL_STALL") {
+			continue
+		}
+		if ok, _ := e.VerifyTaskNodeProvenance(ctx, n.ID); !ok {
+			continue
+		}
+		// fewest attempts first, then least-recently-touched: a vetoed/stalled
+		// task rotates behind its siblings instead of starving the queue.
+		if best == nil || n.Attempts < best.Attempts ||
+			(n.Attempts == best.Attempts && n.UpdatedAt < best.UpdatedAt) {
+			best = n
 		}
 	}
-	return nil, false
+	if best == nil {
+		return nil, false
+	}
+	return best, true
 }
 
 // MarkDAGTaskVerified transitions the verified L4_TASK_SPEC node to COMPLETED.
@@ -258,6 +269,7 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string) 
 func (e *Engine) RecordDAGTaskAttempt(ctx context.Context) {
 	if active, ok := e.ActiveReadyTaskNode(ctx); ok {
 		active.Attempts++
+		active.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		if active.Attempts >= 2 {
 			active.State = "TACTICAL_STALL"
 		}
@@ -637,6 +649,9 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	e.telem.EmitLive("layer.status", l5Snap)
 
 	if !gateApproved {
+		// A vetoed spec counts as an attempt: repeated vetoes route it to
+		// TACTICAL_STALL so L4 re-specs it instead of starving the ready queue.
+		e.RecordDAGTaskAttempt(ctx)
 		return nil
 	}
 	e.RecordDAGTaskAttempt(ctx)
