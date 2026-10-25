@@ -30,7 +30,7 @@ type ConnectomeNode struct {
 	Summary        string    `json:"summary"`
 	Hash           string    `json:"hash"`
 	SizeBytes      int       `json:"size_bytes"`
-	State          string    `json:"state"` // UNEXPLORED, INSPECTED, IMPLEMENTED, VERIFIED, OPEN, PROBING, CLOSED, PARKED_HUMAN, DEFAULTED
+	State          string    `json:"state"` // UNEXPLORED, INSPECTED, IMPLEMENTED, VERIFIED, OPEN, PROBING, CLOSED, QUARANTINED, DEFAULTED
 	OwnerLayer     int       `json:"owner_layer"`
 	BlockingWeight float64   `json:"blocking_weight"`
 	InfoValue      float64   `json:"info_value"`

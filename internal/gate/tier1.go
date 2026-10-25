@@ -27,12 +27,15 @@ func (g *Gate) tier1(ctx context.Context, a Action) Decision {
 		Temperature: 0,
 	}, nil)
 	if err != nil {
+		g.recordTrace(a, model, "escalate", resp, err)
 		return Decision{Verdict: "escalate", Tier: 1, RuleID: "t1.error-escalate", Reason: err.Error()}
 	}
 	verdict := strings.ToUpper(strings.TrimSpace(resp.Content))
 	if strings.HasPrefix(verdict, "ALLOW") {
+		g.recordTrace(a, model, VerdictAllow, resp, nil)
 		return Decision{Verdict: VerdictAllow, Tier: 1, RuleID: "t1.allow", Reason: model}
 	}
+	g.recordTrace(a, model, "escalate", resp, nil)
 	return Decision{Verdict: "escalate", Tier: 1, RuleID: "t1.escalate", Reason: truncate(verdict, 60)}
 }
 

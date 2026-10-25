@@ -98,3 +98,17 @@ func TestBackup(t *testing.T) {
 		t.Fatalf("backup unreadable or wrong content: %v %d", err, n)
 	}
 }
+
+func TestMemAvailableGB(t *testing.T) {
+	mem := []byte("MemTotal:       16384000 kB\nMemFree:          204800 kB\nMemAvailable:    8388608 kB\nBuffers:           10240 kB\n")
+	gb, ok := memAvailableGB(mem)
+	if !ok {
+		t.Fatal("no MemAvailable parsed")
+	}
+	if gb < 8.5 || gb > 8.6 {
+		t.Fatalf("MemAvailable GB=%.3f want ~8.59", gb)
+	}
+	if _, ok := memAvailableGB([]byte("MemFree: 100 kB\n")); ok {
+		t.Fatal("missing MemAvailable must not pass")
+	}
+}

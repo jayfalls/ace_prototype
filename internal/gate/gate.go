@@ -211,6 +211,34 @@ func (g *Gate) record(a Action, tier int, ruleID, verdict, detail string) {
 		tier, fingerprint(a), ruleID, verdict, constitution.Version(), truncate(detail, 300), time.Now().UTC().Format(time.RFC3339))
 }
 
+// recordTrace writes the gate's model call into thought_traces as an L1 row
+// (layer_id=1) so the per-layer share metrics count Tier-1/Tier-2 work.
+func (g *Gate) recordTrace(a Action, model, verdict string, resp core.CompletionResponse, err error) {
+	if g.db == nil {
+		return
+	}
+	actionResult := verdict
+	if err != nil {
+		actionResult = "error:" + truncate(err.Error(), 80)
+	}
+	lat := resp.LatencyMs
+	if lat == 0 {
+		lat = 1
+	}
+	_, _ = g.db.Exec(`INSERT INTO thought_traces (
+		id, cycle_id, agent_id, layer_id, layer_code, loop_kind, model,
+		trigger_summary, system_prompt, user_prompt, raw_reasoning, raw_response,
+		thought, state_summary, southbound, northbound, action_type, action_target,
+		action_result, confidence, latency_ms, prompt_tokens, cached_tokens, completion_tokens, created_at
+	) VALUES (?, ?, ?, 1, 'L1', 'gate', ?, ?, '', ?, '', ?, '', ?, '', '', ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
+		fmt.Sprintf("gate-%s-%d", fingerprint(a), time.Now().UnixNano()),
+		a.TaskID, "ace", model,
+		"L1 gate "+a.Kind, truncate(a.Command, 400), truncate(resp.Content, 400),
+		verdict, a.Kind, a.Target,
+		actionResult, lat, resp.PromptTokens, resp.CachedTokens, resp.CompletionTokens,
+		time.Now().UTC().Format(time.RFC3339))
+}
+
 // Coverage counts verdict rows by tier for the measured pyramid invariant.
 func (g *Gate) Coverage(ctx context.Context) (map[int]int, error) {
 	out := map[int]int{}

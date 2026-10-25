@@ -14,7 +14,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -131,12 +133,28 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 		freeGB := float64(stat.Bavail) * float64(stat.Bsize) / 1e9
 		checks = append(checks, Check{"disk", freeGB >= 10, fmt.Sprintf("%.1f GB free", freeGB)})
 	}
-	var mi syscall.Sysinfo_t
-	if syscall.Sysinfo(&mi) == nil {
-		freeGB := float64(mi.Freeram) * float64(mi.Unit) / 1e9
-		checks = append(checks, Check{"memory", freeGB >= 1, fmt.Sprintf("%.1f GB RAM free", freeGB)})
+	if meminfo, err := os.ReadFile("/proc/meminfo"); err == nil {
+		if gb, ok := memAvailableGB(meminfo); ok {
+			checks = append(checks, Check{"memory", gb >= 1, fmt.Sprintf("%.1f GB RAM available", gb)})
+		}
 	}
 	return checks
+}
+
+var meminfoAvailRe = regexp.MustCompile(`(?m)^MemAvailable:\s*(\d+)\s*kB`)
+
+// memAvailableGB parses MemAvailable (not Freeram — reclaimable cache is
+// usable) from meminfo text. Host-independent: caller injects the content.
+func memAvailableGB(meminfo []byte) (float64, bool) {
+	m := meminfoAvailRe.FindSubmatch(meminfo)
+	if m == nil {
+		return 0, false
+	}
+	kb, err := strconv.ParseInt(string(m[1]), 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return float64(kb) * 1024 / 1e9, true
 }
 
 // Hash-chained event log -----------------------------------------------------

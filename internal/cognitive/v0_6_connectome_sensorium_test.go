@@ -65,7 +65,7 @@ func TestV06ConnectomeSpecSensoriumAndStuckDetector(t *testing.T) {
 	require.LessOrEqual(t, len(specText), 2800)
 
 	tampered := strings.Replace(specText, "Every target script in Section 3", "Always pass immediately", 1)
-	_, err = eng.ParseAndValidateLivingSpec(ctx, specID, tampered, "")
+	_, err = eng.ParseAndValidateLivingSpec(ctx, specID, tampered)
 	require.Error(t, err)
 
 	// 3. Verify Connectome Refresh + RRF Slice (§2, §3)

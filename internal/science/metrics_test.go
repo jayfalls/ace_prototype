@@ -14,7 +14,7 @@ func TestRecordStandingMetrics(t *testing.T) {
 	defer db.Close()
 	db.SetMaxOpenConns(1)
 	for _, ddl := range []string{
-		`CREATE TABLE thought_traces (layer TEXT, latency_ms INTEGER, prompt_tokens INTEGER, cached_tokens INTEGER, completion_tokens INTEGER, confidence REAL, action_result TEXT, created_at DATETIME)`,
+		`CREATE TABLE thought_traces (layer_code TEXT, latency_ms INTEGER, prompt_tokens INTEGER, cached_tokens INTEGER, completion_tokens INTEGER, confidence REAL, action_result TEXT, created_at DATETIME)`,
 		`CREATE TABLE mission_dag_nodes (id TEXT, state TEXT, updated_at DATETIME)`,
 	} {
 		if _, err := db.Exec(ddl); err != nil {
@@ -28,7 +28,7 @@ func TestRecordStandingMetrics(t *testing.T) {
 		{"L6", 200, 500, 0, 100, 0.1, "failed"},
 		{"L4", 50, 200, 0, 50, 0.5, "success"},
 	} {
-		_, err := db.Exec(`INSERT INTO thought_traces (layer,latency_ms,prompt_tokens,cached_tokens,completion_tokens,confidence,action_result,created_at) VALUES (?,?,?,?,?,?,?,?)`,
+		_, err := db.Exec(`INSERT INTO thought_traces (layer_code,latency_ms,prompt_tokens,cached_tokens,completion_tokens,confidence,action_result,created_at) VALUES (?,?,?,?,?,?,?,?)`,
 			r[0], r[1], r[2], r[3], r[4], r[5], r[6], now)
 		if err != nil {
 			t.Fatal(err)

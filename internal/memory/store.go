@@ -131,7 +131,6 @@ func (s *Store) migrate() error {
 		frozen_hash TEXT NOT NULL,
 		size_bytes INTEGER NOT NULL,
 		status TEXT NOT NULL DEFAULT 'LIVING',
-		human_approval_ref TEXT NOT NULL DEFAULT '',
 		updated_at DATETIME NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS file_leases (
@@ -165,6 +164,9 @@ func (s *Store) migrate() error {
 	}
 	// Ensure backward-compatible migration for existing DBs without the 'tier' column
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'medium'`)
+	// Drop the retired approval column from pre-autonomy schemas (error
+	// tolerated: absent column or old sqlite — the table is authoritative either way).
+	_, _ = s.db.Exec(`ALTER TABLE spec_registry DROP COLUMN human_approval_ref`)
 	return nil
 }
 

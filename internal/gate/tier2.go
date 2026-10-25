@@ -53,6 +53,7 @@ func (g *Gate) askTier2(ctx context.Context, model string, a Action) (verdict, r
 		Temperature: 0,
 	}, nil)
 	if err != nil {
+		g.recordTrace(a, model, "error", resp, err)
 		return "", err.Error(), ""
 	}
 	var parsed struct {
@@ -67,8 +68,10 @@ func (g *Gate) askTier2(ctx context.Context, model string, a Action) (verdict, r
 		}
 	}
 	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		g.recordTrace(a, model, "unparseable", resp, err)
 		return "", "unparseable tier-2 verdict: " + truncate(resp.Content, 80), ""
 	}
+	g.recordTrace(a, model, parsed.Verdict, resp, nil)
 	switch parsed.Verdict {
 	case VerdictAllow, VerdictRevise, VerdictReject, VerdictRedirect:
 		return parsed.Verdict, parsed.Reason, parsed.Revised
@@ -95,6 +98,7 @@ func (g *Gate) ensembleVote(ctx context.Context, a Action) ensembleResult {
 			Temperature:  0,
 		}, nil)
 		cancel()
+		g.recordTrace(a, m, "ensemble-vote", resp, err)
 		if err != nil {
 			continue
 		}

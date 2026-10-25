@@ -68,7 +68,7 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	if confErr.Valid {
 		m["l3_estimate_error"] = confErr.Float64
 	}
-	rows, err := db.QueryContext(ctx, `SELECT layer, COUNT(*) FROM thought_traces WHERE created_at >= ? GROUP BY layer`, start)
+	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE created_at >= ? GROUP BY layer_code`, start)
 	if err == nil {
 		var total int64
 		share := map[string]int64{}

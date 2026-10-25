@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -37,6 +38,15 @@ import (
 func main() {
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
 		runSubcommand(os.Args[1:])
+		return
+	}
+
+	// Bare ./ace is the supervisor (plan § Watchdog): it makes no model calls,
+	// spawns the agent as a child of the same binary (ACE_WORKER=1, Pdeathsig
+	// set), restarts it on crash or snapshot-detected stall, and runs halt,
+	// rollback and hourly VACUUM INTO backups. The worker is the agent.
+	if os.Getenv("ACE_WORKER") != "1" {
+		runSupervisor()
 		return
 	}
 
@@ -158,8 +168,10 @@ func runSubcommand(args []string) {
 		if err := runInit(); err != nil {
 			log.Fatalf("ace init: %v", err)
 		}
-	case "watchdog":
-		runWatchdog(args[1:])
+	case "verify":
+		runVerify()
+	case "halt", "pause", "resume", "rollback":
+		runControl(args[0])
 	case "science":
 		if len(args) > 1 && args[1] == "regrade" {
 			runScienceRegrade(args[2:])
@@ -299,94 +311,154 @@ func ensureLocalGPUGate(ctx context.Context, sandboxDir string) {
 	}()
 }
 
-// runWatchdog implements `ace watchdog` (spec 8.5): a separate process that
-// reads the atomic status snapshot — never the bus — checks integrity
-// invariants, appends hash-chained events, and can pause/halt the engine via
-// the loopback API.
-func runWatchdog(args []string) {
+// runSupervisor is the watchdog overlay (commit 29cd3922, plan § Watchdog):
+// bare ./ace makes NO model calls — it spawns the agent as a child of the
+// same binary (ACE_WORKER=1, Pdeathsig so a dead parent kills the child),
+// restarts it on crash or snapshot-detected stall, and runs the hash-chained
+// event log plus hourly VACUUM INTO backups itself.
+func runSupervisor() {
 	sandboxDir := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
-	port := envOr("ACE_PORT", "8080")
-	sub := "run"
-	if len(args) > 0 {
-		sub = args[0]
-	}
 	dbPath := filepath.Join(sandboxDir, "ace.db")
-
-	switch sub {
-	case "verify":
-		db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
-		if err != nil {
-			log.Fatalf("watchdog verify: %v", err)
-		}
-		defer db.Close()
-		watchdog.InitEvents(db)
-		if err := watchdog.VerifyChain(db); err != nil {
-			log.Fatalf("watchdog chain broken: %v", err)
-		}
-		fmt.Println("watchdog event chain verified")
-		return
-	case "halt", "pause", "resume":
-		token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
-		mode := "paused"
-		if sub == "resume" {
-			mode = "autonomous"
-		}
-		url := fmt.Sprintf("http://127.0.0.1:%s/api/engine/mode", port)
-		body := strings.NewReader(fmt.Sprintf(`{"mode":%q}`, mode))
-		req, _ := http.NewRequest(http.MethodPost, url, body)
-		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-		req.Header.Set("Content-Type", "application/json")
-		client := &http.Client{Timeout: 5 * time.Second}
-		if resp, err := client.Do(req); err == nil {
-			resp.Body.Close()
-		}
-		if sub == "halt" {
-			// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
-			req2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%s/api/engine/stop", port), nil)
-			req2.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-			if resp2, err := client.Do(req2); err == nil {
-				resp2.Body.Close()
-			}
-		}
-		fmt.Printf("watchdog %s sent (mode=%s)\n", sub, mode)
-		return
-	case "once", "run":
-		// fall through to loop; "once" exits after one pass
-	}
-
 	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
 	if err != nil {
-		log.Fatalf("watchdog: %v", err)
+		log.Fatalf("supervisor: %v", err)
 	}
 	defer db.Close()
 	watchdog.InitEvents(db)
 
-	lastBackup := time.Time{}
-	for {
-		checks := watchdog.RunChecks(sandboxDir, 20)
-		allOK := true
-		for _, c := range checks {
-			if !c.OK {
-				allOK = false
-				fmt.Printf("[watchdog] FAULT %s: %s\n", c.Name, c.Detail)
-				_ = watchdog.AppendEvent(db, "fault", c.Name+": "+c.Detail)
-			}
-		}
-		if allOK {
-			fmt.Printf("[watchdog] %s all checks ok\n", time.Now().Format("15:04:05"))
-		}
-		if time.Since(lastBackup) > time.Hour {
-			if dst, err := watchdog.Backup(context.Background(), sandboxDir); err == nil {
-				_ = watchdog.AppendEvent(db, "backup", dst)
-				fmt.Printf("[watchdog] backup -> %s\n", dst)
-			}
-			lastBackup = time.Now()
-		}
-		if sub == "once" {
-			return
-		}
-		time.Sleep(30 * time.Second)
+	exe, err := os.Executable()
+	if err != nil {
+		log.Fatalf("supervisor: %v", err)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	lastBackup := time.Now().Add(-time.Hour) // back up as soon as the worker is up
+	restarts := 0
+	for {
+		child := exec.Command(exe, os.Args[1:]...)
+		child.Env = append(os.Environ(), "ACE_WORKER=1")
+		child.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
+		child.Stdout, child.Stderr, child.Stdin = os.Stdout, os.Stderr, os.Stdin
+		if err := child.Start(); err != nil {
+			_ = watchdog.AppendEvent(db, "worker_start_fail", err.Error())
+			time.Sleep(5 * time.Second)
+			continue
+		}
+		_ = watchdog.AppendEvent(db, "worker_start", fmt.Sprintf("pid=%d restart=%d", child.Process.Pid, restarts))
+		log.Printf("[supervisor] worker pid %d (restart %d)", child.Process.Pid, restarts)
+
+		done := make(chan error, 1)
+		go func() { done <- child.Wait() }()
+
+		exited := false
+		for !exited {
+			select {
+			case err := <-done:
+				_ = watchdog.AppendEvent(db, "worker_exit", fmt.Sprintf("pid=%d err=%v", child.Process.Pid, err))
+				exited = true
+			case <-ctx.Done():
+				_ = child.Process.Kill() // Pdeathsig covers it too; be explicit
+				<-done
+				_ = watchdog.AppendEvent(db, "supervisor_stop", "signal received")
+				return
+			case <-time.After(15 * time.Second):
+				stalled := false
+				for _, c := range watchdog.RunChecks(sandboxDir, 20) {
+					if !c.OK {
+						_ = watchdog.AppendEvent(db, "fault", c.Name+": "+c.Detail)
+						if c.Name == "heartbeat" || c.Name == "stall_detection" {
+							stalled = true
+						}
+					}
+				}
+				if time.Since(lastBackup) > time.Hour {
+					if dst, berr := watchdog.Backup(context.Background(), sandboxDir); berr == nil {
+						_ = watchdog.AppendEvent(db, "backup", dst)
+						log.Printf("[supervisor] backup -> %s", dst)
+					}
+					lastBackup = time.Now()
+				}
+				if stalled {
+					_ = watchdog.AppendEvent(db, "stall_recovery", fmt.Sprintf("killing pid %d", child.Process.Pid))
+					log.Printf("[supervisor] stall detected — restarting worker pid %d", child.Process.Pid)
+					_ = child.Process.Kill()
+					<-done
+					exited = true
+				}
+			}
+		}
+		restarts++
+		time.Sleep(3 * time.Second) // brief backoff before respawn
+	}
+}
+
+// runVerify implements `ace verify` — checks the watchdog hash-chained event log.
+func runVerify() {
+	dbPath := filepath.Join(envOr("ACE_SANDBOX_DIR", ".ace-sandbox"), "ace.db")
+	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
+	if err != nil {
+		log.Fatalf("ace verify: %v", err)
+	}
+	defer db.Close()
+	watchdog.InitEvents(db)
+	if err := watchdog.VerifyChain(db); err != nil {
+		log.Fatalf("watchdog chain broken: %v", err)
+	}
+	fmt.Println("watchdog event chain verified")
+}
+
+// runControl implements `ace halt|pause|resume` (loopback API to the worker)
+// and `ace rollback` (restore the newest hourly backup over ace.db).
+func runControl(sub string) {
+	sandboxDir := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
+	port := envOr("ACE_PORT", "8080")
+
+	if sub == "rollback" {
+		pat := filepath.Join(sandboxDir, "backups", "ace-*.db")
+		matches, _ := filepath.Glob(pat)
+		if len(matches) == 0 {
+			log.Fatal("rollback: no backups in " + pat)
+		}
+		sort.Strings(matches)
+		src := matches[len(matches)-1]
+		dst := filepath.Join(sandboxDir, "ace.db")
+		_ = os.Remove(dst + "-wal")
+		_ = os.Remove(dst + "-shm")
+		in, err := os.ReadFile(src)
+		if err != nil {
+			log.Fatalf("rollback read: %v", err)
+		}
+		if err := os.WriteFile(dst, in, 0o600); err != nil {
+			log.Fatalf("rollback write: %v", err)
+		}
+		fmt.Printf("rollback: restored %s -> %s (halt the worker first if it is running)\n", src, dst)
+		return
+	}
+
+	token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
+	mode := "paused"
+	if sub == "resume" {
+		mode = "autonomous"
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%s/api/engine/mode", port)
+	body := strings.NewReader(fmt.Sprintf(`{"mode":%q}`, mode))
+	req, _ := http.NewRequest(http.MethodPost, url, body)
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 5 * time.Second}
+	if resp, err := client.Do(req); err == nil {
+		resp.Body.Close()
+	}
+	if sub == "halt" {
+		// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
+		req2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%s/api/engine/stop", port), nil)
+		req2.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+		if resp2, err := client.Do(req2); err == nil {
+			resp2.Body.Close()
+		}
+	}
+	fmt.Printf("%s sent (mode=%s)\n", sub, mode)
 }
 
 // runScienceRegrade re-grades archived v0.7 result JSONs through the 8.6
@@ -411,10 +483,23 @@ func runScienceRegrade(args []string) {
 	b.WriteString("# v0.7 result re-grade through the 8.6 scientist gate\n\n")
 	b.WriteString("| file | declared | recomputed mcnemar_p | declared_p | discrepancy |\n|---|---|---|---|---|\n")
 	var recomputed, mismatched, undeclared int
+	// Every regrade also writes a science_verdicts row (8.6) when the sandbox
+	// db is reachable — the verdict table is the audit trail, the markdown is
+	// only the report.
+	var db *sql.DB
+	if d, derr := sql.Open("sqlite", filepath.Join(envOr("ACE_SANDBOX_DIR", ".ace-sandbox"), "ace.db")+"?_pragma=busy_timeout(2000)"); derr == nil {
+		db = d
+		defer db.Close()
+		_ = science.Migrate(db)
+	}
+	ctx := context.Background()
 	for _, f := range files {
 		blob, err := os.ReadFile(f)
 		if err != nil {
 			continue
+		}
+		if db != nil {
+			_, _ = science.RegradeResultJSON(ctx, db, blob, filepath.Base(f))
 		}
 		var r struct {
 			AxisID      string   `json:"axis"`

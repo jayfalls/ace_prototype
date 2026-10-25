@@ -224,8 +224,8 @@ var specSectionRe = regexp.MustCompile(`(?m)^##\s*(?:Section\s*)?([1-5])\b[^\n]*
 // ParseAndValidateLivingSpec validates that a Living Spec at `/wiki/specs/<milestone_id>.md`:
 // 1. Is <= SpecBudgetMaxBytes() (default 2,800B),
 // 2. Contains all 5 mandatory sections (§1 Scope, §2 Verified Facts, §3 Target Interfaces, §4 Invariants/Edge Cases, §5 Falsification/Acceptance),
-// 3. Enforces the Frozen SHA-256 Hash on §1 + §5 so LLMs cannot weaken acceptance criteria without human approval (§4).
-func (e *Engine) ParseAndValidateLivingSpec(ctx context.Context, milestoneID string, specContent string, humanApprovalRef string) (frozenHash string, err error) {
+// 3. Enforces the Frozen SHA-256 Hash on §1 + §5 so LLMs cannot weaken acceptance criteria without an L1 ruling (§4).
+func (e *Engine) ParseAndValidateLivingSpec(ctx context.Context, milestoneID string, specContent string) (frozenHash string, err error) {
 	maxBytes := SpecBudgetMaxBytes()
 	if len(specContent) > maxBytes {
 		return "", fmt.Errorf("spec exceeds %dB budget (got %dB)", maxBytes, len(specContent))
@@ -246,35 +246,32 @@ func (e *Engine) ParseAndValidateLivingSpec(ctx context.Context, milestoneID str
 		return newFrozenHash, nil
 	}
 
-	var existingHash, existingApproval string
-	qerr := db.QueryRowContext(ctx, `SELECT frozen_hash, human_approval_ref FROM spec_registry WHERE milestone_id = ?`, milestoneID).Scan(&existingHash, &existingApproval)
+	var existingHash string
+	qerr := db.QueryRowContext(ctx, `SELECT frozen_hash FROM spec_registry WHERE milestone_id = ?`, milestoneID).Scan(&existingHash)
 	if qerr == nil && existingHash != "" && existingHash != newFrozenHash {
-		// 8.4: no human approval — an L1 ruling replaces it. Frozen-hash
-		// changes are high-stakes, so escalate straight to Tier 2.
+		// 8.4: frozen-hash changes are high-stakes and require an L1 ruling —
+		// there is no human approval path.
 		if e.gate != nil {
 			gd := e.gate.Ruling(ctx, gate.Action{
 				Kind: "spec_mutation", Target: milestoneID,
 				Command: fmt.Sprintf("frozen spec hash change %s -> %s (sections 1/5)", existingHash, newFrozenHash),
 			})
-			if gd.Allowed() {
-				humanApprovalRef = "l1:" + gd.RuleID
-			} else {
+			if !gd.Allowed() {
 				return "", fmt.Errorf("[SPEC GATE VETO — L1 Rejected Frozen-Hash Change] %s (rule %s)", gd.Reason, gd.RuleID)
 			}
-		} else if humanApprovalRef == "" && existingApproval == "" {
+		} else {
 			return "", fmt.Errorf("[SPEC GATE VETO — Frozen Hash Mismatch] Cannot modify Section 1 (Scope) or Section 5 (Falsification Criteria) of `/wiki/specs/%s.md` without an L1 ruling (expected hash %s, got %s)", milestoneID, existingHash, newFrozenHash)
 		}
 	}
 
 	_, _ = db.ExecContext(ctx, `
-		INSERT INTO spec_registry (milestone_id, spec_path, frozen_hash, size_bytes, status, human_approval_ref, updated_at)
-		VALUES (?, ?, ?, ?, 'LIVING', ?, ?)
+		INSERT INTO spec_registry (milestone_id, spec_path, frozen_hash, size_bytes, status, updated_at)
+		VALUES (?, ?, ?, ?, 'LIVING', ?)
 		ON CONFLICT(milestone_id) DO UPDATE SET
 			size_bytes = excluded.size_bytes,
-			frozen_hash = CASE WHEN excluded.human_approval_ref != '' THEN excluded.frozen_hash ELSE spec_registry.frozen_hash END,
-			human_approval_ref = CASE WHEN excluded.human_approval_ref != '' THEN excluded.human_approval_ref ELSE spec_registry.human_approval_ref END,
+			frozen_hash = excluded.frozen_hash,
 			updated_at = excluded.updated_at
-	`, milestoneID, "/wiki/specs/"+milestoneID+".md", newFrozenHash, len(specContent), humanApprovalRef, time.Now().UTC())
+	`, milestoneID, "/wiki/specs/"+milestoneID+".md", newFrozenHash, len(specContent), time.Now().UTC())
 
 	return newFrozenHash, nil
 }
@@ -294,7 +291,7 @@ func (e *Engine) EnsureLivingSpecForMilestone(ctx context.Context, milestone str
 		if len(s) > SpecBudgetMaxBytes() {
 			s = s[:SpecBudgetMaxBytes()]
 		}
-		_, _ = e.ParseAndValidateLivingSpec(ctx, specID, s, "")
+		_, _ = e.ParseAndValidateLivingSpec(ctx, specID, s)
 		return specID, s
 	}
 
@@ -331,7 +328,7 @@ func (e *Engine) EnsureLivingSpecForMilestone(ctx context.Context, milestone str
 	}
 	_ = os.MkdirAll(filepath.Dir(specHost), 0o755)
 	_ = os.WriteFile(specHost, []byte(initial), 0o644)
-	_, _ = e.ParseAndValidateLivingSpec(ctx, specID, initial, "")
+	_, _ = e.ParseAndValidateLivingSpec(ctx, specID, initial)
 	return specID, initial
 }
 
