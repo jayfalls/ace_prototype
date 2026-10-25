@@ -15,6 +15,7 @@ import (
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/llm"
+	"ace/internal/science"
 	"ace/internal/watchdog"
 	"github.com/google/uuid"
 )
@@ -826,6 +827,8 @@ func (e *Engine) recordCycleReport(ctx context.Context, cycleID string) {
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM verdict_rows WHERE verdict IN ('deny','reject')`).Scan(&deny)
 	var openDirs int
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM directives WHERE status='OPEN'`).Scan(&openDirs)
+	// 8.7: standing metrics every cycle.
+	science.RecordStandingMetrics(ctx, db, 600)
 	_, _ = db.ExecContext(ctx, `INSERT INTO cycle_reports (cycle_id, done, measured, goals, uncertainties, created_at) VALUES (?,?,?,?,?,?)`,
 		cycleID,
 		fmt.Sprintf("%d dag nodes completed", done),

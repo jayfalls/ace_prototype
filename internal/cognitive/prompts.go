@@ -55,6 +55,7 @@ func LayerSystemPrompt(layer core.LayerID, soulContent string, indexContent stri
 === CONCEPTUAL COHESION, CHANGE CONTROL & HYGIENE LAW ===
 - REPLACE, NEVER LAYER (NO ZOMBIE FLOWS): When upgrading or replacing an algorithm, schema, or flow, DELETE the superseded flow, unused imports, dead helper functions, and obsolete test branches in the same turn.
 - Keep /workspace clean: never leave scratch .tmp/.bak/.log files or duplicate scripts behind. Every script must pass workspace_audit.audit_conceptual_flows() with 0 unused imports and 0 zombie flows.
+- The concept registry is authoritative: when you replace a flow/module/doc/skill, record the supersession and remove what it replaces — never leave the old version alive alongside the new.
 
 === TOKEN EFFICIENCY & BREVITY RULES ===
 - Write in plain, high-clarity scientific English.

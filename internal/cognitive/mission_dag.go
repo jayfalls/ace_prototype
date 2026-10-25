@@ -502,9 +502,37 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					prior = append(prior, b.ID+": "+b.Title)
 				}
 				branchID := fmt.Sprintf("S%d", branchIdx+1)
+				// 8.7: recent scientist-gate conclusions ride in L2's context;
+				// every 10th branch is reserved for the highest-VOI open
+				// uncertainty (exploration share of the budget).
+				var verdicts []string
+				if db := e.getDB(); db != nil {
+					if vrows, verr := db.QueryContext(ctx, `SELECT ref, tier FROM science_verdicts ORDER BY id DESC LIMIT 5`); verr == nil {
+						for vrows.Next() {
+							var r, t string
+							if vrows.Scan(&r, &t) == nil {
+								verdicts = append(verdicts, r+"="+t)
+							}
+						}
+						vrows.Close()
+					}
+				}
+				explore := ""
+				if (branchIdx+1)%10 == 0 {
+					if db := e.getDB(); db != nil {
+						var uid, usum string
+						if db.QueryRowContext(ctx, `SELECT id, summary FROM connectome_nodes WHERE state IN ('OPEN','PROBING') AND kind IN ('UNCERTAINTY','CONTRADICTION') ORDER BY (blocking_weight*info_value)/MAX(expected_cost,0.05) DESC LIMIT 1`).Scan(&uid, &usum) == nil {
+							explore = fmt.Sprintf(" EXPLORATION BUDGET: this branch targets least-explored uncertainty %s (%s) — investigate it directly rather than extending prior work.", uid, truncateText(usum, 120))
+						}
+					}
+				}
+				vline := ""
+				if len(verdicts) > 0 {
+					vline = " Recent gate verdicts: " + truncateText(strings.Join(verdicts, "; "), 200) + "."
+				}
 				l2Prompt := fmt.Sprintf(
-					"L2 GLOBAL STRATEGY [Branch %s under L1 Root %s (%s)]: Under L1's directive (%q), formulate Strategic Branch %s as a falsifiable hypothesis serving the mission — expected outcome, primary approach, and how it differs from prior branches (%s). Emit the branch directive on southbound_directive.",
-					branchID, root.ID, truncateText(root.DirectiveHash, 8), truncateText(root.Directive, 240), branchID, truncateText(strings.Join(prior, "; "), 600),
+					"L2 GLOBAL STRATEGY [Branch %s under L1 Root %s (%s)]: Under L1's directive (%q), formulate Strategic Branch %s as a falsifiable hypothesis serving the mission — expected outcome, primary approach, and how it differs from prior branches (%s).%s%s Emit the branch directive on southbound_directive.",
+					branchID, root.ID, truncateText(root.DirectiveHash, 8), truncateText(root.Directive, 240), branchID, truncateText(strings.Join(prior, "; "), 600), vline, explore,
 				)
 				tr, err := e.executeLayerStep(ctx, cycleID, core.LayerGlobalStrategy, l2Prompt)
 				if err != nil {

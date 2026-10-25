@@ -1,0 +1,6 @@
+# Doc-only identifiers: frozen plan/spec docs legitimately name things that
+# no longer exist (they describe what was removed). Stale refs to LIVE
+# symbols are caught by TestDocsNameLiveSymbols before reaching this list.
+Bus.Publish
+BuildAnatomyIsometricSVG
+OpenClaw

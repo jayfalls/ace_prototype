@@ -134,6 +134,8 @@ func Migrate(db *sql.DB) error {
 		return err
 	}
 	migratePrereg(db)
+	migrateMetrics(db)
+	SeedRegistry(context.Background(), db)
 	return nil
 }
 
