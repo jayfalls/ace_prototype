@@ -6,11 +6,30 @@ package science
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"math"
 	"sort"
 	"time"
 )
+
+// metricDefinitionLiteral names every metric and the window rule exactly as
+// computed below. Any change to a definition MUST change this literal — the
+// hash stamps every standing_metrics row and freezes into baselines, so a
+// definition change resets the baseline instead of silently comparing
+// unlike quantities (spec 9.0 honest-measurement).
+const metricDefinitionLiteral = "v0.9.0|era:first-gate-trace|" +
+	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat}|" +
+	"turns_per_success|cost_per_success|task_success|" +
+	"latency_ms|cache_hit_rate|l3_estimate_error|" +
+	"layer_share_{calls,tokens,l1_gate_calls}"
+
+// MetricDefinitionSHA is the identity of the metric definitions above.
+var MetricDefinitionSHA = func() string {
+	sum := sha256.Sum256([]byte(metricDefinitionLiteral))
+	return hex.EncodeToString(sum[:])[:16]
+}()
 
 func migrateMetrics(db *sql.DB) {
 	_, _ = db.Exec(`
@@ -20,6 +39,8 @@ func migrateMetrics(db *sql.DB) {
 			window_end TEXT NOT NULL,
 			metric TEXT NOT NULL,
 			value REAL NOT NULL,
+			definition_sha TEXT NOT NULL DEFAULT '',
+			baseline_id INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_standing_metrics_metric ON standing_metrics(metric, created_at);
@@ -32,7 +53,18 @@ func migrateMetrics(db *sql.DB) {
 			superseded_by TEXT NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
+		CREATE TABLE IF NOT EXISTS baselines (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			definition_sha TEXT NOT NULL,
+			window_start TEXT NOT NULL,
+			window_end TEXT NOT NULL,
+			metrics TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
 	`)
+	_, _ = db.Exec(`ALTER TABLE standing_metrics ADD COLUMN definition_sha TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE standing_metrics ADD COLUMN baseline_id INTEGER NOT NULL DEFAULT 0`)
 }
 
 // RecordStandingMetrics computes the §8.7 standing metrics over the last
@@ -125,16 +157,19 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	if confErr.Valid {
 		m["l3_estimate_error"] = confErr.Float64
 	}
-	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ? GROUP BY layer_code`, startStr)
+	rows, err := db.QueryContext(ctx, `SELECT layer_code, COUNT(*), COALESCE(SUM(prompt_tokens+completion_tokens),0) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ? GROUP BY layer_code`, startStr)
 	if err == nil {
-		var total int64
+		var total, tokTotal int64
 		share := map[string]int64{}
+		tokShare := map[string]int64{}
 		for rows.Next() {
 			var l string
-			var c int64
-			_ = rows.Scan(&l, &c)
+			var c, t int64
+			_ = rows.Scan(&l, &c, &t)
 			share[l] = c
+			tokShare[l] = t
 			total += c
+			tokTotal += t
 		}
 		rows.Close()
 		if total > 0 {
@@ -142,10 +177,21 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 				m["layer_share_"+l] = float64(c) / float64(total)
 			}
 		}
+		if tokTotal > 0 {
+			for l, t := range tokShare {
+				m["layer_token_share_"+l] = float64(t) / float64(tokTotal)
+			}
+		}
+	}
+	// L1 gate calls shown separately from L1 layer calls (spec 9.0 pyramid).
+	var gateCalls int64
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM thought_traces WHERE loop_kind='gate' AND replace(substr(created_at,1,19),'T',' ') >= ?`, startStr).Scan(&gateCalls)
+	if traces > 0 {
+		m["layer_share_l1_gate"] = float64(gateCalls) / float64(traces)
 	}
 	for k, v := range m {
-		_, _ = db.ExecContext(ctx, `INSERT INTO standing_metrics (window_start, window_end, metric, value) VALUES (?,?,?,?)`,
-			startStr, endStr, k, v)
+		_, _ = db.ExecContext(ctx, `INSERT INTO standing_metrics (window_start, window_end, metric, value, definition_sha) VALUES (?,?,?,?,?)`,
+			startStr, endStr, k, v, MetricDefinitionSHA)
 	}
 }
 

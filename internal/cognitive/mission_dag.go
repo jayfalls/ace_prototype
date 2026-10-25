@@ -14,6 +14,8 @@ import (
 	"ace/internal/config"
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/gate"
+	"ace/internal/plan"
 	"ace/internal/science"
 )
 
@@ -59,11 +61,20 @@ func (e *Engine) initMissionDAGSchema(db *sql.DB) {
 		CREATE INDEX IF NOT EXISTS idx_mission_dag_parent ON mission_dag_nodes(parent_id);
 	`)
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN score REAL NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN retired_reason TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN reanchor_count INTEGER NOT NULL DEFAULT 0`)
 	_ = science.Migrate(db)
 }
 
 func sha256Str(s string) string {
 	return sha256Hex([]byte(s))
+}
+
+// dagTerminal reports whether a node state is finished work — terminal nodes
+// never count as open for horizon expansion (STALE/RETIRED are dead work,
+// DUPLICATE_OF never executes).
+func dagTerminal(s string) bool {
+	return s == "COMPLETED" || s == "STALE" || s == "RETIRED" || s == "DUPLICATE_OF"
 }
 
 // currentSoulHash anchors DAG provenance to the pinned constitution plus the
@@ -90,9 +101,23 @@ func (e *Engine) markStaleOnMissionReload(ctx context.Context, soulHash string) 
 	if last == soulHash {
 		return
 	}
-	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE')`,
+	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF')`,
 		time.Now().UTC().Format(time.RFC3339), soulHash)
 	_ = e.memory.SaveEngineMeta(ctx, "anchored_soul_hash", soulHash)
+}
+
+// staleVerdict routes a stale-node re-anchor through the L1 gate (spec 9.0:
+// re-anchoring needs a Tier-1 verdict, not a silent reset).
+func (e *Engine) staleVerdict(ctx context.Context, nodeID, title string) (bool, string) {
+	if e.gate == nil {
+		return true, "gate absent"
+	}
+	d := e.gate.Ruling(ctx, gate.Action{
+		Kind: "plan_reanchor", Target: nodeID,
+		Content: "Re-anchor stale plan node under the current mission: " + title,
+		Layer:   1,
+	})
+	return d.Allowed(), d.Reason
 }
 
 func (e *Engine) LoadMissionDAGNodes(ctx context.Context) []MissionDAGNode {
@@ -318,6 +343,9 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		return nil // no mission anchored: idle until the owner sets one (plan 8.1)
 	}
 	e.markStaleOnMissionReload(ctx, soulHash)
+	if db := e.getDB(); db != nil {
+		_, _ = plan.SweepStale(ctx, db, soulHash, e.staleVerdict)
+	}
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode
@@ -420,7 +448,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 			// is revised by this wave's L4 pass and stale nodes are dead work
 			// from a prior mission version; one unvetoable spec must not hold
 			// the whole mission hostage (observed live: T_C_S2_HARNESS churning).
-			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "TACTICAL_STALL" && l4Nodes[i].State != "STALE" {
+			if !dagTerminal(l4Nodes[i].State) && l4Nodes[i].State != "TACTICAL_STALL" {
 				openL4Count++
 			}
 			if l4Nodes[i].State == "TACTICAL_STALL" {
@@ -448,15 +476,15 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				continue
 			}
 			l2HasTasks[l2id] = true
-			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "STALE" {
+			if !dagTerminal(l4Nodes[i].State) {
 				l2Open[l2id] = true
 			}
 		}
 		openBranchCount := 0
 		for i := range l2Nodes {
 			n := &l2Nodes[i]
-			if n.State == "STALE" {
-				continue // dead branch from a prior mission version — not open
+			if n.State == "STALE" || n.State == "RETIRED" || n.State == "DUPLICATE_OF" {
+				continue // dead/duplicate branch — not open
 			}
 			if l2HasTasks[n.ID] && !l2Open[n.ID] {
 				if n.State != "COMPLETED" {
@@ -543,18 +571,28 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 					return
 				}
 				title := strings.TrimSpace(strings.SplitN(dir, "\n", 2)[0])
-				// 8.3 duplicate rejection: word-shingle Jaccard >= 0.8 vs any
-				// existing strategy (open or finished) rejects the branch.
-				for _, ex := range existing {
-					if science.ShingleJaccard(dir, ex.Directive) >= 0.8 {
-						if db := e.getDB(); db != nil {
-							_, _ = db.ExecContext(ctx, `INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at)
-								VALUES (?, ?, 'duplicate_strategy', ?, 1, ?, ?, 0, ?) ON CONFLICT(veto_hash) DO NOTHING`,
-								sha256Str(branchID + dir)[:16], branchID, ex.ID,
-								truncateString("duplicates "+ex.ID+" (Jaccard>=0.8)", 300), cycleID, time.Now().UTC())
-						}
-						return
+				// 9.0 duplicate rejection: shingle Jaccard >= 0.8 OR artefact-set
+				// overlap >= 0.5 vs any existing strategy marks the node
+				// DUPLICATE_OF instead of silently dropping it.
+				ex := make([]plan.Strategy, 0, len(existing))
+				for _, n := range existing {
+					ex = append(ex, plan.Strategy{ID: n.ID, Title: n.Title, Directive: n.Directive})
+				}
+				if dupID, dup := plan.DuplicateOf(title, dir, ex); dup {
+					e.upsertMissionDAGNode(ctx, MissionDAGNode{
+						ID: branchID, ParentID: root.ID, Stage: "L2_STRATEGY", State: "DUPLICATE_OF",
+						OwnerLayer: 2, Title: truncateText(title, 100), Directive: dir,
+						DirectiveHash: sha256Str(root.DirectiveHash + "|" + branchID + "|" + dir)[:16],
+						SoulHash:      root.SoulHash,
+					})
+					if db := e.getDB(); db != nil {
+						_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET retired_reason=? WHERE id=?`, "duplicates "+dupID, branchID)
+						_, _ = db.ExecContext(ctx, `INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at)
+							VALUES (?, ?, 'duplicate_strategy', ?, 1, ?, ?, 0, ?) ON CONFLICT(veto_hash) DO NOTHING`,
+							sha256Str(branchID+dir)[:16], branchID, dupID,
+							truncateString("duplicates "+dupID, 300), cycleID, time.Now().UTC())
 					}
+					return
 				}
 				e.upsertMissionDAGNode(ctx, MissionDAGNode{
 					ID:            branchID,

@@ -182,7 +182,11 @@ func runSubcommand(args []string) {
 			runScienceRegrade(args[2:])
 			return
 		}
-		log.Fatalf("usage: ace science regrade [archive-dir]")
+		if len(args) > 1 && args[1] == "baseline" {
+			runScienceBaseline(args[2:])
+			return
+		}
+		log.Fatalf("usage: ace science regrade [archive-dir] | ace science baseline freeze --name NAME | ace science baseline compare NAME")
 	case "mission":
 		if len(args) > 1 && args[1] == "reload" {
 			runMissionReload()
@@ -602,4 +606,58 @@ func runScienceRegrade(args []string) {
 		log.Fatalf("write report: %v", err)
 	}
 	fmt.Printf("regraded %d files -> %s\n", len(files), out)
+}
+
+// runScienceBaseline implements `ace science baseline freeze --name NAME` and
+// `ace science baseline compare NAME` (spec 9.0): freeze snapshots the era's
+// standing metrics under the current definition hash; compare prints deltas
+// and refuses when the live definition differs from the frozen one.
+func runScienceBaseline(args []string) {
+	if len(args) == 0 {
+		log.Fatalf("usage: ace science baseline freeze --name NAME | compare NAME")
+	}
+	db, err := sql.Open("sqlite", filepath.Join(envOr("ACE_SANDBOX_DIR", ".ace-sandbox"), "ace.db")+"?_pragma=busy_timeout(2000)")
+	if err != nil {
+		log.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	_ = science.Migrate(db)
+	ctx := context.Background()
+	switch args[0] {
+	case "freeze":
+		name := ""
+		for i := 1; i+1 < len(args); i++ {
+			if args[i] == "--name" {
+				name = args[i+1]
+			}
+		}
+		if name == "" {
+			log.Fatal("baseline freeze needs --name")
+		}
+		b, err := science.FreezeBaseline(ctx, db, name)
+		if err != nil {
+			log.Fatalf("freeze: %v", err)
+		}
+		fmt.Printf("baseline %s frozen: %d metrics, window %s..%s, definition %s\n",
+			b.Name, len(b.Metrics), b.WindowStart, b.WindowEnd, b.DefinitionSHA)
+	case "compare":
+		if len(args) < 2 {
+			log.Fatal("baseline compare needs a name")
+		}
+		deltas, err := science.Compare(ctx, db, args[1])
+		if err != nil {
+			log.Fatalf("compare: %v", err)
+		}
+		keys := make([]string, 0, len(deltas))
+		for k := range deltas {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			d := deltas[k]
+			fmt.Printf("%-44s baseline=%.4f current=%.4f delta=%+.4f\n", k, d.Baseline, d.Current, d.Delta)
+		}
+	default:
+		log.Fatalf("unknown baseline subcommand %q", args[0])
+	}
 }
