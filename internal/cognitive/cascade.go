@@ -129,6 +129,23 @@ func (e *Engine) schedulerLoop(ctx context.Context) {
 			if !seededSched {
 				seededSched = true
 				_, _ = e.taskMgr.UpsertSchedule(ctx, "self_metrics_rollup", "FREQ=HOURLY")
+				// Weekly schedule (spec acceptance) — same durable fire path.
+				_, _ = e.taskMgr.UpsertSchedule(ctx, "weekly_consolidation", "FREQ=WEEKLY")
+				// A durable monitor (spec 9.4): fires when episodic memory
+				// pressure exceeds 80% of cap; re-arms at boot via its
+				// idempotency key so it survives restarts.
+				_, _ = e.taskMgr.RegisterMonitor(ctx, "memory_episodic_pressure",
+					func(ctx context.Context) (bool, string) {
+						var n int
+						if db := e.getDB(); db != nil {
+							_ = db.QueryRowContext(ctx,
+								`SELECT COUNT(*) FROM memories WHERE COALESCE(type,'episodic')='episodic'`).Scan(&n)
+						}
+						return n > 8000, fmt.Sprintf("episodic memory %d/10000", n)
+					},
+					func(detail string) {
+						e.recordGlobalLoop("monitor_memory_episodic_pressure", "fired", detail)
+					})
 			}
 			e.taskMgr.HeartbeatTick(ctx, func(s tasks.Schedule) {
 				t, terr := e.taskMgr.Submit(ctx, tasks.Task{
