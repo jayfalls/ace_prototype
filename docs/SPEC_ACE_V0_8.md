@@ -8,12 +8,12 @@ lives, and how it is tested. New v0.8 code goes in dedicated `internal/<componen
 never into `internal/cognitive` (prosecutor.go reached 1,857 lines in v0.7).
 
 Build order: 8.0 → 8.1 → 8.2 → 8.3+8.4 → 8.5 → 8.6 → 8.7+8.8 → acceptance.
-Commit straight to `main`, no PRs. Build all slices back to back without waiting for a review or a go; v0.8 is done only when every slice is built and acceptance passes.
+Commit to the `ace-do` branch, no PRs (`main` only accepts PRs). Build all slices back to back without waiting for a review or a go; v0.8 is done only when every slice is built and acceptance passes.
 ACE runs live throughout the build: the builder fixes what breaks while it runs (regression test, hot-restart, confirm live). The 24 h acceptance run comes at the end.
 
 ---
 
-## 8.0 Fixes, cleanup and archive — DONE (on `main`)
+## 8.0 Fixes, cleanup and archive — DONE (on `ace-do`)
 
 - [x] `AGENTS.md` at repo root: §2 layout as coding standards, per-agent context + injection,
       same-step cleanup rule.

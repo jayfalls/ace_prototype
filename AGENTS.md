@@ -48,7 +48,7 @@ tests. Do not load the whole corpus; `archive/` is history, never a build refere
   hypothesis or dataset is a new pre-registered attempt, Holm-corrected.
 - **PR gate (ACE only):** ACE's own repo changes reach `main` only through an owner-merged
   pull request; ACE may keep one long-lived branch across versions so it is never blocked.
-  An owner-directed builder commits straight to `main`.
+  An owner-directed builder commits to the `ace-do` branch (`main` only accepts PRs).
   The running ACE never updates its own binary.
 - **No human-approval paths:** disputes and stuck work get an L1 ruling, then quarantine.
   Humans steer the mission, merge PRs, grant access, and answer questions — nothing else.
