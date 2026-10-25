@@ -7,6 +7,7 @@ import (
 
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/provider"
 )
 
 // tier1 is the fast-model gate (models.fast): it may only allow or escalate.
@@ -16,7 +17,7 @@ func (g *Gate) tier1(ctx context.Context, a Action) Decision {
 	if model == "" {
 		model = g.llm.ActiveModel()
 	}
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	ctx, cancel := context.WithTimeout(provider.WithLayer(ctx, "L1"), 30*time.Second)
 	defer cancel()
 	resp, err := g.llm.StreamComplete(ctx, core.CompletionRequest{
 		Model: model,

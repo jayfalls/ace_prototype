@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"ace/internal/core"
+	"ace/internal/provider"
 )
 
 const DefaultSliceMaxBytes = 8192
@@ -645,7 +646,7 @@ func (e *Engine) runTurn05RetrievalRouter(ctx context.Context, cycleID string, d
 		dShort, gShort, candLines.String(),
 	)
 
-	rctx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	rctx, cancel := context.WithTimeout(provider.WithLayer(ctx, "L3"), 12*time.Second)
 	defer cancel()
 
 	t0 := time.Now()

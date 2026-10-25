@@ -15,7 +15,7 @@ import (
 	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/gate"
-	"ace/internal/llm"
+	"ace/internal/provider"
 	"ace/internal/sandbox"
 	"github.com/google/uuid"
 )
@@ -43,7 +43,7 @@ func (e *Engine) tryDirectWorldReflex(
 
 	gateQ := fmt.Sprintf("Statement: L6 received directive %q.\nQuestion: Is running %q directly in the sandbox sufficient to execute this check?",
 		truncateText(directive, 180), cmdToRun)
-	gpuRes, gErr := llm.EvaluateLocalGPUGateWithState(ctx, truncateText(directive, 200), gateQ, 0.45)
+	gpuRes, gErr := gate.EvaluateLocalGPUGateWithState(ctx, truncateText(directive, 200), gateQ, 0.45)
 	if gErr != nil || !gpuRes.Decision {
 		return core.ThoughtTrace{}, false
 	}
@@ -248,11 +248,6 @@ func (e *Engine) runPiProsecutorLoop(
 			alreadyVerifiedInBatch = false
 		}
 
-		// Record LLM output-contract health in Bayesian Cost-of-Pass router: only penalize the model when it fails to emit a valid action
-		// (never switch away from a warm-cache model just because the Python script it is debugging exited 1!)
-		if rec, ok := e.llm.(interface{ RecordTaskOutcome(string, bool) }); ok && trace.Model != "" {
-			rec.RecordTaskOutcome(trace.Model, actType != "" && actType != "none")
-		}
 		exitCode := 0
 		if hadError {
 			exitCode = 1
@@ -279,7 +274,7 @@ func (e *Engine) runPiProsecutorLoop(
 			sharedL6Trunk := "ACE L6 Outside-World Observation & Verification Gate | Verify empirical exit=0 execution and dataset/hypothesis output"
 			worldQ := fmt.Sprintf("Directive: %q\nL6 executed %s(%s) and observed outside-world output: %q.\nQuestion: Did this outside-world action succeed without errors and satisfy the step?",
 				truncateText(rawDirective, 160), trace.ActionType, truncateText(trace.ActionTarget, 60), truncateText(trace.ActionResult, 220))
-			if gpuRes, gErr := llm.EvaluateLocalGPUGateWithState(ctx, sharedL6Trunk, worldQ, 0.62); gErr == nil {
+			if gpuRes, gErr := gate.EvaluateLocalGPUGateWithState(ctx, sharedL6Trunk, worldQ, 0.62); gErr == nil {
 				d1WorldSatisfied = gpuRes.Decision
 				_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
 					TraceID:      cycleID,
@@ -616,6 +611,7 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 	frozenFirstUserPrompt *string,
 	priorTurns []core.ChatTurn,
 ) (core.ThoughtTrace, error) {
+	ctx = provider.WithLayer(ctx, layer.Code())
 	e.mu.Lock()
 	e.currentLayer = int(layer)
 	st := e.layers[layer]

@@ -25,8 +25,9 @@ import (
 	"ace/internal/cognitive"
 	"ace/internal/config"
 	"ace/internal/constitution"
-	"ace/internal/llm"
+	"ace/internal/core"
 	"ace/internal/memory"
+	"ace/internal/provider"
 	"ace/internal/sandbox"
 	"ace/internal/science"
 	"ace/internal/server"
@@ -109,12 +110,34 @@ func main() {
 		log.Fatalf("failed to initialize memory & wiki store: %v", err)
 	}
 
-	provider := llm.NewOpenCodeFreeProvider("")
-	if err := provider.SetActiveModel(*modelID); err != nil {
-		log.Printf("[LLM] warning: %v, using %s", err, provider.ActiveModel())
+	provCfg, err := provider.Load(config.Dir())
+	if err != nil {
+		provCfg = provider.DefaultConfig()
 	}
+	if *modelID != "" {
+		provCfg.Models.Main = *modelID // env/flag overrides provider.json
+	}
+	adapters, err := provider.BuildAdapters(ctx, provCfg, provCfg.Timeouts.Cloud, provCfg.Timeouts.Local)
+	if err != nil {
+		log.Fatalf("no LLM provider groups available: %v", err)
+	}
+	registry, err := provider.New(db, provCfg, adapters)
+	if err != nil {
+		log.Fatalf("failed to initialize provider registry: %v", err)
+	}
+	registry.OnChurn(func(ev provider.ChurnEvent) {
+		_ = memBus.Publish(ctx, core.BusEnvelope{
+			Topic:     "provider.churn",
+			Direction: core.DirectionNorthbound,
+			FromLayer: 6, ToLayer: 1,
+			Kind:    "telemetry",
+			Summary: fmt.Sprintf("catalogue churn: +%d -%d ~%d", len(ev.Added), len(ev.Removed), len(ev.Changed)),
+			Payload: provider.MarshalChurn(ev),
+		})
+	})
+	var llmPort core.LLMProvider = registry
 
-	engine := cognitive.NewEngine(provider, memBus, memStore, jail, telem)
+	engine := cognitive.NewEngine(llmPort, memBus, memStore, jail, telem)
 	engine.Start(ctx)
 
 	tgBridge, err := channels.NewTelegramBridge(db, engine, memStore, jail, telem, *tgToken, *tgChats)
@@ -133,7 +156,7 @@ func main() {
 		log.Fatalf("failed to load bearer token: %v", err)
 	}
 
-	srv := server.NewServer(engine, provider, memBus, memStore, jail, telem, tgBridge, webFS, authToken)
+	srv := server.NewServer(engine, llmPort, memBus, memStore, jail, telem, tgBridge, webFS, authToken)
 	httpServer := &http.Server{
 		Addr:              "127.0.0.1:" + *port,
 		Handler:           srv.Handler(),
@@ -143,7 +166,7 @@ func main() {
 	go func() {
 		fmt.Printf("\n================================================================\n")
 		fmt.Printf("  ACE Glass-Box Cognitive Cockpit: http://localhost:%s\n", *port)
-		fmt.Printf("  Active OpenCode Free Model:      %s\n", provider.ActiveModel())
+		fmt.Printf("  Active Model (main role):        %s\n", registry.ActiveModel())
 		fmt.Printf("  Bearer Token (mutating /api):    %s\n", filepath.Join(config.Dir(), "bearer_token"))
 		fmt.Printf("  Host-Proof Sandbox Root:         %s (Healthy=%v)\n", sbStatus.SandboxDir, sbStatus.Healthy)
 		fmt.Printf("================================================================\n\n")

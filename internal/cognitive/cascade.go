@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"ace/internal/core"
-	"ace/internal/llm"
+	"ace/internal/gate"
 )
 
 func (e *Engine) autonomousTickerLoop(ctx context.Context) {
@@ -167,7 +167,7 @@ type l5GateEvalResult struct {
 }
 
 func (e *Engine) evaluateL5Gate(ctx context.Context, sharedState, gateQ string) (l5GateEvalResult, error) {
-	gpuRes, err := llm.EvaluateLocalGPUGateWithState(ctx, sharedState, gateQ, 0.45)
+	gpuRes, err := gate.EvaluateLocalGPUGateWithState(ctx, sharedState, gateQ, 0.45)
 	if err != nil {
 		return l5GateEvalResult{}, err
 	}
@@ -339,7 +339,7 @@ func (e *Engine) runLegacySequentialCascade(ctx context.Context, job cycleJob) {
 			// Keep sharedState 100% static across cycles so the GPU KV Trunk Cache hits in <2ms on every L5 gate call!
 			sharedState := "ACE L5 Cognitive Control & Somatic Valence Gate | Constitutional 6-Layer Scientist Core | Verify concrete dataset + modular execution directive"
 			gateQ := fmt.Sprintf("Milestone: %s\nStatement: L4 Executive Layer produced execution plan %q.\nQuestion: Is this a concrete, safe scientific execution plan ready for Layer 6?", topM, truncateText(nextDirective, 220))
-			if gpuRes, gErr := llm.EvaluateLocalGPUGateWithState(ctx, sharedState, gateQ, 0.45); gErr == nil {
+			if gpuRes, gErr := gate.EvaluateLocalGPUGateWithState(ctx, sharedState, gateQ, 0.45); gErr == nil {
 				pYes = gpuRes.PYes
 				gateModel = gpuRes.Model
 				gateMs = int64(gpuRes.LatencyMs)

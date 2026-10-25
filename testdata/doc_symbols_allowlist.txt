@@ -13,3 +13,8 @@ ContractTest
 ContextProvider
 ErrEgressDenied
 ErrUndeclared
+FallbackChain
+# Evidence docs legitimately name external-dependency symbols and provider
+# error strings that do not exist in this module.
+MissingSessionID
+NetworkConfig.ExtraHeaders

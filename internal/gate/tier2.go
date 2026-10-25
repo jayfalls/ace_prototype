@@ -8,6 +8,7 @@ import (
 
 	"ace/internal/constitution"
 	"ace/internal/core"
+	"ace/internal/provider"
 )
 
 // tier2 is full L1 (models.main): allow / revise / reject / redirect.
@@ -39,7 +40,7 @@ func (g *Gate) tier2(ctx context.Context, a Action) Decision {
 }
 
 func (g *Gate) askTier2(ctx context.Context, model string, a Action) (verdict, reason, revised string) {
-	ctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	ctx, cancel := context.WithTimeout(provider.WithLayer(ctx, "L1"), 90*time.Second)
 	defer cancel()
 	resp, err := g.llm.StreamComplete(ctx, core.CompletionRequest{
 		Model: model,
@@ -86,7 +87,7 @@ type ensembleResult struct {
 func (g *Gate) ensembleVote(ctx context.Context, a Action) ensembleResult {
 	var res ensembleResult
 	for _, m := range g.roles().Ensemble {
-		ctx2, cancel := context.WithTimeout(ctx, 45*time.Second)
+		ctx2, cancel := context.WithTimeout(provider.WithLayer(ctx, "L1"), 45*time.Second)
 		resp, err := g.llm.StreamComplete(ctx2, core.CompletionRequest{
 			Model:        m,
 			SystemPrompt: "Vote on whether this action should be allowed under the ACE constitution. Reply with exactly ALLOW or REJECT.\n\n" + constitution.Text(),

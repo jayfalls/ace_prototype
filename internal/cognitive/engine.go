@@ -14,7 +14,7 @@ import (
 	"ace/internal/constitution"
 	"ace/internal/core"
 	"ace/internal/gate"
-	"ace/internal/llm"
+	"ace/internal/provider"
 	"ace/internal/science"
 	"ace/internal/watchdog"
 	"github.com/google/uuid"
@@ -204,11 +204,6 @@ func (e *Engine) setActiveDAGTask(id string) {
 	e.mu.Unlock()
 }
 
-type sessionPersistable interface {
-	SessionID() string
-	SetSessionID(id string)
-}
-
 func (e *Engine) persistAllLayersAndMeta(ctx context.Context) {
 	e.mu.RLock()
 	snaps := make([]core.LayerStatus, 0, len(e.layers))
@@ -232,24 +227,13 @@ func (e *Engine) persistAllLayersAndMeta(ctx context.Context) {
 	if len(loopsJSON) > 0 {
 		_ = e.memory.SaveEngineMeta(ctx, "global_loops", string(loopsJSON))
 	}
-	if sp, ok := e.llm.(sessionPersistable); ok {
-		_ = e.memory.SaveEngineMeta(ctx, "opencode_session_id", sp.SessionID())
-	}
 }
 
-// HydrateFromHistory restores all 6 layer states, engine mode, global loops, and OpenCode session ID
+// HydrateFromHistory restores all 6 layer states, engine mode, and global loops
 // from SQLite (`layer_states` and `engine_meta`), falling back to `thought_traces` on first migration.
 func (e *Engine) HydrateFromHistory(ctx context.Context) {
-	// 1. Restore persisted OpenCode session ID so upstream KV prefix cache affinity survives restarts
-	if sp, ok := e.llm.(sessionPersistable); ok {
-		if savedSess, err := e.memory.LoadEngineMeta(ctx, "opencode_session_id"); err == nil && strings.TrimSpace(savedSess) != "" {
-			sp.SetSessionID(savedSess)
-		} else {
-			_ = e.memory.SaveEngineMeta(ctx, "opencode_session_id", sp.SessionID())
-		}
-	}
 
-	// 2. Restore persisted mode, interval, total_cycles, and global_loops
+	// 1. Restore persisted mode, interval, total_cycles, and global_loops
 	e.mu.Lock()
 	if savedMode, err := e.memory.LoadEngineMeta(ctx, "mode"); err == nil && savedMode != "" {
 		e.mode = core.EngineMode(savedMode)
@@ -278,7 +262,7 @@ func (e *Engine) HydrateFromHistory(ctx context.Context) {
 	}
 	e.mu.Unlock()
 
-	// 3. Restore persisted layer_states table (includes L5 4-Bit GPU Gate state!)
+	// 2. Restore persisted layer_states table (includes L5 4-Bit GPU Gate state!)
 	savedLayers, lErr := e.memory.LoadLayerStatuses(ctx)
 	traces, _ := e.telem.RecentThoughts(ctx, 100, 0)
 
@@ -445,6 +429,7 @@ func (e *Engine) StopCurrentCycle() core.EngineStatus {
 // Chat executes the Fast Chat Loop immediately (streaming tokens to the UI) and
 // simultaneously emits a Northbound sense event to trigger cognitive reflection if in Reactive/Autonomous mode.
 func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage, error) {
+	ctx = provider.WithLayer(ctx, "chat")
 	userContent = strings.TrimSpace(userContent)
 	if userContent == "" {
 		return core.ChatMessage{}, errors.New("message content cannot be empty")
@@ -717,7 +702,7 @@ func classifyChatIntent(text string) (shouldCascade bool, startLayer core.LayerI
 	}
 
 	// For non-trivial ambiguous messages, consult the local 4-bit RTX 3050 system_one Choice Router (0 cloud tokens)
-	if choiceRes, err := llm.EvaluateLocalGPUChoice(
+	if choiceRes, err := gate.EvaluateLocalGPUChoice(
 		context.Background(),
 		"ACE 3-Zone Cognitive Router",
 		fmt.Sprintf("Classify this user message into the appropriate cognitive zone: %q", truncateText(text, 200)),
