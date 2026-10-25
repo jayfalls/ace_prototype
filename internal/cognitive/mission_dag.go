@@ -386,7 +386,10 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 			}
 		}
 		for i := range l4Nodes {
-			if l4Nodes[i].State != "COMPLETED" {
+			// A stalled task is being revised by this wave's L4 pass — it must not
+			// freeze L2 horizon expansion, or one unvetoable spec holds the whole
+			// mission hostage (observed live: T_C_S2_HARNESS churning 15+ cycles).
+			if l4Nodes[i].State != "COMPLETED" && l4Nodes[i].State != "TACTICAL_STALL" {
 				openL4Count++
 			}
 			if l4Nodes[i].State == "TACTICAL_STALL" {
@@ -399,8 +402,9 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 
 		// 1. Check if L2 has a strategic branch to originate under M1_ROOT:
 		//    - Either during the initial bootstrap (<2 branches), OR
-		//    - Horizon Expansion when all prior L3/L4 nodes have completed (up to 12 strategic branches).
-		l2NeedsRun := len(l2Nodes) < 2 || (!l3NeedsRun && !l4NeedsRun && openL4Count == 0 && len(l2Nodes) < 12)
+		//    - Horizon Expansion when no work is actively in-flight. A TACTICAL_STALL
+		//      is revision-loop churn handled by this wave's L4 pass, not a blocker.
+		l2NeedsRun := len(l2Nodes) < 2 || (!l3NeedsRun && len(pendingL3ForL4) == 0 && openL4Count == 0 && len(l2Nodes) < 12)
 
 		if !l2NeedsRun && !l3NeedsRun && !l4NeedsRun {
 			break

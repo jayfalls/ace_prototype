@@ -22,6 +22,9 @@ func newRegressionEngine(t *testing.T) (*Engine, *sandbox.Jail, *memory.Store, *
 	t.Helper()
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
+	// :memory: gives each pooled connection a private DB — concurrent wave
+	// goroutines would write to an invisible sibling. One conn = shared view.
+	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { db.Close() })
 
 	jail, err := sandbox.NewJail(t.TempDir())
@@ -331,4 +334,37 @@ func TestActiveReadyTaskNode_RotatesAfterAttempt(t *testing.T) {
 		}
 	}
 	require.Equal(t, 2, alpha)
+}
+
+// Live-run bug: a task stuck in veto->TACTICAL_STALL->re-spec churn froze the
+// whole mission — horizon expansion required openL4Count==0 and counted
+// TACTICAL_STALL as open, so one unvetoable spec blocked all new L2 branches.
+// Fix: stalled tasks (mid-revision in the same wave) don't block expansion.
+func TestDAG_StalledTaskDoesNotBlockHorizon(t *testing.T) {
+	eng, _, memStore, _ := newRegressionEngine(t)
+	ctx := context.Background()
+	seedMission(t, memStore, "Branch around stalled work instead of freezing the mission.")
+	soulHash := eng.currentSoulHash()
+
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "M1_ROOT", Stage: "L1_MISSION_ROOT", State: "L1_ANCHORED", OwnerLayer: 1, Title: "root", Directive: "d", DirectiveHash: "h1", SoulHash: soulHash})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S1", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "a", Directive: "d", DirectiveHash: "h2"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "S2", ParentID: "M1_ROOT", Stage: "L2_STRATEGY", State: "L3_MODELED", OwnerLayer: 2, Title: "b", Directive: "d", DirectiveHash: "h3"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "C1", ParentID: "S1", Stage: "L3_CAPABILITY", State: "L4_SPECCED", OwnerLayer: 3, Title: "c", Directive: "d", DirectiveHash: "h4"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_done", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "COMPLETED", OwnerLayer: 4, Title: "t1", Directive: "d", DirectiveHash: "h5"})
+	eng.upsertMissionDAGNode(ctx, MissionDAGNode{ID: "T_stalled", ParentID: "C1", Stage: "L4_TASK_SPEC", State: "TACTICAL_STALL", OwnerLayer: 4, Title: "t2", Directive: "d", DirectiveHash: "h6", Attempts: 3})
+
+	before := 0
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		if n.Stage == "L2_STRATEGY" {
+			before++
+		}
+	}
+	eng.StepMissionDAG(ctx, "cyc-7", "span-7", "tick")
+	after := 0
+	for _, n := range eng.LoadMissionDAGNodes(ctx) {
+		if n.Stage == "L2_STRATEGY" {
+			after++
+		}
+	}
+	require.Greater(t, after, before, "a TACTICAL_STALL task must not freeze L2 horizon expansion")
 }
