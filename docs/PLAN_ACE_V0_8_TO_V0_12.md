@@ -54,7 +54,7 @@ The plan has no open questions. Per-version specs are written from it, one versi
 | **Time management** | A first-class system: schedules, monitors, long-running tasks, conflict resolution, replanning as information arrives |
 | **Web UI** | Redesigned from first principles in v0.11: minimal, usability and readability first |
 | **Opencode hook** | A personal bolt-on, kept out of core |
-| **Security status** | The server binds `127.0.0.1` (`cmd/ace/main.go`). ACE is off until v0.8 is built; self-building stays off until the scientist gate and tiered L1 exist |
+| **Security status** | The server binds `127.0.0.1` (`cmd/ace/main.go`). ACE runs live through every build (§4) |
 | **PR gate** | Every git repo with a remote, including ACE's own repo (`jayfalls/ace_prototype`): ACE's changes reach `main` only through an owner-merged PR. Identity: a GitHub App |
 | **v0.12** | Filled by the v0.10 comparison data |
 | **Sandbox** | Linux: the bwrap jail. macOS: sandbox-exec. Windows: runs unsandboxed and is flagged as such; revisited in v0.13 |
@@ -602,6 +602,7 @@ v0.12 targets ACE's weakest area in the v0.10 comparison. Candidates already rai
   | v0.11 | Owner time to answer the five UI questions | the v0.10 UI, timed in the design session |
 
 - **Build:** the builder (a coding agent; ACE itself from v0.10) opens a PR; the owner merges; the version is tagged `v0.N` on the merge commit and pushed.
+- **Live build:** every version is built while ACE runs live on its mission, because some bugs only show in a live run. The builder watches the run, fixes what breaks with a regression test, hot-restarts ACE and confirms the fix in the live run. A stall (ACE up but making no model calls) counts as a bug.
 - **Launch:** the first hour after start is observed by the builder, which fixes issues through further PRs. Run data (`thought_traces`, runs, workpads) is archived; mission, constitution version, profile, memory, skills, datasets, directive ledger, grants and concept registry carry forward.
 - **Spec:** each version's spec is written from this plan before its build; the superseded spec is archived in the same change (8.8).
 

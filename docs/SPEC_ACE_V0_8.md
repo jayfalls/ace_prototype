@@ -8,7 +8,7 @@ lives, and how it is tested. New v0.8 code goes in dedicated `internal/<componen
 never into `internal/cognitive` (prosecutor.go reached 1,857 lines in v0.7).
 
 Build order (slices, one PR each): 8.0 → 8.1 → 8.2 → 8.3+8.4 → 8.5 → 8.6 → 8.7+8.8 → acceptance.
-ACE stays OFF until the 24 h acceptance run at the end.
+ACE runs live throughout the build: the builder fixes what breaks while it runs (regression test, hot-restart, confirm live). The 24 h acceptance run comes at the end.
 
 ---
 
