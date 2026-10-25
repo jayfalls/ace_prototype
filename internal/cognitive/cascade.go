@@ -10,11 +10,14 @@ import (
 	"sync"
 	"time"
 
+	"database/sql"
+
 	"ace/internal/bus"
 	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/gate"
 	"ace/internal/layers"
+	"ace/internal/tasks"
 )
 
 // schedulerLoop is the spec-9.3 mailbox/cadence dispatcher. It replaces the
@@ -31,8 +34,28 @@ func (e *Engine) schedulerLoop(ctx context.Context) {
 	})
 	sched.DataBelow = e.schedDataBelow
 	var l5Dispatches []time.Time // thrash-per-hour window
+	lastScale := 1.0             // budget-governor cadence factor
+	seededSched := false         // schedule commitments are upserted once
 	unsubscribe := e.bus.Subscribe(func(env core.BusEnvelope) { sched.Deliver(env) })
 	defer unsubscribe()
+
+	// Crash recovery (spec 9.4): tasks left QUEUED/RUNNING/BLOCKED by a kill
+	// are re-armed into L5's mailbox so handles/jobs get re-polled.
+	if e.taskMgr != nil {
+		if recovered, rerr := e.taskMgr.Resume(ctx); rerr == nil {
+			for _, t := range recovered {
+				sched.Deliver(core.BusEnvelope{
+					CycleID: "system", AgentID: e.agentID,
+					Topic:     bus.InputTopic(e.agentID, 5),
+					Direction: core.DirectionNorthbound,
+					FromLayer: 6, ToLayer: 5,
+					Kind:    "task_recovery",
+					Summary: fmt.Sprintf("recovered live task %s (%s, %s)", t.ID, t.Kind, t.State),
+					Payload: t.ID,
+				})
+			}
+		}
+	}
 
 	var autoPulseCount int
 	timer := time.NewTimer(time.Minute)
@@ -71,6 +94,64 @@ func (e *Engine) schedulerLoop(ctx context.Context) {
 				L5Period:         k.L5Period,
 				L5MinDwell:       k.L5MinDwell,
 			})
+		}
+
+		// Budget governor (spec 9.4): when projected burn exceeds remaining
+		// window quota, non-L6 cadences slow; L6 prosecution stays runnable.
+		e.mu.RLock()
+		qUnits, qSecs := e.quotaUnits, e.quotaWindowSecs
+		e.mu.RUnlock()
+		scale := 1.0
+		if s, ok := e.memory.(interface{ DB() *sql.DB }); ok && s.DB() != nil {
+			scale = tasks.CadenceScale(ctx, s.DB(), qSecs, qUnits)
+		}
+		if scale != lastScale {
+			lastScale = scale
+			if scale < 1.0 {
+				sched.SetConfig(layers.SchedulerConfig{
+					L1ReviewInterval: time.Duration(float64(knobs.L1ReviewInterval) / scale),
+					L5Period:         time.Duration(float64(knobs.L5Period) / scale),
+					L5MinDwell:       knobs.L5MinDwell,
+				})
+			} else {
+				sched.SetConfig(layers.SchedulerConfig{
+					L1ReviewInterval: knobs.L1ReviewInterval,
+					L5Period:         knobs.L5Period,
+					L5MinDwell:       knobs.L5MinDwell,
+				})
+			}
+		}
+
+		// L5 time loop (spec 9.4): tick monitors, fire due schedules. A due
+		// schedule submits a deduped run row (idempotency name@due) and
+		// nudges L5; next_due advances only after that run reaches DONE.
+		if e.taskMgr != nil {
+			if !seededSched {
+				seededSched = true
+				_, _ = e.taskMgr.UpsertSchedule(ctx, "self_metrics_rollup", "FREQ=HOURLY")
+			}
+			e.taskMgr.HeartbeatTick(ctx, func(s tasks.Schedule) {
+				t, terr := e.taskMgr.Submit(ctx, tasks.Task{
+					Kind: "schedule_run", Layer: 5, State: tasks.StateRunning,
+					Payload:        s.Name,
+					IdempotencyKey: fmt.Sprintf("%s@%d", s.Name, s.NextDue.Unix()),
+				})
+				if terr != nil {
+					return // (name, due) already recorded — dedupe
+				}
+				e.taskMgr.RecordScheduleRun(ctx, s.ID, t.ID)
+				sched.Deliver(core.BusEnvelope{
+					CycleID: "system", AgentID: e.agentID,
+					Topic:     bus.InputTopic(e.agentID, 5),
+					Direction: core.DirectionNorthbound,
+					FromLayer: 6, ToLayer: 5,
+					Kind:    "schedule",
+					Summary: "schedule " + s.Name + " due",
+					Payload: s.Name,
+				})
+				_ = e.taskMgr.Complete(ctx, t.ID)
+			}, nil)
+			_ = e.taskMgr.ReconcileSchedules(ctx)
 		}
 
 		n := sched.ReadyNow(now)

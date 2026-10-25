@@ -21,6 +21,7 @@ import (
 	"ace/internal/plugin"
 	"ace/internal/provider"
 	"ace/internal/science"
+	"ace/internal/tasks"
 	"ace/internal/tools"
 	"ace/internal/watchdog"
 	"github.com/google/uuid"
@@ -57,6 +58,9 @@ type Engine struct {
 	currentLayer            int
 	gate                    *gate.Gate
 	activeDAGTaskID         string
+	taskMgr                 *tasks.Manager
+	quotaUnits              float64 // spec-9.4 budget governor window limit (tokens); 0 = unbounded
+	quotaWindowSecs         int
 	lastToolCallAt          string
 	lastActionAt            string
 	totalCycles             int
@@ -164,6 +168,7 @@ func NewEngine(
 		sandbox:             sbx,
 		telem:               telem,
 		gate:                gate.New(gdb, llm),
+		taskMgr:             tasks.New(gdb),
 		mode:                core.ModeAutonomous,
 		autoIntervalSeconds: 20,
 		layers:              layerStatus,
@@ -277,6 +282,15 @@ func (e *Engine) currentTaskID() string {
 func (e *Engine) setActiveDAGTask(id string) {
 	e.mu.Lock()
 	e.activeDAGTaskID = id
+	e.mu.Unlock()
+}
+
+// SetBudgetQuota configures the 9.4 budget governor: quotaUnits tokens per
+// quotaWindowSecs rolling window. Zero disables the slowdown (unbounded).
+func (e *Engine) SetBudgetQuota(quotaUnits float64, quotaWindowSecs int) {
+	e.mu.Lock()
+	e.quotaUnits = quotaUnits
+	e.quotaWindowSecs = quotaWindowSecs
 	e.mu.Unlock()
 }
 

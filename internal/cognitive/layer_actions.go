@@ -12,6 +12,7 @@ import (
 	"ace/internal/core"
 	"ace/internal/plugin"
 	"ace/internal/sandbox"
+	"ace/internal/tasks"
 	"ace/internal/tools"
 
 	"github.com/google/uuid"
@@ -540,7 +541,33 @@ func (e *Engine) actionSandboxSh(ctx context.Context, a tools.Args) string {
 		cmdStr = strings.ReplaceAll(cmdStr, `;\n`, "; ")
 		cmdStr = strings.ReplaceAll(cmdStr, `\n`, "\n")
 	}
-	res, err := e.sandbox.Exec(ctx, cmdStr)
+	// Spec 9.4: past tasks.tool_timeout (120s) the call detaches to a
+	// background handle the layer can poll — it is not an error.
+	var res core.ExecResult
+	var err error
+	if e.taskMgr != nil {
+		execFn := func(c context.Context, cmd string) (string, error) {
+			var r core.ExecResult
+			var e2 error
+			if j, ok := e.sandbox.(interface {
+				ExecWithTimeout(context.Context, string, time.Duration) (core.ExecResult, error)
+			}); ok {
+				r, e2 = j.ExecWithTimeout(c, cmd, 30*time.Minute)
+			} else {
+				r, e2 = e.sandbox.Exec(c, cmd)
+			}
+			res = r
+			return r.Stdout + "\n" + r.Stderr, e2
+		}
+		var h *tasks.Handle
+		_, h, err = e.taskMgr.ExecOrHandle(ctx, execFn, cmdStr, tasks.ToolTimeout)
+		if h != nil {
+			e.telem.EmitLive("sandbox.detached", map[string]string{"task": h.TaskID})
+			return fmt.Sprintf("still running past %s — detached to background handle task %s (kind=exec_handle); poll job_status or read its checkpoint for output.", tasks.ToolTimeout, h.TaskID)
+		}
+	} else {
+		res, err = e.sandbox.Exec(ctx, cmdStr)
+	}
 	e.telem.EmitLive("sandbox.exec", res)
 	e.telem.EmitLive("sandbox.updated", map[string]string{"path": "/workspace"})
 	out := strings.TrimSpace(res.Stdout + "\n" + res.Stderr)

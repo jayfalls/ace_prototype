@@ -380,11 +380,11 @@ except Exception as e:
     print("[Pi-Lens Syntax ERROR] " + str(e))
     sys.exit(1)
 '`, "/workspace/"+clean)
-		res, _ := j.runBwrap(ctx, cmd)
+		res, _ := j.runBwrap(ctx, cmd, maxExecTimeout)
 		return strings.TrimSpace(res.Stdout + " " + res.Stderr)
 
 	case strings.HasSuffix(clean, ".sh"):
-		res, _ := j.runBwrap(ctx, fmt.Sprintf("sh -n /workspace/%s && echo '[Pi-Lens Shell OK] syntax valid'", clean))
+		res, _ := j.runBwrap(ctx, fmt.Sprintf("sh -n /workspace/%s && echo '[Pi-Lens Shell OK] syntax valid'", clean), maxExecTimeout)
 		return strings.TrimSpace(res.Stdout + " " + res.Stderr)
 
 	case strings.HasSuffix(clean, ".json"):

@@ -15,6 +15,9 @@ var windowSecs = map[string]int64{
 	"weekly": 7 * 24 * 3600,
 }
 
+// QuotaWindowSecs exports a named window's duration (0 for unknown names).
+func QuotaWindowSecs(window string) int64 { return windowSecs[window] }
+
 // QuotaUsed reports the fraction (0..1) of a subscription window already
 // consumed: sum of window usage_events tokens vs the window's allowance in
 // provider.quota.<group>.<window> (limit is a token count; when configured

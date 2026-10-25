@@ -2,6 +2,7 @@ package cognitive
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"ace/internal/layers"
 	"ace/internal/provider"
 	"ace/internal/sandbox"
+	"ace/internal/tasks"
 	"ace/internal/tools"
 	"github.com/google/uuid"
 )
@@ -775,6 +777,9 @@ func (e *Engine) executeLayerStepWithFrozenPrompt(
 		handoff := LoadHandoffPacket(ctx, e.memory, topMilestone)
 		userPromptBuilder.WriteString(FormatHandoffBucket(handoff, zoneBuilder.String()))
 
+		// Spec 9.4: current time, owner-contact recency, measured availability.
+		userPromptBuilder.WriteString(e.temporalContext(ctx))
+
 		// SLA BUCKET 8 (STIMULUS <= 1,600B):
 		userPromptBuilder.WriteString(fmt.Sprintf("\n\n=== INCOMING STIMULUS / DIRECTIVE (%s) ===\n%s",
 			layer.Channel(), truncateText(stimulus, SLABucketStimulusMaxBytes)))
@@ -1316,6 +1321,28 @@ func effectiveShellCommand(act core.LayerAction) string {
 	return cmdStr
 }
 
+// temporalContext renders the spec-9.4 prompt block: current UTC time, time
+// since the last owner message, and the measured circadian availability.
+func (e *Engine) temporalContext(ctx context.Context) string {
+	now := time.Now().UTC()
+	sinceOwner := "never observed"
+	if s, ok := e.memory.(interface{ DB() *sql.DB }); ok && s.DB() != nil {
+		var last string
+		if err := s.DB().QueryRowContext(ctx,
+			`SELECT MAX(created_at) FROM chat_messages WHERE role='user'`).Scan(&last); err == nil && last != "" {
+			for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05"} {
+				if t, perr := time.Parse(layout, last); perr == nil {
+					sinceOwner = time.Since(t).Round(time.Minute).String() + " ago"
+					break
+				}
+			}
+		}
+	}
+	prob, _, _ := e.EstimateHumanCircadianAvailability(ctx, now)
+	return fmt.Sprintf("\n\n=== TEMPORAL CONTEXT ===\nnow: %s | last owner contact: %s | measured owner availability: %.2f\n",
+		now.Format(time.RFC3339), sinceOwner, prob)
+}
+
 func (e *Engine) executeLayerAction(
 	ctx context.Context,
 	cycleID string,
@@ -1330,6 +1357,11 @@ func (e *Engine) executeLayerAction(
 
 	if err := e.checkSafety(ctx, cycleID, layer, act); err != nil {
 		return "safety_monitor blocked action: " + err.Error()
+	}
+
+	// Child-task tool blocklist (spec 9.4): enforced at dispatch, not prompts.
+	if e.taskMgr != nil && e.taskMgr.IsChild(ctx, e.currentTaskID()) && !tasks.ChildToolAllowed(actType) {
+		return fmt.Sprintf("action %q refused: tool blocklisted for child tasks", actType)
 	}
 
 	// Tiered L1 constitutional gate (plan 8.2): every side-effecting action

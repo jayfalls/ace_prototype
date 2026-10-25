@@ -19,9 +19,13 @@ import (
 )
 
 const (
-	maxExecTimeout = 25 * time.Second
-	maxOutputBytes = 256 * 1024
-	maxRecentExecs = 50
+	// maxExecTimeout is the spec-9.4 tasks.tool_timeout (120s). Past it a
+	// call detaches into a background handle via tasks.ExecOrHandle — the
+	// process itself keeps running under execHardTimeout.
+	maxExecTimeout  = 120 * time.Second
+	execHardTimeout = 30 * time.Minute
+	maxOutputBytes  = 256 * 1024
+	maxRecentExecs  = 50
 )
 
 // Jail implements core.Sandbox using Linux kernel openat2 (via Go 1.24+ os.Root)
@@ -142,7 +146,7 @@ func (j *Jail) Verify(ctx context.Context) core.SandboxStatus {
 
 	// 3. Verify bwrap hides /home and isolates PID/user/mount namespaces with DNS/TLS egress ready
 	if st.BwrapAvailable {
-		res, _ := j.runBwrap(ctx, "ls /home >/dev/null 2>&1 && echo HOME_VISIBLE || echo HOME_HIDDEN; test -r /etc/resolv.conf && echo NET_READY || echo NET_MISSING")
+		res, _ := j.runBwrap(ctx, "ls /home >/dev/null 2>&1 && echo HOME_VISIBLE || echo HOME_HIDDEN; test -r /etc/resolv.conf && echo NET_READY || echo NET_MISSING", maxExecTimeout)
 		if strings.Contains(res.Stdout, "HOME_HIDDEN") {
 			st.HomeHidden = true
 			logs = append(logs, "PASS: /home is unmounted inside bwrap")
@@ -174,7 +178,7 @@ func (j *Jail) Exec(ctx context.Context, command string) (core.ExecResult, error
 		return core.ExecResult{}, errors.New("empty sandbox command")
 	}
 
-	res, err := j.runBwrap(ctx, command)
+	res, err := j.runBwrap(ctx, command, maxExecTimeout)
 	j.mu.Lock()
 	j.recentExecs = append([]core.ExecResult{res}, j.recentExecs...)
 	if len(j.recentExecs) > maxRecentExecs {
@@ -184,8 +188,17 @@ func (j *Jail) Exec(ctx context.Context, command string) (core.ExecResult, error
 	return res, err
 }
 
-func (j *Jail) runBwrap(ctx context.Context, command string) (core.ExecResult, error) {
-	execCtx, cancel := context.WithTimeout(ctx, maxExecTimeout)
+// ExecWithTimeout runs a command under an explicit hard timeout (detached
+// background jobs use execHardTimeout rather than the interactive 120s cap).
+func (j *Jail) ExecWithTimeout(ctx context.Context, command string, d time.Duration) (core.ExecResult, error) {
+	if command == "" {
+		return core.ExecResult{}, errors.New("empty sandbox command")
+	}
+	return j.runBwrap(ctx, command, d)
+}
+
+func (j *Jail) runBwrap(ctx context.Context, command string, timeout time.Duration) (core.ExecResult, error) {
+	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	start := time.Now()

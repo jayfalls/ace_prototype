@@ -17,6 +17,7 @@ import (
 	"ace/internal/gate"
 	"ace/internal/plan"
 	"ace/internal/science"
+	"ace/internal/tasks"
 )
 
 // MissionDAGNode represents a single node in the strict Top-Down Dependency Tree:
@@ -64,6 +65,7 @@ func (e *Engine) initMissionDAGSchema(db *sql.DB) {
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN retired_reason TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN reanchor_count INTEGER NOT NULL DEFAULT 0`)
 	_ = science.Migrate(db)
+	_ = tasks.Migrate(db)
 }
 
 func sha256Str(s string) string {

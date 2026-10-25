@@ -140,6 +140,15 @@ func main() {
 	var llmPort core.LLMProvider = registry
 
 	engine := cognitive.NewEngine(llmPort, memBus, memStore, jail, telem)
+	// Budget governor (spec 9.4): smallest configured 5h-window quota slows
+	// non-L6 cadences when projected burn exceeds the remaining window.
+	var quotaUnits float64
+	for _, windows := range provCfg.Quota {
+		if lim, ok := windows["5h"]; ok && lim > 0 && (quotaUnits == 0 || lim < quotaUnits) {
+			quotaUnits = lim
+		}
+	}
+	engine.SetBudgetQuota(quotaUnits, int(provider.QuotaWindowSecs("5h")))
 	engine.Start(ctx)
 
 	tgBridge, err := channels.NewTelegramBridge(db, engine, memStore, jail, telem, *tgToken, *tgChats)
