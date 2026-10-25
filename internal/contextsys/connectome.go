@@ -331,3 +331,12 @@ func SanitizeTaskID(raw string) string {
 	}
 	return clean
 }
+
+// MilestoneIDRe matches axis/milestone/phase identifiers in roadmap lines.
+var MilestoneIDRe = regexp.MustCompile(`(?i)\b(axis|milestone|phase)\s+[0-9]+(?:\.[0-9]+)*\b`)
+
+// MilestoneIdentifier extracts and normalizes the milestone identifier.
+func MilestoneIdentifier(line string) string {
+	m := MilestoneIDRe.FindString(line)
+	return strings.ToLower(strings.Join(strings.Fields(m), " "))
+}

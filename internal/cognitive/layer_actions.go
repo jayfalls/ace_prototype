@@ -109,7 +109,7 @@ func (e *Engine) actionMemoryRemember(ctx context.Context, a tools.Args) string 
 	if layer <= core.LayerGlobalStrategy {
 		tier = "long"
 	}
-	entry, err := e.memory.Remember(ctx, core.MemoryEntry{
+	entry, err := e.memory.Remember(ctx, layer.Code(), core.MemoryEntry{
 		AgentID:   e.agentID,
 		LayerCode: layer.Code(),
 		Tier:      tier,

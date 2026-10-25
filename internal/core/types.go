@@ -227,6 +227,12 @@ type MemoryEntry struct {
 	Tags      string    `json:"tags"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// v0.9 memory metadata (spec 9.6).
+	Type       string    `json:"type"`        // episodic, semantic, procedural
+	Source     string    `json:"source"`      // provenance: cycle/tool/caller that produced the fact
+	VerifiedAt time.Time `json:"verified_at"` // when a semantic fact was last verified; zero = unverified
+	Importance float64   `json:"importance"`  // retention weight; 0 defaults to 1
 }
 
 // TelemetrySpan represents an OpenTelemetry-style execution span persisted in SQLite.

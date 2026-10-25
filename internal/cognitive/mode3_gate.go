@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"ace/internal/core"
+	"ace/internal/specs"
 )
 
 // Mode3GateResult captures the deterministic falsification verdict for a milestone checkoff attempt.
@@ -86,13 +87,6 @@ func ExtractMilestoneArtifacts(milestoneLine string) (wsFiles []string, wikiFile
 	return wsFiles, wikiFiles
 }
 
-var milestoneIDRe = regexp.MustCompile(`(?i)\b(axis|milestone|phase)\s+[0-9]+(?:\.[0-9]+)*\b`)
-
-// extractMilestoneIdentifier returns a normalized identifier like "axis 8.1" or "milestone 1.2" from a milestone line.
-func extractMilestoneIdentifier(line string) string {
-	m := milestoneIDRe.FindString(line)
-	return strings.ToLower(strings.Join(strings.Fields(m), " "))
-}
 
 // collapseMultilineMilestoneBullets flattens indented continuation lines beneath `- [ ]` or `- [x]` bullets
 // into a single canonical line so multi-line L2 roadmap entries never lose their inline artifact paths or H0/H1 clauses.
@@ -343,6 +337,19 @@ func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandb
 		Passed:            true,
 		Milestone:         milestoneLine,
 		RequiredArtifacts: append(append([]string{}, wsFiles...), wikiFiles...),
+	}
+
+	// Spec 9.6 output-vs-spec check: touched files declared out of scope by
+	// the milestone's living spec are divergence — reject before Stage 1.
+	if wikiDir != "" && len(wsFiles) > 0 {
+		specID := sanitizeTaskID(extractMilestoneShortID(milestoneLine))
+		if raw, err := os.ReadFile(filepath.Join(wikiDir, "specs", specID+".md")); err == nil && len(raw) > 0 {
+			if err := specs.CheckOutOfScope(string(raw), wsFiles); err != nil {
+				res.Passed = false
+				res.Reason = "living spec divergence: " + err.Error()
+				return res
+			}
+		}
 	}
 
 	// Stage 1: Artifact existence & non-empty verification (JSON substance verified after Stage 2 --selftest runs)

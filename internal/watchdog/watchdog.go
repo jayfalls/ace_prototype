@@ -115,6 +115,16 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 		_ = db.QueryRow(`SELECT COUNT(*) FROM cycle_reports WHERE created_at > datetime('now','-1 hour')`).Scan(&recent)
 		checks = append(checks, Check{"runaway_loop", recent < 400, fmt.Sprintf("%d cycles in last hour", recent)})
 
+		// Memory health (spec 9.6): episodic cap pressure + unverified
+		// semantic facts are watchdog-visible.
+		var episodic, unverified int
+		_ = db.QueryRow(`SELECT
+			COALESCE(SUM(CASE WHEN COALESCE(type,'episodic')='episodic' THEN 1 ELSE 0 END),0),
+			COALESCE(SUM(CASE WHEN type='semantic' AND verified_at IS NULL THEN 1 ELSE 0 END),0)
+			FROM memories`).Scan(&episodic, &unverified)
+		checks = append(checks, Check{"memory_store", episodic <= 10000,
+			fmt.Sprintf("episodic=%d/10000 unverified_semantic=%d", episodic, unverified)})
+
 		// Stall: action announced >120s ago with no tool call while busy.
 		if s.Busy && s.LastActionAt != "" {
 			la, _ := time.Parse(time.RFC3339, s.LastActionAt)

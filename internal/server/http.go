@@ -388,7 +388,7 @@ func (s *Server) handleRemember(w http.ResponseWriter, r *http.Request) {
 	if body.Category == "" {
 		body.Category = "note"
 	}
-	entry, err := s.memory.Remember(r.Context(), body)
+	entry, err := s.memory.Remember(r.Context(), "L1", body)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

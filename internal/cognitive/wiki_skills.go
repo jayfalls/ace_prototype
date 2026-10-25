@@ -6,108 +6,31 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"ace/internal/core"
+	"ace/internal/science"
+	"ace/internal/skills"
+)
+
+// Spec 9.6: the wiki-skill model lives in internal/skills. Aliases keep
+// the engine's lifecycle methods readable.
+type WikiSkillRecord = skills.WikiSkillRecord
+type WikiSkillLifecycleIndex = skills.WikiSkillLifecycleIndex
+
+var (
+	skillSlugNonAlnumRe    = skills.SkillSlugNonAlnumRe
+	firstNonEmptyInterface = skills.FirstNonEmptyInterface
+	inferSkillDomainAndKey = skills.InferSkillDomainAndKey
+	recomputeSkillCounts   = skills.RecomputeSkillCounts
+	extractSkillTokens     = skills.ExtractSkillTokens
+	isSkillStopword        = skills.IsSkillStopword
 )
 
 // WikiSkillRecord tracks a compiled procedural Wiki-Skill with Beta(alpha, beta) pass-rate posteriors
 // and Replace-Never-Layer lifecycle state (wired natively into the Go runtime).
-type WikiSkillRecord struct {
-	SkillID      string    `json:"skill_id"`
-	Key          string    `json:"key"`
-	Title        string    `json:"title"`
-	Domain       string    `json:"domain"`
-	Version      int       `json:"version"`
-	WikiPath     string    `json:"wiki_path"`
-	Alpha        float64   `json:"alpha"`
-	Beta         float64   `json:"beta"`
-	Observations int       `json:"observations"`
-	Triggers     []string  `json:"triggers"`
-	Procedure    []string  `json:"procedure"`
-	Verification string    `json:"verification"`
-	SourceCycle  string    `json:"source_cycle"`
-	Retired      bool      `json:"retired"`
-	SupersededBy string    `json:"superseded_by,omitempty"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-func (s WikiSkillRecord) PosteriorMean() float64 {
-	if s.Alpha+s.Beta <= 0 {
-		return 0.5
-	}
-	return s.Alpha / (s.Alpha + s.Beta)
-}
-
-type WikiSkillLifecycleIndex struct {
-	UpdatedAt       string            `json:"updated_at"`
-	ActiveCount     int               `json:"active_count"`
-	RetiredCount    int               `json:"retired_count"`
-	Skills          []WikiSkillRecord `json:"skills"`
-	RetirementLog   []string          `json:"retirement_log,omitempty"`
-	LastRoutedSkill string            `json:"last_routed_skill,omitempty"`
-}
-
-var skillSlugNonAlnumRe = regexp.MustCompile(`[^a-z0-9_]+`)
-
-func firstNonEmptyInterface(vals ...interface{}) interface{} {
-	for _, v := range vals {
-		if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
-			return s
-		}
-	}
-	return nil
-}
-
-func inferSkillDomainAndKey(milestone string, files []string) (domain string, key string, title string) {
-	lower := strings.ToLower(milestone)
-	switch {
-	case strings.Contains(lower, "baseline") || strings.Contains(lower, "comparison") || strings.Contains(lower, "competitor") || strings.Contains(lower, "ablation"):
-		domain = "comparative_evaluation"
-	case strings.Contains(lower, "sensorium") || strings.Contains(lower, "circadian") || strings.Contains(lower, "replica") || strings.Contains(lower, "proprio"):
-		domain = "sensorium_embodiment"
-	case strings.Contains(lower, "skill") || strings.Contains(lower, "wiki"):
-		domain = "skill_lifecycle"
-	case strings.Contains(lower, "connectome") || strings.Contains(lower, "router") || strings.Contains(lower, "context"):
-		domain = "connectome_routing"
-	case strings.Contains(lower, "swe") || strings.Contains(lower, "terminal") || strings.Contains(lower, "code"):
-		domain = "software_repair"
-	case strings.Contains(lower, "finance") || strings.Contains(lower, "math") || strings.Contains(lower, "gpqa") || strings.Contains(lower, "research"):
-		domain = "deep_research_synthesis"
-	default:
-		domain = "autonomous_engineering"
-	}
-
-	baseSlug := ""
-	for _, f := range files {
-		if strings.HasSuffix(f, ".py") || strings.HasSuffix(f, ".go") {
-			b := strings.TrimSuffix(filepath.Base(f), filepath.Ext(f))
-			baseSlug = strings.TrimSpace(skillSlugNonAlnumRe.ReplaceAllString(strings.ToLower(b), "_"))
-			break
-		}
-	}
-	if baseSlug == "" {
-		id := extractMilestoneIdentifier(milestone)
-		baseSlug = strings.Trim(skillSlugNonAlnumRe.ReplaceAllString(strings.ToLower(id), "_"), "_")
-		if baseSlug == "" {
-			baseSlug = "procedural_skill"
-		}
-	}
-	key = domain + "/" + baseSlug
-	title = strings.TrimSpace(milestone)
-	if idx := strings.Index(title, ":"); idx > 0 {
-		title = strings.TrimSpace(strings.TrimPrefix(title[:idx], "- [ ]"))
-		title = strings.TrimSpace(strings.TrimPrefix(title, "- [x]"))
-		title = strings.Trim(title, "* ")
-	}
-	if len(title) > 90 {
-		title = title[:90]
-	}
-	return domain, key, title
-}
 
 func (e *Engine) skillIndexFilePath() string {
 	wsDir, _ := e.resolveSandboxDirs()
@@ -190,45 +113,6 @@ func (e *Engine) SaveWikiSkillIndex(idx WikiSkillLifecycleIndex) {
 	}
 }
 
-func recomputeSkillCounts(idx *WikiSkillLifecycleIndex) {
-	act, ret := 0, 0
-	for _, s := range idx.Skills {
-		if s.Retired {
-			ret++
-		} else {
-			act++
-		}
-	}
-	idx.ActiveCount = act
-	idx.RetiredCount = ret
-}
-
-func extractSkillTokens(text string, limit int) []string {
-	seen := make(map[string]bool)
-	var out []string
-	for _, m := range connectomeWordTokenRe.FindAllString(strings.ToLower(text), -1) {
-		if len(m) < 4 || isSkillStopword(m) || seen[m] {
-			continue
-		}
-		seen[m] = true
-		out = append(out, m)
-		if len(out) >= limit {
-			break
-		}
-	}
-	return out
-}
-
-func isSkillStopword(w string) bool {
-	switch w {
-	case "that", "this", "with", "from", "your", "have", "will", "must", "each", "task", "write", "code", "test", "using", "into", "should", "which", "when", "where", "workspace", "benchmarks", "results", "datasets", "build", "construct":
-		return true
-	}
-	return false
-}
-
-// RouteTopWikiSkill selects the highest-scoring active Wiki-Skill for the current milestone using
-// token overlap + Beta(alpha, beta) posterior mean (Harness^2 C6 On-Demand Skill Routing).
 func (e *Engine) RouteTopWikiSkill(ctx context.Context, milestone string) (WikiSkillRecord, bool) {
 	idx := e.LoadWikiSkillIndex()
 	msTokens := make(map[string]bool)
@@ -280,10 +164,16 @@ func (e *Engine) UpdateRoutedSkillOutcome(ctx context.Context, milestone string,
 			}
 			idx.Skills[i].Observations++
 			idx.Skills[i].UpdatedAt = time.Now().UTC()
-			if idx.Skills[i].Observations >= 4 && idx.Skills[i].PosteriorMean() < 0.55 {
-				idx.Skills[i].Retired = true
+			// Spec rule (9.6): retire after >=5 uses when the exact Beta
+			// posterior gives P(rate < 0.5) > 0.9, and register the
+			// retirement in the concept registry.
+			if rec, payload, ok := skills.Retire(ctx, idx.Skills[i]); ok {
+				idx.Skills[i] = rec
 				idx.Skills[i].SupersededBy = "retired_low_posterior"
-				idx.RetirementLog = append(idx.RetirementLog, fmt.Sprintf("%s retired at posterior=%.2f (obs=%d)", idx.Skills[i].SkillID, idx.Skills[i].PosteriorMean(), idx.Skills[i].Observations))
+				idx.RetirementLog = append(idx.RetirementLog, payload)
+				if db := e.getDB(); db != nil {
+					_ = science.RegisterConcept(ctx, db, science.Concept{Name: idx.Skills[i].SkillID, Kind: "skill", Owner: "L6", Purpose: payload})
+				}
 			}
 			break
 		}

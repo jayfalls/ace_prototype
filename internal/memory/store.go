@@ -53,7 +53,11 @@ func (s *Store) migrate() error {
 		content TEXT NOT NULL,
 		tags TEXT NOT NULL,
 		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
+		updated_at DATETIME NOT NULL,
+		type TEXT,
+		source TEXT,
+		verified_at DATETIME,
+		importance REAL
 	);
 	CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
 		id UNINDEXED,
@@ -164,6 +168,11 @@ func (s *Store) migrate() error {
 	}
 	// Ensure backward-compatible migration for existing DBs without the 'tier' column
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'medium'`)
+	// v0.9 memory metadata (spec 9.6); tolerated ALTERs for existing DBs.
+	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN type TEXT`)
+	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN source TEXT`)
+	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN verified_at DATETIME`)
+	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN importance REAL`)
 	// Drop the retired approval column from pre-autonomy schemas (error
 	// tolerated: absent column or old sqlite — the table is authoritative either way).
 	_, _ = s.db.Exec(`ALTER TABLE spec_registry DROP COLUMN human_approval_ref`)
@@ -277,7 +286,17 @@ func wordJaccardSimilarity(a, b string) float64 {
 	return float64(inter) / float64(union)
 }
 
-func (s *Store) Remember(ctx context.Context, entry core.MemoryEntry) (core.MemoryEntry, error) {
+// Remember admits an entry under the writer's authority. Storage-level
+// rule (spec 9.6): a layer may only write to its own layer_code, and L1
+// may write anywhere — cross-layer writes are rejected here, not in
+// prompts.
+func (s *Store) Remember(ctx context.Context, callerLayer string, entry core.MemoryEntry) (core.MemoryEntry, error) {
+	if err := checkWriteRight(callerLayer, entry.LayerCode); err != nil {
+		return entry, err
+	}
+	if err := validateType(entry); err != nil {
+		return entry, err
+	}
 	now := time.Now().UTC()
 	if entry.ID == "" {
 		entry.ID = "mem_" + uuid.NewString()[:12]
@@ -291,7 +310,15 @@ func (s *Store) Remember(ctx context.Context, entry core.MemoryEntry) (core.Memo
 	if entry.CreatedAt.IsZero() {
 		entry.CreatedAt = now
 	}
-	entry.UpdatedAt = now
+	if entry.Importance <= 0 {
+		entry.Importance = 1
+	}
+	// A caller-supplied updated_at drives the stale-write check (spec:
+	// older updated_at writes are rejected); absent one, now is fresh.
+	callerStamped := !entry.UpdatedAt.IsZero()
+	if !callerStamped {
+		entry.UpdatedAt = now
+	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -324,17 +351,30 @@ func (s *Store) Remember(ctx context.Context, entry core.MemoryEntry) (core.Memo
 		}
 	}
 	if existingID != "" {
+		if callerStamped {
+			// Monotonic-write rule: a caller-stamped update older than the
+			// stored row is stale and rejected inside the same tx.
+			var prevUpdated string
+			if err := tx.QueryRowContext(ctx, `SELECT updated_at FROM memories WHERE id = ?`, existingID).Scan(&prevUpdated); err == nil {
+				if pt, perr := time.Parse(tsLayout, prevUpdated); perr == nil && entry.UpdatedAt.Before(pt) {
+					return entry, fmt.Errorf("stale write rejected: updated_at %s precedes stored %s", entry.UpdatedAt, pt)
+				}
+			}
+		}
 		entry.ID = existingID
 		_, _ = tx.ExecContext(ctx, `
-			UPDATE memories SET tier = ?, category = ?, title = ?, content = ?, tags = ?, updated_at = ?
+			UPDATE memories SET tier = ?, category = ?, title = ?, content = ?, tags = ?, updated_at = ?,
+				type = ?, source = ?, verified_at = ?, importance = ?
 			WHERE id = ?
-		`, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.UpdatedAt, existingID)
+		`, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.UpdatedAt,
+			entry.Type, entry.Source, nullTime(entry.VerifiedAt), entry.Importance, existingID)
 		_, _ = tx.ExecContext(ctx, `DELETE FROM memories_fts WHERE id = ?`, existingID)
 	} else {
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO memories (id, agent_id, layer_code, tier, category, title, content, tags, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`, entry.ID, entry.AgentID, entry.LayerCode, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.CreatedAt, entry.UpdatedAt)
+			INSERT INTO memories (id, agent_id, layer_code, tier, category, title, content, tags, created_at, updated_at, type, source, verified_at, importance)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`, entry.ID, entry.AgentID, entry.LayerCode, entry.Tier, entry.Category, entry.Title, entry.Content, entry.Tags, entry.CreatedAt, entry.UpdatedAt,
+			entry.Type, entry.Source, nullTime(entry.VerifiedAt), entry.Importance)
 		if err != nil {
 			return entry, err
 		}
@@ -345,6 +385,12 @@ func (s *Store) Remember(ctx context.Context, entry core.MemoryEntry) (core.Memo
 		VALUES (?, ?, ?, ?, ?)
 	`, entry.ID, entry.Title, entry.Content, entry.Tags, entry.Category)
 	if err != nil {
+		return entry, err
+	}
+
+	// Episodic cap: over the limit, evict the lowest retention score
+	// inside the same transaction so the cap is atomic with the write.
+	if err := enforceEpisodicCap(ctx, tx); err != nil {
 		return entry, err
 	}
 

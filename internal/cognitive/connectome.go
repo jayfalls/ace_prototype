@@ -38,6 +38,7 @@ var (
 	SliceBudgetMaxBytes        = contextsys.SliceBudgetMaxBytes
 	RankConnectomeCandidates   = contextsys.RankConnectomeCandidates
 	IsHarnessMintedEvidenceRef = contextsys.IsHarnessMintedEvidenceRef
+	extractMilestoneIdentifier = contextsys.MilestoneIdentifier
 )
 
 func (e *Engine) getDB() *sql.DB {

@@ -35,7 +35,7 @@
   router is now owner-opt-in. `context.recap_n`, `features.context` knobs.
 - `maybeCompact` runs on priorTurns before message assembly; fill =
   last provider-reported prompt_tokens ÷ catalogue context window
-  (`Registry.ModelContext`, new export).
+  (`ModelContext`, new export).
 - Soul/constitution injection recorded per layer call; config.d reload
   publishes a control notice.
 - `injection_log`/`map_*` migrate at the engine schema chokepoint.

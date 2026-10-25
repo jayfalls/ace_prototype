@@ -561,7 +561,7 @@ func (e *Engine) consolidateCycleNorthbound(
 		!strings.Contains(consolidated, "Traceback") &&
 		!strings.Contains(consolidated, "error:")
 	if isCleanSuccess {
-		_, _ = e.memory.Remember(ctx, core.MemoryEntry{
+		_, _ = e.memory.Remember(ctx, "L6", core.MemoryEntry{
 			AgentID:   e.agentID,
 			LayerCode: "GLOBAL",
 			Tier:      "medium",

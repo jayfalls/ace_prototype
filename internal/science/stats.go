@@ -227,3 +227,7 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// IncBeta exports the regularized incomplete beta for cross-package use
+// (skills posterior retirement, spec 9.6).
+func IncBeta(x, a, b float64) float64 { return incBeta(x, a, b) }

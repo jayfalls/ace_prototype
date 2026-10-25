@@ -33,8 +33,8 @@ func TestStoreFTS5AndWikiAndChat(t *testing.T) {
 	require.Error(t, err)
 
 	// 3. FTS5 search works
-	_, err = store.Remember(context.Background(), core.MemoryEntry{
-		LayerCode: "L2",
+	_, err = store.Remember(context.Background(), "L1", core.MemoryEntry{
+		LayerCode: "L1",
 		Category:  "goal",
 		Title:     "December Independence Goal",
 		Content:   "Build a working single-binary ACE prototype with visual cockpit.",

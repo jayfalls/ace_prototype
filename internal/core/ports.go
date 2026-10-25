@@ -70,7 +70,7 @@ type Bus interface {
 
 // MemoryStore is the modular port for episodic FTS5 memory, chat history, and the LLM Wiki.
 type MemoryStore interface {
-	Remember(ctx context.Context, entry MemoryEntry) (MemoryEntry, error)
+	Remember(ctx context.Context, callerLayer string, entry MemoryEntry) (MemoryEntry, error)
 	Search(ctx context.Context, query string, limit int) ([]MemoryEntry, error)
 	SearchForLayer(ctx context.Context, layerCode string, query string, limit int) ([]MemoryEntry, error)
 	RecentMemories(ctx context.Context, limit int) ([]MemoryEntry, error)
