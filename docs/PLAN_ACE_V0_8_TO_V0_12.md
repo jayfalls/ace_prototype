@@ -85,6 +85,7 @@ The plan has no open questions. Per-version specs are written from it, one versi
 - **Composition.** Shared components with standard interfaces, connectors and bridges; one solution per problem, never per-layer copies.
 - **Filesystem:** `internal/<component>/`, two nesting levels (three only in rare cases); files of about 500 lines at most; no god files.
 - **Least privilege.** Every capability grant is an experiment that has to show it improves outcomes (10.4).
+- **Honest measurement.** Every measurement is fair, comprehensive and honest. Fair: both arms share the mission, window length, logging and metric definition, and a change to logging or a definition resets the baseline. Comprehensive: every arm, attempt and failure is counted, and results are distributions with n and a confidence interval, not single ratios. Honest: a metric is named for exactly what it computes, and no window or subset is picked after seeing the data.
 - **Adopt before build.** Use a maintained component first; build only for a recorded gap.
 - **Owner-set config is authoritative.** Owner-set files (mission, personality, models, caps, grants) are mounted read-only in the jail and Tier 0 denies writes to them. ACE proposes changes with evidence in the digest.
 
@@ -349,7 +350,7 @@ Agents read dead code and stale docs as live. AST checks alone can't catch a con
 - **Thinking:** on only for the main model; gate, router and other side calls run with thinking off.
 - **Side-model sizes:** small, medium, big; task size picks the size.
 - **Quota windows:** subscription providers are budgeted by their windows (5-hour, weekly) and shown as % used; metered providers by cost.
-- **Built-in providers:** OpenAI-compatible, Anthropic, Google/Vertex and Ollama. Credentials come only from ACE's own config, never another app's stored credential.
+- **Built-in providers:** OpenAI-compatible, Anthropic, Google/Vertex and Ollama. Credentials come only from ACE's own config, never another app's stored credential; OpenCode Go uses its own API key.
 
 ### 9.3 Layers, bus and cadence
 
