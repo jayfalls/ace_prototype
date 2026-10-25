@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,22 +59,54 @@ func TestRunChecksStaleHeartbeat(t *testing.T) {
 }
 
 func TestEventChainAndTamper(t *testing.T) {
-	db, _ := sql.Open("sqlite", ":memory:")
-	defer db.Close()
-	db.SetMaxOpenConns(1)
-	InitEvents(db)
+	dir := t.TempDir()
+	path := EventPath(dir)
 	for i := 0; i < 5; i++ {
-		if err := AppendEvent(db, "tick", "ok"); err != nil {
+		if err := AppendEventFile(path, "tick", "ok"); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := VerifyChain(db); err != nil {
+	if err := VerifyChainFile(path); err != nil {
 		t.Fatalf("clean chain failed verify: %v", err)
 	}
-	db.Exec(`UPDATE watchdog_events SET detail='tampered' WHERE id=3`)
-	if err := VerifyChain(db); err == nil {
-		t.Fatal("tampered row must break the chain")
+	// Tamper with line 3 in the file — the chain must break.
+	b, _ := os.ReadFile(path)
+	lines := strings.Split(strings.TrimRight(string(b), "\n"), "\n")
+	lines[2] = strings.Replace(lines[2], `"ok"`, `"tampered"`, 1)
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
 	}
+	if err := VerifyChainFile(path); err == nil {
+		t.Fatal("tampered event must break the chain")
+	}
+}
+
+func TestMigrateEventsOnce(t *testing.T) {
+	dir := t.TempDir()
+	db, _ := sql.Open("sqlite", filepath.Join(dir, "ace.db"))
+	defer db.Close()
+	db.Exec(`CREATE TABLE watchdog_events (id INTEGER PRIMARY KEY AUTOINCREMENT, ts DATETIME, kind TEXT, detail TEXT, prev_sha TEXT, sha TEXT)`)
+	sha := chainSHA("", "2026-01-01T00:00:00Z", "boot", "genesis")
+	db.Exec(`INSERT INTO watchdog_events (ts,kind,detail,prev_sha,sha) VALUES ('2026-01-01T00:00:00Z','boot','genesis','',?)`, sha)
+
+	path := EventPath(dir)
+	MigrateEvents(db, path)
+	if err := VerifyChainFile(path); err != nil {
+		t.Fatalf("migrated chain failed verify: %v", err)
+	}
+	MigrateEvents(db, path) // second call must not duplicate
+	if n := strings.Count(mustRead(t, path), "\n"); n != 1 {
+		t.Fatalf("migration ran twice: %d lines", n)
+	}
+}
+
+func mustRead(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
 }
 
 func TestBackup(t *testing.T) {

@@ -33,10 +33,7 @@ func (g *Gate) tier2(ctx context.Context, a Action) Decision {
 		return Decision{Verdict: VerdictReject, Tier: 2, RuleID: "t2.reject", Reason: reason}
 	}
 	if verdict == VerdictRedirect {
-		select {
-		case g.redirs <- Redirect{TaskID: a.TaskID, Message: revised}:
-		default:
-		}
+		g.queueRedirect(Redirect{TaskID: a.TaskID, Message: revised})
 	}
 	return Decision{Verdict: verdict, Tier: 2, RuleID: "t2." + verdict, Reason: reason, Revised: revised}
 }

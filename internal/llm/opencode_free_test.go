@@ -8,8 +8,13 @@ import (
 	"strings"
 	"testing"
 
+	"database/sql"
+	"os"
+	"path/filepath"
+
 	"ace/internal/core"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 func TestOpenCodeIDFormat(t *testing.T) {
@@ -58,4 +63,25 @@ func TestStreamCompleteAndFailover(t *testing.T) {
 	require.Equal(t, `{"status":"ok"}`, resp.Content)
 	require.Equal(t, "thinking...", resp.Reasoning)
 	require.Equal(t, `{"status":"ok"}`, streamed)
+}
+
+// v0.9 §9.0: another app's credential store is never read — a populated
+// opencode.db under HOME must not supply a key.
+func TestCredential_NeverReadsOpenCodeDB(t *testing.T) {
+	home := t.TempDir()
+	dbDir := filepath.Join(home, ".local", "share", "opencode")
+	require.NoError(t, os.MkdirAll(dbDir, 0o755))
+	db, err := sql.Open("sqlite", filepath.Join(dbDir, "opencode.db"))
+	require.NoError(t, err)
+	_, err = db.Exec(`CREATE TABLE credential (value TEXT, active INT, time_updated INT);
+		INSERT INTO credential VALUES ('{"access":"st_deadbeef"}', 1, 1)`)
+	require.NoError(t, err)
+	require.NoError(t, db.Close())
+
+	t.Setenv("HOME", home)
+	for _, k := range []string{"ACE_LLM_API_KEY", "OPENCODE_API_KEY", "OPENAI_API_KEY"} {
+		t.Setenv(k, "")
+	}
+	key, _ := resolveOpenCodeCredential()
+	require.Equal(t, "public", key)
 }

@@ -36,6 +36,11 @@ import (
 )
 
 func main() {
+	// Credentials before anything (v0.9 §9.0): the supervisor gets them and
+	// the worker inherits via os.Environ.
+	if err := config.LoadEnv(); err != nil {
+		log.Fatal(err)
+	}
 	if len(os.Args) > 1 && !strings.HasPrefix(os.Args[1], "-") {
 		runSubcommand(os.Args[1:])
 		return
@@ -318,13 +323,14 @@ func ensureLocalGPUGate(ctx context.Context, sandboxDir string) {
 // event log plus hourly VACUUM INTO backups itself.
 func runSupervisor() {
 	sandboxDir := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
-	dbPath := filepath.Join(sandboxDir, "ace.db")
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
-	if err != nil {
-		log.Fatalf("supervisor: %v", err)
+	events := watchdog.EventPath(sandboxDir)
+	// One-time export of the retired in-DB chain; the supervisor holds no
+	// persistent db handle so a rollback never strands it on a dead inode.
+	if db, err := sql.Open("sqlite", filepath.Join(sandboxDir, "ace.db")+"?_pragma=busy_timeout(2000)"); err == nil {
+		watchdog.MigrateEvents(db, events)
+		_ = db.Close()
 	}
-	defer db.Close()
-	watchdog.InitEvents(db)
+	rollbackReq := filepath.Join(sandboxDir, "rollback.request")
 
 	exe, err := os.Executable()
 	if err != nil {
@@ -341,11 +347,11 @@ func runSupervisor() {
 		child.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 		child.Stdout, child.Stderr, child.Stdin = os.Stdout, os.Stderr, os.Stdin
 		if err := child.Start(); err != nil {
-			_ = watchdog.AppendEvent(db, "worker_start_fail", err.Error())
+			_ = watchdog.AppendEventFile(events, "worker_start_fail", err.Error())
 			time.Sleep(5 * time.Second)
 			continue
 		}
-		_ = watchdog.AppendEvent(db, "worker_start", fmt.Sprintf("pid=%d restart=%d", child.Process.Pid, restarts))
+		_ = watchdog.AppendEventFile(events, "worker_start", fmt.Sprintf("pid=%d restart=%d", child.Process.Pid, restarts))
 		log.Printf("[supervisor] worker pid %d (restart %d)", child.Process.Pid, restarts)
 
 		done := make(chan error, 1)
@@ -355,18 +361,28 @@ func runSupervisor() {
 		for !exited {
 			select {
 			case err := <-done:
-				_ = watchdog.AppendEvent(db, "worker_exit", fmt.Sprintf("pid=%d err=%v", child.Process.Pid, err))
+				_ = watchdog.AppendEventFile(events, "worker_exit", fmt.Sprintf("pid=%d err=%v", child.Process.Pid, err))
 				exited = true
 			case <-ctx.Done():
 				_ = child.Process.Kill() // Pdeathsig covers it too; be explicit
 				<-done
-				_ = watchdog.AppendEvent(db, "supervisor_stop", "signal received")
+				_ = watchdog.AppendEventFile(events, "supervisor_stop", "signal received")
 				return
 			case <-time.After(15 * time.Second):
+				if _, err := os.Stat(rollbackReq); err == nil {
+					_ = watchdog.AppendEventFile(events, "rollback", "request received — stopping worker")
+					log.Printf("[supervisor] rollback requested — stopping worker pid %d", child.Process.Pid)
+					_ = child.Process.Kill()
+					<-done
+					doSupervisorRollback(sandboxDir, events)
+					_ = os.Remove(rollbackReq)
+					exited = true
+					continue
+				}
 				stalled := false
 				for _, c := range watchdog.RunChecks(sandboxDir, 20) {
 					if !c.OK {
-						_ = watchdog.AppendEvent(db, "fault", c.Name+": "+c.Detail)
+						_ = watchdog.AppendEventFile(events, "fault", c.Name+": "+c.Detail)
 						if c.Name == "heartbeat" || c.Name == "stall_detection" {
 							stalled = true
 						}
@@ -374,13 +390,13 @@ func runSupervisor() {
 				}
 				if time.Since(lastBackup) > time.Hour {
 					if dst, berr := watchdog.Backup(context.Background(), sandboxDir); berr == nil {
-						_ = watchdog.AppendEvent(db, "backup", dst)
+						_ = watchdog.AppendEventFile(events, "backup", dst)
 						log.Printf("[supervisor] backup -> %s", dst)
 					}
 					lastBackup = time.Now()
 				}
 				if stalled {
-					_ = watchdog.AppendEvent(db, "stall_recovery", fmt.Sprintf("killing pid %d", child.Process.Pid))
+					_ = watchdog.AppendEventFile(events, "stall_recovery", fmt.Sprintf("killing pid %d", child.Process.Pid))
 					log.Printf("[supervisor] stall detected — restarting worker pid %d", child.Process.Pid)
 					_ = child.Process.Kill()
 					<-done
@@ -393,47 +409,83 @@ func runSupervisor() {
 	}
 }
 
-// runVerify implements `ace verify` — checks the watchdog hash-chained event log.
-func runVerify() {
-	dbPath := filepath.Join(envOr("ACE_SANDBOX_DIR", ".ace-sandbox"), "ace.db")
-	db, err := sql.Open("sqlite", dbPath+"?_pragma=busy_timeout(2000)")
-	if err != nil {
-		log.Fatalf("ace verify: %v", err)
+// doSupervisorRollback runs while the worker is dead: safety-backup the
+// current db, restore the newest backup taken BEFORE that safety copy, log a
+// chained event, and clear the stale status snapshot (the new worker writes
+// its own — a pre-rollback heartbeat would otherwise read as a stall).
+func doSupervisorRollback(sandboxDir, events string) {
+	dbPath := filepath.Join(sandboxDir, "ace.db")
+	pat := filepath.Join(sandboxDir, "backups", "ace-*.db")
+	pre, _ := filepath.Glob(pat)
+	sort.Strings(pre)
+	if len(pre) == 0 {
+		_ = watchdog.AppendEventFile(events, "rollback", "aborted: no backups")
+		writeRollbackDone(sandboxDir, "aborted: no backups")
+		return
 	}
-	defer db.Close()
-	watchdog.InitEvents(db)
-	if err := watchdog.VerifyChain(db); err != nil {
+	src := pre[len(pre)-1]
+	if dst, err := watchdog.Backup(context.Background(), sandboxDir); err == nil {
+		_ = watchdog.AppendEventFile(events, "rollback_pre_backup", dst)
+	}
+	_ = os.Remove(dbPath + "-wal")
+	_ = os.Remove(dbPath + "-shm")
+	in, err := os.ReadFile(src)
+	if err != nil {
+		_ = watchdog.AppendEventFile(events, "rollback", "read failed: "+err.Error())
+		writeRollbackDone(sandboxDir, "failed: "+err.Error())
+		return
+	}
+	if err := os.WriteFile(dbPath, in, 0o600); err != nil {
+		_ = watchdog.AppendEventFile(events, "rollback", "write failed: "+err.Error())
+		writeRollbackDone(sandboxDir, "failed: "+err.Error())
+		return
+	}
+	_ = os.Remove(watchdog.SnapshotPath(sandboxDir))
+	_ = watchdog.AppendEventFile(events, "rollback", "restored "+src)
+	writeRollbackDone(sandboxDir, "restored "+src)
+	log.Printf("[supervisor] rollback restored %s", src)
+}
+
+func writeRollbackDone(sandboxDir, msg string) {
+	_ = os.WriteFile(filepath.Join(sandboxDir, "rollback.done"),
+		[]byte(time.Now().UTC().Format(time.RFC3339)+" "+msg), 0o600)
+}
+
+// runVerify implements `ace verify` — checks the watchdog hash-chained event
+// file (outside ace.db so a rollback cannot erase it).
+func runVerify() {
+	events := watchdog.EventPath(envOr("ACE_SANDBOX_DIR", ".ace-sandbox"))
+	if err := watchdog.VerifyChainFile(events); err != nil {
 		log.Fatalf("watchdog chain broken: %v", err)
 	}
 	fmt.Println("watchdog event chain verified")
 }
 
-// runControl implements `ace halt|pause|resume` (loopback API to the worker)
-// and `ace rollback` (restore the newest hourly backup over ace.db).
+// runControl implements `ace halt|pause|resume` (loopback API to the worker,
+// logged as chained watchdog events) and `ace rollback` (a request file the
+// supervisor executes: stop worker → safety backup → restore → restart).
 func runControl(sub string) {
 	sandboxDir := envOr("ACE_SANDBOX_DIR", ".ace-sandbox")
 	port := envOr("ACE_PORT", "8080")
+	events := watchdog.EventPath(sandboxDir)
 
 	if sub == "rollback" {
-		pat := filepath.Join(sandboxDir, "backups", "ace-*.db")
-		matches, _ := filepath.Glob(pat)
-		if len(matches) == 0 {
-			log.Fatal("rollback: no backups in " + pat)
+		req := filepath.Join(sandboxDir, "rollback.request")
+		done := filepath.Join(sandboxDir, "rollback.done")
+		_ = os.Remove(done)
+		if err := os.WriteFile(req, []byte(time.Now().UTC().Format(time.RFC3339)), 0o600); err != nil {
+			log.Fatalf("rollback request: %v", err)
 		}
-		sort.Strings(matches)
-		src := matches[len(matches)-1]
-		dst := filepath.Join(sandboxDir, "ace.db")
-		_ = os.Remove(dst + "-wal")
-		_ = os.Remove(dst + "-shm")
-		in, err := os.ReadFile(src)
-		if err != nil {
-			log.Fatalf("rollback read: %v", err)
+		_ = watchdog.AppendEventFile(events, "rollback_requested", "owner request via ace rollback")
+		deadline := time.Now().Add(90 * time.Second)
+		for time.Now().Before(deadline) {
+			if b, err := os.ReadFile(done); err == nil {
+				fmt.Printf("rollback: %s\n", strings.TrimSpace(string(b)))
+				return
+			}
+			time.Sleep(time.Second)
 		}
-		if err := os.WriteFile(dst, in, 0o600); err != nil {
-			log.Fatalf("rollback write: %v", err)
-		}
-		fmt.Printf("rollback: restored %s -> %s (halt the worker first if it is running)\n", src, dst)
-		return
+		log.Fatal("rollback: no supervisor response in 90s — is ./ace running?")
 	}
 
 	token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
@@ -458,6 +510,7 @@ func runControl(sub string) {
 			resp2.Body.Close()
 		}
 	}
+	_ = watchdog.AppendEventFile(events, "control", sub)
 	fmt.Printf("%s sent (mode=%s)\n", sub, mode)
 }
 

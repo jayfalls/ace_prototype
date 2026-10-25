@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"ace/internal/config"
@@ -50,11 +51,12 @@ func (d Decision) Allowed() bool { return d.Verdict == VerdictAllow }
 
 // Gate evaluates actions and persists one verdict row per side effect.
 type Gate struct {
-	db     *sql.DB
-	llm    core.LLMProvider
-	roles  func() config.ModelRoles
-	t1Hit  int // Tier-1 allow counter driving deterministic 5% calibration
-	redirs chan Redirect
+	db      *sql.DB
+	llm     core.LLMProvider
+	roles   func() config.ModelRoles
+	t1Hit   int // Tier-1 allow counter driving deterministic 5% calibration
+	redirMu sync.Mutex
+	redirs  []Redirect
 	// Notify carries owner-facing messages (access requests); the engine
 	// wires it to the Telegram escalation path. Nil = log-only.
 	Notify func(msg string)
@@ -70,7 +72,7 @@ type Redirect struct {
 // New builds a Gate. db may be nil — Evaluate then fails closed (no row can be
 // written, so no side effect may run).
 func New(db *sql.DB, llm core.LLMProvider) *Gate {
-	g := &Gate{db: db, llm: llm, roles: config.LoadModelRoles, redirs: make(chan Redirect, 16)}
+	g := &Gate{db: db, llm: llm, roles: config.LoadModelRoles}
 	g.initSchema()
 	return g
 }
@@ -176,21 +178,26 @@ func (g *Gate) RequestAccess(a Action, capability, missionRef string, notify fun
 	return true
 }
 
-// Redirects returns the channel the L6 prosecutor drains between tool calls.
-func (g *Gate) Redirects() chan Redirect { return g.redirs }
+// queueRedirect stores a Tier-2 course correction for a running L6 task.
+func (g *Gate) queueRedirect(r Redirect) {
+	g.redirMu.Lock()
+	defer g.redirMu.Unlock()
+	g.redirs = append(g.redirs, r)
+}
 
-// PendingRedirect drains any redirect addressed to taskID (non-blocking).
+// PendingRedirect removes and returns the oldest redirect addressed to
+// taskID. Redirects for other tasks stay queued — a channel drain used to
+// throw them away (v0.9 §9.0 audit finding).
 func (g *Gate) PendingRedirect(taskID string) *Redirect {
-	for {
-		select {
-		case r := <-g.redirs:
-			if r.TaskID == "" || r.TaskID == taskID {
-				return &r
-			}
-		default:
-			return nil
+	g.redirMu.Lock()
+	defer g.redirMu.Unlock()
+	for i, r := range g.redirs {
+		if r.TaskID == "" || r.TaskID == taskID {
+			g.redirs = append(g.redirs[:i], g.redirs[i+1:]...)
+			return &r
 		}
 	}
+	return nil
 }
 
 func sha256Hex(b []byte) string {

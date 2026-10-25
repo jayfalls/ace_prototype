@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"ace/internal/core"
+	"ace/internal/science"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
 )
@@ -163,6 +166,55 @@ func TestTier2_RedirectReachesChannel(t *testing.T) {
 	rd := g.PendingRedirect("T_X")
 	require.NotNil(t, rd)
 	require.Contains(t, rd.Message, "pivot to datasets")
+}
+
+// v0.9 §9.0 audit: PendingRedirect must never drop a redirect queued for a
+// different task — the channel drain used to discard them silently.
+func TestTier2_RedirectPerTaskIsolation(t *testing.T) {
+	rd := `{"verdict":"redirect","reason":"course","revised":"msg"}`
+	p := &scriptedProvider{responses: []string{"ESCALATE", rd, "ESCALATE", rd}}
+	g, _ := newTestGate(t, p)
+	g.Evaluate(context.Background(), Action{Kind: "sandbox_sh", Command: "python a.py", TaskID: "T_A", Layer: 6})
+	g.Evaluate(context.Background(), Action{Kind: "sandbox_sh", Command: "python b.py", TaskID: "T_B", Layer: 6})
+
+	gotB := g.PendingRedirect("T_B") // out of order: A's redirect must survive
+	require.NotNil(t, gotB)
+	gotA := g.PendingRedirect("T_A")
+	require.NotNil(t, gotA)
+	require.Nil(t, g.PendingRedirect("T_A"), "consumed redirect must not redeliver")
+	require.Nil(t, g.PendingRedirect("T_B"))
+}
+
+// v0.9 §9.0 acceptance: an L6 action needing an ungranted capability is
+// denied and produces exactly one owner notification, never re-asked.
+func TestAccessRequest_OncePerAction(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "grants.json"), []byte(`{"grants":[]}`), 0o600))
+	t.Setenv("ACE_CONFIG_DIR", dir)
+
+	p := &scriptedProvider{}
+	g, db := newTestGate(t, p)
+	require.NoError(t, science.Migrate(db))
+	var msgs []string
+	g.Notify = func(m string) { msgs = append(msgs, m) }
+
+	act := Action{Kind: "git_push", Target: "origin ace-do", TaskID: "T_1", Layer: 6}
+	d := g.Evaluate(context.Background(), act)
+	require.Equal(t, VerdictDeny, d.Verdict)
+	require.Equal(t, "capability.ungranted", d.RuleID)
+	require.Equal(t, 0, p.calls, "capability deny must not spend a model call")
+	require.Len(t, msgs, 1)
+	require.Contains(t, msgs[0], "repository")
+
+	var n int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM access_requests`).Scan(&n))
+	require.Equal(t, 1, n)
+
+	// Same action again: still denied, no second ask.
+	g.Evaluate(context.Background(), act)
+	require.Len(t, msgs, 1, "must never re-ask the owner for the same action")
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM access_requests`).Scan(&n))
+	require.Equal(t, 1, n)
 }
 
 func TestNilDBFailsClosed(t *testing.T) {

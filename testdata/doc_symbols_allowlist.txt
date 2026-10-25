@@ -6,3 +6,10 @@ Bus.Publish
 BuildAnatomyIsometricSVG
 OpenClaw
 Sysinfo.Freeram
+MemoryBus.Publish
+# SPEC_ACE_V0_9 forward references — the build contract names symbols being
+# built in later slices (removed as they land and the check passes natively).
+ContractTest
+ContextProvider
+ErrEgressDenied
+ErrUndeclared

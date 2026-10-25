@@ -1,8 +1,8 @@
-// Package watchdog implements the integrity overlay (spec 8.5): a separate
-// `ace watchdog` process that reads the atomic status snapshot the engine
-// writes each tick — never through the bus — checks heartbeat, constitution
-// sha, config inventory, gate fail-closed state, resource floors and stalls,
-// and keeps a hash-chained event log plus rotating DB backups.
+// Package watchdog implements the integrity overlay (spec 8.5 + 29cd3922):
+// the `./ace` supervisor reads the atomic status snapshot the engine writes
+// each tick — never through the bus — checks heartbeat, constitution sha,
+// config inventory, gate fail-closed state, resource floors and stalls, and
+// keeps a hash-chained event file plus rotating DB backups.
 package watchdog
 
 import (
@@ -155,58 +155,6 @@ func memAvailableGB(meminfo []byte) (float64, bool) {
 		return 0, false
 	}
 	return float64(kb) * 1024 / 1e9, true
-}
-
-// Hash-chained event log -----------------------------------------------------
-
-// InitEvents creates the watchdog_events table.
-func InitEvents(db *sql.DB) {
-	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS watchdog_events (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		ts DATETIME NOT NULL,
-		kind TEXT NOT NULL,
-		detail TEXT NOT NULL DEFAULT '',
-		prev_sha TEXT NOT NULL,
-		sha TEXT NOT NULL
-	)`)
-}
-
-// AppendEvent inserts one hash-chained event: sha = sha256(prev|ts|kind|detail).
-func AppendEvent(db *sql.DB, kind, detail string) error {
-	var prev string
-	_ = db.QueryRow(`SELECT sha FROM watchdog_events ORDER BY id DESC LIMIT 1`).Scan(&prev)
-	ts := time.Now().UTC().Format(time.RFC3339Nano)
-	sum := sha256.Sum256([]byte(prev + "|" + ts + "|" + kind + "|" + detail))
-	sha := hex.EncodeToString(sum[:])
-	_, err := db.Exec(`INSERT INTO watchdog_events (ts, kind, detail, prev_sha, sha) VALUES (?,?,?,?,?)`,
-		ts, kind, detail, prev, sha)
-	return err
-}
-
-// VerifyChain recomputes every event hash — returns the first broken link.
-func VerifyChain(db *sql.DB) error {
-	rows, err := db.Query(`SELECT id, ts, kind, detail, prev_sha, sha FROM watchdog_events ORDER BY id`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	var prev string
-	for rows.Next() {
-		var id int
-		var ts, kind, detail, psha, sha string
-		if err := rows.Scan(&id, &ts, &kind, &detail, &psha, &sha); err != nil {
-			return err
-		}
-		if psha != prev {
-			return fmt.Errorf("event %d: prev_sha mismatch (chain broken)", id)
-		}
-		sum := sha256.Sum256([]byte(psha + "|" + ts + "|" + kind + "|" + detail))
-		if hex.EncodeToString(sum[:]) != sha {
-			return fmt.Errorf("event %d: sha mismatch (tampered row)", id)
-		}
-		prev = sha
-	}
-	return rows.Err()
 }
 
 // Backups --------------------------------------------------------------------

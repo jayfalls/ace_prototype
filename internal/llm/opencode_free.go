@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -15,7 +14,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,35 +31,14 @@ const (
 	base62Chars               = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 )
 
-// resolveOpenCodeCredential checks env vars first, then ~/.local/share/opencode/opencode.db (populated by `opencode auth login`).
+// resolveOpenCodeCredential reads env vars only (v0.9 §9.0): credentials come
+// from ACE's own ~/.config/ace/.env via config.LoadEnv — never from another
+// app's store. No key means the free tier ("public").
 func resolveOpenCodeCredential() (apiKey string, isGoSub bool) {
 	for _, k := range []string{"ACE_LLM_API_KEY", "OPENCODE_API_KEY", "OPENAI_API_KEY"} {
 		if v := strings.TrimSpace(os.Getenv(k)); v != "" && v != "public" {
 			return v, strings.HasPrefix(v, "st_") || strings.HasPrefix(v, "oc_")
 		}
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return "public", false
-	}
-	dbPath := filepath.Join(home, ".local", "share", "opencode", "opencode.db")
-	if _, err := os.Stat(dbPath); err != nil {
-		return "public", false
-	}
-	db, err := sql.Open("sqlite", "file:"+dbPath+"?mode=ro")
-	if err != nil {
-		return "public", false
-	}
-	defer db.Close()
-	var raw string
-	if err := db.QueryRow(`SELECT value FROM credential WHERE active = 1 ORDER BY time_updated DESC LIMIT 1`).Scan(&raw); err != nil {
-		return "public", false
-	}
-	var cred struct {
-		Access string `json:"access"`
-	}
-	if json.Unmarshal([]byte(raw), &cred) == nil && strings.TrimSpace(cred.Access) != "" {
-		return strings.TrimSpace(cred.Access), true
 	}
 	return "public", false
 }
