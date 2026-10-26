@@ -397,7 +397,18 @@ func runSupervisor() {
 		}
 		_ = watchdog.AppendEventFile(events, "worker_start", fmt.Sprintf("pid=%d restart=%d", child.Process.Pid, restarts))
 		log.Printf("[supervisor] worker pid %d (restart %d)", child.Process.Pid, restarts)
+		// A fresh worker's first heartbeat lands ~15s out; re-stamp the
+		// snapshot heartbeat at spawn so the stale-heartbeat check can't
+		// kill it for its predecessor's silence.
+		if prev, err := os.ReadFile(watchdog.SnapshotPath(sandboxDir)); err == nil {
+			var s watchdog.Snapshot
+			if json.Unmarshal(prev, &s) == nil {
+				s.Heartbeat = time.Now().UTC().Format(time.RFC3339)
+				_ = watchdog.WriteSnapshot(sandboxDir, s)
+			}
+		}
 
+		childStarted := time.Now()
 		done := make(chan error, 1)
 		go func() { done <- child.Wait() }()
 
@@ -429,6 +440,11 @@ func runSupervisor() {
 					if !c.OK {
 						_ = watchdog.AppendEventFile(events, "fault", c.Name+": "+c.Detail)
 						if c.Name == "heartbeat" || c.Name == "stall_detection" {
+							// Boot grace: hydration and engine startup can
+							// outlast the heartbeat window on big state.
+							if time.Since(childStarted) < 2*time.Minute {
+								continue
+							}
 							stalled = true
 						}
 						if c.Name == "runaway_loop" {

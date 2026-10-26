@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
@@ -326,7 +327,7 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string, 
 					if wsDir, _ := e.resolveSandboxDirs(); wsDir != "" {
 						stem := strings.ToLower(strings.TrimPrefix(n.ID, "T_"))
 						for _, rel := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
-							blob, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel))
+							blob, err := os.ReadFile(filepath.Join(wsDir, ResolveWorkspaceArtifactPath(wsDir, rel)))
 							if err != nil {
 								continue
 							}
@@ -963,7 +964,7 @@ func (e *Engine) resultMovedStat(n MissionDAGNode) bool {
 	stem := strings.ToLower(strings.TrimPrefix(n.ID, "T_"))
 	var blob []byte
 	for _, rel := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
-		if b, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel)); err == nil {
+		if b, err := os.ReadFile(filepath.Join(wsDir, ResolveWorkspaceArtifactPath(wsDir, rel))); err == nil {
 			blob = b
 			break
 		}
@@ -975,11 +976,19 @@ func (e *Engine) resultMovedStat(n MissionDAGNode) bool {
 		H1Accepted    *bool    `json:"h1_accepted"`
 		Heldout       *float64 `json:"heldout"`
 		HeldoutScore  *float64 `json:"heldout_score"`
+		HeldoutAcc    *float64 `json:"heldout_accuracy"`
 		Baseline      *float64 `json:"baseline"`
 		BaselineScore *float64 `json:"baseline_score"`
+		BaselineAcc   *float64 `json:"baseline_accuracy"`
 	}
 	if json.Unmarshal(blob, &res) != nil {
 		return false
+	}
+	if res.Heldout == nil {
+		res.Heldout = res.HeldoutAcc
+	}
+	if res.Baseline == nil && res.BaselineScore == nil {
+		res.BaselineScore = res.BaselineAcc
 	}
 	if res.H1Accepted != nil {
 		return *res.H1Accepted

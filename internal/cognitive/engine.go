@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -239,10 +240,12 @@ func NewEngine(
 func (e *Engine) Plugins() *plugin.Registry { return e.plugins }
 
 func (e *Engine) Start(ctx context.Context) {
+	// Heartbeat first: hydration can outlast the watchdog's staleness
+	// window, and a busy boot must not read as a dead worker.
+	go e.watchdogHeartbeatLoop(ctx)
 	e.HydrateFromHistory(ctx)
 	go e.workerLoop(ctx)
 	go e.schedulerLoop(ctx)
-	go e.watchdogHeartbeatLoop(ctx)
 	go config.WatchLayerKnobs(ctx, e.applyLayerKnobs)
 }
 
@@ -979,7 +982,22 @@ func (e *Engine) recordCycleReport(ctx context.Context, cycleID string) {
 // writeWatchdogSnapshot publishes the atomic per-cycle status file the
 // watchdog process reads (spec 8.5) — never via the bus.
 func (e *Engine) writeWatchdogSnapshot() {
-	e.mu.RLock()
+	if !e.mu.TryRLock() {
+		// A writer holds or waits on the lock (e.g. long hydration) — the
+		// worker is alive, so refresh the previous snapshot's heartbeat
+		// rather than let a busy boot read as dead.
+		if jl, ok := e.sandbox.(interface{ Status() core.SandboxStatus }); ok {
+			p := watchdog.SnapshotPath(jl.Status().SandboxDir)
+			if prev, err := os.ReadFile(p); err == nil {
+				var s watchdog.Snapshot
+				if json.Unmarshal(prev, &s) == nil {
+					s.Heartbeat = time.Now().UTC().Format(time.RFC3339)
+					_ = watchdog.WriteSnapshot(jl.Status().SandboxDir, s)
+				}
+			}
+		}
+		return
+	}
 	snap := watchdog.Snapshot{
 		Heartbeat:       time.Now().UTC().Format(time.RFC3339),
 		TotalCycles:     e.totalCycles,
