@@ -113,12 +113,12 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 			fmt.Sprintf("verdict_rows reachable: %d rows", n)})
 
 		// Runaway = no progress, not cycle count: model calls keep
-		// flowing but neither the mission DAG nor the verdict ledger
-		// has moved for noProgressMin minutes. Scratch files in
-		// workspace/results don't count — churn, not results.
-		// sandboxDir/no_progress_minutes overrides the configured
-		// watchdog.no_progress_minutes for live trips.
-		var callsRecent, dagRecent, verdictRecent int
+		// flowing but the mission DAG has not transitioned and no result
+		// artifact has landed for noProgressMin minutes. updated_at
+		// churns on recompute without a transition — only dag_events
+		// (state changes) and branch_progress/science_verdicts rows
+		// (result files) count as progress.
+		var callsRecent, dagRecent, artifactsRecent int
 		noProgressMin := int(config.LoadLayerKnobs().NoProgressMinutes.Minutes())
 		if noProgressMin <= 0 {
 			noProgressMin = 60
@@ -130,11 +130,11 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 		}
 		bound := fmt.Sprintf("datetime('now','-%d minutes')", noProgressMin)
 		_ = db.QueryRow(`SELECT COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&callsRecent)
-		_ = db.QueryRow(`SELECT COUNT(*) FROM mission_dag_nodes WHERE replace(substr(updated_at,1,19),'T',' ') > ` + bound).Scan(&dagRecent)
-		_ = db.QueryRow(`SELECT COUNT(*) FROM science_verdicts WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&verdictRecent)
-		runaway := callsRecent > 0 && dagRecent == 0 && verdictRecent == 0
+		_ = db.QueryRow(`SELECT COUNT(*) FROM dag_events WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&dagRecent)
+		_ = db.QueryRow(`SELECT (SELECT COUNT(*) FROM science_verdicts WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound + `) + (SELECT COUNT(*) FROM branch_progress WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound + `)`).Scan(&artifactsRecent)
+		runaway := callsRecent > 0 && dagRecent == 0 && artifactsRecent == 0
 		checks = append(checks, Check{"runaway_loop", !runaway,
-			fmt.Sprintf("calls=%d dag_changes=%d verdicts=%d in last %dm", callsRecent, dagRecent, verdictRecent, noProgressMin)})
+			fmt.Sprintf("calls=%d dag_transitions=%d result_artifacts=%d in last %dm", callsRecent, dagRecent, artifactsRecent, noProgressMin)})
 
 		// Memory health (spec 9.6): episodic cap pressure + unverified
 		// semantic facts are watchdog-visible.

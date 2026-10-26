@@ -266,7 +266,7 @@ func (e *Engine) maybeAskOwnerQuestion(ctx context.Context) {
 	var id, summary string
 	if err := db.QueryRowContext(ctx,
 		`SELECT id, summary FROM connectome_nodes
-		 WHERE kind='UNCERTAINTY' AND state='OPEN' AND needs_owner=1 AND asked_at=''
+		 WHERE kind IN ('UNCERTAINTY','CONTRADICTION') AND state IN ('OPEN','QUARANTINED') AND needs_owner=1 AND asked_at=''
 		 ORDER BY blocking_weight*info_value DESC LIMIT 1`).Scan(&id, &summary); err != nil {
 		return
 	}
@@ -292,6 +292,13 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 	if db == nil {
 		return
 	}
+	// Expire every stale completion in one write — a deep backlog must not
+	// push fresh news past the 15-minute bound one row per tick.
+	_, _ = db.ExecContext(ctx, `
+		UPDATE branch_progress SET notified=1
+		WHERE notified = 0
+		AND replace(substr(created_at,1,19),'T',' ') < datetime('now','-15 minutes')
+		AND task_id IN (SELECT id FROM mission_dag_nodes WHERE state='COMPLETED')`)
 	var bpID, moved int
 	var taskID, createdAt, title string
 	err := db.QueryRowContext(ctx, `

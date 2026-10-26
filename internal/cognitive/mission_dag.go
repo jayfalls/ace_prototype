@@ -62,6 +62,18 @@ func (e *Engine) initMissionDAGSchema(db *sql.DB) {
 		);
 		CREATE INDEX IF NOT EXISTS idx_mission_dag_stage_state ON mission_dag_nodes(stage, state);
 		CREATE INDEX IF NOT EXISTS idx_mission_dag_parent ON mission_dag_nodes(parent_id);
+		CREATE TABLE IF NOT EXISTS dag_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			node_id TEXT NOT NULL,
+			from_state TEXT NOT NULL,
+			to_state TEXT NOT NULL,
+			created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+		);
+		CREATE TRIGGER IF NOT EXISTS dag_state_transition AFTER UPDATE OF state ON mission_dag_nodes
+		WHEN OLD.state != NEW.state
+		BEGIN
+			INSERT INTO dag_events (node_id, from_state, to_state) VALUES (OLD.id, OLD.state, NEW.state);
+		END;
 	`)
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN score REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE mission_dag_nodes ADD COLUMN retired_reason TEXT NOT NULL DEFAULT ''`)
