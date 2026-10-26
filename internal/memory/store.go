@@ -167,6 +167,10 @@ func (s *Store) migrate() error {
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
+	// Owner questions: an open uncertainty only the owner can close carries
+	// needs_owner=1; asked_at dedupes the availability-timed ask.
+	_, _ = s.db.Exec(`ALTER TABLE connectome_nodes ADD COLUMN needs_owner INTEGER NOT NULL DEFAULT 0`)
+	_, _ = s.db.Exec(`ALTER TABLE connectome_nodes ADD COLUMN asked_at TEXT NOT NULL DEFAULT ''`)
 	// Ensure backward-compatible migration for existing DBs without the 'tier' column
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN tier TEXT NOT NULL DEFAULT 'medium'`)
 	// v0.9 memory metadata (spec 9.6); tolerated ALTERs for existing DBs.

@@ -247,6 +247,38 @@ func (e *Engine) DeliverOwnerText(ctx context.Context, kind, text string) {
 	e.sendTelegramTextEscalation(ctx, text)
 }
 
+// maybeAskOwnerQuestion scans the uncertainty ledger for open items only
+// the owner can close and asks one — timed by the availability model, at
+// most one question per hour, never the same item twice (spec: Owner
+// questions — one problem per message, expectations of late replies).
+func (e *Engine) maybeAskOwnerQuestion(ctx context.Context) {
+	db := e.getDB()
+	if db == nil {
+		return
+	}
+	var lastAsk string
+	if err := db.QueryRowContext(ctx,
+		`SELECT COALESCE(MAX(created_at),'') FROM owner_msg_log WHERE kind='question' AND status='sent'`).Scan(&lastAsk); err == nil && lastAsk != "" {
+		if t, perr := time.Parse(time.RFC3339Nano, lastAsk); perr == nil && time.Since(t) < time.Hour {
+			return
+		}
+	}
+	var id, summary string
+	if err := db.QueryRowContext(ctx,
+		`SELECT id, summary FROM connectome_nodes
+		 WHERE kind='UNCERTAINTY' AND state='OPEN' AND needs_owner=1 AND asked_at=''
+		 ORDER BY blocking_weight*info_value DESC LIMIT 1`).Scan(&id, &summary); err != nil {
+		return
+	}
+	prob, _, _ := e.EstimateHumanCircadianAvailability(ctx, time.Now().UTC())
+	if prob < 0.25 {
+		return // availability model says the owner is unlikely to see it now
+	}
+	e.NotifyOwner(ctx, "question", "an open question only the owner can close (they can take their time — I keep working on my stated assumption): "+summary)
+	_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET asked_at=? WHERE id=?`,
+		time.Now().UTC().Format(time.RFC3339), id)
+}
+
 func (e *Engine) logOwnerMessage(ctx context.Context, kind, fact, text, status, reason string) {
 	if db := e.getDB(); db != nil {
 		_, _ = db.ExecContext(ctx, `INSERT INTO owner_msg_log (kind, fact, text, status, reason, created_at) VALUES (?,?,?,?,?,?)`,

@@ -204,6 +204,13 @@ func (e *Engine) DispatchHumanContradictionAlert(ctx context.Context, cycleID st
 		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET state = 'QUARANTINED', updated_at = ? WHERE id = ?`, time.Now().UTC(), nodeID)
 	}
 
+	// Mark the item owner-closable in the uncertainty ledger: the periodic
+	// question scan will ask it when availability permits, even if right
+	// now is a bad time.
+	if db != nil {
+		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET needs_owner=1 WHERE id = ?`, nodeID)
+	}
+
 	if probActive < 0.25 && e.memory != nil {
 		prev, _ := e.memory.LoadEngineMeta(ctx, "overnight_contradiction_digest")
 		entry := fmt.Sprintf("[%s] %s", nodeID, strings.ReplaceAll(fourLineMessage, "\n", " | "))
@@ -215,6 +222,10 @@ func (e *Engine) DispatchHumanContradictionAlert(ctx context.Context, cycleID st
 	}
 
 	e.NotifyOwner(ctx, "question", fourLineMessage)
+	if db != nil {
+		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET asked_at=? WHERE id=?`,
+			time.Now().UTC().Format(time.RFC3339), nodeID)
+	}
 }
 
 func (e *Engine) sendTelegramTextEscalation(ctx context.Context, text string) {

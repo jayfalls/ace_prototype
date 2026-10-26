@@ -318,7 +318,14 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string, 
 				// UNVERIFIED results are excluded: they moved nothing.
 				if db := e.getDB(); db != nil {
 					if n.State == "COMPLETED" {
-						science.RecordChildResult(ctx, db, branchOf(n), n.ID, e.resultMovedStat(n))
+						moved := e.resultMovedStat(n)
+						science.RecordChildResult(ctx, db, branchOf(n), n.ID, moved)
+						// Verified work that moved the branch's primary
+						// statistic is worth one message; UNVERIFIED and
+						// parked work never reaches the owner.
+						if moved {
+							e.NotifyOwner(ctx, "result", "verified task completed: "+truncateText(n.Title, 240))
+						}
 					}
 					// 8.6: regrade the result through the scientist gate —
 					// declared booleans ignored, stats recomputed into
@@ -406,6 +413,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	if db := e.getDB(); db != nil {
 		_, _ = plan.SweepStale(ctx, db, soulHash, e.staleVerdict)
 	}
+	e.maybeAskOwnerQuestion(ctx)
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode

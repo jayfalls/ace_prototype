@@ -129,6 +129,11 @@ func Migrate(db *sql.DB) error {
 			reason TEXT NOT NULL DEFAULT '',
 			created_at DATETIME NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS module_selftest (
+			module TEXT PRIMARY KEY,
+			status TEXT NOT NULL,
+			checked_at TEXT NOT NULL
+		);
 		CREATE TABLE IF NOT EXISTS cycle_reports (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cycle_id TEXT NOT NULL,

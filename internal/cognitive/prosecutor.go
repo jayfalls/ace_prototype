@@ -366,7 +366,7 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 		return
 	}
 	gateStart := time.Now()
-	gateRes := EvaluateMode3MilestoneGate(ctx, activeMilestone, e.sandbox, wsDir, wikiDir, handoff.VerifiedFiles, e.mutationMinMutants())
+	gateRes := EvaluateMode3MilestoneGate(ctx, e, activeMilestone, e.sandbox, wsDir, wikiDir, handoff.VerifiedFiles, e.mutationMinMutants())
 	status := "veto"
 	if gateRes.Passed {
 		status = "ok"
