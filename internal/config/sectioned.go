@@ -40,6 +40,10 @@ type LayerKnobs struct {
 	// check faults when model calls keep flowing but neither the DAG
 	// nor the verdict ledger has moved for this long (default 60m).
 	NoProgressMinutes time.Duration
+	// QuestionMinAvailability is voice.question_min_availability — an
+	// owner-only question is only sent when the availability model's
+	// estimate is at or above this (default 0.25).
+	QuestionMinAvailability float64
 }
 
 // DefaultLayerKnobs returns the spec defaults.
@@ -52,8 +56,9 @@ func DefaultLayerKnobs() LayerKnobs {
 		Turn05:           false,
 		RecapN:           5,
 		ContextEnabled:   true,
-		MutationMinMutants: 3,
-		NoProgressMinutes:  60 * time.Minute,
+		MutationMinMutants:      3,
+		NoProgressMinutes:       60 * time.Minute,
+		QuestionMinAvailability: 0.25,
 	}
 }
 
@@ -152,6 +157,10 @@ func applyKnob(knobs *LayerKnobs, key, val string) {
 			knobs.NoProgressMinutes = d
 		} else if n, err := strconv.Atoi(str()); err == nil && n > 0 {
 			knobs.NoProgressMinutes = time.Duration(n) * time.Minute
+		}
+	case "voice.question_min_availability":
+		if f, err := strconv.ParseFloat(str(), 64); err == nil && f >= 0 && f <= 1 {
+			knobs.QuestionMinAvailability = f
 		}
 	case "features.context":
 		knobs.ContextEnabled = str() == "true" || str() == "1" || str() == "on"

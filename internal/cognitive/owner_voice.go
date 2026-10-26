@@ -270,8 +270,12 @@ func (e *Engine) maybeAskOwnerQuestion(ctx context.Context) {
 		 ORDER BY blocking_weight*info_value DESC LIMIT 1`).Scan(&id, &summary); err != nil {
 		return
 	}
+	minAvail := 0.25
+	if k, ok := e.layerKnobs.Load().(config.LayerKnobs); ok {
+		minAvail = k.QuestionMinAvailability
+	}
 	prob, _, _ := e.EstimateHumanCircadianAvailability(ctx, time.Now().UTC())
-	if prob < 0.25 {
+	if prob < minAvail {
 		return // availability model says the owner is unlikely to see it now
 	}
 	e.NotifyOwner(ctx, "question", "an open question only the owner can close (they can take their time — I keep working on my stated assumption): "+summary)
