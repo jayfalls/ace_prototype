@@ -544,8 +544,10 @@ Each capability is a plugin, granted per mission by least privilege, and kept on
 **Persona:** the chat is agentic and speaks with the personality set at onboarding, together with the mission, held in `personality.txt`. Until the onboarding interview exists, a placeholder personality is in config.
 
 **Human voice (core invariant, enforced in Go, not by prompt):** ACE talks to the owner like a human being and a friend.
-- One send path: every owner-bound message, on every channel, goes through a single Go function. No other code may call a channel's send directly; a CI test fails on any other call site.
-- ACE writes every message itself: events hand that function a short fact summary, and the chat model writes the message in the personality's voice. No hard-coded message text reaches the owner.
+- One chat agent, both ways: a single conversational agent owns the owner channel. It answers the owner and writes every message ACE starts, in the same conversation history, so it always knows what it has already said. No other code may call a channel's send directly; a CI test fails on any other call site.
+- Full read access: the chat agent can read all of ACE's state (DAG, results, ledgers, digest, traces) through tools and looks things up before answering. It never asks the owner for something it can read itself.
+- Events are offers, not messages: internal events hand the chat agent a fact (with numbers and source file). The agent decides whether a friend would mention it, folds several into one message, and keeps quiet when it has just spoken. No hard-coded message text reaches the owner.
+- Owner questions need evidence: a question to the owner must cite the owner message or ACE record it rests on. Instructions from the builder or other agents are never attributed to the owner.
 - Only things a friend would bring up are sent: a question ACE needs answered, an access request, a PR to review, a real result, or a reply to the owner. Routine internal events (parks, quarantines, vetoes, restarts) go to the digest and web UI, and ACE tells the owner about them when asked.
 - A deterministic check runs before every send and rejects messages that contain internal IDs (task, node, cycle or veto IDs), workspace paths, gate or layer jargon, or tables. A rejected message is rewritten once; if the rewrite also fails, nothing is sent and the event goes to the digest.
 - Every sent and rejected message is logged, and the rejection rate is a standing metric.
