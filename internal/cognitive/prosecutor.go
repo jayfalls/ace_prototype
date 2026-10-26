@@ -358,11 +358,28 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 	handoff *CrossCycleHandoffPacket,
 	traces []core.ThoughtTrace,
 ) {
-	if strings.TrimSpace(activeMilestone) == "" || len(traces) == 0 || ctx.Err() != nil {
-		return
+	skipReason := ""
+	switch {
+	case strings.TrimSpace(activeMilestone) == "":
+		skipReason = "empty_milestone"
+	case len(traces) == 0:
+		skipReason = "no_traces"
+	case ctx.Err() != nil:
+		skipReason = "ctx_cancelled"
 	}
 	wsDir, wikiDir := e.resolveSandboxDirs()
-	if wsDir == "" || wikiDir == "" {
+	if skipReason == "" && (wsDir == "" || wikiDir == "") {
+		skipReason = "no_sandbox_dirs"
+	}
+	if skipReason != "" {
+		_ = e.telem.RecordSpan(context.Background(), core.TelemetrySpan{
+			TraceID:   cycleID,
+			AgentID:   e.agentID,
+			LayerCode: "L6",
+			Operation: "gate.mode3.skip",
+			Status:    "skip",
+			Detail:    skipReason,
+		})
 		return
 	}
 	gateStart := time.Now()

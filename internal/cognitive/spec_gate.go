@@ -73,10 +73,6 @@ func (e *Engine) RecordGateVetoAndCheckStuck(ctx context.Context, cycleID string
 		if ruledCount == 0 {
 			_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET ruled_count = ? WHERE veto_hash = ?`, count, vhash)
 		}
-		// A disputed veto that keeps re-firing after its ruling is a
-		// contradiction ACE cannot resolve alone — mark it owner-closable
-		// so the question scan asks the owner when availability allows.
-		_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET needs_owner=1 WHERE id = ?`, "contradiction:gate_"+vhash)
 		if parked := e.ParkDAGTaskForMilestone(ctx, milestoneID); parked > 0 && e.telem != nil {
 			_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
 				TraceID: cycleID, AgentID: e.agentID, LayerCode: "L5",

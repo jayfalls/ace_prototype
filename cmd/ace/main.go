@@ -385,6 +385,7 @@ func runSupervisor() {
 	// would re-pause every respawn. Re-armed by runawayClean below.
 	runawayPaused := false
 	runawayClean := 0
+	faulted := map[string]bool{}
 	for {
 		child := exec.Command(exe, os.Args[1:]...)
 		child.Env = append(os.Environ(), "ACE_WORKER=1")
@@ -438,7 +439,10 @@ func runSupervisor() {
 				runaway := false
 				for _, c := range watchdog.RunChecks(sandboxDir, 20) {
 					if !c.OK {
-						_ = watchdog.AppendEventFile(events, "fault", c.Name+": "+c.Detail)
+						if !faulted[c.Name] {
+							_ = watchdog.AppendEventFile(events, "fault", c.Name+": "+c.Detail)
+							faulted[c.Name] = true
+						}
 						if c.Name == "heartbeat" || c.Name == "stall_detection" {
 							// Boot grace: hydration and engine startup can
 							// outlast the heartbeat window on big state.
@@ -450,6 +454,8 @@ func runSupervisor() {
 						if c.Name == "runaway_loop" {
 							runaway = true
 						}
+					} else {
+						delete(faulted, c.Name)
 					}
 				}
 				if runaway {

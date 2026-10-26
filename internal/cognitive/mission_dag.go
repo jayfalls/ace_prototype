@@ -252,15 +252,10 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 			sb.WriteString(fmt.Sprintf("## [L1 ASPIRATIONAL ROOT] `%s` (Soul Hash: `%s`, Provenance: `%s`)\n- **Mission Frame**: %s\n\n", n.ID, n.SoulHash, truncateText(n.DirectiveHash, 10), n.Directive))
 		}
 	}
-	sb.WriteString("## Strategic & Capability Dependency Tree (`L2 || L3`)\n")
-	for _, n := range nodes {
-		switch n.Stage {
-		case "L2_STRATEGY":
-			sb.WriteString(fmt.Sprintf("- **[L2 STRATEGY `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
-		case "L3_CAPABILITY":
-			sb.WriteString(fmt.Sprintf("  - **[L3 CAPABILITY MODEL `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
-		}
-	}
+	// Active tasks come FIRST: ReadWiki truncates at 128KB and the
+	// L2/L3 history grows forever — milestones past the cap are
+	// invisible to extractTopActionableMilestone, which silently
+	// skips the mode-3 gate (empty_milestone) and never checks off.
 	sb.WriteString("\n## Active Executable Task Specifications (`L4 → L5 → L6`)\n\n")
 	for _, n := range nodes {
 		if n.Stage == "L4_TASK_SPEC" {
@@ -274,6 +269,15 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 				box = "[!]"
 			}
 			sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, truncateText(n.DirectiveHash, 10), collapseMultilineMilestoneBullets(n.Directive)))
+		}
+	}
+	sb.WriteString("\n## Strategic & Capability Dependency Tree (`L2 || L3`)\n")
+	for _, n := range nodes {
+		switch n.Stage {
+		case "L2_STRATEGY":
+			sb.WriteString(fmt.Sprintf("- **[L2 STRATEGY `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
+		case "L3_CAPABILITY":
+			sb.WriteString(fmt.Sprintf("  - **[L3 CAPABILITY MODEL `%s` | `%s`]** (Parent: `%s`, Hash: `%s`): **%s** — %s\n", n.ID, n.State, n.ParentID, truncateText(n.DirectiveHash, 8), n.Title, truncateText(n.Directive, 220)))
 		}
 	}
 	_ = e.memory.WriteWiki("goals.md", sb.String())
@@ -772,7 +776,14 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 						stalledL4.State = "READY_FOR_L5"
 						stalledL4.Attempts = 0
 						if strings.TrimSpace(tr.Southbound) != "" {
-							stalledL4.Directive = stalledL4.Directive + " | [L4 Revised Plan]: " + strings.TrimSpace(tr.Southbound)
+							// Keep base + last 3 revisions — an unbounded
+							// tail balloons goals.md past the 128KB wiki
+							// read cap and hides the active milestone.
+							parts := strings.Split(stalledL4.Directive, " | [L4 Revised Plan]: ")
+							if len(parts) > 4 {
+								parts = append(parts[:1], parts[len(parts)-3:]...)
+							}
+							stalledL4.Directive = strings.Join(append(parts, strings.TrimSpace(tr.Southbound)), " | [L4 Revised Plan]: ")
 						}
 						e.upsertMissionDAGNode(ctx, *stalledL4)
 					}
