@@ -19,7 +19,7 @@ import (
 // hash stamps every standing_metrics row and freezes into baselines, so a
 // definition change resets the baseline instead of silently comparing
 // unlike quantities (spec 9.0 honest-measurement).
-const metricDefinitionLiteral = "v0.9.0|era:first-gate-trace|" +
+const metricDefinitionLiteral = "v0.9.1|era:latest-baseline-end-else-first-gate-trace|" +
 	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat}|" +
 	"turns_per_success|cost_per_success|task_success|" +
 	"latency_ms|cache_hit_rate|l3_estimate_error|" +
@@ -87,10 +87,23 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	// tick would leave almost no fully-observed task. substr+replace
 	// normalises the two stored timestamp formats — datetime() returns
 	// NULL on the '+0000 UTC' suffix form.
-	var gateStart sql.NullString
-	_ = db.QueryRowContext(ctx, `SELECT MIN(replace(substr(created_at,1,19),'T',' ')) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
-	if gateStart.Valid {
-		startStr = gateStart.String
+	// v0.9.1 era anchor: the current window begins at the newest frozen
+	// baseline's window_end — i.e. the boundary between the old release's
+	// measured era and the new binary's deploy. Until a baseline exists,
+	// fall back to the first gate trace (the original honest anchor). This
+	// makes "current" rows count only post-deploy work; comparing a new-era
+	// row to an old-era baseline errors on definition_sha mismatch instead
+	// of reporting a false delta (owner rule: no data, not "unchanged").
+	var eraStart sql.NullString
+	_ = db.QueryRowContext(ctx, `SELECT window_end FROM baselines ORDER BY id DESC LIMIT 1`).Scan(&eraStart)
+	if eraStart.Valid && eraStart.String != "" {
+		startStr = eraStart.String
+	} else {
+		var gateStart sql.NullString
+		_ = db.QueryRowContext(ctx, `SELECT MIN(replace(substr(created_at,1,19),'T',' ')) FROM thought_traces WHERE loop_kind='gate'`).Scan(&gateStart)
+		if gateStart.Valid {
+			startStr = gateStart.String
+		}
 	}
 
 	var traces, tasksDone, tasksAll int

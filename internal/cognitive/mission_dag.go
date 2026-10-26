@@ -271,11 +271,15 @@ func (e *Engine) ActiveReadyTaskNode(ctx context.Context) (*MissionDAGNode, bool
 		if ok, _ := e.VerifyTaskNodeProvenance(ctx, n.ID); !ok {
 			continue
 		}
-		// fewest attempts first (8.2 rotation), then higher imperative score
-		// (8.3: L4 priority = value x imperative), then least-recently-touched.
-		if best == nil || n.Attempts < best.Attempts ||
-			(n.Attempts == best.Attempts && n.Score > best.Score) ||
-			(n.Attempts == best.Attempts && n.Score == best.Score && n.UpdatedAt < best.UpdatedAt) {
+		// Least-recently-dispatched first: LRU over the ready set, with
+		// fewest-attempts and imperative score as tie-breaks only.
+		// Attempts-first ordering starved vetoed nodes — a continuous
+		// inflow of attempts=0 siblings (e.g. an L2 strategy flood) meant
+		// retryable nodes never reached a second dispatch, never hit
+		// TACTICAL_STALL, and never escalated to L4 re-spec.
+		if best == nil || n.UpdatedAt < best.UpdatedAt ||
+			(n.UpdatedAt == best.UpdatedAt && (n.Attempts < best.Attempts ||
+				(n.Attempts == best.Attempts && n.Score > best.Score))) {
 			best = n
 		}
 	}
@@ -694,6 +698,19 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 						}
 						e.upsertMissionDAGNode(ctx, *stalledL4)
 					}
+					return
+				}
+				// Backpressure: don't promote more specs into the ready
+				// queue while it is saturated — new attempts=0 nodes jump
+				// the LRU front and starve vetoed siblings from ever
+				// reaching a second attempt. Work the backlog first.
+				readyBacklog := 0
+				for _, nn := range e.LoadMissionDAGNodes(ctx) {
+					if nn.Stage == "L4_TASK_SPEC" && (nn.State == "READY_FOR_L5" || nn.State == "TACTICAL_STALL") {
+						readyBacklog++
+					}
+				}
+				if readyBacklog >= 12 {
 					return
 				}
 				for _, l3Target := range l3Targets {

@@ -12,7 +12,7 @@ Build clean + live streaming call returns provider-reported usage.
 |---|---|---|
 | `go list -m all \| wc -l` | 33 | **162** (+129: AWS SDK, Azure SDK, fasthttp, sonic, mcp-go, starlark…) |
 | `go` directive | 1.26 | **1.27.3** (host has go1.27.3 — spec's "host has 1.27.1" note is stale; no toolchain download needed) |
-| `cmd/ace` binary | 19,686,420 B | 19,686,665 B (unused — adapter import links it) |
+| `cmd/ace` binary | 19,686,420 B | 19,686,665 B (unused — adapter import links it) → **49,689,791 B (49.7 MB)** once the adapter is actually wired (measured 2026-10-26, `go list -m all`=162) |
 | provider test binary | — | 41,908,377 B vs 11,874,295 B plain (watchdog test bin) ⇒ **≈ +30 MB linked** |
 | `go build ./... && go test ./...` | — | clean, all packages pass |
 

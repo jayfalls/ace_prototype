@@ -52,10 +52,97 @@ named test — no claims without evidence.
    parses correctly (next_due 7 days out); the fire/reconcile path is
    identical to the hourly one proven live.
 
-## Verdict
+## v0.9 pushback round (2026-10-26) — acceptance re-opened
 
-All spec acceptance items pass with evidence — live where feasible,
-unit-tested where live injection would harm the running mission. The
-primary metric is unchanged vs the frozen v0.8 baseline under the same
-`definition_sha`. The two honest flags (n=5 power, L2/L4 prompt size)
-are recorded for the next window rather than papered over.
+Owner out-of-band data showed the earlier verdict was wrong:
+
+- no DAG node reached COMPLETED since 14:31:22 UTC
+- 21+ nodes stuck cycling at READY_FOR_L5 with attempts=1
+- ~800 hygiene/missing-artifact vetoes on `c_s22_harness.py`
+- L2 kept opening S22–S35 branches meanwhile
+
+### Root cause (data + code)
+
+The stall began ~14:31 UTC under the **pre-v0.9** binary — not a v0.9
+deploy regression. Three compounding causes:
+
+1. **Ready-queue starvation.** `ActiveReadyTaskNode` ordered by
+   `attempts ASC` — freshly-opened siblings (attempts=0) always won over
+   vetoed nodes (attempts=1). With L2 continuously opening same-family
+   branches, a vetoed node needed ~20 cycles of inflow before its second
+   attempt — so TACTICAL_STALL (attempts≥2) and L4 revision never fired.
+2. **Self-invalidating corpus family.** Every stuck node is a
+   `c_sNN_harness`/`c_sNN_data` pair whose selftest asserts the shipped
+   corpus snapshot covers the live module tree — while sibling tasks
+   keep adding modules, invalidating the snapshot mid-flight.
+3. **Blind veto feedback.** The veto reason reported
+   `mutants: {"killed":0}` but dropped the audit's `details[]`
+   line numbers, so the worker retried blind.
+
+### Fixes shipped live (worker ~07:00 UTC)
+
+- `ActiveReadyTaskNode`: LRU-first selection (`updated_at` primary,
+  attempts + imperative score as tie-breakers) — every node gets its
+  attempts within a bounded horizon instead of starving behind inflow.
+- Ready-queue backpressure: L4 stops promoting L3→L4 specs once the
+  ready backlog reaches 12.
+- Mode-3 veto reasons now include surviving-mutant line details.
+
+**Verified live after the fix:** `T_C_S26_HARNESS` ran the full
+recovery loop — READY → veto → READY → veto → `TACTICAL_STALL`
+(attempts=2, 07:04:41) → **L4 revision → READY with attempts reset**.
+Escalation machinery works end-to-end. Nodes rotate (`updated_at`
+spread across the window) instead of freezing.
+
+### Metric era reset (item 2)
+
+`RecordStandingMetrics` now anchors the current window at the newest
+frozen baseline's `window_end` (2026-10-25 16:33:33 = v0.9 deploy
+boundary) and the definition literal bumped to `v0.9.1`. Verified live:
+
+- new rows land with `definition_sha=86b2e8ce409dd847`,
+  window `16:33:33 → 07:05:44`
+- `ace science baseline compare v0.8` now **errors**:
+  `metric definition changed: baseline=9539d88… current=86b2e8ce… —
+  freeze a new baseline instead of comparing`
+- the new window contains **no `turns_per` rows yet** — no completed
+  tasks in the v0.9 era, reported as absent rather than "unchanged"
+
+### Provider failover live (item 3)
+
+`/home/jay/.config/ace/provider.json` was set to a broken-first group
+(`dead-canary`, openai_compat → `http://127.0.0.1:9`) with the real
+`opencode-go` bifrost group second, same billing tier. Live result:
+
+- exactly **1** `usage_events` row for `dead-canary` (07:03:38,
+  retries=1) — attempted, failed, recorded as error usage
+- breaker tripped → **zero** dead-canary rows afterward; all calls
+  continue on `opencode-go` in declared order (real token counts)
+- config file removed afterward; worker 3963038 back on DefaultConfig
+
+### Bifrost measurement (item 4)
+
+Recorded in `v0_9_bifrost.md`: `cmd/ace` binary 19.6 MB → **49.7 MB**
+once the adapter is wired; `go list -m all` **33 → 162** modules.
+
+### L6 prompt size by era (item 5)
+
+Measured from `thought_traces.prompt_tokens`, split at baseline end:
+
+| layer | v0.8 era avg | v0.9 era avg | max (v0.9) |
+|---|---|---|---|
+| L1 | — | 623 | 1,496 |
+| L2 | — | 11,032 | 11,117 |
+| L3 | — | 10,930 | 11,130 |
+| L4 | — | 10,832 | 11,070 |
+| L6 | 31,138 | **29,265** | 68,615 |
+
+L6 dropped ~6% era-over-era and sits far inside the 256k envelope.
+The 9.5 sub-target ("L1–L5 under 4k") passes for **L1 only**;
+L2–L4 average ~11k — an honest miss, flagged for v0.9.1 rather than
+papered over.
+
+### Status
+
+Not tagged. Acceptance stays open until completed tasks appear in the
+new metric window and the L2–L4 prompt budget is addressed.

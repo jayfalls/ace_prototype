@@ -483,7 +483,10 @@ else:
 
 ok = (assert_count > 0) and (len(tautologies) == 0) and bool(flow_rep.get("clean")) and mut_ok
 flow_issues = {k: v for k, v in flow_rep.items() if k != "clean" and v}
-print(json.dumps({"ok": ok, "assert_count": assert_count, "tautologies": tautologies, "flow_clean": bool(flow_rep.get("clean")), "flow_issues": flow_issues, "mutants": {"total": mut_rep["total_mutants"], "killed": mut_rep["killed"]}}))
+# Surface surviving mutants so the worker can target the exact line -
+# "killed: 0" alone is a blind veto that produces identical rewrites.
+survivors = [f"line {d['line']}: {d['mutation']}" for d in mut_rep.get("details", []) if not d.get("killed")]
+print(json.dumps({"ok": ok, "assert_count": assert_count, "tautologies": tautologies, "flow_clean": bool(flow_rep.get("clean")), "flow_issues": flow_issues, "mutants": {"total": mut_rep["total_mutants"], "killed": mut_rep["killed"], "survivors": survivors[:4]}}))
 sys.exit(0 if ok else 2)
 '`, wf, runMutants)
 			hygRes, hygErr := sandbox.Exec(ctx, hygCmd)
