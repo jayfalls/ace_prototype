@@ -308,6 +308,13 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 		if rows.Scan(&bpID, &taskID, &moved, &createdAt, &title) != nil {
 			continue
 		}
+		stale := false
+		for _, layout := range []string{"2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05", time.RFC3339} {
+			if t, perr := time.Parse(layout, createdAt); perr == nil {
+				stale = time.Since(t) > 15*time.Minute
+				break
+			}
+		}
 		if moved == 0 {
 			// Artifact may have landed late — recompute from the file now.
 			var n MissionDAGNode
@@ -317,14 +324,9 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET moved=1 WHERE id=?`, bpID)
 			}
 		}
-		stale := false
-		for _, layout := range []string{"2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05", time.RFC3339} {
-			if t, perr := time.Parse(layout, createdAt); perr == nil {
-				stale = time.Since(t) > 15*time.Minute
-				break
-			}
-		}
-		if moved == 0 {
+		if moved == 0 || stale {
+			// No stat movement, or the completion is history rather than
+			// news — mark it seen without messaging.
 			if stale {
 				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, bpID)
 			}
