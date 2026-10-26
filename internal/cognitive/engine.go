@@ -735,6 +735,7 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 		return core.ChatMessage{ID: msgID, Role: "assistant", Content: ""}, nil
 	}
 	cleanChatContent = checked
+	e.logOwnerMessage(ctx, "reply", "owner messaged: "+userContent, cleanChatContent, "sent", "")
 
 	replyMsg := core.ChatMessage{
 		ID:        msgID,

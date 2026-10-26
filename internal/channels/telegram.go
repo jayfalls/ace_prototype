@@ -452,7 +452,7 @@ func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64,
 		b.engine.NotifyOwner(ctx, "reply", "I tried to answer the owner's message and hit an error: "+err.Error())
 		return
 	}
-	b.engine.DeliverOwnerText(ctx, "reply", "owner messaged: "+text, msg.Content)
+	b.engine.DeliverOwnerText(ctx, "reply", msg.Content)
 }
 
 func (b *TelegramBridge) executeSlashCommand(ctx context.Context, chatID int64, rawCmd string, msgID int64) string {

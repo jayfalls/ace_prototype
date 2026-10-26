@@ -237,15 +237,14 @@ func (e *Engine) CheckOwnerReply(ctx context.Context, ownerMsg, draft string) (s
 	return rewritten, true
 }
 
-// DeliverOwnerText sends text that has already been written by the chat
-// writer and passed CheckOwnerReply — identical on every owner channel.
-// It never composes: the writer wrote it once.
-func (e *Engine) DeliverOwnerText(ctx context.Context, kind, fact, text string) {
+// DeliverOwnerText ships text that has already been written by the chat
+// writer, passed CheckOwnerReply and logged — identical on every owner
+// channel. It is transport only: it never composes and never re-logs.
+func (e *Engine) DeliverOwnerText(ctx context.Context, kind, text string) {
 	if strings.TrimSpace(text) == "" || !ownerSendKinds[kind] {
 		return
 	}
 	e.sendTelegramTextEscalation(ctx, text)
-	e.logOwnerMessage(ctx, kind, fact, text, "sent", "")
 }
 
 func (e *Engine) logOwnerMessage(ctx context.Context, kind, fact, text, status, reason string) {
