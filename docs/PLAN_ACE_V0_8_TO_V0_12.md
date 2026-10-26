@@ -220,7 +220,7 @@ L1 reads all bus traffic (the Shapiro repo's design); L1's memory is written onl
 - **Access requests:** when an action needs access ACE cannot grant itself, ACE sends one request with the action, why it serves the mission, the exact scope (one-time or standing), and what it does meanwhile. A grant is stored in config with its scope, date and the owner's message ID; L1 checks every later use against that scope. No reply means no access. ACE never retries a denied action by another route.
 - **Owner questions:**
   - For contradictions ACE cannot reconcile and for missing facts.
-  - Telegram, plain English, one problem per message, in a fixed template: the problem, options with trade-offs, a recommendation, and the assumption ACE works on until answered.
+  - Telegram, one problem per message, written in ACE's own voice (see **Human voice**): what it's stuck on, the options it sees, what it would pick, and what it's going with until it hears back.
   - ACE expects late replies and keeps working on its stated assumption.
 - **Derived availability:** a model of when the owner replies, fitted on the timestamps of the owner's own messages to ACE: recency of the last message plus hour of day. On 4,529 owner message timestamps this beat a fixed sleep window (log loss 0.514 vs 0.647). Reply delay itself is poorly predictable (median 2.5 h, p90 17.5 h), so it only times non-urgent messages; it never delays an access request.
 - **Status probes:** a status or steering message is answered at once, without pausing the loop.
@@ -541,7 +541,14 @@ Each capability is a plugin, granted per mission by least privilege, and kept on
 | Money, social, accounts, launches | Guards: a hard spend cap per period, set at creation and enforced in Go; every public or financial action goes to full L1 with the ensemble vote; ACE creates and uses its own accounts, with credentials in its encrypted store; accounts or resources it doesn't own need an access request (8.4); every such action is in the digest |
 | Owner channels | Telegram first, with canonical channel IDs |
 
-**Persona:** the chat is agentic and speaks with the personality set at creation, held in the profile. Replies are short and plain.
+**Persona:** the chat is agentic and speaks with the personality set at onboarding, together with the mission, held in `personality.txt`. Until the onboarding interview exists, a placeholder personality is in config.
+
+**Human voice (core invariant, enforced in Go, not by prompt):** ACE talks to the owner like a human being and a friend.
+- One send path: every owner-bound message, on every channel, goes through a single Go function. No other code may call a channel's send directly; a CI test fails on any other call site.
+- ACE writes every message itself: events hand that function a short fact summary, and the chat model writes the message in the personality's voice. No hard-coded message text reaches the owner.
+- Only things a friend would bring up are sent: a question ACE needs answered, an access request, a PR to review, a real result, or a reply to the owner. Routine internal events (parks, quarantines, vetoes, restarts) go to the digest and web UI, and ACE tells the owner about them when asked.
+- A deterministic check runs before every send and rejects messages that contain internal IDs (task, node, cycle or veto IDs), workspace paths, gate or layer jargon, or tables. A rejected message is rewritten once; if the rewrite also fails, nothing is sent and the event goes to the digest.
+- Every sent and rejected message is logged, and the rejection rate is a standing metric.
 
 ### 10.5 Competitor comparison and self-improvement
 
