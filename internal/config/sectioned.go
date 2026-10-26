@@ -36,6 +36,10 @@ type LayerKnobs struct {
 	// MutationMinMutants is gate.min_mutants — below this count the
 	// mutation sample is inconclusive and cannot veto (default 3).
 	MutationMinMutants int
+	// NoProgressMinutes is watchdog.no_progress_minutes — the runaway
+	// check faults when model calls keep flowing but neither the DAG
+	// nor the verdict ledger has moved for this long (default 60m).
+	NoProgressMinutes time.Duration
 }
 
 // DefaultLayerKnobs returns the spec defaults.
@@ -49,6 +53,7 @@ func DefaultLayerKnobs() LayerKnobs {
 		RecapN:           5,
 		ContextEnabled:   true,
 		MutationMinMutants: 3,
+		NoProgressMinutes:  60 * time.Minute,
 	}
 }
 
@@ -141,6 +146,12 @@ func applyKnob(knobs *LayerKnobs, key, val string) {
 	case "gate.min_mutants":
 		if n, err := strconv.Atoi(str()); err == nil && n >= 0 {
 			knobs.MutationMinMutants = n
+		}
+	case "watchdog.no_progress_minutes":
+		if d, ok := dur(); ok && d > 0 {
+			knobs.NoProgressMinutes = d
+		} else if n, err := strconv.Atoi(str()); err == nil && n > 0 {
+			knobs.NoProgressMinutes = time.Duration(n) * time.Minute
 		}
 	case "features.context":
 		knobs.ContextEnabled = str() == "true" || str() == "1" || str() == "on"

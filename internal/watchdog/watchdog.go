@@ -20,6 +20,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"ace/internal/config"
 )
 
 // Snapshot is the atomic per-tick status file the engine writes (write tmp +
@@ -110,18 +112,29 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 		checks = append(checks, Check{"gate_fail_closed", gerr == nil,
 			fmt.Sprintf("verdict_rows reachable: %d rows", n)})
 
-		// Runaway loop: cycles in the last hour beyond a sane bound.
-		// sandboxDir/runaway_limit overrides the default 400 — written to
-		// trip the pause live, deleted to restore (no restart needed).
-		var recent int
-		_ = db.QueryRow(`SELECT COUNT(*) FROM cycle_reports WHERE created_at > datetime('now','-1 hour')`).Scan(&recent)
-		limit := 400
-		if blob, rerr := os.ReadFile(filepath.Join(sandboxDir, "runaway_limit")); rerr == nil {
+		// Runaway = no progress, not cycle count: model calls keep
+		// flowing but neither the mission DAG nor the verdict ledger
+		// has moved for noProgressMin minutes. Scratch files in
+		// workspace/results don't count — churn, not results.
+		// sandboxDir/no_progress_minutes overrides the configured
+		// watchdog.no_progress_minutes for live trips.
+		var callsRecent, dagRecent, verdictRecent int
+		noProgressMin := int(config.LoadLayerKnobs().NoProgressMinutes.Minutes())
+		if noProgressMin <= 0 {
+			noProgressMin = 60
+		}
+		if blob, rerr := os.ReadFile(filepath.Join(sandboxDir, "no_progress_minutes")); rerr == nil {
 			if v, perr := strconv.Atoi(strings.TrimSpace(string(blob))); perr == nil && v > 0 {
-				limit = v
+				noProgressMin = v
 			}
 		}
-		checks = append(checks, Check{"runaway_loop", recent < limit, fmt.Sprintf("%d cycles in last hour (limit %d)", recent, limit)})
+		bound := fmt.Sprintf("datetime('now','-%d minutes')", noProgressMin)
+		_ = db.QueryRow(`SELECT COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&callsRecent)
+		_ = db.QueryRow(`SELECT COUNT(*) FROM mission_dag_nodes WHERE replace(substr(updated_at,1,19),'T',' ') > ` + bound).Scan(&dagRecent)
+		_ = db.QueryRow(`SELECT COUNT(*) FROM science_verdicts WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&verdictRecent)
+		runaway := callsRecent > 0 && dagRecent == 0 && verdictRecent == 0
+		checks = append(checks, Check{"runaway_loop", !runaway,
+			fmt.Sprintf("calls=%d dag_changes=%d verdicts=%d in last %dm", callsRecent, dagRecent, verdictRecent, noProgressMin)})
 
 		// Memory health (spec 9.6): episodic cap pressure + unverified
 		// semantic facts are watchdog-visible.

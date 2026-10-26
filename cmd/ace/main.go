@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math"
 	"net/http"
@@ -442,7 +443,10 @@ func runSupervisor() {
 					if !runawayPaused {
 						runawayPaused = true
 						_ = watchdog.AppendEventFile(events, "runaway_pause", "cognitive-cycle bound exceeded — pausing worker")
-						postEngineMode(envOr("ACE_PORT", "8080"), "paused", "watchdog_runaway")
+						if perr := postEngineMode(envOr("ACE_PORT", "8080"), "paused", "watchdog_runaway"); perr != nil {
+							_ = watchdog.AppendEventFile(events, "runaway_pause_fail", perr.Error())
+							runawayPaused = false // pause never landed — don't dedup it away
+						}
 					}
 				} else {
 					// Re-arm only after a sustained clean run — a single
@@ -557,7 +561,10 @@ func runControl(sub string) {
 	if sub == "resume" {
 		mode = "autonomous"
 	}
-	postEngineMode(port, mode, "owner")
+	if err := postEngineMode(port, mode, "owner"); err != nil {
+		fmt.Fprintf(os.Stderr, "%s failed: %v\n", sub, err)
+		os.Exit(1)
+	}
 	if sub == "halt" {
 		// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
 		token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
@@ -576,7 +583,7 @@ func runControl(sub string) {
 // used by `ace halt|pause|resume` and by the supervisor's runaway
 // watchdog when it pauses a burning loop. reason tags the request so
 // watchdog-originated pauses can emit their one Telegram report.
-func postEngineMode(port, mode, reason string) {
+func postEngineMode(port, mode, reason string) error {
 	token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
 	url := fmt.Sprintf("http://127.0.0.1:%s/api/engine/mode", port)
 	body := strings.NewReader(fmt.Sprintf(`{"mode":%q,"reason":%q}`, mode, reason))
@@ -584,9 +591,16 @@ func postEngineMode(port, mode, reason string) {
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{Timeout: 5 * time.Second}
-	if resp, err := client.Do(req); err == nil {
-		resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("POST %s: %w", url, err)
 	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 300))
+		return fmt.Errorf("POST %s: %s: %s", url, resp.Status, strings.TrimSpace(string(msg)))
+	}
+	return nil
 }
 
 // runScienceRegrade re-grades archived v0.7 result JSONs through the 8.6
