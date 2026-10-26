@@ -379,6 +379,11 @@ func runSupervisor() {
 
 	lastBackup := time.Now().Add(-time.Hour) // back up as soon as the worker is up
 	restarts := 0
+	// Runaway-episode dedup lives outside the child loop: a restarted
+	// worker inherits the same rolling cycle count, so re-arming here
+	// would re-pause every respawn. Re-armed by runawayClean below.
+	runawayPaused := false
+	runawayClean := 0
 	for {
 		child := exec.Command(exe, os.Args[1:]...)
 		child.Env = append(os.Environ(), "ACE_WORKER=1")
@@ -396,7 +401,6 @@ func runSupervisor() {
 		go func() { done <- child.Wait() }()
 
 		exited := false
-		runawayPaused := false
 		for !exited {
 			select {
 			case err := <-done:
@@ -432,6 +436,7 @@ func runSupervisor() {
 					}
 				}
 				if runaway {
+					runawayClean = 0
 					// Act, not just log: pause the worker once per episode and
 					// let the engine send the single Telegram report.
 					if !runawayPaused {
@@ -440,7 +445,13 @@ func runSupervisor() {
 						postEngineMode(envOr("ACE_PORT", "8080"), "paused", "watchdog_runaway")
 					}
 				} else {
-					runawayPaused = false
+					// Re-arm only after a sustained clean run — a single
+					// transient zero (DB busy during a worker restart) must
+					// not end the episode and re-fire the pause.
+					runawayClean++
+					if runawayClean >= 4 {
+						runawayPaused = false
+					}
 				}
 				if time.Since(lastBackup) > time.Hour {
 					if dst, berr := watchdog.Backup(context.Background(), sandboxDir); berr == nil {
