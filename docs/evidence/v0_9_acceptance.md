@@ -198,3 +198,47 @@ DAG selector never read it.
 - Live runaway episode needed to fire the pause+Telegram path
   (unit-covered: mode transition dedupes the report).
 - L2–L4 prompt budget (~11k vs 4k target) — unchanged flag.
+
+## Round-3 pushback fixes (ba623600)
+
+1. **Inconclusive ≠ verified.** Audit stdout is now parsed even on
+   pass; `mutants.inconclusive` (total < `gate.min_mutants`) makes the
+   task complete as **`UNVERIFIED`** — a new terminal DAG state excluded
+   from `task_success` (both sides), the L6 primary-metric join
+   (`state='COMPLETED'` only) and science claims (`RecordChildResult`
+   skipped). Counted via new `tasks_unverified` metric (def v0.9.3).
+   **S22_HARNESS ran at 07:37 on 2 mutants / 0 killed** — inconclusive
+   under the new rule; its `COMPLETED` predates the state.
+2. **Regrade insert failures surfaced.** `recordVerdict`/`RegradeResultJSON`
+   return the error; unparseable results now still write a PROVISIONAL
+   row; `EvaluateExperiment` verdicts carry `PersistErr`; the engine
+   path logs a `science_regrade_error` telemetry span on failure.
+   Live check: `ace science regrade` on the two result files inserted
+   2 PROVISIONAL rows cleanly — the insert path works; the live-path
+   failure was the old binary silently discarding insert errors.
+3. **Branch park rule.** L2 branch marks `COMPLETED` only if ≥1 child
+   task is `COMPLETED`; all-terminal subtrees with zero completions
+   (all parked/unverified) become `QUARANTINED`, never `COMPLETED`.
+4. **Runaway pause live.** `.ace-sandbox/runaway_limit` override file
+   (default 400) tripped at 5: `runaway_pause` event 08:52:14Z →
+   `engine_meta mode=paused` → `runaway_pause_reported=1` (the once-only
+   report gate) → 0 traces during pause. File deleted, `ace resume`
+   → mode=autonomous; exactly **1** `runaway_pause` event ever.
+   **Caveat:** no telegram row is configured in `channel_settings` on
+   this deployment — the once-only gate fired (flag set), the actual
+   send is config-gated and no-ops without a token/chat_id.
+
+### DB numbers (08:52–08:57 UTC)
+
+| key | value |
+|---|---|
+| `thought_traces` total / new era | 8,702 / 5,506 |
+| COMPLETED tasks | 45 (latest: S22_HARNESS 07:37:22, S23_DATA 07:33:14) |
+| UNVERIFIED / QUARANTINED tasks | 0 / 1 (T_C_S23_HARNESS 07:48:59) |
+| `science_verdicts` | 38 (incl. backfilled c_s22_harness.json, c_s23_data.json @08:52:53) |
+| L2 branches | 21 COMPLETED, 0 QUARANTINED (rule armed, no all-parked subtree yet) |
+| `task_success` | 0.087 under sha `03150de88e064ca2` (v0.9.3 tick pending) |
+| `l6_turns_*` under current sha | 0 — no fully-in-window completion yet |
+| S22 hygiene vetoes | 825 (`mutants: total 2, killed 0`) |
+| `cycle_reports` last hour | 528 |
+| watchdog `runaway_pause` events | 1 |
