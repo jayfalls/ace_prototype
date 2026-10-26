@@ -614,13 +614,15 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 	index := e.buildCanonicalIndexWithSkills()
 	goals, _ := e.memory.ReadWiki("goals.md")
 	st := e.Status()
-	memories, _ := e.memory.Search(ctx, userContent, 5)
 	wikiPages, _ := e.memory.ListWiki()
 	wsFiles, _ := e.sandbox.ListFiles()
 	history, _ := e.memory.RecentChatMessages(ctx, 10)
 
 	sysPrompt := FastChatSystemPrompt(soul, index, extractActiveGoals(goals), wikiPages, wsFiles)
-	turnCtx := FastChatTurnContext(st.Layers, memories, e.sandbox.RecentExecs(4))
+	// The owner is a friend, not an operator: the reply writer sees a short
+	// plain-language status line instead of the full ops dump, so replies
+	// answer what was actually said. Tools still supply details on demand.
+	turnCtx := e.plainOwnerStatus(st)
 
 	turns := make([]core.ChatTurn, 0, len(history))
 	for _, h := range history {
@@ -727,9 +729,12 @@ func (e *Engine) Chat(ctx context.Context, userContent string) (core.ChatMessage
 			cleanChatContent = StripChatAction(StripDSML(synthResp.Content))
 		}
 	}
-	if cleanChatContent == "" {
-		cleanChatContent = "I inspected the workspace files — let me know which specific part you want me to change or run next."
+	// One writer, one check: the text the owner sees is the text we store.
+	checked, ok := e.CheckOwnerReply(ctx, userContent, cleanChatContent)
+	if !ok {
+		return core.ChatMessage{ID: msgID, Role: "assistant", Content: ""}, nil
 	}
+	cleanChatContent = checked
 
 	replyMsg := core.ChatMessage{
 		ID:        msgID,

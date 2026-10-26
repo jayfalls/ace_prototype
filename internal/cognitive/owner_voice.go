@@ -38,7 +38,43 @@ var (
 	ownerReJargon   = regexp.MustCompile(`(?i)\bL[1-6]\b|Mode-?3\b|Tier\b|quarantine[ds]?\b|veto(es)?\b|mission_dag|veto_ledger|selftest`)
 	ownerReTable    = regexp.MustCompile(`\n\s*\|.*\|.*\||^\s*\|.*\|.*\|`)
 	ownerReCodeSpan = regexp.MustCompile("`{1,3}")
+
+	// Reply-context rules: an un-asked-for reply carries no numbers or
+	// status detail, and an acknowledgement stays short.
+	ownerReStatusAsk = regexp.MustCompile(`(?i)(how|what|status|progress|going|update|report|broke|happen|result|did (you|it)|working on|where|when|why|\?)`)
+	ownerReNumbers   = regexp.MustCompile(`\d`)
+	ownerReStatus    = regexp.MustCompile(`(?i)\b(completed|queued|running|parked|blocked|accuracy|records?|tasks?|queue|passed|failed|attempts?|split|rate|percent)\b`)
 )
+
+// ownerAskedStatus reports whether the owner's message requested status.
+func ownerAskedStatus(msg string) bool { return ownerReStatusAsk.MatchString(msg) }
+
+// ownerShortAck reports whether the owner's message is a short remark that
+// deserves only an acknowledgement ("I'm working", "thanks", "ok").
+func ownerShortAck(msg string) bool {
+	return len(strings.Fields(msg)) <= 6 && !ownerAskedStatus(msg)
+}
+
+// ownerReplyViolations extends ownerSendViolations with rules that depend
+// on what the owner actually said. Empty means sendable.
+func ownerReplyViolations(text, ownerMsg string) []string {
+	out := ownerSendViolations(text)
+	if ownerMsg == "" {
+		return out
+	}
+	if !ownerAskedStatus(ownerMsg) {
+		if m := ownerReNumbers.FindString(text); m != "" {
+			out = append(out, "unsolicited numbers")
+		}
+		if m := ownerReStatus.FindString(text); m != "" {
+			out = append(out, "unsolicited status detail "+m)
+		}
+	}
+	if ownerShortAck(ownerMsg) && len(strings.Fields(text)) > 25 {
+		out = append(out, "acknowledgement too long")
+	}
+	return out
+}
 
 // ownerSendViolations returns the deterministic-check failures for a
 // candidate message. Empty means sendable.
@@ -138,6 +174,78 @@ func (e *Engine) writeOwnerMessage(ctx context.Context, fact string, violations 
 // overnight digest and readable on demand).
 func (e *Engine) appendOwnerDigest(ctx context.Context, kind, fact string) {
 	e.logOwnerMessage(ctx, kind, fact, "", "digest", "")
+}
+
+// plainOwnerStatus renders two lines of mission state in words a friend
+// understands — the only ops context the reply writer gets. Details stay
+// behind tools the writer can call when the owner asks.
+func (e *Engine) plainOwnerStatus(st core.EngineStatus) string {
+	var queued, done, parked int
+	var lastDone string
+	if db := e.getDB(); db != nil {
+		_ = db.QueryRow(`SELECT
+			COALESCE(SUM(CASE WHEN state NOT IN ('COMPLETED','UNVERIFIED','QUARANTINED','STALE','DUPLICATE_OF') THEN 1 ELSE 0 END),0),
+			COALESCE(SUM(CASE WHEN state='COMPLETED' THEN 1 ELSE 0 END),0),
+			COALESCE(SUM(CASE WHEN state IN ('QUARANTINED','UNVERIFIED') THEN 1 ELSE 0 END),0),
+			COALESCE(MAX(CASE WHEN state='COMPLETED' THEN updated_at END),'')
+			FROM mission_dag_nodes`).Scan(&queued, &done, &parked, &lastDone)
+	}
+	when := "a while ago"
+	if t, err := time.Parse(time.RFC3339, lastDone); err == nil {
+		when = humanAgo(time.Since(t))
+	}
+	line := fmt.Sprintf("Brief state for your own sense of things (do not recite unless asked): %d pieces of work in flight, %d done, %d parked; last thing finished %s.", queued, done, parked, when)
+	if st.Mode != core.ModeAutonomous {
+		line += " The engine is paused right now."
+	}
+	return line
+}
+
+// humanAgo renders a duration as a friend would say it.
+func humanAgo(d time.Duration) string {
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%d minutes ago", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%d hours ago", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%d days ago", int(d.Hours()/24))
+	}
+}
+
+// CheckOwnerReply validates a reply the chat writer produced — one writer,
+// one check. On failure the writer gets one rewrite pass; if that also
+// fails the reply is suppressed (logged to the digest) and ok=false.
+func (e *Engine) CheckOwnerReply(ctx context.Context, ownerMsg, draft string) (string, bool) {
+	draft = strings.TrimSpace(draft)
+	if draft == "" {
+		return "", false
+	}
+	violations := ownerReplyViolations(draft, ownerMsg)
+	if len(violations) == 0 {
+		return draft, true
+	}
+	fact := "the owner messaged: " + truncateText(ownerMsg, 200) +
+		"\nmy draft reply was: " + truncateText(draft, 300)
+	rewritten, err := e.writeOwnerMessage(ctx, fact, violations)
+	if err != nil || len(ownerReplyViolations(rewritten, ownerMsg)) > 0 {
+		e.logOwnerMessage(ctx, "reply", fact, "", "rejected", strings.Join(violations, "; "))
+		return "", false
+	}
+	return rewritten, true
+}
+
+// DeliverOwnerText sends text that has already been written by the chat
+// writer and passed CheckOwnerReply — identical on every owner channel.
+// It never composes: the writer wrote it once.
+func (e *Engine) DeliverOwnerText(ctx context.Context, kind, fact, text string) {
+	if strings.TrimSpace(text) == "" || !ownerSendKinds[kind] {
+		return
+	}
+	e.sendTelegramTextEscalation(ctx, text)
+	e.logOwnerMessage(ctx, kind, fact, text, "sent", "")
 }
 
 func (e *Engine) logOwnerMessage(ctx context.Context, kind, fact, text, status, reason string) {
