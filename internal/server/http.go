@@ -560,12 +560,10 @@ func (s *Server) handleTelegramTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(body.Message) == "" {
-		body.Message = "⚡ ACE Glass-Box Cockpit test ping! Bidirectional Telegram bridge is live."
+		body.Message = "the owner hit the telegram test button in the cockpit — confirm the bridge is live"
 	}
-	if err := s.telegram.SendMessage(r.Context(), chatID, body.Message); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	// Single owner-send path (Human voice): the model writes the message.
+	s.engine.NotifyOwner(r.Context(), "reply", body.Message)
 	writeJSON(w, http.StatusOK, s.telegram.Status())
 }
 

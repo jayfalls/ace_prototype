@@ -148,11 +148,10 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 	// A denied ruling is a quarantine decision — park the DAG task too, not
 	// just the connectome node, so selection never re-dispatches it.
 	e.ParkDAGTaskForMilestone(ctx, milestoneID)
-	msg := fmt.Sprintf(
-		"Quarantine report — %s\nWhat happened: %s\nL1 ruling: %s\nStatus: task quarantined; work continues on the next item.",
-		title, blocker, vetoReason,
-	)
-	e.DispatchHumanContradictionAlert(ctx, cycleID, nodeID, msg)
+	// Parks/quarantines are digest news, not a Telegram ping (Human voice).
+	e.NotifyOwner(ctx, "digest", fmt.Sprintf(
+		"Task parked after ruling: %s — %s (ruling: %s). Work continues on the next item.",
+		title, blocker, vetoReason))
 	return nil
 }
 

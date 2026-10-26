@@ -120,6 +120,15 @@ func Migrate(db *sql.DB) error {
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			ts DATETIME NOT NULL
 		);
+		CREATE TABLE IF NOT EXISTS owner_msg_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			kind TEXT NOT NULL,
+			fact TEXT NOT NULL DEFAULT '',
+			text TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL,
+			reason TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL
+		);
 		CREATE TABLE IF NOT EXISTS cycle_reports (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			cycle_id TEXT NOT NULL,

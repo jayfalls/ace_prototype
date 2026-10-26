@@ -214,7 +214,7 @@ func (e *Engine) DispatchHumanContradictionAlert(ctx context.Context, cycleID st
 		return
 	}
 
-	e.sendTelegramTextEscalation(ctx, fourLineMessage)
+	e.NotifyOwner(ctx, "question", fourLineMessage)
 }
 
 func (e *Engine) sendTelegramTextEscalation(ctx context.Context, text string) {

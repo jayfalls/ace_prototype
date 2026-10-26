@@ -20,9 +20,10 @@ import (
 // hash stamps every standing_metrics row and freezes into baselines, so a
 // definition change resets the baseline instead of silently comparing
 // unlike quantities (spec 9.0 honest-measurement).
-const metricDefinitionLiteral = "v0.9.3|era:latest-baseline-end-else-first-gate-trace|" +
+const metricDefinitionLiteral = "v0.9.4|era:latest-baseline-end-else-first-gate-trace|" +
 	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat,attr:l4-close-paren}|" +
 	"turns_per_success|cost_per_success|task_success{excl:unverified}|tasks_unverified|" +
+	"owner_msg_{sent,rejected,reject_rate}|" +
 	"latency_ms|cache_hit_rate|l3_estimate_error|" +
 	"layer_share_{calls,tokens,l1_gate_calls}"
 
@@ -115,6 +116,17 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	var tasksUnverified int
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='UNVERIFIED' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksUnverified)
 	m["tasks_unverified"] = float64(tasksUnverified)
+
+	// Human-voice accounting: how many owner-bound messages were sent vs
+	// rejected by the deterministic friend-check (plan b59dabaf).
+	var msgSent, msgRejected int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM owner_msg_log WHERE status='sent' AND replace(substr(created_at,1,19),'T',' ') >= ?`, startStr).Scan(&msgSent)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM owner_msg_log WHERE status='rejected' AND replace(substr(created_at,1,19),'T',' ') >= ?`, startStr).Scan(&msgRejected)
+	m["owner_msg_sent"] = float64(msgSent)
+	m["owner_msg_rejected"] = float64(msgRejected)
+	if msgSent+msgRejected > 0 {
+		m["owner_msg_reject_rate"] = float64(msgRejected) / float64(msgSent+msgRejected)
+	}
 
 	if tasksAll > 0 {
 		m["task_success"] = float64(tasksDone) / float64(tasksAll)

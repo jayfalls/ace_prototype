@@ -188,15 +188,14 @@ func (b *TelegramBridge) Start(ctx context.Context, _ core.Bus) error {
 		b.mu.Lock()
 		shouldFwd := b.enabled && b.connected && b.forwardProactive && b.lastChatID != 0 &&
 			time.Since(b.lastProactiveAt) > time.Hour // 8.4 hygiene: <=1 proactive msg/h
-		chatID := b.lastChatID
 		if shouldFwd {
 			b.lastProactiveAt = time.Now()
 		}
 		b.mu.Unlock()
 		if shouldFwd {
-			go func() {
-				_ = b.SendMessage(context.Background(), chatID, fmt.Sprintf("✅ *ACE Cycle Complete*\n%s", msg.Content))
-			}()
+			go func(content string) {
+				b.engine.NotifyOwner(context.Background(), "result", content)
+			}(msg.Content)
 		}
 	})
 
@@ -415,7 +414,7 @@ func (b *TelegramBridge) isChatAllowed(chatID int64) bool {
 
 func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64, username string, text string, msgID int64) {
 	if !b.isChatAllowed(chatID) {
-		_ = b.SendMessage(ctx, chatID, fmt.Sprintf("⛔ Unauthorized Chat ID `%d`. Add this ID to Allowed Chat IDs in the ACE Web Cockpit.", chatID))
+		b.engine.NotifyOwner(ctx, "reply", fmt.Sprintf("an unknown telegram account (id %d) tried to talk to me — it isn't on the allowed list", chatID))
 		return
 	}
 
@@ -438,7 +437,7 @@ func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64,
 	// Handle Telegram Slash Commands (/start, /status, /goals, /cycle, /mode, /exec, /wiki, /tickets, /grant)
 	if strings.HasPrefix(text, "/") {
 		reply := b.executeSlashCommand(ctx, chatID, text, msgID)
-		_ = b.SendMessage(ctx, chatID, reply)
+		b.engine.NotifyOwner(ctx, "reply", "the owner asked `"+text+"`; the answer data is: "+reply)
 		return
 	}
 
@@ -450,10 +449,10 @@ func (b *TelegramBridge) handleInboundMessage(ctx context.Context, chatID int64,
 	// Standard conversational message -> route through ACE Fast Chat + 6-layer cascade!
 	msg, err := b.engine.Chat(ctx, text)
 	if err != nil {
-		_ = b.SendMessage(ctx, chatID, "⚠️ ACE error: "+err.Error())
+		b.engine.NotifyOwner(ctx, "reply", "I tried to answer the owner's message and hit an error: "+err.Error())
 		return
 	}
-	_ = b.SendMessage(ctx, chatID, msg.Content)
+	b.engine.NotifyOwner(ctx, "reply", msg.Content)
 }
 
 func (b *TelegramBridge) executeSlashCommand(ctx context.Context, chatID int64, rawCmd string, msgID int64) string {

@@ -13,6 +13,7 @@ import (
 	"ace/internal/core"
 	"ace/internal/memory"
 	"ace/internal/sandbox"
+	"ace/internal/science"
 	"ace/internal/telemetry"
 	"github.com/stretchr/testify/require"
 	_ "modernc.org/sqlite"
@@ -56,6 +57,7 @@ func TestTelegramBridgeSlashCommandsAndChat(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
 	defer db.Close()
+	require.NoError(t, science.Migrate(db))
 
 	jail, err := sandbox.NewJail(t.TempDir())
 	require.NoError(t, err)
@@ -80,18 +82,36 @@ func TestTelegramBridgeSlashCommandsAndChat(t *testing.T) {
 	require.True(t, st.Connected)
 	require.Equal(t, "ace_cog_bot", st.BotUsername)
 
-	// 1. Unauthorized chat ID should be blocked
+	// Human-voice invariant: nothing is sent to Telegram directly anymore —
+	// every owner-bound message is logged through Engine.NotifyOwner and the
+	// model writes the text. The send itself targets the real API (not this
+	// test server), so assert on owner_msg_log rows.
+	lastOwnerRow := func() (kind, fact, text, status string) {
+		_ = db.QueryRow(`SELECT kind, fact, text, status FROM owner_msg_log ORDER BY id DESC LIMIT 1`).Scan(&kind, &fact, &text, &status)
+		return
+	}
+
+	// 1. Unauthorized chat ID -> owner hears about the stranger; stranger gets nothing
 	tg.handleInboundMessage(context.Background(), 111, "stranger", "hi", 0)
-	require.NotEmpty(t, sentMessages)
-	require.Contains(t, sentMessages[len(sentMessages)-1], "Unauthorized Chat ID")
+	require.Empty(t, sentMessages)
+	kind, fact, _, status := lastOwnerRow()
+	require.Equal(t, "reply", kind)
+	require.Contains(t, fact, "unknown telegram account")
+	require.Equal(t, "sent", status)
 
-	// 2. Authorized /status command
+	// 2. Authorized /status command -> reply through the owner path
 	tg.handleInboundMessage(context.Background(), 999, "jay", "/status", 1)
-	require.Contains(t, sentMessages[len(sentMessages)-1], "ACE Engine Status")
+	kind, fact, _, status = lastOwnerRow()
+	require.Equal(t, "reply", kind)
+	require.Contains(t, fact, "/status")
+	require.Equal(t, "sent", status)
 
-	// 3. Authorized normal chat message
+	// 3. Authorized normal chat message -> model-written reply logged + sent
 	tg.handleInboundMessage(context.Background(), 999, "jay", "Hello ACE", 2)
-	require.Contains(t, sentMessages[len(sentMessages)-1], "Hello from ACE via Telegram!")
+	kind, _, text, status := lastOwnerRow()
+	require.Equal(t, "reply", kind)
+	require.Equal(t, "sent", status)
+	require.Equal(t, "Hello from ACE via Telegram!", text)
 }
 
 // An empty allowlist must deny every chat — v0.7 allowed all chats when unset.

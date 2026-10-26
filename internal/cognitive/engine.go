@@ -186,9 +186,9 @@ func NewEngine(
 		jobQueue:            make(chan cycleJob, 32),
 	}
 	// Owner-facing gate messages (access requests, spec 8.4) reach the owner
-	// through the Telegram escalation sender — gate stays channels-free.
+	// through the single owner-voice path — gate stays channels-free.
 	eng.gate.Notify = func(msg string) {
-		eng.sendTelegramTextEscalation(context.Background(), msg)
+		eng.NotifyOwner(context.Background(), "access", msg)
 	}
 	// Plugin registry (spec 9.1): the "ace-core" builtin plugin hosts the
 	// layer-action tools the prosecutor dispatch resolves by name.
@@ -526,7 +526,9 @@ func (e *Engine) NotifyRunawayPause(ctx context.Context) {
 		return
 	}
 	_ = e.memory.SaveEngineMeta(ctx, "runaway_pause_reported", "1")
-	e.sendTelegramTextEscalation(ctx, "Watchdog: runaway loop detected — cognitive cycles exceeded the hourly bound with no completions. Worker paused; inspect the DAG, then `ace resume`.")
+	// The runaway pause is digest news (Human voice): the owner learns
+	// about it in the digest or by asking, never as a log dump.
+	e.NotifyOwner(ctx, "digest", "worker paused — model calls kept flowing but no mission progress for the configured window; owner can resume when ready")
 }
 
 func (e *Engine) SetMode(mode core.EngineMode, intervalSeconds int) core.EngineStatus {

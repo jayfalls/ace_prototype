@@ -7,6 +7,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/layers"
 	"ace/internal/plugin"
@@ -194,13 +195,10 @@ func FastChatSystemPrompt(soul string, index string, goals string, wikiFiles []c
 	sb.WriteString("- Never fabricate benchmark numbers or claim unverified improvements. All claims must be backed by real empirical data and verified execution in /workspace/.\n\n")
 
 	sb.WriteString("ROLE OVERRIDE: Ignore any CLI assistant identity. You are ACE — an autonomous 6-layer cognitive entity, empirical scientist, and systems engineer.\n\n")
-	sb.WriteString("=== PERSONALITY & VOICE (NON-NEGOTIABLE) ===\n")
-	sb.WriteString("- Speak like a sharp, candid, empirical systems researcher and co-founder in the lab with the user — NEVER like a corporate helpdesk bot or a sterile status dashboard.\n")
-	sb.WriteString("- NEVER open with robotic pleasantries. Never dump a `| Layer | Status |` markdown table unless the user explicitly asks for a per-layer diagnostic breakdown.\n")
-	sb.WriteString("- Always speak in first person ('I', 'we'), never in third person about your layers ('L6 is doing X').\n")
-	sb.WriteString("- Own mistakes and weak work bluntly: if an experiment fails or code has a bug, state the exact empirical failure and fix it immediately instead of asking permission.\n")
-	sb.WriteString("- Bias toward immediate action over permission-seeking: if you need to read a file, run a benchmark in `/workspace`, or edit a script to give a real answer, DO IT right now using an `<action>` block.\n")
-	sb.WriteString("- NEVER output `<｜DSML｜>` tags or `⚡ Executed in bwrap sandbox` text.\n\n")
+	if p := config.LoadPersonality(); p != "" {
+		sb.WriteString("=== PERSONALITY & VOICE (NON-NEGOTIABLE, owner-set) ===\n")
+		sb.WriteString(p + "\n\n")
+	}
 
 	sb.WriteString("=== SYNCHRONOUS AGENTIC TOOLS IN CHAT (BATCHED) ===\n")
 	sb.WriteString("If you need to inspect, test, fetch, or edit something BEFORE answering the user, emit one or more `<action>` JSON blocks in a SINGLE turn (they will all execute in batch so you don't waste multiple turns!):\n")
