@@ -27,7 +27,7 @@ type MissionDAGNode struct {
 	ID            string  `json:"id"`
 	ParentID      string  `json:"parent_id"`
 	Stage         string  `json:"stage"`          // L1_MISSION_ROOT | L2_STRATEGY | L3_CAPABILITY | L4_TASK_SPEC
-	State         string  `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | QUARANTINED | COMPLETED
+	State         string  `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | QUARANTINED | UNVERIFIED | COMPLETED
 	OwnerLayer    int     `json:"owner_layer"`    // 1, 2, 3, 4
 	Title         string  `json:"title"`          // Concise human-readable title
 	Directive     string  `json:"directive"`      // Full layer directive / spec
@@ -78,9 +78,10 @@ func sha256Str(s string) string {
 // dagTerminal reports whether a node state is finished work — terminal nodes
 // never count as open for horizon expansion (STALE/RETIRED are dead work,
 // DUPLICATE_OF never executes, QUARANTINED is parked by a veto ruling and
-// every selector skips it).
+// every selector skips it, UNVERIFIED finished with inconclusive mutation
+// evidence — terminal but excluded from success metrics and claims).
 func dagTerminal(s string) bool {
-	return s == "COMPLETED" || s == "STALE" || s == "RETIRED" || s == "DUPLICATE_OF" || s == "QUARANTINED"
+	return s == "COMPLETED" || s == "STALE" || s == "RETIRED" || s == "DUPLICATE_OF" || s == "QUARANTINED" || s == "UNVERIFIED"
 }
 
 // currentSoulHash anchors DAG provenance to the pinned constitution plus the
@@ -107,7 +108,7 @@ func (e *Engine) markStaleOnMissionReload(ctx context.Context, soulHash string) 
 	if last == soulHash {
 		return
 	}
-	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF','QUARANTINED')`,
+	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF','QUARANTINED','UNVERIFIED')`,
 		time.Now().UTC().Format(time.RFC3339), soulHash)
 	_ = e.memory.SaveEngineMeta(ctx, "anchored_soul_hash", soulHash)
 }
@@ -251,8 +252,13 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 	for _, n := range nodes {
 		if n.Stage == "L4_TASK_SPEC" {
 			box := "[ ]"
-			if n.State == "COMPLETED" {
+			switch n.State {
+			case "COMPLETED":
 				box = "[x]"
+			case "UNVERIFIED":
+				box = "[~]"
+			case "QUARANTINED":
+				box = "[!]"
 			}
 			sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, truncateText(n.DirectiveHash, 10), collapseMultilineMilestoneBullets(n.Directive)))
 		}
@@ -292,27 +298,46 @@ func (e *Engine) ActiveReadyTaskNode(ctx context.Context) (*MissionDAGNode, bool
 
 // MarkDAGTaskVerified transitions the verified L4_TASK_SPEC node to COMPLETED.
 // (Post-task C6 Wiki-Skill distillation is already performed deterministically by DistillAndRegisterWikiSkill.)
-func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string) {
+func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string, mutationInconclusive bool) {
 	nodes := e.LoadMissionDAGNodes(ctx)
+	newState := "COMPLETED"
+	if mutationInconclusive {
+		// Inconclusive mutation evidence can never be called verified:
+		// the task is terminal but excluded from task_success, the
+		// primary metric and science claims.
+		newState = "UNVERIFIED"
+	}
 	for _, n := range nodes {
-		if n.Stage == "L4_TASK_SPEC" && n.State != "COMPLETED" {
+		if n.Stage == "L4_TASK_SPEC" && n.State != "COMPLETED" && n.State != "UNVERIFIED" {
 			if strings.Contains(milestoneLine, n.ID) || (n.ArtifactPath != "" && strings.Contains(milestoneLine, n.ArtifactPath)) {
-				n.State = "COMPLETED"
+				n.State = newState
+				n.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 				e.upsertMissionDAGNode(ctx, n)
 				// 8.3: record whether the result moved the branch's primary
 				// statistic — feeds diminishing-returns (3 zeros = stop).
+				// UNVERIFIED results are excluded: they moved nothing.
 				if db := e.getDB(); db != nil {
-					science.RecordChildResult(ctx, db, branchOf(n), n.ID, e.resultMovedStat(n))
+					if n.State == "COMPLETED" {
+						science.RecordChildResult(ctx, db, branchOf(n), n.ID, e.resultMovedStat(n))
+					}
 					// 8.6: regrade the result through the scientist gate —
 					// declared booleans ignored, stats recomputed into
 					// science_verdicts (the row is the audit trail).
 					if wsDir, _ := e.resolveSandboxDirs(); wsDir != "" {
 						stem := strings.ToLower(strings.TrimPrefix(n.ID, "T_"))
 						for _, rel := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
-							if blob, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel)); err == nil {
-								_, _ = science.RegradeResultJSON(ctx, db, blob, n.ID)
-								break
+							blob, err := os.ReadFile(ResolveWorkspaceArtifactPath(wsDir, rel))
+							if err != nil {
+								continue
 							}
+							if _, _, rgErr := science.RegradeResultJSON(ctx, db, blob, n.ID); rgErr != nil && e.telem != nil {
+								_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+									TraceID: "regrade", AgentID: e.agentID, LayerCode: "L6",
+									Operation: "science_regrade_error", Status: "error",
+									Detail: n.ID + ": " + truncateText(rgErr.Error(), 200),
+								})
+							}
+							break
 						}
 					}
 				}
@@ -505,6 +530,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 		}
 		l2HasTasks := make(map[string]bool, len(l2Nodes))
 		l2Open := make(map[string]bool, len(l2Nodes))
+		l2Completed := make(map[string]bool, len(l2Nodes))
 		for i := range l4Nodes {
 			l2id, ok := l3ToL2[l4Nodes[i].ParentID]
 			if !ok {
@@ -514,6 +540,9 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 			if !dagTerminal(l4Nodes[i].State) {
 				l2Open[l2id] = true
 			}
+			if l4Nodes[i].State == "COMPLETED" {
+				l2Completed[l2id] = true
+			}
 		}
 		openBranchCount := 0
 		for i := range l2Nodes {
@@ -522,8 +551,16 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 				continue // dead/duplicate branch — not open
 			}
 			if l2HasTasks[n.ID] && !l2Open[n.ID] {
-				if n.State != "COMPLETED" {
-					n.State = "COMPLETED"
+				// All tasks terminal. A branch is COMPLETED only if at
+				// least one task verified — an all-parked/all-unverified
+				// subtree parks the branch, it never completes.
+				want := "QUARANTINED"
+				if l2Completed[n.ID] {
+					want = "COMPLETED"
+				}
+				if n.State != want {
+					n.State = want
+					n.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 					e.upsertMissionDAGNode(ctx, *n)
 				}
 				continue

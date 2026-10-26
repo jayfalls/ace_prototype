@@ -24,6 +24,9 @@ type Mode3GateResult struct {
 	RegressedScripts  []string `json:"regressed_scripts"`
 	HygieneViolations []string `json:"hygiene_violations"`
 	Reason            string   `json:"reason"`
+	// MutationInconclusive is true when the mutation sample fell below
+	// gate.min_mutants — the task completes UNVERIFIED, never COMPLETED.
+	MutationInconclusive bool `json:"mutation_inconclusive"`
 }
 
 var artifactPathRe = regexp.MustCompile("(?:`/workspace/([^`\\s]+)`|`/wiki/([^`\\s]+)`|/workspace/([a-zA-Z0-9_./-]+\\.[a-zA-Z0-9]+)|\\b(notes/[a-zA-Z0-9_./-]+\\.md)\\b|\\b([a-zA-Z0-9_-]+\\.(?:py|json|md|tsv))\\b)")
@@ -494,6 +497,18 @@ print(json.dumps({"ok": ok, "assert_count": assert_count, "tautologies": tautolo
 sys.exit(0 if ok else 2)
 '`, wf, runMutants, minMutants)
 			hygRes, hygErr := sandbox.Exec(ctx, hygCmd)
+			if hygErr == nil && hygRes.ExitCode == 0 {
+				// Parse the audit verdict even on pass: an inconclusive
+				// mutation sample completes the task UNVERIFIED.
+				var audit struct {
+					Mutants struct {
+						Inconclusive bool `json:"inconclusive"`
+					} `json:"mutants"`
+				}
+				if json.Unmarshal([]byte(strings.TrimSpace(hygRes.Stdout)), &audit) == nil && audit.Mutants.Inconclusive {
+					res.MutationInconclusive = true
+				}
+			}
 			if hygErr != nil || hygRes.ExitCode != 0 {
 				res.Passed = false
 				hygMsg := strings.TrimSpace(hygRes.Stdout + " " + hygRes.Stderr)

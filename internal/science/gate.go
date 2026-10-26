@@ -29,6 +29,9 @@ type Verdict struct {
 	CI       [2]float64 `json:"ci"`      // Clopper-Pearson 95%
 	Powered  bool       `json:"powered"`
 	Reasons  []string   `json:"reasons"`
+	// PersistErr carries any science_verdicts insert failure — a nil db
+	// insert that previously vanished silently.
+	PersistErr error `json:"-"`
 }
 
 // EvaluateExperiment recomputes the primary statistic for question q against
@@ -40,7 +43,7 @@ func EvaluateExperiment(ctx context.Context, db *sql.DB, q Question, preds []Pre
 	n := len(preds)
 	if n == 0 {
 		v.Reasons = append(v.Reasons, "no predictions")
-		recordVerdict(ctx, db, q.ID, "", v)
+		v.PersistErr = recordVerdict(ctx, db, q.ID, "", v)
 		return v
 	}
 
@@ -48,12 +51,12 @@ func EvaluateExperiment(ctx context.Context, db *sql.DB, q Question, preds []Pre
 	// never produce evidence.
 	if labelEntropy(preds, true) == 0 {
 		v.Reasons = append(v.Reasons, "zero-entropy labels — degenerate evaluation set")
-		recordVerdict(ctx, db, q.ID, "", v)
+		v.PersistErr = recordVerdict(ctx, db, q.ID, "", v)
 		return v
 	}
 	if labelEntropy(preds, false) == 0 {
 		v.Reasons = append(v.Reasons, "constant predictions — model outputs never vary")
-		recordVerdict(ctx, db, q.ID, "", v)
+		v.PersistErr = recordVerdict(ctx, db, q.ID, "", v)
 		return v
 	}
 
@@ -95,7 +98,7 @@ func EvaluateExperiment(ctx context.Context, db *sql.DB, q Question, preds []Pre
 	} else if significant {
 		v.Reasons = append(v.Reasons, "significant but labels not independent — PROVISIONAL")
 	}
-	recordVerdict(ctx, db, q.ID, "", v)
+	v.PersistErr = recordVerdict(ctx, db, q.ID, "", v)
 	return v
 }
 
@@ -225,21 +228,24 @@ func normInv(p float64) float64 {
 	return x
 }
 
-func recordVerdict(ctx context.Context, db *sql.DB, qid, ref string, v Verdict) {
+func recordVerdict(ctx context.Context, db *sql.DB, qid, ref string, v Verdict) error {
 	detail := ""
 	for _, r := range v.Reasons {
 		detail += r + "; "
 	}
-	_, _ = db.ExecContext(ctx, `INSERT INTO science_verdicts (question_id, result_ref, tier, stat, p_value, detail, created_at) VALUES (?,?,?,?,?,?,?)`,
+	_, err := db.ExecContext(ctx, `INSERT INTO science_verdicts (question_id, result_ref, tier, stat, p_value, detail, created_at) VALUES (?,?,?,?,?,?,?)`,
 		qid, ref, v.Tier, v.Stat, v.PValue, truncate(detail, 500), time.Now().UTC().Format(time.RFC3339))
+	return err
 }
 
 // RegradeResultJSON re-evaluates a result blob's declared statistics: when
 // McNemar discordant counts are present the p-value is recomputed (the
 // declared value is never trusted), and a science_verdicts row records the
-// outcome. Returns (tier, detail). Items without recomputable counts grade
+// outcome. Returns (tier, detail, err) — err is any insert failure on the
+// verdict row; callers must surface it (a silently missing verdict is the
+// bug this round fixed). Items without recomputable counts grade
 // PROVISIONAL — claims only, no recomputation possible.
-func RegradeResultJSON(ctx context.Context, db *sql.DB, blob []byte, ref string) (string, string) {
+func RegradeResultJSON(ctx context.Context, db *sql.DB, blob []byte, ref string) (string, string, error) {
 	var r struct {
 		H1Accepted *bool    `json:"h1_accepted"`
 		Decision   string   `json:"decision"`
@@ -249,15 +255,16 @@ func RegradeResultJSON(ctx context.Context, db *sql.DB, blob []byte, ref string)
 		Alpha      *float64 `json:"alpha_level"`
 	}
 	if json.Unmarshal(blob, &r) != nil {
-		return "PROVISIONAL", "unparseable result json"
+		err := recordVerdict(ctx, db, ref, ref, Verdict{Tier: "PROVISIONAL", Reasons: []string{"unparseable result json"}})
+		return "PROVISIONAL", "unparseable result json", err
 	}
 	alpha := 0.05
 	if r.Alpha != nil && *r.Alpha > 0 {
 		alpha = *r.Alpha
 	}
 	if r.McFixed == nil || r.McBroken == nil {
-		recordVerdict(ctx, db, ref, ref, Verdict{Tier: "PROVISIONAL", Reasons: []string{"no recomputable discordant counts"}})
-		return "PROVISIONAL", "no mcnemar counts — declared stats unrecomputable"
+		err := recordVerdict(ctx, db, ref, ref, Verdict{Tier: "PROVISIONAL", Reasons: []string{"no recomputable discordant counts"}})
+		return "PROVISIONAL", "no mcnemar counts — declared stats unrecomputable", err
 	}
 	p := McNemarExact(int(*r.McFixed), int(*r.McBroken))
 	tier := "PROVISIONAL"
@@ -270,6 +277,6 @@ func RegradeResultJSON(ctx context.Context, db *sql.DB, blob []byte, ref string)
 	} else {
 		detail += " — consistent with declared"
 	}
-	recordVerdict(ctx, db, ref, ref, Verdict{Tier: tier, Stat: float64(*r.McFixed), PValue: p, Reasons: []string{detail}})
-	return tier, detail
+	err := recordVerdict(ctx, db, ref, ref, Verdict{Tier: tier, Stat: float64(*r.McFixed), PValue: p, Reasons: []string{detail}})
+	return tier, detail, err
 }

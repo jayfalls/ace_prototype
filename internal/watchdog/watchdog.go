@@ -111,9 +111,17 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 			fmt.Sprintf("verdict_rows reachable: %d rows", n)})
 
 		// Runaway loop: cycles in the last hour beyond a sane bound.
+		// sandboxDir/runaway_limit overrides the default 400 — written to
+		// trip the pause live, deleted to restore (no restart needed).
 		var recent int
 		_ = db.QueryRow(`SELECT COUNT(*) FROM cycle_reports WHERE created_at > datetime('now','-1 hour')`).Scan(&recent)
-		checks = append(checks, Check{"runaway_loop", recent < 400, fmt.Sprintf("%d cycles in last hour", recent)})
+		limit := 400
+		if blob, rerr := os.ReadFile(filepath.Join(sandboxDir, "runaway_limit")); rerr == nil {
+			if v, perr := strconv.Atoi(strings.TrimSpace(string(blob))); perr == nil && v > 0 {
+				limit = v
+			}
+		}
+		checks = append(checks, Check{"runaway_loop", recent < limit, fmt.Sprintf("%d cycles in last hour (limit %d)", recent, limit)})
 
 		// Memory health (spec 9.6): episodic cap pressure + unverified
 		// semantic facts are watchdog-visible.

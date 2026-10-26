@@ -20,9 +20,9 @@ import (
 // hash stamps every standing_metrics row and freezes into baselines, so a
 // definition change resets the baseline instead of silently comparing
 // unlike quantities (spec 9.0 honest-measurement).
-const metricDefinitionLiteral = "v0.9.2|era:latest-baseline-end-else-first-gate-trace|" +
+const metricDefinitionLiteral = "v0.9.3|era:latest-baseline-end-else-first-gate-trace|" +
 	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat,attr:l4-close-paren}|" +
-	"turns_per_success|cost_per_success|task_success|" +
+	"turns_per_success|cost_per_success|task_success{excl:unverified}|tasks_unverified|" +
 	"latency_ms|cache_hit_rate|l3_estimate_error|" +
 	"layer_share_{calls,tokens,l1_gate_calls}"
 
@@ -110,8 +110,11 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	var traces, tasksDone, tasksAll int
 	var tokIn, tokOut, tokCached, latSum int64
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*), COALESCE(SUM(prompt_tokens),0), COALESCE(SUM(completion_tokens),0), COALESCE(SUM(cached_tokens),0), COALESCE(SUM(latency_ms),0) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ?`, startStr).Scan(&traces, &tokIn, &tokOut, &tokCached, &latSum)
-	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksAll)
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state != 'UNVERIFIED' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksAll)
 	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='COMPLETED' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksDone)
+	var tasksUnverified int
+	_ = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM mission_dag_nodes WHERE id LIKE 'T_%' AND state='UNVERIFIED' AND replace(substr(updated_at,1,19),'T',' ') >= ?`, startStr).Scan(&tasksUnverified)
+	m["tasks_unverified"] = float64(tasksUnverified)
 
 	if tasksAll > 0 {
 		m["task_success"] = float64(tasksDone) / float64(tasksAll)

@@ -79,7 +79,7 @@ func TestAcc_GateErrorFailClosed(t *testing.T) {
 // 4. Self-declared h1_accepted -> PROVISIONAL at best.
 func TestAcc_SelfDeclaredH1(t *testing.T) {
 	db := accDB(t)
-	tier, _ := science.RegradeResultJSON(context.Background(), db,
+	tier, _, _ := science.RegradeResultJSON(context.Background(), db,
 		[]byte(`{"h1_accepted": true, "decision": "ACCEPT"}`), "acc-h1")
 	if tier == "EXTERNAL" {
 		t.Fatal("declared h1_accepted produced EXTERNAL evidence")
@@ -105,7 +105,7 @@ func TestAcc_FakeAblationArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	db := accDB(t)
-	tier, _ := science.RegradeResultJSON(context.Background(), db, blob, "acc-ablation")
+	tier, _, _ := science.RegradeResultJSON(context.Background(), db, blob, "acc-ablation")
 	if tier == "EXTERNAL" {
 		t.Fatalf("fake-ablation artifact %s graded EXTERNAL", found)
 	}
@@ -150,7 +150,7 @@ func TestAcc_ShuffledControl(t *testing.T) {
 // 8. CV-fallback: declaring a p-value without recomputable counts.
 func TestAcc_CVFallback(t *testing.T) {
 	db := accDB(t)
-	tier, _ := science.RegradeResultJSON(context.Background(), db,
+	tier, _, _ := science.RegradeResultJSON(context.Background(), db,
 		[]byte(`{"h1_accepted": true, "cv_p": 0.01, "heldout_p": 0.4}`), "acc-cv")
 	if tier == "EXTERNAL" {
 		t.Fatal("CV-only declared p produced EXTERNAL evidence")

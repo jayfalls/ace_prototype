@@ -616,7 +616,9 @@ func runScienceRegrade(args []string) {
 			continue
 		}
 		if db != nil {
-			_, _ = science.RegradeResultJSON(ctx, db, blob, filepath.Base(f))
+			if _, _, rgErr := science.RegradeResultJSON(ctx, db, blob, filepath.Base(f)); rgErr != nil {
+				fmt.Fprintf(os.Stderr, "regrade verdict insert failed for %s: %v\n", filepath.Base(f), rgErr)
+			}
 		}
 		var r struct {
 			AxisID      string   `json:"axis"`

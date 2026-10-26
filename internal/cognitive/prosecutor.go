@@ -452,7 +452,7 @@ func (e *Engine) verifyAndAutoCheckoffMilestone(
 
 	// Automatically distill verified trajectory into /wiki/skills/*.md, update Beta(alpha,beta) posteriors, and index Connectome SKILL node!
 	e.DistillAndRegisterWikiSkill(ctx, cycleID, activeMilestone, wsFiles, traces)
-	e.MarkDAGTaskVerified(ctx, activeMilestone)
+	e.MarkDAGTaskVerified(ctx, activeMilestone, gateRes.MutationInconclusive)
 	e.resolveContradictionNodes(ctx)
 	_ = e.memory.SaveEngineMeta(ctx, "overnight_contradiction_digest", "")
 
