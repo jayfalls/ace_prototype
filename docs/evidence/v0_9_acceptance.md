@@ -242,3 +242,28 @@ DAG selector never read it.
 | S22 hygiene vetoes | 825 (`mutants: total 2, killed 0`) |
 | `cycle_reports` last hour | 528 |
 | watchdog `runaway_pause` events | 1 |
+
+## Round-4 pushback fixes (a9663cc5)
+
+1. **runaway_loop = no progress, not cycle count.** Fault iff model
+   calls flowed in the last N minutes AND `mission_dag_nodes` had zero
+   updates AND `science_verdicts` had zero rows for N min
+   (`watchdog.no_progress_minutes` in config.d, default 60; sandbox
+   `no_progress_minutes` file overrides for live trips). Cycle-count
+   check deleted — 528/hr was scheduler cadence, not a stall.
+   Validated: overnight DAG froze 20:31:54Z, calls continued 3,800 →
+   fires ~21:31 ("by about 21:00" ✓); last-2h shows 26 DAG updates →
+   passes ✓. Scratch files in workspace/results churned overnight —
+   not counted as artifacts.
+2. **Reclassification.** 5 of 45 COMPLETED had surviving mutant audit
+   records — **all 5 inconclusive** → reclassified `UNVERIFIED`:
+   S7_DATA (2/0), S10_DATA (2/0), S16_DATA (2/0), S20_HARNESS (1/1),
+   S22_HARNESS (2/0). 40 tasks have no surviving audit record —
+   audit JSON only persists inside veto reasons.
+3. **ace resume reports failure.** `postEngineMode` returns errors;
+   `ace pause|resume|halt` exit 1 with the HTTP failure on stderr
+   (verified: `connection refused` on dead port, exit 1). Supervisor
+   pause failure logs `runaway_pause_fail` and does not consume dedup.
+4. **Live window.** Running 1–2h with no manual resumes until a
+   fully-in-window task completes → first `l6_turns` row under v0.9.3.
+   Supervisor 4124733 → worker 4124744.
