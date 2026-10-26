@@ -147,6 +147,9 @@ func Migrate(db *sql.DB) error {
 	if err != nil {
 		return err
 	}
+	// Result notifications dedupe on notified; artifacts can land after the
+	// completion write, so the scan retries until sent or stale.
+	_, _ = db.Exec(`ALTER TABLE branch_progress ADD COLUMN notified INTEGER NOT NULL DEFAULT 0`)
 	migratePrereg(db)
 	migrateMetrics(db)
 	SeedRegistry(context.Background(), db)

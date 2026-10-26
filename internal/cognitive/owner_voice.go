@@ -283,6 +283,58 @@ func (e *Engine) maybeAskOwnerQuestion(ctx context.Context) {
 		time.Now().UTC().Format(time.RFC3339), id)
 }
 
+// maybeNotifyOwnerResults reports verified completions that moved their
+// branch's primary statistic — one per cycle. Artifacts land after the
+// completion write, so unmoved rows retry until the file is readable or
+// 15 minutes old; notified dedupes the send.
+func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
+	db := e.getDB()
+	if db == nil {
+		return
+	}
+	rows, err := db.QueryContext(ctx, `
+		SELECT bp.id, bp.task_id, bp.moved, bp.created_at, COALESCE(n.title,'')
+		FROM branch_progress bp
+		JOIN mission_dag_nodes n ON n.id = bp.task_id
+		WHERE bp.notified = 0 AND n.state = 'COMPLETED'
+		ORDER BY bp.id LIMIT 1`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var bpID, moved int
+		var taskID, createdAt, title string
+		if rows.Scan(&bpID, &taskID, &moved, &createdAt, &title) != nil {
+			continue
+		}
+		if moved == 0 {
+			// Artifact may have landed late — recompute from the file now.
+			var n MissionDAGNode
+			n.ID = taskID
+			if e.resultMovedStat(n) {
+				moved = 1
+				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET moved=1 WHERE id=?`, bpID)
+			}
+		}
+		stale := false
+		for _, layout := range []string{"2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05", time.RFC3339} {
+			if t, perr := time.Parse(layout, createdAt); perr == nil {
+				stale = time.Since(t) > 15*time.Minute
+				break
+			}
+		}
+		if moved == 0 {
+			if stale {
+				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, bpID)
+			}
+			continue
+		}
+		e.NotifyOwner(ctx, "result", "verified task completed and moved its branch's primary statistic: "+truncateText(title, 200)+" ("+taskID+")")
+		_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, bpID)
+	}
+}
+
 func (e *Engine) logOwnerMessage(ctx context.Context, kind, fact, text, status, reason string) {
 	if db := e.getDB(); db != nil {
 		_, _ = db.ExecContext(ctx, `INSERT INTO owner_msg_log (kind, fact, text, status, reason, created_at) VALUES (?,?,?,?,?,?)`,
