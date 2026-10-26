@@ -2,13 +2,21 @@ package cognitive
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"ace/internal/config"
+	"ace/internal/constitution"
 	"ace/internal/core"
+
+	"github.com/google/uuid"
 )
 
 // owner_voice.go — the single owner-send path (plan "Human voice", b59dabaf).
@@ -41,7 +49,7 @@ var (
 
 	// Reply-context rules: an un-asked-for reply carries no numbers or
 	// status detail, and an acknowledgement stays short.
-	ownerReStatusAsk = regexp.MustCompile(`(?i)(how|what|status|progress|going|update|report|broke|happen|result|did (you|it)|working on|where|when|why|\?)`)
+	ownerReStatusAsk = regexp.MustCompile(`(?i)(how|what|status|progress|going|update|report|broke|happen|result|did (you|it)|working on|where|when|why|\?|you (said|told|mentioned|showed)|earlier|that number|the number|by how much)`)
 	ownerReNumbers   = regexp.MustCompile(`\d`)
 	ownerReStatus    = regexp.MustCompile(`(?i)\b(completed|queued|running|parked|blocked|accuracy|records?|tasks?|queue|passed|failed|attempts?|split|rate|percent)\b`)
 )
@@ -108,10 +116,16 @@ You get a short fact summary and write ONE short message (under 400 characters) 
 - If the facts are bad news, say so plainly and say what happens next.
 - Output ONLY the message text.`
 
-// NotifyOwner is the only way anything reaches the owner. kind decides
-// sendability; fact is a short internal summary (IDs and paths are fine
-// here — the model translates, the check verifies).
+// NotifyOwner hands an event to the chat agent as an offer (plan "Human
+// voice"): no composing, no sending — drainOwnerOffers is the only
+// proactive writer. kind decides sendability; fact carries the numbers.
 func (e *Engine) NotifyOwner(ctx context.Context, kind, fact string) {
+	e.NotifyOwnerSourced(ctx, kind, fact, "")
+}
+
+// NotifyOwnerSourced is NotifyOwner with an explicit provenance string:
+// the owner message or ACE record the fact rests on.
+func (e *Engine) NotifyOwnerSourced(ctx context.Context, kind, fact, source string) {
 	fact = strings.TrimSpace(fact)
 	if fact == "" {
 		return
@@ -120,26 +134,140 @@ func (e *Engine) NotifyOwner(ctx context.Context, kind, fact string) {
 		e.appendOwnerDigest(ctx, kind, fact)
 		return
 	}
+	if db := e.getDB(); db != nil {
+		_, _ = db.ExecContext(ctx,
+			`INSERT INTO owner_offers (kind, fact, source, status, created_at) VALUES (?,?,?,'pending',?)`,
+			kind, truncateText(fact, 800), truncateText(source, 300),
+			time.Now().UTC().Format(time.RFC3339))
+	}
+}
 
-	text, err := e.writeOwnerMessage(ctx, fact, nil)
-	status, reason := "sent", ""
-	violations := ownerSendViolations(text)
-	if err != nil || len(violations) > 0 {
-		// One rewrite with the violations spelled out.
-		text, err = e.writeOwnerMessage(ctx, fact, violations)
-		violations = ownerSendViolations(text)
+// drainOwnerOffers is the proactive half of the one chat agent: pending
+// offers go into the same conversation history the owner sees, the model
+// decides HOLD or ONE folded message, and the result lands in
+// chat_messages, owner_msg_log and the channel — identical everywhere.
+func (e *Engine) drainOwnerOffers(ctx context.Context) {
+	db := e.getDB()
+	if db == nil {
+		return
 	}
-	if err != nil || len(violations) > 0 {
-		status, reason = "rejected", "compose failed"
-		if len(violations) > 0 {
-			reason = strings.Join(violations, "; ")
+	// Offers the agent never picked become digest rows — a stale offer
+	// is history, not news.
+	_, _ = db.ExecContext(ctx, `UPDATE owner_offers SET status='digested', handled_at=?
+		WHERE status='pending' AND replace(substr(created_at,1,19),'T',' ') < datetime('now','-2 hours')`,
+		time.Now().UTC().Format(time.RFC3339))
+
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, kind, fact, source FROM owner_offers WHERE status='pending' ORDER BY id LIMIT 10`)
+	if err != nil {
+		return
+	}
+	type offer struct {
+		id                 int
+		kind, fact, source string
+	}
+	var pending []offer
+	for rows.Next() {
+		var o offer
+		if rows.Scan(&o.id, &o.kind, &o.fact, &o.source) == nil {
+			pending = append(pending, o)
 		}
-		text = ""
-		e.appendOwnerDigest(ctx, kind, fact)
-	} else {
-		e.sendTelegramTextEscalation(ctx, text)
 	}
-	e.logOwnerMessage(ctx, kind, fact, text, status, reason)
+	rows.Close()
+	if len(pending) == 0 {
+		return
+	}
+
+	// Keeps quiet when it has just spoken: a proactive send must be at
+	// least 10 minutes old unless a question or access request is waiting.
+	urgent := false
+	for _, o := range pending {
+		if o.kind == "question" || o.kind == "access" {
+			urgent = true
+		}
+	}
+	if !urgent {
+		var last string
+		if err := db.QueryRowContext(ctx,
+			`SELECT COALESCE(MAX(created_at),'') FROM owner_msg_log WHERE status='sent' AND kind!='reply'`).Scan(&last); err == nil && last != "" {
+			if t, perr := time.Parse(time.RFC3339, last); perr == nil && time.Since(t) < 10*time.Minute {
+				return
+			}
+		}
+	}
+
+	var facts string
+	for _, o := range pending {
+		facts += fmt.Sprintf("- [%s] %s\n", o.kind, o.fact)
+	}
+	text := e.composeOwnerOffer(ctx, facts)
+	if strings.EqualFold(strings.TrimSpace(text), "hold") || strings.TrimSpace(text) == "" {
+		// A friend wouldn't interrupt for this — the offers stay
+		// readable in the digest, not on the owner's phone.
+		_, _ = db.ExecContext(ctx, `UPDATE owner_offers SET status='digested', handled_at=? WHERE status='pending'`,
+			time.Now().UTC().Format(time.RFC3339))
+		return
+	}
+	if violations := ownerSendViolations(text); len(violations) > 0 {
+		_, _ = db.ExecContext(ctx, `UPDATE owner_offers SET status='digested', handled_at=? WHERE status='pending'`,
+			time.Now().UTC().Format(time.RFC3339))
+		e.logOwnerMessage(ctx, "offer", facts, "", "rejected", strings.Join(violations, "; "))
+		return
+	}
+
+	msgID := "cht_" + uuid.NewString()[:12]
+	_ = e.memory.SaveChatMessage(ctx, core.ChatMessage{
+		ID:        msgID,
+		AgentID:   e.agentID,
+		Role:      "assistant",
+		Source:    "proactive",
+		Content:   text,
+		CreatedAt: time.Now().UTC(),
+	})
+	e.sendTelegramTextEscalation(ctx, text)
+	e.logOwnerMessage(ctx, "offer", facts, text, "sent", "")
+	_, _ = db.ExecContext(ctx, `UPDATE owner_offers SET status='mentioned', handled_at=? WHERE status='pending'`,
+		time.Now().UTC().Format(time.RFC3339))
+}
+
+// composeOwnerOffer is one turn of the real chat agent — same system
+// prompt, same personality, same conversation history — deciding whether
+// pending offers deserve a message. Returns "HOLD" or the message text.
+func (e *Engine) composeOwnerOffer(ctx context.Context, facts string) string {
+	soul := constitution.Text()
+	index := e.buildCanonicalIndexWithSkills()
+	goals, _ := e.memory.ReadWiki("goals.md")
+	wikiPages, _ := e.memory.ListWiki()
+	wsFiles, _ := e.sandbox.ListFiles()
+	history, _ := e.memory.RecentChatMessages(ctx, 10)
+	sysPrompt := FastChatSystemPrompt(soul, index, extractActiveGoals(goals), wikiPages, wsFiles)
+
+	turns := make([]core.ChatTurn, 0, len(history)+1)
+	for _, h := range history {
+		if h.Role != "user" && h.Role != "assistant" {
+			continue
+		}
+		if strings.Contains(h.Content, "⚡ Executed in `bwrap` sandbox") || strings.HasPrefix(h.Content, "Ran `workspace_read") {
+			continue
+		}
+		turns = append(turns, core.ChatTurn{Role: h.Role, Content: h.Content})
+	}
+	turns = append(turns, core.ChatTurn{Role: "user", Content: `Things that happened inside ACE since you last spoke (internal facts — never show the owner raw IDs, paths or jargon):
+
+` + facts + `
+
+Decide as a friend: if any of this is worth interrupting Jay for, write ONE short message covering it — fold related items together, give the real numbers and say which result they're from in plain words (e.g. "the S31 data check"). If nothing is worth interrupting for, reply with exactly: HOLD`})
+
+	resp, err := e.llm.StreamComplete(ctx, core.CompletionRequest{
+		SystemPrompt: sysPrompt,
+		Messages:     turns,
+		MaxTokens:    512,
+		Temperature:  0.5,
+	}, nil)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(resp.Content)
 }
 
 // writeOwnerMessage asks the chat model to render the fact in the owner
@@ -278,15 +406,24 @@ func (e *Engine) maybeAskOwnerQuestion(ctx context.Context) {
 	if prob < minAvail {
 		return // availability model says the owner is unlikely to see it now
 	}
-	e.NotifyOwner(ctx, "question", "an open question only the owner can close (they can take their time — I keep working on my stated assumption): "+summary)
+	// The question cites the ACE record it rests on — without evidence the
+	// item was never owner-grounded, so it stays in the digest.
+	var evidence string
+	_ = db.QueryRowContext(ctx, `SELECT COALESCE(owner_evidence,'') FROM connectome_nodes WHERE id=?`, id).Scan(&evidence)
+	if strings.TrimSpace(evidence) == "" {
+		return
+	}
+	e.NotifyOwnerSourced(ctx, "question",
+		"an open question only the owner can close (they can take their time — I keep working on my stated assumption): "+summary+
+			"\nresting on: "+evidence, id)
 	_, _ = db.ExecContext(ctx, `UPDATE connectome_nodes SET asked_at=? WHERE id=?`,
 		time.Now().UTC().Format(time.RFC3339), id)
 }
 
-// maybeNotifyOwnerResults reports verified completions that moved their
-// branch's primary statistic — one per cycle. Artifacts land after the
-// completion write, so unmoved rows retry until the file is readable or
-// 15 minutes old; notified dedupes the send.
+// maybeNotifyOwnerResults turns verified completions that moved their
+// branch's primary statistic into result offers for the chat agent. A
+// result offer must carry the full fact — stat name, before→after, n,
+// p-value and the result file; anything missing is digest, not a message.
 func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 	db := e.getDB()
 	if db == nil {
@@ -299,46 +436,185 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 		WHERE notified = 0
 		AND replace(substr(created_at,1,19),'T',' ') < datetime('now','-15 minutes')
 		AND task_id IN (SELECT id FROM mission_dag_nodes WHERE state='COMPLETED')`)
-	var bpID, moved int
-	var taskID, createdAt, title string
-	err := db.QueryRowContext(ctx, `
+	rows, err := db.QueryContext(ctx, `
 		SELECT bp.id, bp.task_id, bp.moved, bp.created_at, COALESCE(n.title,'')
 		FROM branch_progress bp
 		JOIN mission_dag_nodes n ON n.id = bp.task_id
 		WHERE bp.notified = 0 AND n.state = 'COMPLETED'
-		ORDER BY bp.id LIMIT 1`).Scan(&bpID, &taskID, &moved, &createdAt, &title)
+		ORDER BY bp.id LIMIT 5`)
 	if err != nil {
 		return
 	}
-	// Never issue writes while a rows result is open — the pool hands the
-	// single SQLite conn to the reader and the write deadlocks the engine.
-	stale := false
-	for _, layout := range []string{"2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05", time.RFC3339} {
-		if t, perr := time.Parse(layout, createdAt); perr == nil {
-			stale = time.Since(t) > 15*time.Minute
+	type rowT struct {
+		bpID, moved    int
+		taskID, createdAt, title string
+	}
+	var pending []rowT
+	for rows.Next() {
+		var r rowT
+		if rows.Scan(&r.bpID, &r.taskID, &r.moved, &r.createdAt, &r.title) == nil {
+			pending = append(pending, r)
+		}
+	}
+	rows.Close() // close before any write — SQLite's single conn deadlocks otherwise
+
+	for _, r := range pending {
+		stale := false
+		for _, layout := range []string{"2006-01-02 15:04:05.999999999 -0700 MST", "2006-01-02 15:04:05", time.RFC3339} {
+			if t, perr := time.Parse(layout, r.createdAt); perr == nil {
+				stale = time.Since(t) > 15*time.Minute
+				break
+			}
+		}
+		fact := e.resultFactForTask(ctx, r.taskID, r.bpID)
+		if fact == "" || stale {
+			// Incomplete fact or old news → digest, never a message.
+			if stale || fact == "" {
+				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, r.bpID)
+			}
+			if fact == "" && !stale {
+				e.appendOwnerDigest(ctx, "result",
+					"task completed but its result fact is incomplete (stat/before/after/n/p/file): "+truncateText(r.title, 150))
+			}
+			continue
+		}
+		e.NotifyOwnerSourced(ctx, "result", fact, r.taskID)
+		_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, r.bpID)
+	}
+}
+
+// resultFactForTask builds the complete result fact from the artifact and
+// the branch's own history: stat name, branch's previous primary value →
+// new value, n, exact binomial p vs the branch baseline, and the result
+// filename. Returns "" when any required element is missing.
+func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int) string {
+	dbg := os.Getenv("ACE_DEBUG_RESULT_FACT") != ""
+	db := e.getDB()
+	wsDir, _ := e.resolveSandboxDirs()
+	if db == nil || wsDir == "" {
+		if dbg {
+			fmt.Fprintf(os.Stderr, "[resultfact] early: db=%v wsDir=%q\n", db != nil, wsDir)
+		}
+		return ""
+	}
+	stem := strings.ToLower(strings.TrimPrefix(taskID, "T_"))
+	var blob []byte
+	var rel string
+	for _, cand := range []string{"results/" + stem + ".json", "results/" + strings.TrimSuffix(stem, "_data") + ".json"} {
+		if b, err := os.ReadFile(filepath.Join(wsDir, ResolveWorkspaceArtifactPath(wsDir, cand))); err == nil {
+			blob, rel = b, cand
 			break
 		}
 	}
-	if moved == 0 {
-		// Artifact may have landed late — recompute from the file now.
-		var n MissionDAGNode
-		n.ID = taskID
-		if e.resultMovedStat(n) {
-			moved = 1
-			_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET moved=1 WHERE id=?`, bpID)
+	if len(blob) == 0 {
+		if dbg {
+			fmt.Fprintf(os.Stderr, "[resultfact] %s: no artifact\n", taskID)
+		}
+		return ""
+	}
+	var res struct {
+		HeldoutAcc   *float64 `json:"heldout_accuracy"`
+		HeldoutScore *float64 `json:"heldout_score"`
+		Heldout      *float64 `json:"heldout"`
+		BaselineAcc  *float64 `json:"baseline_accuracy"`
+		Baseline     *float64 `json:"baseline"`
+		NHeldout     *int     `json:"n_heldout"`
+		N            *int     `json:"n"`
+	}
+	if json.Unmarshal(blob, &res) != nil {
+		if dbg {
+			fmt.Fprintf(os.Stderr, "[resultfact] %s: unmarshal fail\n", taskID)
+		}
+		return ""
+	}
+	// Stat name comes from the key the artifact actually reports.
+	stat, after := "", (*float64)(nil)
+	switch {
+	case res.HeldoutAcc != nil:
+		stat, after = "held-out accuracy", res.HeldoutAcc
+	case res.HeldoutScore != nil:
+		stat, after = "held-out score", res.HeldoutScore
+	case res.Heldout != nil:
+		stat, after = "held-out value", res.Heldout
+	}
+	if stat == "" {
+		return ""
+	}
+	n := 0
+	if res.NHeldout != nil {
+		n = *res.NHeldout
+	} else if res.N != nil {
+		n = *res.N
+	}
+	if n <= 0 {
+		return ""
+	}
+	// The branch's previous primary statistic: the last after_val recorded
+	// for this branch before this row — not the task's own baseline.
+	branchID := ""
+	_ = db.QueryRowContext(ctx, `SELECT branch_id FROM branch_progress WHERE id=?`, bpID).Scan(&branchID)
+	before, beforeOK := 0.0, false
+	if branchID != "" {
+		var prev string
+		if err := db.QueryRowContext(ctx,
+			`SELECT after_val FROM branch_progress WHERE branch_id=? AND id<? AND after_val!='' ORDER BY id DESC LIMIT 1`,
+			branchID, bpID).Scan(&prev); err == nil {
+			if v, perr := strconv.ParseFloat(prev, 64); perr == nil {
+				before, beforeOK = v, true
+			}
 		}
 	}
-	if moved == 0 || stale {
-		// No stat movement, or the completion is history rather than
-		// news — mark it seen without messaging.
-		if stale {
-			_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, bpID)
+	if !beforeOK {
+		// First measurement on the branch: the artifact's baseline is the
+		// number the branch started from.
+		if res.BaselineAcc != nil {
+			before, beforeOK = *res.BaselineAcc, true
+		} else if res.Baseline != nil {
+			before, beforeOK = *res.Baseline, true
 		}
-		return
 	}
-	e.NotifyOwner(ctx, "result", "verified task completed and moved its branch's primary statistic: "+truncateText(title, 200)+" ("+taskID+")")
-	_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, bpID)
+	if !beforeOK {
+		return ""
+	}
+	// Exact one-sided binomial test: correct = after*n, null = before rate.
+	pStr := ""
+	if *after > before && before > 0 && before < 1 && n <= 100000 {
+		k := int(math.Round(*after * float64(n)))
+		pStr = fmt.Sprintf("p=%.4g", binomTail(k, n, before))
+	}
+	if pStr == "" {
+		return ""
+	}
+	fact := fmt.Sprintf(
+		"verified completion on branch %s: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level), result file %s",
+		branchID, stat, before, *after, n, pStr, rel)
+	_, _ = db.ExecContext(ctx,
+		`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
+		stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, pStr, rel, bpID)
+	return fact
 }
+
+// binomTail is P(X >= k) under Binomial(n, p) — the one-sided exact test
+// for "the held-out rate beats the branch's previous level".
+func binomTail(k, n int, p float64) float64 {
+	if k <= 0 {
+		return 1
+	}
+	if k > n {
+		return 0
+	}
+	sum := 0.0
+	for i := k; i <= n; i++ {
+		sum += math.Exp(lgamma(float64(n)+1) - lgamma(float64(i)+1) - lgamma(float64(n-i)+1) +
+			float64(i)*math.Log(p) + float64(n-i)*math.Log(1-p))
+	}
+	if sum > 1 {
+		sum = 1
+	}
+	return sum
+}
+
+func lgamma(x float64) float64 { r, _ := math.Lgamma(x); return r }
 
 func (e *Engine) logOwnerMessage(ctx context.Context, kind, fact, text, status, reason string) {
 	if db := e.getDB(); db != nil {

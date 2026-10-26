@@ -48,6 +48,71 @@ func (e *Engine) registerBuiltinActions(reg *plugin.Registry, pluginName string)
 	add("workspace_write", false, []int{6}, e.actionWorkspaceWrite)
 	add("sandbox_sh", false, []int{6}, e.actionSandboxSh)
 	add("chat_proactive", false, []int{6}, e.actionChatProactive)
+	// ace_read: the chat agent's read-only window into internal state —
+	// fixed queries only, no SQL from the model (plan "Human voice").
+	add("ace_read", true, nil, e.actionACERead)
+}
+
+// actionACERead answers one named read-only question about ACE's own
+// state so the chat agent looks facts up instead of asking the owner.
+// target: dag | results | ledgers | digest | traces (or a keyword that
+// lands on the closest section).
+func (e *Engine) actionACERead(ctx context.Context, a tools.Args) string {
+	db := e.getDB()
+	if db == nil {
+		return "ace_read: no state database"
+	}
+	section := strings.ToLower(strings.TrimSpace(a.Target + " " + a.Content))
+	var sb strings.Builder
+	write := func(title, q string, cols int) {
+		rows, err := db.QueryContext(ctx, q)
+		if err != nil {
+			return
+		}
+		defer rows.Close()
+		sb.WriteString(title + "\n")
+		vals := make([]string, cols)
+		ptrs := make([]any, cols)
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		for rows.Next() {
+			if rows.Scan(ptrs...) == nil {
+				sb.WriteString("- " + strings.Join(vals, " | ") + "\n")
+			}
+		}
+	}
+	switch {
+	case strings.Contains(section, "dag") || strings.Contains(section, "task") || strings.Contains(section, "state"):
+		write("=== MISSION DAG (active nodes) ===",
+			`SELECT id, stage, state, substr(title,1,80) FROM mission_dag_nodes
+			 WHERE state NOT IN ('COMPLETED','QUARANTINED') ORDER BY updated_at DESC LIMIT 20`, 4)
+	case strings.Contains(section, "result") || strings.Contains(section, "stat") || strings.Contains(section, "moved"):
+		write("=== BRANCH RESULTS (stat | before | after | n | p | file | task | when) ===",
+			`SELECT stat_name, before_val, after_val, n, pval, result_file, task_id, created_at
+			 FROM branch_progress WHERE stat_name!='' ORDER BY id DESC LIMIT 15`, 8)
+		write("=== RESULT FILES ===",
+			`SELECT result_file, task_id, created_at FROM branch_progress
+			 WHERE result_file!='' ORDER BY id DESC LIMIT 10`, 3)
+	case strings.Contains(section, "ledger") || strings.Contains(section, "veto") || strings.Contains(section, "question"):
+		write("=== OPEN UNCERTAINTY / CONTRADICTION ITEMS ===",
+			`SELECT id, kind, state, substr(summary,1,120) FROM connectome_nodes
+			 WHERE state IN ('OPEN','QUARANTINED') ORDER BY blocking_weight DESC LIMIT 10`, 4)
+		write("=== RECENT L1 RULINGS ===",
+			`SELECT verdict, substr(reason,1,120), updated_at FROM veto_ledger ORDER BY updated_at DESC LIMIT 10`, 3)
+	case strings.Contains(section, "digest") || strings.Contains(section, "report") || strings.Contains(section, "cycle"):
+		write("=== RECENT DIGEST / REJECTED ITEMS ===",
+			`SELECT kind, substr(fact,1,150), created_at FROM owner_msg_log
+			 WHERE status!='sent' ORDER BY id DESC LIMIT 15`, 3)
+	default: // traces — the telemetry section is the catch-all
+		write("=== RECENT COGNITIVE ACTIVITY ===",
+			`SELECT layer_code, operation, status, substr(detail,1,120), created_at
+			 FROM telemetry_spans ORDER BY created_at DESC LIMIT 15`, 5)
+	}
+	if sb.Len() == 0 {
+		return "ace_read(" + section + "): no rows found"
+	}
+	return truncateText(sb.String(), 8000)
 }
 
 func (e *Engine) actionGateDispute(ctx context.Context, a tools.Args) string {

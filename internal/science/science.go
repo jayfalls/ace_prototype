@@ -150,6 +150,28 @@ func Migrate(db *sql.DB) error {
 	// Result notifications dedupe on notified; artifacts can land after the
 	// completion write, so the scan retries until sent or stale.
 	_, _ = db.Exec(`ALTER TABLE branch_progress ADD COLUMN notified INTEGER NOT NULL DEFAULT 0`)
+	// Result facts carry the numbers a real result message needs.
+	for _, alt := range []string{
+		`ALTER TABLE branch_progress ADD COLUMN stat_name TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE branch_progress ADD COLUMN before_val TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE branch_progress ADD COLUMN after_val TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE branch_progress ADD COLUMN n INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE branch_progress ADD COLUMN pval TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE branch_progress ADD COLUMN result_file TEXT NOT NULL DEFAULT ''`,
+	} {
+		_, _ = db.Exec(alt)
+	}
+	// Events are offers (plan "Human voice"): producers enqueue facts, the
+	// single chat agent decides mention/fold/quiet — one writer, one history.
+	_, _ = db.Exec(`CREATE TABLE IF NOT EXISTS owner_offers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		kind TEXT NOT NULL,
+		fact TEXT NOT NULL,
+		source TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME NOT NULL,
+		handled_at TEXT NOT NULL DEFAULT ''
+	)`)
 	migratePrereg(db)
 	migrateMetrics(db)
 	SeedRegistry(context.Background(), db)

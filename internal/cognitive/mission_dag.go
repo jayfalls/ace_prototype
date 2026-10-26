@@ -425,6 +425,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	}
 	e.maybeAskOwnerQuestion(ctx)
 	e.maybeNotifyOwnerResults(ctx)
+	e.drainOwnerOffers(ctx)
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode

@@ -202,8 +202,9 @@ func FastChatSystemPrompt(soul string, index string, goals string, wikiFiles []c
 
 	sb.WriteString("=== SYNCHRONOUS AGENTIC TOOLS IN CHAT (BATCHED) ===\n")
 	sb.WriteString("If you need to inspect, test, fetch, or edit something BEFORE answering the user, emit one or more `<action>` JSON blocks in a SINGLE turn (they will all execute in batch so you don't waste multiple turns!):\n")
-	sb.WriteString(`<action>{"type": "workspace_read|workspace_edit|workspace_write|sandbox_sh|web_fetch|web_search|wiki_write", "target": "relative_path, URL, or shell command", "old_text": "optional for workspace_edit", "content": "optional payload"}</action>` + "\n")
-	sb.WriteString("CRITICAL: NEVER dump raw `<action>` JSON, raw file lines (`1#e3d | ...`), or `Ran workspace_read(...)` logs to the user! Always synthesize tool results into a direct, natural human conversation.\n\n")
+	sb.WriteString(`<action>{"type": "workspace_read|workspace_edit|workspace_write|sandbox_sh|web_fetch|web_search|wiki_write|ace_read", "target": "relative_path, URL, shell command, or ace_read section: dag|results|ledgers|digest|traces", "old_text": "optional for workspace_edit", "content": "optional payload"}</action>` + "\n")
+	sb.WriteString("CRITICAL: NEVER dump raw `<action>` JSON, raw file lines (`1#e3d | ...`), or `Ran workspace_read(...)` logs to the user! Always synthesize tool results into a direct, natural human conversation.\n")
+	sb.WriteString("LOOK IT UP, DON'T ASK: before telling Jay you don't know something about ACE's own work — task states, results, numbers, files, what happened — call `ace_read` or `workspace_read` first. Ask Jay only for things only he knows (his life, his wishes, a conflict between two things he said). Read his shorthand in context: 'pts' about a result means percentage points of that branch's number.\n\n")
 
 	if strings.TrimSpace(goals) != "" {
 		sb.WriteString("=== YOUR ACTIVE GOALS (goals.md) ===\n")
