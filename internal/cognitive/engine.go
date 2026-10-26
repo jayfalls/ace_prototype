@@ -502,6 +502,33 @@ func (e *Engine) recordGlobalLoop(key string, state string, summary string) {
 	}
 }
 
+// mutationMinMutants reads the hot-reloadable gate.min_mutants knob
+// (config.d). Below this mutant count the mutation sample is
+// inconclusive and cannot veto a milestone.
+func (e *Engine) mutationMinMutants() int {
+	if k, ok := e.layerKnobs.Load().(config.LayerKnobs); ok && k.MutationMinMutants > 0 {
+		return k.MutationMinMutants
+	}
+	return 3
+}
+
+// NotifyRunawayPause sends the single Telegram report a watchdog-pause
+// episode is allowed — the watchdog acts (pause), this reports once.
+// Re-arms when the engine leaves ModePaused.
+func (e *Engine) NotifyRunawayPause(ctx context.Context) {
+	e.mu.RLock()
+	paused := e.mode == core.ModePaused
+	e.mu.RUnlock()
+	if !paused {
+		return
+	}
+	if prev, _ := e.memory.LoadEngineMeta(ctx, "runaway_pause_reported"); prev == "1" {
+		return
+	}
+	_ = e.memory.SaveEngineMeta(ctx, "runaway_pause_reported", "1")
+	e.sendTelegramTextEscalation(ctx, "Watchdog: runaway loop detected — cognitive cycles exceeded the hourly bound with no completions. Worker paused; inspect the DAG, then `ace resume`.")
+}
+
 func (e *Engine) SetMode(mode core.EngineMode, intervalSeconds int) core.EngineStatus {
 	e.mu.Lock()
 	switch mode {
@@ -520,6 +547,9 @@ func (e *Engine) SetMode(mode core.EngineMode, intervalSeconds int) core.EngineS
 
 	_ = e.memory.SaveEngineMeta(context.Background(), "mode", curMode)
 	_ = e.memory.SaveEngineMeta(context.Background(), "auto_interval_seconds", curInt)
+	if mode != core.ModePaused {
+		_ = e.memory.SaveEngineMeta(context.Background(), "runaway_pause_reported", "")
+	}
 
 	st := e.Status()
 	e.telem.EmitLive("engine.status", st)

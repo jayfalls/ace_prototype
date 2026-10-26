@@ -173,12 +173,16 @@ func (s *Server) handleSetMode(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Mode            string `json:"mode"`
 		IntervalSeconds int    `json:"interval_seconds"`
+		Reason          string `json:"reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	st := s.engine.SetMode(core.EngineMode(body.Mode), body.IntervalSeconds)
+	if body.Reason == "watchdog_runaway" {
+		s.engine.NotifyRunawayPause(r.Context())
+	}
 	writeJSON(w, http.StatusOK, st)
 }
 

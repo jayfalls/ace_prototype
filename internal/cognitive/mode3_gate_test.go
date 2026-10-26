@@ -59,7 +59,7 @@ func TestCordisLTLAndMode3Gate(t *testing.T) {
 	require.Equal(t, "demo_forensics.py", ExtractPrimaryMilestoneScript(msLine))
 	require.Equal(t, "milestone 1.2", extractMilestoneIdentifier(msLine))
 
-	res1 := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	res1 := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.False(t, res1.Passed)
 	require.NotEmpty(t, res1.MissingArtifacts)
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
 	require.NoError(t, os.MkdirAll(filepath.Join(jail.WikiDir(), "notes"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(jail.WikiDir(), "notes", "demo-findings.md"), []byte("# Demo Findings\n\nEmpirical evaluation with p < 0.001 and Beta(10,1) 95% CI [0.75, 0.99] confirming hypothesis H1 over H0 baseline.\n"), 0o644))
 
-	resDirty := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	resDirty := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.False(t, resDirty.Passed, "Mode-3 gate must reject unused import json")
 	require.Contains(t, resDirty.Reason, "unused_imports")
 
@@ -93,24 +93,24 @@ if __name__ == "__main__":
         print(json.dumps(r))
 `
 	require.NoError(t, jail.WriteFile("demo_forensics.py", validPy))
-	res2 := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	res2 := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.True(t, res2.Passed, "Mode-3 gate should pass valid artifacts, got reason: %s", res2.Reason)
 
 	// 4. Test Mode-3 Dataset Provenance/Split Gate and Scientific Falsification Gate (rejects h1_accepted=false)
 	require.NoError(t, jail.WriteFile("demo_report.json", `{"count": 42, "h1_accepted": false}`))
-	resFalsified := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	resFalsified := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.False(t, resFalsified.Passed, "Mode-3 gate must reject checkoff when h1_accepted is false")
 	require.Contains(t, resFalsified.Reason, "SCIENTIFIC FALSIFICATION")
 
 	require.NoError(t, jail.WriteFile("demo_report.json", `{"count": 42, "h1_accepted": true}`))
-	resAccepted := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	resAccepted := EvaluateMode3MilestoneGate(context.Background(), msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.True(t, resAccepted.Passed)
 
 	// 5. Verify domain-agnostic plain-English user milestone (without explicit /workspace/ paths in text)
 	// validates via verifiedFiles created during the milestone!
 	plainGoalLine := "- [ ] Build and benchmark an anomaly detector on real data"
-	resPlainEmpty := EvaluateMode3MilestoneGate(context.Background(), plainGoalLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil)
+	resPlainEmpty := EvaluateMode3MilestoneGate(context.Background(), plainGoalLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.False(t, resPlainEmpty.Passed)
-	resPlainVerified := EvaluateMode3MilestoneGate(context.Background(), plainGoalLine, jail, jail.WorkspaceDir(), jail.WikiDir(), []string{"demo_forensics.py", "demo_report.json"})
+	resPlainVerified := EvaluateMode3MilestoneGate(context.Background(), plainGoalLine, jail, jail.WorkspaceDir(), jail.WikiDir(), []string{"demo_forensics.py", "demo_report.json"}, 3)
 	require.True(t, resPlainVerified.Passed, "Plain-English user goal should pass Mode-3 when verifiedFiles pass --selftest and JSON gates: %s", resPlainVerified.Reason)
 }

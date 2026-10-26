@@ -396,6 +396,7 @@ func runSupervisor() {
 		go func() { done <- child.Wait() }()
 
 		exited := false
+		runawayPaused := false
 		for !exited {
 			select {
 			case err := <-done:
@@ -418,13 +419,28 @@ func runSupervisor() {
 					continue
 				}
 				stalled := false
+				runaway := false
 				for _, c := range watchdog.RunChecks(sandboxDir, 20) {
 					if !c.OK {
 						_ = watchdog.AppendEventFile(events, "fault", c.Name+": "+c.Detail)
 						if c.Name == "heartbeat" || c.Name == "stall_detection" {
 							stalled = true
 						}
+						if c.Name == "runaway_loop" {
+							runaway = true
+						}
 					}
+				}
+				if runaway {
+					// Act, not just log: pause the worker once per episode and
+					// let the engine send the single Telegram report.
+					if !runawayPaused {
+						runawayPaused = true
+						_ = watchdog.AppendEventFile(events, "runaway_pause", "cognitive-cycle bound exceeded — pausing worker")
+						postEngineMode(envOr("ACE_PORT", "8080"), "paused", "watchdog_runaway")
+					}
+				} else {
+					runawayPaused = false
 				}
 				if time.Since(lastBackup) > time.Hour {
 					if dst, berr := watchdog.Backup(context.Background(), sandboxDir); berr == nil {
@@ -526,13 +542,33 @@ func runControl(sub string) {
 		log.Fatal("rollback: no supervisor response in 90s — is ./ace running?")
 	}
 
-	token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
 	mode := "paused"
 	if sub == "resume" {
 		mode = "autonomous"
 	}
+	postEngineMode(port, mode, "owner")
+	if sub == "halt" {
+		// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
+		token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
+		req2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%s/api/engine/stop", port), nil)
+		req2.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+		client := &http.Client{Timeout: 5 * time.Second}
+		if resp2, err := client.Do(req2); err == nil {
+			resp2.Body.Close()
+		}
+	}
+	_ = watchdog.AppendEventFile(events, "control", sub)
+	fmt.Printf("%s sent (mode=%s)\n", sub, mode)
+}
+
+// postEngineMode sets the worker's engine mode over the loopback API —
+// used by `ace halt|pause|resume` and by the supervisor's runaway
+// watchdog when it pauses a burning loop. reason tags the request so
+// watchdog-originated pauses can emit their one Telegram report.
+func postEngineMode(port, mode, reason string) {
+	token, _ := os.ReadFile(filepath.Join(config.Dir(), "bearer_token"))
 	url := fmt.Sprintf("http://127.0.0.1:%s/api/engine/mode", port)
-	body := strings.NewReader(fmt.Sprintf(`{"mode":%q}`, mode))
+	body := strings.NewReader(fmt.Sprintf(`{"mode":%q,"reason":%q}`, mode, reason))
 	req, _ := http.NewRequest(http.MethodPost, url, body)
 	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
 	req.Header.Set("Content-Type", "application/json")
@@ -540,16 +576,6 @@ func runControl(sub string) {
 	if resp, err := client.Do(req); err == nil {
 		resp.Body.Close()
 	}
-	if sub == "halt" {
-		// halt <=5s: cancel in-flight work too (stop endpoint), then pause.
-		req2, _ := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%s/api/engine/stop", port), nil)
-		req2.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
-		if resp2, err := client.Do(req2); err == nil {
-			resp2.Body.Close()
-		}
-	}
-	_ = watchdog.AppendEventFile(events, "control", sub)
-	fmt.Printf("%s sent (mode=%s)\n", sub, mode)
 }
 
 // runScienceRegrade re-grades archived v0.7 result JSONs through the 8.6

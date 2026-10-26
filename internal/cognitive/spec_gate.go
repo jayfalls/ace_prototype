@@ -61,8 +61,27 @@ func (e *Engine) RecordGateVetoAndCheckStuck(ctx context.Context, cycleID string
 			updated_at = excluded.updated_at
 	`, vhash, milestoneID, vkind, tpath, truncateString(vetoReason, 300), cycleID, now)
 
-	var count, disputed int
-	_ = db.QueryRowContext(ctx, `SELECT count, disputed FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&count, &disputed)
+	var count, disputed, ruledCount int
+	_ = db.QueryRowContext(ctx, `SELECT count, disputed, COALESCE(ruled_count,0) FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&count, &disputed, &ruledCount)
+
+	// Bounded retries after a ruling (owner rule): once a dispute has been
+	// ruled, the next 3 identical vetoes park the node — no unbounded
+	// retry loop. ruled_count==0 on a disputed row means the ruling
+	// predates the column; those rows are already far past +3, so park on
+	// the next occurrence and stamp the audit baseline.
+	if disputed == 1 && (ruledCount == 0 || count >= ruledCount+3) {
+		if ruledCount == 0 {
+			_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET ruled_count = ? WHERE veto_hash = ?`, count, vhash)
+		}
+		if parked := e.ParkDAGTaskForMilestone(ctx, milestoneID); parked > 0 && e.telem != nil {
+			_ = e.telem.RecordSpan(ctx, core.TelemetrySpan{
+				TraceID: cycleID, AgentID: e.agentID, LayerCode: "L5",
+				Operation: "veto_park", Status: "QUARANTINED",
+				Detail: fmt.Sprintf("hash=%s count=%d ruled_count=%d parked=%d", vhash, count, ruledCount, parked),
+			})
+		}
+		return true, count
+	}
 
 	// Per §6.1: 3 vetoes only forces local L4 strategy reflection and NEVER parks or escalates to the human.
 	// Normal code/hypothesis debugging (selftest_failure or scientific falsification) is given up to 8 attempts before human escalation.
@@ -93,7 +112,7 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 		if existingState == "QUARANTINED" {
 			return nil
 		}
-		_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET disputed = 1, updated_at = ? WHERE veto_hash = ?`, time.Now().UTC(), vetoHash)
+		_, _ = db.ExecContext(ctx, `UPDATE veto_ledger SET disputed = 1, ruled_count = count, updated_at = ? WHERE veto_hash = ?`, time.Now().UTC(), vetoHash)
 	}
 
 	_ = e.UpsertUncertaintyNode(ctx, ConnectomeNode{
@@ -126,6 +145,9 @@ func (e *Engine) EscalateGateDisputeOrStuck(ctx context.Context, cycleID string,
 			return nil
 		}
 	}
+	// A denied ruling is a quarantine decision — park the DAG task too, not
+	// just the connectome node, so selection never re-dispatches it.
+	e.ParkDAGTaskForMilestone(ctx, milestoneID)
 	msg := fmt.Sprintf(
 		"Quarantine report — %s\nWhat happened: %s\nL1 ruling: %s\nStatus: task quarantined; work continues on the next item.",
 		title, blocker, vetoReason,

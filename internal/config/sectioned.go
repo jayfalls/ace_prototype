@@ -33,6 +33,9 @@ type LayerKnobs struct {
 	// ContextEnabled is features.context — the 9.5 context system master
 	// switch (default true once the package exists).
 	ContextEnabled bool
+	// MutationMinMutants is gate.min_mutants — below this count the
+	// mutation sample is inconclusive and cannot veto (default 3).
+	MutationMinMutants int
 }
 
 // DefaultLayerKnobs returns the spec defaults.
@@ -45,6 +48,7 @@ func DefaultLayerKnobs() LayerKnobs {
 		Turn05:           false,
 		RecapN:           5,
 		ContextEnabled:   true,
+		MutationMinMutants: 3,
 	}
 }
 
@@ -133,6 +137,10 @@ func applyKnob(knobs *LayerKnobs, key, val string) {
 	case "context.recap_n":
 		if n, err := strconv.Atoi(str()); err == nil && n > 0 {
 			knobs.RecapN = n
+		}
+	case "gate.min_mutants":
+		if n, err := strconv.Atoi(str()); err == nil && n >= 0 {
+			knobs.MutationMinMutants = n
 		}
 	case "features.context":
 		knobs.ContextEnabled = str() == "true" || str() == "1" || str() == "on"

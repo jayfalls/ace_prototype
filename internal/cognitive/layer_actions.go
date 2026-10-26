@@ -434,7 +434,7 @@ func (e *Engine) actionWikiWrite(ctx context.Context, a tools.Args) string {
 							tel := strings.TrimSpace(el)
 							if strings.HasPrefix(tel, "- [ ]") && ((len(prefix) >= 8 && strings.Contains(tel, prefix)) || (nlAxisID != "" && extractMilestoneIdentifier(tel) == nlAxisID)) {
 								if wsDir != "" && wikiDir != "" {
-									gateRes := EvaluateMode3MilestoneGate(ctx, tel, e.sandbox, wsDir, wikiDir, handoff.VerifiedFiles)
+									gateRes := EvaluateMode3MilestoneGate(ctx, tel, e.sandbox, wsDir, wikiDir, handoff.VerifiedFiles, e.mutationMinMutants())
 									if !gateRes.Passed {
 										return fmt.Sprintf("[MODE-3 GATE REJECTED CHECKOFF OF %s]: %s. Fix the missing/failing artifacts before checking off [x].", truncateText(tel, 70), gateRes.Reason)
 									}

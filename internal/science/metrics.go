@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"math"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -19,8 +20,8 @@ import (
 // hash stamps every standing_metrics row and freezes into baselines, so a
 // definition change resets the baseline instead of silently comparing
 // unlike quantities (spec 9.0 honest-measurement).
-const metricDefinitionLiteral = "v0.9.1|era:latest-baseline-end-else-first-gate-trace|" +
-	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat}|" +
+const metricDefinitionLiteral = "v0.9.2|era:latest-baseline-end-else-first-gate-trace|" +
+	"l6_turns_per_completed_task{median,p90,n,ci95_orderstat,attr:l4-close-paren}|" +
 	"turns_per_success|cost_per_success|task_success|" +
 	"latency_ms|cache_hit_rate|l3_estimate_error|" +
 	"layer_share_{calls,tokens,l1_gate_calls}"
@@ -123,16 +124,23 @@ func RecordStandingMetrics(ctx context.Context, db *sql.DB, windowSecs int) {
 	// Traces carry no task_id; the L4(T_*) provenance tag in trigger_summary
 	// is the attribution. A task whose L6 traces begin before the window is
 	// partially observed and dropped — never counted with truncated turns.
-	tidExpr := `substr(trigger_summary, instr(trigger_summary,'L4(')+3, instr(trigger_summary,')]')-instr(trigger_summary,'L4(')-3)`
-	prow, err := db.QueryContext(ctx, `SELECT `+tidExpr+`, COUNT(*) FROM thought_traces WHERE layer_code='L6' AND replace(substr(created_at,1,19),'T',' ') >= ? AND trigger_summary LIKE '%L4(T_%' GROUP BY 1`, startStr)
-	var counts map[string]int
+	// Tag shape: "[PROVENANCE LOCKED L1(..)->L2(..)->L3(..)->L4(T_ID)]" —
+	// extract the id between 'L4(' and its closing ')' in Go; the first
+	// ')' in the row belongs to the L1 tag, so SQL-only parsing is wrong.
+	prow, err := db.QueryContext(ctx, `SELECT trigger_summary FROM thought_traces WHERE layer_code='L6' AND replace(substr(created_at,1,19),'T',' ') >= ? AND trigger_summary LIKE '%L4(T_%'`, startStr)
+	counts := map[string]int{}
 	if err == nil {
-		counts = map[string]int{}
 		for prow.Next() {
-			var tid string
-			var cnt int
-			_ = prow.Scan(&tid, &cnt)
-			counts[tid] = cnt
+			var ts string
+			_ = prow.Scan(&ts)
+			i := strings.Index(ts, "L4(")
+			if i < 0 {
+				continue
+			}
+			rest := ts[i+3:]
+			if j := strings.IndexByte(rest, ')'); j > 0 {
+				counts[rest[:j]]++
+			}
 		}
 		prow.Close()
 	}

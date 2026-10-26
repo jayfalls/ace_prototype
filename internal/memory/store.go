@@ -152,6 +152,7 @@ func (s *Store) migrate() error {
 		last_reason TEXT NOT NULL DEFAULT '',
 		last_cycle_id TEXT NOT NULL DEFAULT '',
 		disputed INTEGER NOT NULL DEFAULT 0,
+		ruled_count INTEGER NOT NULL DEFAULT 0,
 		updated_at DATETIME NOT NULL
 	);
 	CREATE TABLE IF NOT EXISTS human_events (
@@ -173,6 +174,10 @@ func (s *Store) migrate() error {
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN source TEXT`)
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN verified_at DATETIME`)
 	_, _ = s.db.Exec(`ALTER TABLE memories ADD COLUMN importance REAL`)
+	// Tolerated: existing veto_ledger rows predate the column — the count
+	// at ruling time for the bounded-retry rule (+3 identical vetoes
+	// parks the DAG node).
+	_, _ = s.db.Exec(`ALTER TABLE veto_ledger ADD COLUMN ruled_count INTEGER NOT NULL DEFAULT 0`)
 	// Drop the retired approval column from pre-autonomy schemas (error
 	// tolerated: absent column or old sqlite — the table is authoritative either way).
 	_, _ = s.db.Exec(`ALTER TABLE spec_registry DROP COLUMN human_approval_ref`)

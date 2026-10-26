@@ -27,7 +27,7 @@ type MissionDAGNode struct {
 	ID            string  `json:"id"`
 	ParentID      string  `json:"parent_id"`
 	Stage         string  `json:"stage"`          // L1_MISSION_ROOT | L2_STRATEGY | L3_CAPABILITY | L4_TASK_SPEC
-	State         string  `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | COMPLETED
+	State         string  `json:"state"`          // L1_ANCHORED | NEEDS_L3_MODEL | L3_MODELED | NEEDS_L4_SPEC | L4_SPECCED | READY_FOR_L5 | TACTICAL_STALL | NEEDS_L3_DISTILL | QUARANTINED | COMPLETED
 	OwnerLayer    int     `json:"owner_layer"`    // 1, 2, 3, 4
 	Title         string  `json:"title"`          // Concise human-readable title
 	Directive     string  `json:"directive"`      // Full layer directive / spec
@@ -77,9 +77,10 @@ func sha256Str(s string) string {
 
 // dagTerminal reports whether a node state is finished work — terminal nodes
 // never count as open for horizon expansion (STALE/RETIRED are dead work,
-// DUPLICATE_OF never executes).
+// DUPLICATE_OF never executes, QUARANTINED is parked by a veto ruling and
+// every selector skips it).
 func dagTerminal(s string) bool {
-	return s == "COMPLETED" || s == "STALE" || s == "RETIRED" || s == "DUPLICATE_OF"
+	return s == "COMPLETED" || s == "STALE" || s == "RETIRED" || s == "DUPLICATE_OF" || s == "QUARANTINED"
 }
 
 // currentSoulHash anchors DAG provenance to the pinned constitution plus the
@@ -106,7 +107,7 @@ func (e *Engine) markStaleOnMissionReload(ctx context.Context, soulHash string) 
 	if last == soulHash {
 		return
 	}
-	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF')`,
+	_, _ = db.ExecContext(ctx, `UPDATE mission_dag_nodes SET state='STALE', updated_at=? WHERE soul_hash != ? AND state NOT IN ('COMPLETED','STALE','RETIRED','DUPLICATE_OF','QUARANTINED')`,
 		time.Now().UTC().Format(time.RFC3339), soulHash)
 	_ = e.memory.SaveEngineMeta(ctx, "anchored_soul_hash", soulHash)
 }
@@ -320,6 +321,31 @@ func (e *Engine) MarkDAGTaskVerified(ctx context.Context, milestoneLine string) 
 		}
 	}
 	e.SyncMissionDAGToGoalsWiki(ctx)
+}
+
+// ParkDAGTaskForMilestone quarantines every non-terminal L4_TASK_SPEC node
+// whose ID or artifact path appears in the milestone text. QUARANTINED is a
+// real DAG state: every selector picks by explicit state, dagTerminal keeps
+// it out of the open-node counts, and the stale sweep never resurrects it.
+// This is the shared parking path — the veto ledger's bounded-retry rule
+// (ruled + 3 identical vetoes) and a denied L1 ruling both land here.
+func (e *Engine) ParkDAGTaskForMilestone(ctx context.Context, milestoneID string) int {
+	parked := 0
+	for _, n := range e.LoadMissionDAGNodes(ctx) {
+		if n.Stage != "L4_TASK_SPEC" || dagTerminal(n.State) {
+			continue
+		}
+		if strings.Contains(milestoneID, n.ID) || (n.ArtifactPath != "" && strings.Contains(milestoneID, n.ArtifactPath)) {
+			n.State = "QUARANTINED"
+			n.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			e.upsertMissionDAGNode(ctx, n)
+			parked++
+		}
+	}
+	if parked > 0 {
+		e.SyncMissionDAGToGoalsWiki(ctx)
+	}
+	return parked
 }
 
 // RecordDAGTaskAttempt increments the attempt counter on the active L4_TASK_SPEC node and transitions it to TACTICAL_STALL

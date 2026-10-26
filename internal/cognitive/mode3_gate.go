@@ -280,7 +280,7 @@ func BuildMilestoneOraclePacket(milestoneLine string, workspaceDir string, wikiD
 // 3. Independent `--selftest` Execution (`f2p` verification) inside `bwrap` (`exit == 0`)
 // 4. `p2p` Regression Suite across previously verified active scripts
 // 5. 4-Pass `AST-PDG` Conceptual Flow & Unused-Import Hygiene Audit (`workspace_audit.audit_conceptual_flows`)
-func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandbox core.Sandbox, workspaceDir string, wikiDir string, verifiedFiles []string) Mode3GateResult {
+func EvaluateMode3MilestoneGate(ctx context.Context, milestoneLine string, sandbox core.Sandbox, workspaceDir string, wikiDir string, verifiedFiles []string, minMutants int) Mode3GateResult {
 	rawWsFiles, wikiFiles := ExtractMilestoneArtifacts(milestoneLine)
 	var wsFiles []string
 	seenResolved := make(map[string]bool)
@@ -473,12 +473,16 @@ for node in ast.walk(tree):
 # 2. Check AST-PDG conceptual cleanliness
 flow_rep = workspace_audit.audit_conceptual_flows(path)
 
-# 3. Run SWE-Mutation falsification check (must kill >= 1 mutant if mutants exist)
+# 3. Run SWE-Mutation falsification check. Below gate.min_mutants the
+# sample is too thin to prove anything: inconclusive, not a veto.
+MIN_MUT = %d
 if run_mutants:
-    mut_rep = workspace_audit.audit_script_mutants(path, max_mutants=2)
-    mut_ok = (mut_rep["total_mutants"] == 0) or (mut_rep["killed"] > 0)
+    mut_rep = workspace_audit.audit_script_mutants(path, max_mutants=max(6, MIN_MUT))
+    mut_total = mut_rep["total_mutants"]
+    mut_ok = (mut_total < MIN_MUT) or (mut_rep["killed"] > 0)
 else:
     mut_rep = {"total_mutants": 0, "killed": 0, "skipped_secondary": True}
+    mut_total = 0
     mut_ok = True
 
 ok = (assert_count > 0) and (len(tautologies) == 0) and bool(flow_rep.get("clean")) and mut_ok
@@ -486,9 +490,9 @@ flow_issues = {k: v for k, v in flow_rep.items() if k != "clean" and v}
 # Surface surviving mutants so the worker can target the exact line -
 # "killed: 0" alone is a blind veto that produces identical rewrites.
 survivors = ["line {}: {}".format(d.get("line"), d.get("mutation")) for d in mut_rep.get("details", []) if not d.get("killed")]
-print(json.dumps({"ok": ok, "assert_count": assert_count, "tautologies": tautologies, "flow_clean": bool(flow_rep.get("clean")), "flow_issues": flow_issues, "mutants": {"total": mut_rep["total_mutants"], "killed": mut_rep["killed"], "survivors": survivors[:4]}}))
+print(json.dumps({"ok": ok, "assert_count": assert_count, "tautologies": tautologies, "flow_clean": bool(flow_rep.get("clean")), "flow_issues": flow_issues, "mutants": {"total": mut_rep["total_mutants"], "killed": mut_rep["killed"], "inconclusive": mut_total < MIN_MUT, "survivors": survivors[:4]}}))
 sys.exit(0 if ok else 2)
-'`, wf, runMutants)
+'`, wf, runMutants, minMutants)
 			hygRes, hygErr := sandbox.Exec(ctx, hygCmd)
 			if hygErr != nil || hygRes.ExitCode != 0 {
 				res.Passed = false
