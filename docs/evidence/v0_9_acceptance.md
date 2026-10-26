@@ -146,3 +146,55 @@ papered over.
 
 Not tagged. Acceptance stays open until completed tasks appear in the
 new metric window and the L2–L4 prompt budget is addressed.
+
+## Pushback round 2 (2026-10-26) — quarantine + bounded retries + watchdog actuation
+
+Overnight evidence: 4,811 model calls, 0 completions since 14:31:22 UTC,
+`c_s22_harness.py` hygiene veto at count 817 despite a Tier-2 quarantine
+at 14:52:25 — because quarantine only wrote `connectome_nodes` and the
+DAG selector never read it.
+
+### Fixes (all deployed + live-verified, pushed `fa290bbb`)
+
+1. **QUARANTINED is a real `mission_dag_nodes` state.** `dagTerminal`
+   includes it (open-counts skip), the stale sweep can't resurrect it,
+   and `ParkDAGTaskForMilestone` is the single shared parking path —
+   same ID/artifact matching as `MarkDAGTaskVerified`.
+2. **Bounded retries after a ruling.** `veto_ledger.ruled_count` records
+   the count at ruling time; `+3` identical vetoes parks the node.
+   Disputed rows from before the column existed (`ruled_count=0`) park
+   on their next occurrence — they are already far past +3.
+3. **runaway_loop watchdog acts.** Supervisor → loopback
+   `POST /api/engine/mode {mode:"paused", reason:"watchdog_runaway"}`
+   once per episode (per-worker flag); the engine sends exactly one
+   Telegram report (`runaway_pause_reported` meta gate), re-armed on
+   resume.
+4. **`gate.min_mutants`** (config.d, default 3): below the minimum the
+   mutation sample is **inconclusive, not a veto**. The audit now
+   requests `max(6, min)` mutants — it was hardcoded `max_mutants=2`,
+   which guaranteed every file fell below any sane minimum.
+5. **Bonus bug found live:** the L6-turns attribution SQL cut the
+   `L4(T_x)` tag at `]` — `instr` found none, yielding `T_x)` which
+   matched no node, so the primary metric could *never* populate.
+   Rewritten in Go (first `)` after `L4(`); literal bumped to `v0.9.2`.
+
+### Live numbers (all from `.ace-sandbox/ace.db`)
+
+| check | result |
+|---|---|
+| `T_C_S22_HARNESS` (the 817-veto wall) | **COMPLETED 07:37:22** |
+| `T_C_S23_DATA` | **COMPLETED 07:33:14** |
+| `T_C_S23_HARNESS` | **QUARANTINED 07:48:59** — park fired live |
+| New metric sha | `03150de88e064ca2` (v0.9.2); rows since ~07:53 |
+| `l6_turns_per_completed_task_*` | **honestly absent** — S22 has 25 pre-window traces → partial-observation drop works |
+| Fully-in-window candidates | `T_C_S29_DATA`, `T_C_S33_DATA`, `T_C_S35_DATA` (pre-window traces = 0) |
+| Disputed veto rows armed | 14 (`disputed=1, ruled_count=0` → park on next occurrence) |
+| Stale-era `l6_*` rows | still present under `9539d88b` — sha-gated, never compared |
+
+### Still open
+
+- First fully-in-window completion → first honest `l6_turns` rows
+  (n will grow from 1; median/P90/CI follow the order-stat rule).
+- Live runaway episode needed to fire the pause+Telegram path
+  (unit-covered: mode transition dedupes the report).
+- L2–L4 prompt budget (~11k vs 4k target) — unchanged flag.
