@@ -41,7 +41,7 @@ var ownerSendKinds = map[string]bool{
 
 // Internal identifiers and jargon that must never reach the owner.
 var (
-	ownerReTaskID   = regexp.MustCompile(`\bT_[A-Z0-9_]+|\bS\d+\b|cyc_[A-Za-z0-9]+|contradiction:|\b[0-9a-f]{12,}\b`)
+	ownerReTaskID   = regexp.MustCompile(`\bT_[A-Z0-9_]+|\bS\d+\b|\bc_s\d+\b|cyc_[A-Za-z0-9]+|contradiction:|\b[0-9a-f]{12,}\b`)
 	ownerRePath     = regexp.MustCompile(`/workspace/|/wiki/|\.ace-sandbox`)
 	ownerReJargon   = regexp.MustCompile(`(?i)\bL[1-6]\b|Mode-?3\b|Tier\b|quarantine[ds]?\b|veto(es)?\b|mission_dag|veto_ledger|selftest`)
 	ownerReTable    = regexp.MustCompile(`\n\s*\|.*\|.*\||^\s*\|.*\|.*\|`)

@@ -25,6 +25,8 @@ func TestOwnerReplyViolations(t *testing.T) {
 		{"status asked, status words ok", "what broke last night?", "Two tasks failed overnight but the queue recovered.", false},
 		{"jargon always rejected", "how's it going?", "L4 vetoed the task again.", true},
 		{"id always rejected", "how's it going?", "Finished T_C_S22 just now.", true},
+		{"task stem rejected", "how's it going?", "The c_s39 check came back clean.", true},
+		{"result filename ok", "which file?", "It's in results/c_s39_data.json.", false},
 		{"path always rejected", "what broke?", "Something in /workspace/modules blew up.", true},
 		{"numbers unprompted still ok", "still busy?", "Yep — 3 things in flight.", false},
 	}
