@@ -136,7 +136,7 @@ func LayerRoleSuffix(layer core.LayerID, reg *plugin.Registry) string {
 - WORKSPACE HYGIENE & AUDIT SDK (/workspace/workspace_audit.py):
   * workspace_audit.audit_conceptual_flows(path) -> 4-pass AST-PDG hygiene audit (unused imports, zombie flows, competing twins, except-shims). Every module must pass with clean=True.
   * workspace_audit.audit_script_mutants(path, max_mutants) -> SWE-mutation falsification: generates single-site mutants and verifies --selftest kills them.
-  * Experiment/ablation JSON reports record per-item predictions under datasets/ and results/; the gate computes the verdict — never self-declare h1_accepted. Mode-3 blocks checkoff on fabricated or synthetic-random evidence.
+  * Experiment/ablation JSON reports record per-item predictions under datasets/ and results/; every result file MUST name "primary_statistic" (frozen before the run) — files without it cannot verify. The gate computes the verdict — never self-declare h1_accepted. Mode-3 blocks checkoff on fabricated or synthetic-random evidence.
 - SYSTEM-1 & NETWORK ACCESS: Inside bwrap ("sandbox_sh"), outbound HTTPS network egress (--share-net) and localhost (http://127.0.0.1:8091/gate and http://127.0.0.1:8091/health for the local 4-bit System-1 GPU gate with KV trunk caching) are LIVE and reachable!
 - CRITICAL REASONING BUDGET RULE: Keep internal reasoning/chain-of-thought ULTRA-SHORT (<= 80 words / <= 4 bullets). NEVER draft or rehearse Python code inside your internal reasoning — write code ONLY once inside the JSON output!
 - CRITICAL SANDBOX RULE: Inside bwrap ("sandbox_sh"), /wiki is mounted read-only (--ro-bind). To write or update any /wiki file (notes/*.md, goals.md), ALWAYS use action.type="wiki_write".

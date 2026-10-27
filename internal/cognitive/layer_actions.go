@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"ace/internal/config"
 	"ace/internal/core"
 	"ace/internal/plugin"
 	"ace/internal/sandbox"
@@ -580,7 +581,7 @@ func (e *Engine) actionWorkspaceWrite(ctx context.Context, a tools.Args) string 
 }
 
 func (e *Engine) actionSandboxSh(ctx context.Context, a tools.Args) string {
-	_, layer := actionCtx(ctx)
+	m, layer := actionCtx(ctx)
 	if layer != core.LayerTaskProsecution {
 		return "sandbox_sh restricted to L6"
 	}
@@ -608,6 +609,12 @@ func (e *Engine) actionSandboxSh(ctx context.Context, a tools.Args) string {
 	}
 	// Spec 9.4: past tasks.tool_timeout (120s) the call detaches to a
 	// background handle the layer can poll — it is not an error.
+	// tools.selftest_timeout (default 5m) is the hard bound; a command
+	// declaring ACE_LONG_RUNNING=1 keeps the 30-minute limit.
+	execTimeout := config.LoadLayerKnobs().SelftestTimeout
+	if strings.HasPrefix(cmdStr, "ACE_LONG_RUNNING=1") {
+		execTimeout = 30 * time.Minute
+	}
 	var res core.ExecResult
 	var err error
 	if e.taskMgr != nil {
@@ -617,11 +624,19 @@ func (e *Engine) actionSandboxSh(ctx context.Context, a tools.Args) string {
 			if j, ok := e.sandbox.(interface {
 				ExecWithTimeout(context.Context, string, time.Duration) (core.ExecResult, error)
 			}); ok {
-				r, e2 = j.ExecWithTimeout(c, cmd, 30*time.Minute)
+				r, e2 = j.ExecWithTimeout(c, cmd, execTimeout)
 			} else {
 				r, e2 = e.sandbox.Exec(c, cmd)
 			}
 			res = r
+			if e2 != nil && c.Err() == context.DeadlineExceeded {
+				milestone := ""
+				if raw, rerr := e.memory.ReadWiki("goals.md"); rerr == nil {
+					milestone = extractTopActionableMilestone(raw)
+				}
+				e.RecordGateVetoAndCheckStuck(c, m.CycleID, milestone,
+					fmt.Sprintf("selftest timeout: %s exceeded %s (process group killed)", truncateString(cmd, 80), execTimeout), "")
+			}
 			return r.Stdout + "\n" + r.Stderr, e2
 		}
 		var h *tasks.Handle

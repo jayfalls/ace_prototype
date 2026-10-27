@@ -44,6 +44,10 @@ type LayerKnobs struct {
 	// owner-only question is only sent when the availability model's
 	// estimate is at or above this (default 0.25).
 	QuestionMinAvailability float64
+	// SelftestTimeout is tools.selftest_timeout — the hard cap for
+	// sandbox_sh self-test commands (default 5m). Commands declaring
+	// ACE_LONG_RUNNING=1 keep the 30m bound instead.
+	SelftestTimeout time.Duration
 }
 
 // DefaultLayerKnobs returns the spec defaults.
@@ -59,6 +63,7 @@ func DefaultLayerKnobs() LayerKnobs {
 		MutationMinMutants:      3,
 		NoProgressMinutes:       60 * time.Minute,
 		QuestionMinAvailability: 0.25,
+		SelftestTimeout:          5 * time.Minute,
 	}
 }
 
@@ -157,6 +162,12 @@ func applyKnob(knobs *LayerKnobs, key, val string) {
 			knobs.NoProgressMinutes = d
 		} else if n, err := strconv.Atoi(str()); err == nil && n > 0 {
 			knobs.NoProgressMinutes = time.Duration(n) * time.Minute
+		}
+	case "tools.selftest_timeout":
+		if d, ok := dur(); ok && d > 0 {
+			knobs.SelftestTimeout = d
+		} else if n, err := strconv.Atoi(str()); err == nil && n > 0 {
+			knobs.SelftestTimeout = time.Duration(n) * time.Minute
 		}
 	case "voice.question_min_availability":
 		if f, err := strconv.ParseFloat(str(), 64); err == nil && f >= 0 && f <= 1 {

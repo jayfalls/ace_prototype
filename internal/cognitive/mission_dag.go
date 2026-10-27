@@ -408,6 +408,42 @@ func (e *Engine) ParkDAGTaskForMilestone(ctx context.Context, milestoneID string
 	return parked
 }
 
+// repairSweepParkedTasks re-offers QUARANTINED L4 tasks whose vetoed
+// artifact is unchanged since the veto was recorded — the case where the
+// verify pass re-vetoed before L6 ever got a repair turn. One READY turn
+// per park: if L6 changes the artifact the next evaluation ratchets the
+// veto again; if it doesn't, the suppression path keeps it runnable until
+// task attempts roll it to TACTICAL_STALL for re-planning.
+func (e *Engine) repairSweepParkedTasks(ctx context.Context) {
+	db := e.getDB()
+	if db == nil {
+		return
+	}
+	unparked := false
+	for _, n := range e.LoadMissionDAGNodes(ctx) {
+		if n.Stage != "L4_TASK_SPEC" || n.State != "QUARANTINED" {
+			continue
+		}
+		var artifactHash, targetPath string
+		if err := db.QueryRowContext(ctx,
+			`SELECT COALESCE(artifact_hash,''), COALESCE(target_path,'') FROM veto_ledger
+			 WHERE milestone_id LIKE '%' || ? || '%' AND artifact_hash IS NOT NULL AND artifact_hash != ''
+			 ORDER BY updated_at DESC LIMIT 1`, n.ID).Scan(&artifactHash, &targetPath); err != nil {
+			continue
+		}
+		if artifactHash == "" || e.vetoArtifactHash(targetPath) != artifactHash {
+			continue // artifact changed or unreadable — leave parked
+		}
+		n.State = "READY_FOR_L5"
+		n.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		e.upsertMissionDAGNode(ctx, n)
+		unparked = true
+	}
+	if unparked {
+		e.SyncMissionDAGToGoalsWiki(ctx)
+	}
+}
+
 // RecordDAGTaskAttempt increments the attempt counter on the active L4_TASK_SPEC node and transitions it to TACTICAL_STALL
 // when attempts >= 2 so L4 wakes up in the parallel cluster to revise the task specification.
 func (e *Engine) RecordDAGTaskAttempt(ctx context.Context) {
@@ -444,6 +480,7 @@ func (e *Engine) StepMissionDAG(ctx context.Context, cycleID string, cycleSpanID
 	e.maybeAskOwnerQuestion(ctx)
 	e.maybeNotifyOwnerResults(ctx)
 	e.drainOwnerOffers(ctx)
+	e.repairSweepParkedTasks(ctx)
 	nodes := e.LoadMissionDAGNodes(ctx)
 
 	var l1Root *MissionDAGNode

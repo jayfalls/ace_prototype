@@ -185,6 +185,10 @@ func (s *Store) migrate() error {
 	// at ruling time for the bounded-retry rule (+3 identical vetoes
 	// parks the DAG node).
 	_, _ = s.db.Exec(`ALTER TABLE veto_ledger ADD COLUMN ruled_count INTEGER NOT NULL DEFAULT 0`)
+	// Artifact content hash at veto time — a veto only ratchets when the
+	// artifact actually changed, so re-evaluating an untouched artifact
+	// can't starve L6's repair turn.
+	_, _ = s.db.Exec(`ALTER TABLE veto_ledger ADD COLUMN artifact_hash TEXT`)
 	// Drop the retired approval column from pre-autonomy schemas (error
 	// tolerated: absent column or old sqlite — the table is authoritative either way).
 	_, _ = s.db.Exec(`ALTER TABLE spec_registry DROP COLUMN human_approval_ref`)

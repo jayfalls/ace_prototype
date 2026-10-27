@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"syscall"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -236,11 +237,16 @@ func (j *Jail) runBwrap(ctx context.Context, command string, timeout time.Durati
 	args = append(args, "/bin/bash", "-o", "pipefail", "-c", command)
 
 	cmd := exec.CommandContext(execCtx, "bwrap", args...)
+	// Own process group so a hung selftest kills bwrap AND its children.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &limitedWriter{buf: &stdout, max: maxOutputBytes}
 	cmd.Stderr = &limitedWriter{buf: &stderr, max: maxOutputBytes}
 
 	err := cmd.Run()
+	if execCtx.Err() == context.DeadlineExceeded && cmd.Process != nil {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 	exitCode := 0
 	if err != nil {
 		var exitErr *exec.ExitError

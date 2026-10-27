@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -72,4 +73,23 @@ func TestJailIsolationAndOperations(t *testing.T) {
 	require.NoError(t, err, "workspace_audit import stderr: %s", sdkRes.Stderr)
 	require.Equal(t, 0, sdkRes.ExitCode)
 	require.Contains(t, sdkRes.Stdout, `True`)
+}
+
+// A hung selftest must die at tools.selftest_timeout — the whole process
+// group, not just bwrap. Run `sleep 300` with a 3s bound and verify the
+// deadline kills it fast instead of running the full command.
+func TestExecWithTimeoutKillsHungProcessGroup(t *testing.T) {
+	tmp := t.TempDir()
+	jail, err := NewJail(tmp)
+	require.NoError(t, err)
+	defer jail.Close()
+
+	start := time.Now()
+	// Spawn children so the group-kill actually has something to reap.
+	res, err := jail.ExecWithTimeout(context.Background(), `(sleep 300 & sleep 300 & sleep 300) ; wait`, 3*time.Second)
+	elapsed := time.Since(start)
+
+	require.Error(t, err, "hung command must surface a deadline error")
+	require.Less(t, elapsed, 15*time.Second, "deadline must kill fast, took %s", elapsed)
+	require.NotEqual(t, 0, res.ExitCode)
 }

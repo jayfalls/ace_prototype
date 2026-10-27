@@ -689,6 +689,13 @@ func verifyDatasetOrExperimentJSON(relPath string, data []byte) string {
 	}
 
 	norm := filepath.ToSlash(relPath)
+	if strings.HasPrefix(norm, "results/") {
+		// The primary statistic must be named before the run — a result
+		// file without it can't complete as verified.
+		if ps, ok := parsed["primary_statistic"].(string); !ok || strings.TrimSpace(ps) == "" {
+			return fmt.Sprintf("result file %s lacks a frozen 'primary_statistic' (declared before the run)", relPath)
+		}
+	}
 	if strings.HasPrefix(norm, "datasets/") {
 		if _, ok := parsed["dataset_id"]; !ok {
 			return "dataset JSON missing required 'dataset_id' field"

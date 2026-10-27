@@ -82,33 +82,35 @@ func TestTelegramBridgeSlashCommandsAndChat(t *testing.T) {
 	require.True(t, st.Connected)
 	require.Equal(t, "ace_cog_bot", st.BotUsername)
 
-	// Human-voice invariant: nothing is sent to Telegram directly anymore —
-	// every owner-bound message is logged through Engine.NotifyOwner and the
-	// model writes the text. The send itself targets the real API (not this
-	// test server), so assert on owner_msg_log rows.
-	lastOwnerRow := func() (kind, fact, text, status string) {
-		_ = db.QueryRow(`SELECT kind, fact, text, status FROM owner_msg_log ORDER BY id DESC LIMIT 1`).Scan(&kind, &fact, &text, &status)
+	// Human-voice invariant: proactive kinds enqueue as owner_offers for the
+	// chat agent (never sent directly); chat replies still log sent rows.
+	lastOfferRow := func() (kind, fact, status string) {
+		_ = db.QueryRow(`SELECT kind, fact, status FROM owner_offers ORDER BY id DESC LIMIT 1`).Scan(&kind, &fact, &status)
+		return
+	}
+	lastLogRow := func() (kind, text, status string) {
+		_ = db.QueryRow(`SELECT kind, text, status FROM owner_msg_log ORDER BY id DESC LIMIT 1`).Scan(&kind, &text, &status)
 		return
 	}
 
-	// 1. Unauthorized chat ID -> owner hears about the stranger; stranger gets nothing
+	// 1. Unauthorized chat ID -> owner gets an offer about the stranger; stranger gets nothing
 	tg.handleInboundMessage(context.Background(), 111, "stranger", "hi", 0)
 	require.Empty(t, sentMessages)
-	kind, fact, _, status := lastOwnerRow()
+	kind, fact, status := lastOfferRow()
 	require.Equal(t, "reply", kind)
 	require.Contains(t, fact, "unknown telegram account")
-	require.Equal(t, "sent", status)
+	require.Equal(t, "pending", status)
 
-	// 2. Authorized /status command -> reply through the owner path
+	// 2. Authorized /status command -> reply queued as an offer
 	tg.handleInboundMessage(context.Background(), 999, "jay", "/status", 1)
-	kind, fact, _, status = lastOwnerRow()
+	kind, fact, status = lastOfferRow()
 	require.Equal(t, "reply", kind)
 	require.Contains(t, fact, "/status")
-	require.Equal(t, "sent", status)
+	require.Equal(t, "pending", status)
 
 	// 3. Authorized normal chat message -> model-written reply logged + sent
 	tg.handleInboundMessage(context.Background(), 999, "jay", "Hello ACE", 2)
-	kind, _, text, status := lastOwnerRow()
+	kind, text, status := lastLogRow()
 	require.Equal(t, "reply", kind)
 	require.Equal(t, "sent", status)
 	require.Equal(t, "Hello from ACE via Telegram!", text)

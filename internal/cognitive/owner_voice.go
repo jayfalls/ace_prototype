@@ -518,6 +518,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		Baseline     *float64 `json:"baseline"`
 		NHeldout     *int     `json:"n_heldout"`
 		N            *int     `json:"n"`
+		PrimaryStat  *string  `json:"primary_statistic"`
 	}
 	if json.Unmarshal(blob, &res) != nil {
 		return "", "result artifact unreadable"
@@ -534,6 +535,9 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 	}
 	if stat == "" {
 		return "", "no held-out statistic in result artifact"
+	}
+	if res.PrimaryStat != nil && strings.TrimSpace(*res.PrimaryStat) != "" {
+		stat = strings.TrimSpace(*res.PrimaryStat)
 	}
 	n := 0
 	if res.NHeldout != nil {
@@ -572,23 +576,45 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		return "", "no branch baseline to compare against"
 	}
 	// Exact one-sided binomial test: correct = after*n, null = before rate.
+	alpha := e.resultAlpha(ctx, taskID)
+	if *after == before {
+		_, _ = db.ExecContext(ctx,
+			`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, result_file=? WHERE id=?`,
+			stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, rel, bpID)
+		return "", fmt.Sprintf("result equals baseline — likely predicting the most common answer (%s %.3f, n=%d)",
+			stat, *after, n)
+	}
+	if *after < before {
+		pDown := 1.0
+		if before > 0 && before < 1 && n <= 100000 {
+			k := int(math.Round(*after * float64(n)))
+			pDown = 1 - binomTail(k+1, n, before)
+		}
+		_, _ = db.ExecContext(ctx,
+			`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
+			stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, fmt.Sprintf("p=%.4g", pDown), rel, bpID)
+		if pDown < alpha {
+			return "", fmt.Sprintf("worse than baseline (%s %.3f → %.3f, n=%d, p=%.4g < α=%.3g)",
+				stat, before, *after, n, pDown, alpha)
+		}
+		return "", fmt.Sprintf("no clear effect yet (%s %.3f → %.3f, n=%d, p=%.4g ≥ α=%.3g)",
+			stat, before, *after, n, pDown, alpha)
+	}
 	p := 1.0
-	if *after > before && before > 0 && before < 1 && n <= 100000 {
+	if before > 0 && before < 1 && n <= 100000 {
 		k := int(math.Round(*after * float64(n)))
 		p = binomTail(k, n, before)
 	}
-	alpha := e.resultAlpha(ctx, taskID)
-	if *after <= before || p >= alpha {
+	_, _ = db.ExecContext(ctx,
+		`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
+		stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, fmt.Sprintf("p=%.4g", p), rel, bpID)
+	if p >= alpha {
 		return "", fmt.Sprintf("no clear effect yet (%s %.3f → %.3f, n=%d, p=%.4g ≥ α=%.3g)",
 			stat, before, *after, n, p, alpha)
 	}
-	pStr := fmt.Sprintf("p=%.4g", p)
 	fact := fmt.Sprintf(
-		"verified completion: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level, α=%.3g), result file %s",
-		stat, before, *after, n, pStr, alpha, rel)
-	_, _ = db.ExecContext(ctx,
-		`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
-		stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, pStr, rel, bpID)
+		"verified completion: %s moved %.3f → %.3f (n=%d, p=%.4g vs the branch's previous level, α=%.3g), result file %s",
+		stat, before, *after, n, p, alpha, rel)
 	return fact, ""
 }
 

@@ -50,16 +50,29 @@ func (e *Engine) RecordGateVetoAndCheckStuck(ctx context.Context, cycleID string
 		return false, 1
 	}
 
+	// A veto only ratchets when the artifact changed since it was last
+	// recorded. Re-evaluating an untouched artifact every cycle would
+	// park the task before L6 ever gets a repair turn.
+	artifactHash := e.vetoArtifactHash(tpath)
+	var priorCount int
+	var priorHash string
+	_ = db.QueryRowContext(ctx, `SELECT count, COALESCE(artifact_hash,'') FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&priorCount, &priorHash)
+	if priorCount > 0 && artifactHash != "" && priorHash == artifactHash {
+		e.unparkDAGTaskForRepair(ctx, milestoneID)
+		return false, priorCount
+	}
+
 	now := time.Now().UTC()
 	_, _ = db.ExecContext(ctx, `
-		INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at)
-		VALUES (?, ?, ?, ?, 1, ?, ?, 0, ?)
+		INSERT INTO veto_ledger (veto_hash, milestone_id, veto_kind, target_path, count, last_reason, last_cycle_id, disputed, updated_at, artifact_hash)
+		VALUES (?, ?, ?, ?, 1, ?, ?, 0, ?, ?)
 		ON CONFLICT(veto_hash) DO UPDATE SET
 			count = veto_ledger.count + 1,
 			last_reason = excluded.last_reason,
 			last_cycle_id = excluded.last_cycle_id,
-			updated_at = excluded.updated_at
-	`, vhash, milestoneID, vkind, tpath, truncateString(vetoReason, 300), cycleID, now)
+			updated_at = excluded.updated_at,
+			artifact_hash = excluded.artifact_hash
+	`, vhash, milestoneID, vkind, tpath, truncateString(vetoReason, 300), cycleID, now, artifactHash)
 
 	var count, disputed, ruledCount int
 	_ = db.QueryRowContext(ctx, `SELECT count, disputed, COALESCE(ruled_count,0) FROM veto_ledger WHERE veto_hash = ?`, vhash).Scan(&count, &disputed, &ruledCount)
@@ -289,4 +302,40 @@ func (e *Engine) EnsureLivingSpecForMilestone(ctx context.Context, milestone str
 	_ = os.WriteFile(specHost, []byte(initial), 0o644)
 	_, _ = e.ParseAndValidateLivingSpec(ctx, specID, initial)
 	return specID, initial
+}
+
+// vetoArtifactHash returns a stable hash of the veto target's current
+// bytes ("" when unreadable) so identical re-evaluations don't ratchet.
+func (e *Engine) vetoArtifactHash(targetPath string) string {
+	wsDir, _ := e.resolveSandboxDirs()
+	if wsDir == "" || targetPath == "" {
+		return ""
+	}
+	b, err := os.ReadFile(filepath.Join(wsDir, filepath.Clean(targetPath)))
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// unparkDAGTaskForRepair hands a QUARANTINED task back to L6 for a
+// repair turn when the vetoed artifact has not changed — the exact
+// situation where the verify pass re-vetoed before L6 ever ran.
+func (e *Engine) unparkDAGTaskForRepair(ctx context.Context, milestoneID string) {
+	unparked := false
+	for _, n := range e.LoadMissionDAGNodes(ctx) {
+		if n.Stage != "L4_TASK_SPEC" || n.State != "QUARANTINED" {
+			continue
+		}
+		if strings.Contains(milestoneID, n.ID) || (n.ArtifactPath != "" && strings.Contains(milestoneID, n.ArtifactPath)) {
+			n.State = "READY_FOR_L5"
+			n.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+			e.upsertMissionDAGNode(ctx, n)
+			unparked = true
+		}
+	}
+	if unparked {
+		e.SyncMissionDAGToGoalsWiki(ctx)
+	}
 }
