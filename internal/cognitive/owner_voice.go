@@ -256,7 +256,7 @@ func (e *Engine) composeOwnerOffer(ctx context.Context, facts string) string {
 
 ` + facts + `
 
-Decide as a friend: if any of this is worth interrupting Jay for, write ONE short message covering it — fold related items together, give the real numbers and say which result they're from in plain words (e.g. "the S31 data check"). If nothing is worth interrupting for, reply with exactly: HOLD`})
+Decide as a friend: if any of this is worth interrupting Jay for, write ONE short message covering it — fold related items together, give the real numbers and name the result by its file's plain name (e.g. "the c_s31 data check"). Never write S-numbers, T_-codes, backticks, or file paths — the checker rejects them and the message dies unsent. If nothing is worth interrupting for, reply with exactly: HOLD`})
 
 	resp, err := e.llm.StreamComplete(ctx, core.CompletionRequest{
 		SystemPrompt: sysPrompt,
@@ -586,8 +586,8 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		return ""
 	}
 	fact := fmt.Sprintf(
-		"verified completion on branch %s: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level), result file %s",
-		branchID, stat, before, *after, n, pStr, rel)
+		"verified completion: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level), result file %s",
+		stat, before, *after, n, pStr, rel)
 	_, _ = db.ExecContext(ctx,
 		`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
 		stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, pStr, rel, bpID)

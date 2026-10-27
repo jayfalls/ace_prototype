@@ -257,19 +257,37 @@ func (e *Engine) SyncMissionDAGToGoalsWiki(ctx context.Context) {
 	// invisible to extractTopActionableMilestone, which silently
 	// skips the mode-3 gate (empty_milestone) and never checks off.
 	sb.WriteString("\n## Active Executable Task Specifications (`L4 → L5 → L6`)\n\n")
+	// Open milestones first: 90+ completed [x] lines otherwise push the
+	// actionable - [ ] past ReadWiki's 128KB cap (empty_milestone again).
+	var open, closed []MissionDAGNode
 	for _, n := range nodes {
-		if n.Stage == "L4_TASK_SPEC" {
-			box := "[ ]"
-			switch n.State {
-			case "COMPLETED":
-				box = "[x]"
-			case "UNVERIFIED":
-				box = "[~]"
-			case "QUARANTINED":
-				box = "[!]"
-			}
-			sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, truncateText(n.DirectiveHash, 10), collapseMultilineMilestoneBullets(n.Directive)))
+		if n.Stage != "L4_TASK_SPEC" {
+			continue
 		}
+		if n.State == "COMPLETED" || n.State == "RETIRED" {
+			closed = append(closed, n)
+		} else {
+			open = append(open, n)
+		}
+	}
+	writeTask := func(n MissionDAGNode, directive string) {
+		box := "[ ]"
+		switch n.State {
+		case "COMPLETED":
+			box = "[x]"
+		case "UNVERIFIED":
+			box = "[~]"
+		case "QUARANTINED":
+			box = "[!]"
+		}
+		sb.WriteString(fmt.Sprintf("- %s **%s — %s** (Parent: `%s`, Provenance: `%s`): %s\n", box, n.ID, n.Title, n.ParentID, truncateText(n.DirectiveHash, 10), directive))
+	}
+	for _, n := range open {
+		writeTask(n, collapseMultilineMilestoneBullets(n.Directive))
+	}
+	sb.WriteString("\n### Completed history (read-only — open work is above)\n")
+	for _, n := range closed {
+		writeTask(n, collapseMultilineMilestoneBullets(n.Directive))
 	}
 	sb.WriteString("\n## Strategic & Capability Dependency Tree (`L2 || L3`)\n")
 	for _, n := range nodes {
