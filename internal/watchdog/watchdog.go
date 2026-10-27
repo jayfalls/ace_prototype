@@ -128,13 +128,25 @@ func RunChecks(sandboxDir string, intervalSec int) []Check {
 				noProgressMin = v
 			}
 		}
-		bound := fmt.Sprintf("datetime('now','-%d minutes')", noProgressMin)
-		_ = db.QueryRow(`SELECT COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&callsRecent)
-		_ = db.QueryRow(`SELECT COUNT(*) FROM dag_events WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound).Scan(&dagRecent)
-		_ = db.QueryRow(`SELECT (SELECT COUNT(*) FROM science_verdicts WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound + `) + (SELECT COUNT(*) FROM branch_progress WHERE replace(substr(created_at,1,19),'T',' ') > ` + bound + `)`).Scan(&artifactsRecent)
-		runaway := callsRecent > 0 && dagRecent == 0 && artifactsRecent == 0
+		// Awake-time window: a suspended host produces no calls, so
+		// "the last 60 worker-active minutes" is the honest bound —
+		// distinct wall-minutes containing calls, walked back from now.
+		// A laptop asleep 4h contributes zero active minutes.
+		var windowStart string
+		activeRows := 0
+		_ = db.QueryRow(`SELECT COUNT(*), MIN(m) FROM (
+			SELECT DISTINCT substr(replace(created_at,'T',' '),1,16) m
+			FROM thought_traces ORDER BY m DESC LIMIT ?)`, noProgressMin).Scan(&activeRows, &windowStart)
+		if windowStart != "" {
+			_ = db.QueryRow(`SELECT COUNT(*) FROM thought_traces WHERE replace(substr(created_at,1,19),'T',' ') >= ?`, windowStart).Scan(&callsRecent)
+			_ = db.QueryRow(`SELECT COUNT(*) FROM dag_events WHERE replace(substr(created_at,1,19),'T',' ') >= ?`, windowStart).Scan(&dagRecent)
+			_ = db.QueryRow(`SELECT (SELECT COUNT(*) FROM science_verdicts WHERE replace(substr(created_at,1,19),'T',' ') >= ?) + (SELECT COUNT(*) FROM branch_progress WHERE replace(substr(created_at,1,19),'T',' ') >= ?)`, windowStart, windowStart).Scan(&artifactsRecent)
+		}
+		// Need a full window of active minutes with zero progress to fire;
+		// a shorter history is a grace period, not a runaway.
+		runaway := activeRows >= noProgressMin && callsRecent > 0 && dagRecent == 0 && artifactsRecent == 0
 		checks = append(checks, Check{"runaway_loop", !runaway,
-			fmt.Sprintf("calls=%d dag_transitions=%d result_artifacts=%d in last %dm", callsRecent, dagRecent, artifactsRecent, noProgressMin)})
+			fmt.Sprintf("calls=%d dag_transitions=%d result_artifacts=%d in last %d active-min (since %s)", callsRecent, dagRecent, artifactsRecent, noProgressMin, windowStart)})
 
 		// Memory health (spec 9.6): episodic cap pressure + unverified
 		// semantic facts are watchdog-visible.

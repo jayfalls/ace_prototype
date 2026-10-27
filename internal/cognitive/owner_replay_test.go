@@ -131,6 +131,10 @@ func TestOwnerChannelReplay(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.Exec(`DELETE FROM owner_offers`)
 	require.NoError(t, err)
+	// The copy persists between runs — clear prior-run log rows so
+	// assertions count only this replay's output.
+	_, err = db.Exec(`DELETE FROM owner_msg_log`)
+	require.NoError(t, err)
 
 	wsAbs, err := filepath.Abs(wsDir) // NewJail keeps the given path — reads
 	require.NoError(t, err)           // resolve against the test's CWD otherwise
@@ -166,6 +170,8 @@ func TestOwnerChannelReplay(t *testing.T) {
 	}
 
 	// --- one combined proactive message ----------------------------------
+	var chatBefore int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE role='assistant' AND source='proactive'`).Scan(&chatBefore)
 	eng.drainOwnerOffers(ctx)
 	var sent int
 	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM owner_msg_log WHERE kind='offer' AND status='sent'`).Scan(&sent))
@@ -175,13 +181,22 @@ func TestOwnerChannelReplay(t *testing.T) {
 	t.Logf("proactive message: %s", msg)
 	require.Contains(t, msg, "1.000")
 	require.Contains(t, msg, "c_s31_data.json")
-	require.Contains(t, msg, "c_s32_data.json")
+	// S32's p=0.1094 ≥ α=0.05 is "no clear effect yet" — digest, not a win.
+	require.NotContains(t, msg, "c_s32_data.json")
+	var digestRow int
+	require.NoError(t, db.QueryRow(
+		`SELECT COUNT(*) FROM owner_msg_log WHERE status='digest' AND fact LIKE '%no clear effect%'`).Scan(&digestRow))
+	require.Equal(t, 2, digestRow,
+		"S32 (p=0.109≥α) and S31_HARNESS (no movement vs branch's new 1.0) must both digest")
 
 	// The sent text is in the SAME history the chat agent reads.
 	var chatRow int
 	require.NoError(t, db.QueryRow(
 		`SELECT COUNT(*) FROM chat_messages WHERE role='assistant' AND source='proactive' AND content=?`, msg).Scan(&chatRow))
-	require.Equal(t, 1, chatRow, "the proactive send must live in chat_messages")
+	require.GreaterOrEqual(t, chatRow, 1)
+	var chatAfter int
+	require.NoError(t, db.QueryRow(`SELECT COUNT(*) FROM chat_messages WHERE role='assistant' AND source='proactive'`).Scan(&chatAfter))
+	require.Equal(t, chatBefore+1, chatAfter, "exactly one proactive row lands in chat_messages")
 
 	// --- the owner's two follow-ups --------------------------------------
 	m1, err := eng.Chat(ctx, "How many pts?")

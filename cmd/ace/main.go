@@ -468,6 +468,28 @@ func runSupervisor() {
 						if perr := postEngineMode(envOr("ACE_PORT", "8080"), "paused", "watchdog_runaway"); perr != nil {
 							_ = watchdog.AppendEventFile(events, "runaway_pause_fail", perr.Error())
 							runawayPaused = false // pause never landed — don't dedup it away
+						} else {
+							// Self-recovery: a pause is a detour, not a dead
+							// end. Hand the burned tasks to L4 for re-plan
+							// (TACTICAL_STALL feeds the revision path), then
+							// resume — nobody should have to restart ACE.
+							go func(dir string) {
+								time.Sleep(20 * time.Second)
+								db, derr := sql.Open("sqlite", filepath.Join(dir, "ace.db")+"?_pragma=busy_timeout(5000)")
+								if derr == nil {
+									res, _ := db.Exec(`UPDATE mission_dag_nodes SET state='TACTICAL_STALL', updated_at=datetime('now')
+										WHERE stage='L4_TASK_SPEC' AND state='READY_FOR_L5' AND attempts>0`)
+									n, _ := res.RowsAffected()
+									db.Close()
+									_ = watchdog.AppendEventFile(events, "runaway_replan",
+										fmt.Sprintf("handed %d stalled task(s) to L4 for re-plan", n))
+								}
+								if rerr := postEngineMode(envOr("ACE_PORT", "8080"), "autonomous", "watchdog_runaway_recover"); rerr != nil {
+									_ = watchdog.AppendEventFile(events, "runaway_resume_fail", rerr.Error())
+								} else {
+									_ = watchdog.AppendEventFile(events, "runaway_resume", "resumed after re-plan handoff")
+								}
+							}(sandboxDir)
 						}
 					}
 				} else {

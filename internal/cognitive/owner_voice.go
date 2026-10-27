@@ -47,41 +47,15 @@ var (
 	ownerReTable    = regexp.MustCompile(`\n\s*\|.*\|.*\||^\s*\|.*\|.*\|`)
 	ownerReCodeSpan = regexp.MustCompile("`{1,3}")
 
-	// Reply-context rules: an un-asked-for reply carries no numbers or
-	// status detail, and an acknowledgement stays short.
-	ownerReStatusAsk = regexp.MustCompile(`(?i)(how|what|status|progress|going|update|report|broke|happen|result|did (you|it)|working on|where|when|why|\?|you (said|told|mentioned|showed)|earlier|that number|the number|by how much)`)
-	ownerReNumbers   = regexp.MustCompile(`\d`)
-	ownerReStatus    = regexp.MustCompile(`(?i)\b(completed|queued|running|parked|blocked|accuracy|records?|tasks?|queue|passed|failed|attempts?|split|rate|percent)\b`)
+	// The check keeps ONLY mechanical rules — ID, path, jargon, table,
+	// code formatting. Whether a reply should carry numbers or status is
+	// the chat agent's judgment, not a regex's.
 )
 
-// ownerAskedStatus reports whether the owner's message requested status.
-func ownerAskedStatus(msg string) bool { return ownerReStatusAsk.MatchString(msg) }
-
-// ownerShortAck reports whether the owner's message is a short remark that
-// deserves only an acknowledgement ("I'm working", "thanks", "ok").
-func ownerShortAck(msg string) bool {
-	return len(strings.Fields(msg)) <= 6 && !ownerAskedStatus(msg)
-}
-
-// ownerReplyViolations extends ownerSendViolations with rules that depend
-// on what the owner actually said. Empty means sendable.
+// ownerReplyViolations: replies run the same mechanical check as any
+// owner-bound text; the ownerMsg param is kept for call-site stability.
 func ownerReplyViolations(text, ownerMsg string) []string {
-	out := ownerSendViolations(text)
-	if ownerMsg == "" {
-		return out
-	}
-	if !ownerAskedStatus(ownerMsg) {
-		if m := ownerReNumbers.FindString(text); m != "" {
-			out = append(out, "unsolicited numbers")
-		}
-		if m := ownerReStatus.FindString(text); m != "" {
-			out = append(out, "unsolicited status detail "+m)
-		}
-	}
-	if ownerShortAck(ownerMsg) && len(strings.Fields(text)) > 25 {
-		out = append(out, "acknowledgement too long")
-	}
-	return out
+	return ownerSendViolations(text)
 }
 
 // ownerSendViolations returns the deterministic-check failures for a
@@ -466,15 +440,18 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 				break
 			}
 		}
-		fact := e.resultFactForTask(ctx, r.taskID, r.bpID)
+		fact, reason := e.resultFactForTask(ctx, r.taskID, r.bpID)
 		if fact == "" || stale {
-			// Incomplete fact or old news → digest, never a message.
+			// Incomplete fact, no clear effect, or old news → digest.
 			if stale || fact == "" {
 				_, _ = db.ExecContext(ctx, `UPDATE branch_progress SET notified=1 WHERE id=?`, r.bpID)
 			}
 			if fact == "" && !stale {
+				if reason == "" {
+					reason = "result fact incomplete (stat/before/after/n/p/file)"
+				}
 				e.appendOwnerDigest(ctx, "result",
-					"task completed but its result fact is incomplete (stat/before/after/n/p/file): "+truncateText(r.title, 150))
+					reason+": "+truncateText(r.title, 150))
 			}
 			continue
 		}
@@ -483,11 +460,31 @@ func (e *Engine) maybeNotifyOwnerResults(ctx context.Context) {
 	}
 }
 
+// resultAlpha is the significance bound for a result message. The
+// pre-registered alpha wins when a question exists; prereg is empty on
+// this mission so the conservative default applies.
+func (e *Engine) resultAlpha(ctx context.Context, taskID string) float64 {
+	if db := e.getDB(); db != nil {
+		stem := strings.ToLower(strings.TrimPrefix(taskID, "T_"))
+		var a float64
+		if err := db.QueryRowContext(ctx,
+			`SELECT q.alpha FROM prereg_questions q
+				JOIN prereg_attempts a2 ON a2.question_id = q.id
+				WHERE a2.result_ref LIKE '%' || ? || '%'
+				ORDER BY a2.created_at DESC LIMIT 1`,
+			stem).Scan(&a); err == nil && a > 0 && a < 1 {
+			return a
+		}
+	}
+	return 0.05
+}
+
 // resultFactForTask builds the complete result fact from the artifact and
 // the branch's own history: stat name, branch's previous primary value →
 // new value, n, exact binomial p vs the branch baseline, and the result
-// filename. Returns "" when any required element is missing.
-func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int) string {
+// filename. Returns ("", reason) when the fact is incomplete or the
+// effect is not significant — p must beat the pre-registered alpha.
+func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int) (string, string) {
 	dbg := os.Getenv("ACE_DEBUG_RESULT_FACT") != ""
 	db := e.getDB()
 	wsDir, _ := e.resolveSandboxDirs()
@@ -495,7 +492,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		if dbg {
 			fmt.Fprintf(os.Stderr, "[resultfact] early: db=%v wsDir=%q\n", db != nil, wsDir)
 		}
-		return ""
+		return "", "no database or workspace"
 	}
 	stem := strings.ToLower(strings.TrimPrefix(taskID, "T_"))
 	var blob []byte
@@ -510,7 +507,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		if dbg {
 			fmt.Fprintf(os.Stderr, "[resultfact] %s: no artifact\n", taskID)
 		}
-		return ""
+		return "", "no result artifact"
 	}
 	var res struct {
 		HeldoutAcc   *float64 `json:"heldout_accuracy"`
@@ -522,10 +519,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		N            *int     `json:"n"`
 	}
 	if json.Unmarshal(blob, &res) != nil {
-		if dbg {
-			fmt.Fprintf(os.Stderr, "[resultfact] %s: unmarshal fail\n", taskID)
-		}
-		return ""
+		return "", "result artifact unreadable"
 	}
 	// Stat name comes from the key the artifact actually reports.
 	stat, after := "", (*float64)(nil)
@@ -538,7 +532,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		stat, after = "held-out value", res.Heldout
 	}
 	if stat == "" {
-		return ""
+		return "", "no held-out statistic in result artifact"
 	}
 	n := 0
 	if res.NHeldout != nil {
@@ -547,7 +541,7 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		n = *res.N
 	}
 	if n <= 0 {
-		return ""
+		return "", "no held-out n in result artifact"
 	}
 	// The branch's previous primary statistic: the last after_val recorded
 	// for this branch before this row — not the task's own baseline.
@@ -574,24 +568,27 @@ func (e *Engine) resultFactForTask(ctx context.Context, taskID string, bpID int)
 		}
 	}
 	if !beforeOK {
-		return ""
+		return "", "no branch baseline to compare against"
 	}
 	// Exact one-sided binomial test: correct = after*n, null = before rate.
-	pStr := ""
+	p := 1.0
 	if *after > before && before > 0 && before < 1 && n <= 100000 {
 		k := int(math.Round(*after * float64(n)))
-		pStr = fmt.Sprintf("p=%.4g", binomTail(k, n, before))
+		p = binomTail(k, n, before)
 	}
-	if pStr == "" {
-		return ""
+	alpha := e.resultAlpha(ctx, taskID)
+	if *after <= before || p >= alpha {
+		return "", fmt.Sprintf("no clear effect yet (%s %.3f → %.3f, n=%d, p=%.4g ≥ α=%.3g)",
+			stat, before, *after, n, p, alpha)
 	}
+	pStr := fmt.Sprintf("p=%.4g", p)
 	fact := fmt.Sprintf(
-		"verified completion: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level), result file %s",
-		stat, before, *after, n, pStr, rel)
+		"verified completion: %s moved %.3f → %.3f (n=%d, %s vs the branch's previous level, α=%.3g), result file %s",
+		stat, before, *after, n, pStr, alpha, rel)
 	_, _ = db.ExecContext(ctx,
 		`UPDATE branch_progress SET stat_name=?, before_val=?, after_val=?, n=?, pval=?, result_file=? WHERE id=?`,
 		stat, fmt.Sprintf("%.4f", before), fmt.Sprintf("%.4f", *after), n, pStr, rel, bpID)
-	return fact
+	return fact, ""
 }
 
 // binomTail is P(X >= k) under Binomial(n, p) — the one-sided exact test
