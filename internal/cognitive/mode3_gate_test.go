@@ -96,11 +96,11 @@ if __name__ == "__main__":
 	res2 := EvaluateMode3MilestoneGate(context.Background(), nil, msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
 	require.True(t, res2.Passed, "Mode-3 gate should pass valid artifacts, got reason: %s", res2.Reason)
 
-	// 4. Test Mode-3 Dataset Provenance/Split Gate and Scientific Falsification Gate (rejects h1_accepted=false)
+	// 4. A falsified pre-registered hypothesis is a result, not a veto:
+	// h1_accepted=false completes as "H0 not rejected" (owner ruling).
 	require.NoError(t, jail.WriteFile("demo_report.json", `{"count": 42, "h1_accepted": false}`))
 	resFalsified := EvaluateMode3MilestoneGate(context.Background(), nil, msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)
-	require.False(t, resFalsified.Passed, "Mode-3 gate must reject checkoff when h1_accepted is false")
-	require.Contains(t, resFalsified.Reason, "SCIENTIFIC FALSIFICATION")
+	require.True(t, resFalsified.Passed, "falsified hypothesis must not veto checkoff, got reason: %s", resFalsified.Reason)
 
 	require.NoError(t, jail.WriteFile("demo_report.json", `{"count": 42, "h1_accepted": true}`))
 	resAccepted := EvaluateMode3MilestoneGate(context.Background(), nil, msLine, jail, jail.WorkspaceDir(), jail.WikiDir(), nil, 3)

@@ -88,6 +88,7 @@ You get a short fact summary and write ONE short message (under 400 characters) 
 - Sound like a human texting a friend. First person. Light, direct, honest.
 - NEVER include internal identifiers, task or branch codes, file paths, hashes, layer numbers, gate names, or any jargon. No tables, no code formatting, no bullet-point dumps.
 - If the facts are bad news, say so plainly and say what happens next.
+- Only reference earlier conversation when the subject actually matches — same result file, same statistic, same thing the owner named. NEVER claim the owner asked about a result unless the earlier message names that same result or its file.
 - Output ONLY the message text.`
 
 // NotifyOwner hands an event to the chat agent as an offer (plan "Human

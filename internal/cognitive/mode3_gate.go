@@ -727,24 +727,10 @@ func verifyDatasetOrExperimentJSON(relPath string, data []byte) string {
 		}
 	}
 
-	falseKeys := []string{"h1_accepted", "hypothesis_accepted", "gate_passed", "overall_pass", "target_met"}
-	for _, k := range falseKeys {
-		if v, exists := parsed[k]; exists {
-			if b, isBool := v.(bool); isBool && !b {
-				return fmt.Sprintf("SCIENTIFIC FALSIFICATION: %q is false in %s (H0 was NOT rejected; you must iterate/improve the architecture or revert the failed mechanism rather than checking off a failed hypothesis!)", k, relPath)
-			}
-		}
-	}
-	for _, k := range []string{"decision", "verdict", "hypothesis_verdict"} {
-		if v, exists := parsed[k]; exists {
-			if s, isStr := v.(string); isStr {
-				sl := strings.ToLower(strings.TrimSpace(s))
-				if sl == "h0_not_rejected" || sl == "reject_h1" || sl == "fail" || sl == "failed" || sl == "revert" {
-					return fmt.Sprintf("SCIENTIFIC FALSIFICATION: %s=%q in %s (do not check off milestone when hypothesis is falsified; refine the mechanism until empirical held-out evaluation succeeds!)", k, s, relPath)
-				}
-			}
-		}
-	}
+	// A falsified pre-registered hypothesis is a result, not a veto: when
+	// the hypothesis, statistic and dataset are unchanged and the stats
+	// recompute, the task completes as "H0 not rejected" and is reported
+	// honestly — never retried until it passes.
 
 	return ""
 }

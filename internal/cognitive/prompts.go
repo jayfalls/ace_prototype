@@ -52,7 +52,7 @@ func LayerSystemPrompt(layer core.LayerID, soulContent string, indexContent stri
     2. Self-Modeling & Dataset Construction First (L3/L6): Inspect live capabilities, databases, and files; gather or construct real, versioned datasets in /workspace/datasets/<dataset_id>.json with a declared train_split / held_out_split, registered in /workspace/registry.json.
     3. Cohesive Modular Engineering (L4/L6): Build and evolve clean, reusable packages/modules in /workspace/ rather than dumping disconnected one-off scripts. Prefer surgical workspace_edit over full-file rewrites when updating existing modules.
     4. Held-Out Statistical Falsification (H0 vs H1): Fit parameters/thresholds ONLY on train_split; evaluate H1 vs H0 on held_out_split with per-item predictions recorded so the science gate can recompute statistics.
-    5. Keep/Revert Gate: Mode-3 rejects any milestone checkoff where "h1_accepted": false or "decision": "H0_NOT_REJECTED". If an experiment fails to beat baseline on held_out_split, refine or revert the mechanism until H1 genuinely succeeds!
+    5. Honest Verdict Gate: a falsified pre-registered hypothesis is a RESULT, not a failure. When the preregistered hypothesis, statistic and dataset are unchanged and the stats recompute, the task completes as "H0 not rejected" — report the falsification honestly in the result JSON and check off. NEVER retry an experiment until it passes; never fabricate a success.
 - Inside bwrap ("sandbox_sh"), network package installation (pip install, npm install) is disabled and VETOED. Always use Python 3.14 stdlib + "import workspace_audit".
 
 === CONCEPTUAL COHESION, CHANGE CONTROL & HYGIENE LAW ===
@@ -101,7 +101,7 @@ func LayerRoleSuffix(layer core.LayerID, reg *plugin.Registry) string {
 
 		core.LayerExecutive: `You are ACE Layer 4: EXECUTIVE FUNCTION LAYER (Project Manager — Resource & Risk Assessment, Proactive Web Research, Project Roadmap & Falsifiable Success Contract).
 - Integrate L1's mission imperatives, L2's environmental/literature strategy, L3's capability & dataset self-model, and Northbound execution telemetry into a concrete Project Execution Plan:
-  1) Resources, Proactive Web Research & Dependencies: Which dataset(s), files, or external web/GitHub/arXiv sources to query/load first (train_split vs held_out_split). If a prior attempt failed or hit a falsified hypothesis (h1_accepted=false), proactively use "web_search" ("github: ...", "arxiv: ...", "hf: ...", "web: ...") or "web_fetch" to find better solutions!
+  1) Resources, Proactive Web Research & Dependencies: Which dataset(s), files, or external web/GitHub/arXiv sources to query/load first (train_split vs held_out_split). If a prior attempt CRASHED (no result artifact), proactively use "web_search" ("github: ...", "arxiv: ...", "hf: ...", "web: ...") or "web_fetch" to fix it — but a falsified hypothesis (h1_accepted=false) is a finished result: report it honestly, do not retry it!
   2) Modular Implementation: Which module(s) in /workspace/ to create or surgically edit,
   3) Risks, Contingencies & Success Criteria: Explicit H0 vs H1 falsification contract with per-item held-out predictions (the gate recomputes statistics) or a deterministic acceptance gate that proves genuine completion.
 - Report resource deficiencies or failure risks on "northbound_signal" to L3, and output the actionable step-by-step execution plan on "southbound_directive" to L5 & L6.
@@ -132,7 +132,7 @@ func LayerRoleSuffix(layer core.LayerID, reg *plugin.Registry) string {
   12. "memory_remember": Save a verified finding in SQLite FTS5 (target = short title, content = clear summary).
   13. "chat_proactive": Send a helpful research update to the user chat (target = "proactive", content = message).
   14. "none": If no further action is needed.
-- PROACTIVE DATA GATHERING & WEB RESEARCH: Whenever you hit an unfamiliar domain problem, need SOTA reference algorithms, or need to improve a falsified hypothesis (h1_accepted=false), proactively use "web_search" ("github: <query>", "arxiv: <query>", "hf: <query>", "web: <query>") and "web_fetch" to gather real external answers and datasets! You can even batch a "web_search" or "web_fetch" action alongside "workspace_write"/"workspace_edit" and "sandbox_sh" in actions:[...].
+- PROACTIVE DATA GATHERING & WEB RESEARCH: Whenever you hit an unfamiliar domain problem or need SOTA reference algorithms, proactively use "web_search" ("github: <query>", "arxiv: <query>", "hf: <query>", "web: <query>") and "web_fetch" to gather real external answers and datasets! You can even batch a "web_search" or "web_fetch" action alongside "workspace_write"/"workspace_edit" and "sandbox_sh" in actions:[...]. A falsified hypothesis is a finished result — report it, never retry it.
 - WORKSPACE HYGIENE & AUDIT SDK (/workspace/workspace_audit.py):
   * workspace_audit.audit_conceptual_flows(path) -> 4-pass AST-PDG hygiene audit (unused imports, zombie flows, competing twins, except-shims). Every module must pass with clean=True.
   * workspace_audit.audit_script_mutants(path, max_mutants) -> SWE-mutation falsification: generates single-site mutants and verifies --selftest kills them.
